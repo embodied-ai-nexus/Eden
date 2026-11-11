@@ -1,0 +1,7563 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Embodied-AI Development Environments Nexus — Vectorized RL environments for robot learning">
+      
+      
+      
+        <link rel="canonical" href="https://embodied-ai-nexus.github.io/Eden/reference/cli/">
+      
+      
+        <link rel="prev" href="../../examples/">
+      
+      
+        <link rel="next" href="../environment-variables/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../assets/logo/eden-mark.svg">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.1">
+    
+    
+      
+        <title>CLI - Eden</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.57a0d79d.min.css">
+      
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.fb2fffe2.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Inter:300,300i,400,400i,700,700i%7CJetBrains+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Inter";--md-code-font:"JetBrains Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/_mkdocstrings.css">
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/extra.css">
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#command-reference" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow md-header--lifted" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="Eden" class="md-header__button md-logo" aria-label="Eden" data-md-component="logo">
+      
+  <img src="../../assets/logo/eden-mark.svg" alt="logo">
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Eden
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              CLI
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme)" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m14.3 16-.7-2h-3.2l-.7 2H7.8L11 7h2l3.2 9zM20 8.69V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12zm-9.15 3.96h2.3L12 9z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="custom" data-md-color-accent="custom"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_2" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="custom" data-md-color-accent="custom"  aria-label="Switch to system preference"  type="radio" name="__palette" id="__palette_2">
+    
+      <label class="md-header__button md-icon" title="Switch to system preference" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/embodied-ai-nexus/Eden" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+  </div>
+  <div class="md-source__repository">
+    embodied-ai-nexus/Eden
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+    
+      
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../.." class="md-tabs__link">
+        
+  
+  
+    
+  
+  Home
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../getting-started/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Get Started
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../guides/task-config/" class="md-tabs__link">
+          
+  
+  
+  Guides
+
+        </a>
+      </li>
+    
+  
+
+    
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../tasks/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Tasks
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../examples/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Examples
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+    
+  
+  
+    
+    
+      <li class="md-tabs__item md-tabs__item--active">
+        <a href="./" class="md-tabs__link">
+          
+  
+  
+  Reference
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../contributing/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Contributing
+
+      </a>
+    </li>
+  
+
+      
+    </ul>
+  </div>
+</nav>
+    
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="Eden" class="md-nav__button md-logo" aria-label="Eden" data-md-component="logo">
+      
+  <img src="../../assets/logo/eden-mark.svg" alt="logo">
+
+    </a>
+    Eden
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/embodied-ai-nexus/Eden" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+  </div>
+  <div class="md-source__repository">
+    embodied-ai-nexus/Eden
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../getting-started/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Get Started
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_2" id="__nav_2_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Get Started
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../getting-started/installation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Installation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../getting-started/quickstart/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Quick Start
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../getting-started/concepts/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Key Concepts
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../getting-started/first-task/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Tutorial: Your First Task
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../getting-started/assets/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Assets and Caches
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../getting-started/troubleshooting/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Troubleshooting
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Guides
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Guides
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_1" >
+        
+          
+          <label class="md-nav__link" for="__nav_3_1" id="__nav_3_1_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Building Tasks
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_1_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_1">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Building Tasks
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guides/task-config/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Task Configuration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guides/task-mods/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Task Variants (TaskMods)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guides/environments/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Environments and the Step Loop
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_3_2" id="__nav_3_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Managers and Terms
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Managers and Terms
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guides/terms/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Writing Terms
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guides/actions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Actions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guides/observations/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Observations
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guides/rewards-and-terminations/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Rewards and Terminations
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guides/commands/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Commands
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guides/events/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Events and Domain Randomization
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guides/curricula/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Curricula
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guides/metrics-and-recorders/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Metrics and Recorders
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3_3" id="__nav_3_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Scenes and Physics
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Scenes and Physics
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guides/entities/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Entities
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guides/robots/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Robots
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guides/scenes-and-terrains/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Scenes, Objects and Terrains
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guides/physics/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Physics and Solvers
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guides/sensors-and-rendering/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Sensors and Rendering
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guides/engine-addons/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Engine Add-ons
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_3_4" id="__nav_3_4_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Motion and Data
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Motion and Data
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guides/motion-tracking/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Motion Tracking
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guides/motion-datasets/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Motion Datasets
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guides/retargeting/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Motion Retargeting
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guides/dex-retargeting/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Dexterous Hand Retargeting
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guides/pose-estimation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Pose Estimation from Video
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guides/teleoperation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Teleoperation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guides/scripted-demos/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Scripted Demonstrations
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guides/grasp-sampling/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Grasp Sampling
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guides/datasets-and-recording/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Datasets and Recording
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guides/planning-and-sysid/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Planning and System Identification
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_3_5" id="__nav_3_5_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Training and Policies
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Training and Policies
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guides/training-runs/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Training Runs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guides/rl-libraries/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Other RL Libraries
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guides/ddp/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Multi-GPU Training
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guides/policy-zoo/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Policy Zoo
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guides/policy-porting/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Porting a Pretrained Policy
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guides/policy-export/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Exporting a Policy
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guides/remote-policies/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Remote Policy Clients
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guides/extending-policies/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Adding a Policy
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_6" >
+        
+          
+          <label class="md-nav__link" for="__nav_3_6" id="__nav_3_6_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deployment
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Deployment
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guides/deployment/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deploying a Policy
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guides/deployment-hardware/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Hardware Setup
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../tasks/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Tasks
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_4" id="__nav_4_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Tasks
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_1" >
+        
+          
+          <label class="md-nav__link" for="__nav_4_1" id="__nav_4_1_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Eden Tasks
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_1_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4_1">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Eden Tasks
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../tasks/locomotion/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Locomotion
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guides/velocity-tracking/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Velocity Tracking Design Notes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guides/tcrs-terrain-adaptation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    TCRS Terrain Adaptation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../tasks/motion-tracking/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Motion Tracking
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../tasks/manipulation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Manipulation and Dexterity
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_4_2" id="__nav_4_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Ported Benchmarks
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Ported Benchmarks
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../tasks/robosuite/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    robosuite
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../tasks/libero/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    LIBERO
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../tasks/simpler/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    SIMPLER
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../tasks/polaris/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    PolaRiS
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../tasks/mochi/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deformables (Mochi)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../tasks/whiteboard/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Whiteboard Drawing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../tasks/art/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Calligraphy and Painting
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Examples
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reference
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Reference
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CLI
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CLI
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#overview" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Overview
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#global-options" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Global options
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#flags-shared-by-the-task-commands" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Flags shared by the task commands
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#tasks" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Tasks
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Tasks">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#eden-list" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        eden list
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#eden-terms" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        eden terms
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#eden-train" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        eden train
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#eden-inference" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        eden inference
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#eden-export" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        eden export
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#eden-deploy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        eden deploy
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#eden-smoke" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        eden smoke
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#eden-preprocess" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        eden preprocess
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#eden-datagen" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        eden datagen
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#examples" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Examples
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Examples">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#eden-examples-list" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        eden examples list
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#eden-examples-smoke" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        eden examples smoke
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#data" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Data
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Data">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#eden-lerobot-convert" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        eden lerobot convert
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#eden-pose-gvhmr" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        eden pose gvhmr
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#eden-retarget" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        eden retarget
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="eden retarget">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#eden-retarget-omniretarget" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        eden retarget omniretarget
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#eden-retarget-otretarget" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        eden retarget otretarget
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#eden-retarget-soma" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        eden retarget soma
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#eden-retarget-dex" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        eden retarget dex
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#eden-retarget-flashdex-import" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        eden retarget flashdex import
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#eden-retarget-flashdex-kinematic" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        eden retarget flashdex kinematic
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#teleoperation-and-devices" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Teleoperation and devices
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Teleoperation and devices">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#eden-gello-calibrate" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        eden gello calibrate
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#eden-gello-leader" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        eden gello leader
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#eden-metaquest-bridge" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        eden metaquest bridge
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#eden-pico-bridge" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        eden pico bridge
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#eden-teleop-sonic-robot" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        eden teleop sonic robot
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#eden-teleop-sonic-operator" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        eden teleop sonic operator
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#eden-wuji-scan" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        eden wuji scan
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#eden-wuji-monitor" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        eden wuji monitor
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#viewing-and-utilities" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Viewing and utilities
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Viewing and utilities">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#eden-view" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        eden view
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#eden-arrange" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        eden arrange
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#eden-snap" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        eden snap
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#eden-gif" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        eden gif
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#eden-clean" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        eden clean
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#see-also" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        See also
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../environment-variables/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Environment Variables
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+          
+          
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6_3" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../api/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    API Reference
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_6_3" id="__nav_6_3_label" tabindex="">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_6_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    API Reference
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/configs/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Configs and Task Registry
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/envs/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Environments
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/entities/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Entities
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6_3_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_6_3_4" id="__nav_6_3_4_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Options
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_6_3_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6_3_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Options
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/options/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/options/envs/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Environment
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/options/entities/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Entities
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/options/materials/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Materials
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/options/surfaces/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Surfaces
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/options/scenes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Scenes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/options/robots/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Robots
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/options/actuators/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Actuators
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/options/sensors/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Sensors and Cameras
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/options/splat/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Splats and Renderers
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/options/managers/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Managers
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/options/learning/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Learning
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/managers/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Managers
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6_3_6" >
+        
+          
+          <label class="md-nav__link" for="__nav_6_3_6" id="__nav_6_3_6_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Built-in Terms
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_6_3_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6_3_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Built-in Terms
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/terms/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/terms/catalog/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Term Catalog
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/terms/actions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Actions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/terms/observations/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Observations
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/terms/rewards/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Rewards
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/terms/terminations/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Terminations
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/terms/commands/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Commands
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/terms/events/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Events
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/terms/curricula/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Curricula
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/terms/metrics/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Metrics
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/terms/recorders/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Recorders
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/terms/modifiers/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Modifiers
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/datasets/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Datasets
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/motion_reference/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Motion Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/engine/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Engine
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/learning/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Learning
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6_3_11" >
+        
+          
+          <label class="md-nav__link" for="__nav_6_3_11" id="__nav_6_3_11_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Extensions
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_6_3_11_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6_3_11">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Extensions
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/extensions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/extensions/deployment/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deployment
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/extensions/policies/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Policies
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/extensions/retargeting/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Retargeting
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/extensions/sysid/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    System Identification
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/extensions/motion-planning/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Motion Planning
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/extensions/motion-optimization/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Motion Optimization
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/extensions/grasp-sampling/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Grasp Sampling
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/extensions/pose-estimation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Pose Estimation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/extensions/scripted-demos/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Scripted Demonstrations
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/extensions/teleop/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Teleoperation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/extensions/visualization/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Visualization
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/constants/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Constants and Types
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6_3_13" >
+        
+          
+          <label class="md-nav__link" for="__nav_6_3_13" id="__nav_6_3_13_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Utilities
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_6_3_13_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6_3_13">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Utilities
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/utils/core/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Core
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/utils/math/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Math and Geometry
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/utils/robotics/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Robotics and Assets
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/utils/devices/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Teleoperation Devices
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/utils/io/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    I/O
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/utils/rendering/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Rendering
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/utils/cli/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CLI Internals
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_7" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../contributing/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Contributing
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_7" id="__nav_7_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_7_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_7">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Contributing
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guides/testing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Testing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guides/error-messages/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Writing Error Messages
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../contributing/docs/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Writing Docs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#overview" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Overview
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#global-options" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Global options
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#flags-shared-by-the-task-commands" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Flags shared by the task commands
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#tasks" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Tasks
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Tasks">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#eden-list" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        eden list
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#eden-terms" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        eden terms
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#eden-train" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        eden train
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#eden-inference" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        eden inference
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#eden-export" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        eden export
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#eden-deploy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        eden deploy
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#eden-smoke" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        eden smoke
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#eden-preprocess" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        eden preprocess
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#eden-datagen" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        eden datagen
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#examples" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Examples
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Examples">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#eden-examples-list" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        eden examples list
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#eden-examples-smoke" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        eden examples smoke
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#data" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Data
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Data">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#eden-lerobot-convert" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        eden lerobot convert
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#eden-pose-gvhmr" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        eden pose gvhmr
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#eden-retarget" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        eden retarget
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="eden retarget">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#eden-retarget-omniretarget" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        eden retarget omniretarget
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#eden-retarget-otretarget" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        eden retarget otretarget
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#eden-retarget-soma" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        eden retarget soma
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#eden-retarget-dex" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        eden retarget dex
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#eden-retarget-flashdex-import" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        eden retarget flashdex import
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#eden-retarget-flashdex-kinematic" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        eden retarget flashdex kinematic
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#teleoperation-and-devices" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Teleoperation and devices
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Teleoperation and devices">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#eden-gello-calibrate" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        eden gello calibrate
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#eden-gello-leader" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        eden gello leader
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#eden-metaquest-bridge" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        eden metaquest bridge
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#eden-pico-bridge" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        eden pico bridge
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#eden-teleop-sonic-robot" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        eden teleop sonic robot
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#eden-teleop-sonic-operator" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        eden teleop sonic operator
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#eden-wuji-scan" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        eden wuji scan
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#eden-wuji-monitor" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        eden wuji monitor
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#viewing-and-utilities" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Viewing and utilities
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Viewing and utilities">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#eden-view" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        eden view
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#eden-arrange" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        eden arrange
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#eden-snap" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        eden snap
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#eden-gif" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        eden gif
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#eden-clean" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        eden clean
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#see-also" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        See also
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+                
+
+
+
+  
+
+
+  <nav class="md-path" aria-label="Navigation" >
+    <ol class="md-path__list">
+      
+        
+  
+  
+    <li class="md-path__item">
+      <a href="../.." class="md-path__link">
+        
+  <span class="md-ellipsis">
+    Home
+  </span>
+
+      </a>
+    </li>
+  
+
+      
+      
+        
+  
+  
+    
+    
+      <li class="md-path__item">
+        <a href="./" class="md-path__link">
+          
+  <span class="md-ellipsis">
+    Reference
+  </span>
+
+        </a>
+      </li>
+    
+  
+
+      
+    </ol>
+  </nav>
+
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+    <a href="https://github.com/embodied-ai-nexus/Eden/edit/main/docs/reference/cli.md" title="Edit this page" class="md-content__button md-icon" rel="edit">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M10 20H6V4h7v5h5v3.1l2-2V8l-6-6H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h4zm10.2-7c.1 0 .3.1.4.2l1.3 1.3c.2.2.2.6 0 .8l-1 1-2.1-2.1 1-1c.1-.1.2-.2.4-.2m0 3.9L14.1 23H12v-2.1l6.1-6.1z"/></svg>
+    </a>
+  
+  
+    
+      
+    
+    <a href="https://github.com/embodied-ai-nexus/Eden/raw/main/docs/reference/cli.md" title="View source of this page" class="md-content__button md-icon">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M17 18c.56 0 1 .44 1 1s-.44 1-1 1-1-.44-1-1 .44-1 1-1m0-3c-2.73 0-5.06 1.66-6 4 .94 2.34 3.27 4 6 4s5.06-1.66 6-4c-.94-2.34-3.27-4-6-4m0 6.5a2.5 2.5 0 0 1-2.5-2.5 2.5 2.5 0 0 1 2.5-2.5 2.5 2.5 0 0 1 2.5 2.5 2.5 2.5 0 0 1-2.5 2.5M9.27 20H6V4h7v5h5v4.07c.7.08 1.36.25 2 .49V8l-6-6H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h4.5a8.2 8.2 0 0 1-1.23-2"/></svg>
+    </a>
+  
+
+
+<h1 id="command-reference">Command reference<a class="headerlink" href="#command-reference" title="Permanent link">&para;</a></h1>
+<p>This page lists every <code>eden</code> command and subcommand with its flags, as <code>--help</code> prints them. Use it to look up a
+flag; the linked guides explain the workflows behind each command.</p>
+<p>Every command prints its own help with <code>--help</code>. For the commands that take a task, add the task so that its
+variant flags are listed too:</p>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>eden<span class="w"> </span>--help
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>eden<span class="w"> </span>train<span class="w"> </span>--task<span class="w"> </span>reacher<span class="w"> </span>--help<span class="w">        </span><span class="c1"># the shared flags plus reacher's --difficulty</span>
+</span></code></pre></div>
+<p>Without an activated virtual environment, run <code>uv run eden ...</code> in a clone, or <code>python -m eden ...</code> anywhere
+Eden is installed.</p>
+<h2 id="overview">Overview<a class="headerlink" href="#overview" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Command</th>
+<th>What it does</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="#eden-list"><code>eden list</code></a></td>
+<td>List every registered task, its source and its task mods</td>
+</tr>
+<tr>
+<td><a href="#eden-terms"><code>eden terms</code></a></td>
+<td>List registered terms and the parameters they accept</td>
+</tr>
+<tr>
+<td><a href="#eden-train"><code>eden train</code></a></td>
+<td>Train a registered task</td>
+</tr>
+<tr>
+<td><a href="#eden-inference"><code>eden inference</code></a></td>
+<td>Roll out a trained checkpoint, or a published policy, in simulation</td>
+</tr>
+<tr>
+<td><a href="#eden-export"><code>eden export</code></a></td>
+<td>Export a checkpoint's policy as ONNX / TorchScript plus <code>policy_spec.json</code></td>
+</tr>
+<tr>
+<td><a href="#eden-deploy"><code>eden deploy</code></a></td>
+<td>Run a policy on hardware, or against a MuJoCo model (<code>--mujoco</code>)</td>
+</tr>
+<tr>
+<td><a href="#eden-smoke"><code>eden smoke</code></a></td>
+<td>Build a task and step it a few times, as a sanity check</td>
+</tr>
+<tr>
+<td><a href="#eden-preprocess"><code>eden preprocess</code></a></td>
+<td>Build a motion task's dataset cache ahead of training</td>
+</tr>
+<tr>
+<td><a href="#eden-datagen"><code>eden datagen</code></a></td>
+<td>Record scripted demonstrations of a task into HDF5</td>
+</tr>
+<tr>
+<td><a href="#eden-examples-list"><code>eden examples list</code></a> / <a href="#eden-examples-smoke"><code>smoke</code></a></td>
+<td>Browse and smoke-run the runnable examples</td>
+</tr>
+<tr>
+<td><a href="#eden-lerobot-convert"><code>eden lerobot convert</code></a></td>
+<td>Convert an Eden HDF5 recording into a LeRobot v3 dataset</td>
+</tr>
+<tr>
+<td><a href="#eden-pose-gvhmr"><code>eden pose gvhmr</code></a></td>
+<td>Estimate SMPL-X motion from monocular video</td>
+</tr>
+<tr>
+<td><a href="#eden-retarget"><code>eden retarget ...</code></a></td>
+<td>Retarget human motion to robots (OmniRetarget, OTRetarget, SOMA, DexRetargeter, FlashDexRetarget)</td>
+</tr>
+<tr>
+<td><a href="#eden-gello-calibrate"><code>eden gello ...</code></a></td>
+<td>Calibrate and stream a GELLO leader arm</td>
+</tr>
+<tr>
+<td><a href="#eden-metaquest-bridge"><code>eden metaquest bridge</code></a></td>
+<td>Meta Quest WebXR teleoperation bridge</td>
+</tr>
+<tr>
+<td><a href="#eden-pico-bridge"><code>eden pico bridge</code></a></td>
+<td>PICO (XRoboToolkit) teleoperation bridge</td>
+</tr>
+<tr>
+<td><a href="#eden-teleop-sonic-robot"><code>eden teleop sonic ...</code></a></td>
+<td>SONIC whole-body teleoperation (robot process and operator station)</td>
+</tr>
+<tr>
+<td><a href="#eden-wuji-scan"><code>eden wuji ...</code></a></td>
+<td>Find and monitor Wuji Gloves</td>
+</tr>
+<tr>
+<td><a href="#eden-view"><code>eden view</code></a> / <a href="#eden-arrange"><code>arrange</code></a> / <a href="#eden-snap"><code>snap</code></a></td>
+<td>Look at an entity, arrange a scene, take a snapshot</td>
+</tr>
+<tr>
+<td><a href="#eden-gif"><code>eden gif</code></a></td>
+<td>Convert an <code>.mp4</code> to a <code>.gif</code></td>
+</tr>
+<tr>
+<td><a href="#eden-clean"><code>eden clean</code></a></td>
+<td>Remove empty log directories</td>
+</tr>
+</tbody>
+</table>
+<h2 id="global-options">Global options<a class="headerlink" href="#global-options" title="Permanent link">&para;</a></h2>
+<p>These go <strong>before</strong> the subcommand, because the task commands hand everything after their own flags to the task's
+parser:</p>
+<table>
+<thead>
+<tr>
+<th>Flag</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--log-theme {auto,human,agent}</code></td>
+<td>How the command renders console output. <code>agent</code> (the default): no ANSI colors, no greeting box. <code>human</code>: color. <code>auto</code>: color on a terminal, honoring <code>NO_COLOR</code> and <code>FORCE_COLOR</code>. It sets <code>EDEN_LOG_THEME</code> for this process and everything it launches.</td>
+</tr>
+</tbody>
+</table>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>eden<span class="w"> </span>--log-theme<span class="w"> </span>human<span class="w"> </span>train<span class="w"> </span>--task<span class="w"> </span>reacher
+</span></code></pre></div>
+<p>Putting <code>--log-theme</code> after the subcommand is an error that says where it goes. To pick a theme for a whole shell,
+set <code>EDEN_LOG_THEME</code> instead (<a href="../environment-variables/">Environment variables</a>).</p>
+<h2 id="flags-shared-by-the-task-commands">Flags shared by the task commands<a class="headerlink" href="#flags-shared-by-the-task-commands" title="Permanent link">&para;</a></h2>
+<p><code>train</code>, <code>inference</code>, <code>export</code>, <code>deploy</code>, <code>smoke</code>, <code>preprocess</code> and <code>datagen</code> share one argument parser. Every one of
+them takes:</p>
+<table>
+<thead>
+<tr>
+<th>Flag</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--task TASK</code></td>
+<td>The registered task name (<code>eden list</code>). Adds the task's variant flags.</td>
+</tr>
+<tr>
+<td><code>--config CONFIG</code></td>
+<td>A <code>.json</code>, <code>.yaml</code> or <code>.yml</code> file. A config Eden saved (it carries its class metadata) replaces the task's config; any other file is merged into it as a partial override.</td>
+</tr>
+<tr>
+<td><code>--override YAML</code></td>
+<td>An inline YAML mapping merged into the config, e.g. <code>--override 'env_options: {num_envs: 64}'</code>. Repeatable; later ones win; applied after <code>--config</code>.</td>
+</tr>
+<tr>
+<td><code>--checkpoint CHECKPOINT</code></td>
+<td>Path to a checkpoint file.</td>
+</tr>
+<tr>
+<td><code>--cpu</code></td>
+<td>Use the CPU backend instead of the GPU.</td>
+</tr>
+<tr>
+<td><code>--run_name RUN_NAME</code></td>
+<td>A name folded into the run directory, <code>&lt;timestamp&gt;-&lt;run_name&gt;-&lt;id&gt;</code>, and so into the W&amp;B run name.</td>
+</tr>
+<tr>
+<td><code>--&lt;variant&gt;</code></td>
+<td>One flag per argument of each of the task's mods, e.g. <code>--difficulty {easy,medium,hard}</code> for <code>reacher</code>.</td>
+</tr>
+</tbody>
+</table>
+<p>When <code>--checkpoint</code> points into a run directory that holds a <code>config.json</code>, <code>inference</code>, <code>export</code> and <code>deploy</code>
+load that config instead of rebuilding the task from its current defaults. <code>--config</code> (as a partial) and
+<code>--override</code> still apply on top, but a variant flag set away from its default is refused, because the saved
+config already decides it.</p>
+<h2 id="tasks">Tasks<a class="headerlink" href="#tasks" title="Permanent link">&para;</a></h2>
+<h3 id="eden-list"><code>eden list</code><a class="headerlink" href="#eden-list" title="Permanent link">&para;</a></h3>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>eden<span class="w"> </span>list
+</span></code></pre></div>
+<p>Prints every registered task with its source (<code>eden</code> for a built-in task, otherwise the distribution or module it
+comes from) and the task mods that give it variant flags. Takes no flags, and imports no task module, so it is fast
+and needs no network.</p>
+<h3 id="eden-terms"><code>eden terms</code><a class="headerlink" href="#eden-terms" title="Permanent link">&para;</a></h3>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>eden<span class="w"> </span>terms<span class="w">                         </span><span class="c1"># every registered term</span>
+</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>eden<span class="w"> </span>terms<span class="w"> </span>--kind<span class="w"> </span>reward<span class="w">           </span><span class="c1"># one kind</span>
+</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>eden<span class="w"> </span>terms<span class="w"> </span>--grep<span class="w"> </span><span class="s1">'height|altitude'</span>
+</span><span id="__span-3-4"><a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>eden<span class="w"> </span>terms<span class="w"> </span>--json<span class="w">                  </span><span class="c1"># for tooling</span>
+</span></code></pre></div>
+<table>
+<thead>
+<tr>
+<th>Flag</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>-k</code>, <code>--kind KIND</code></td>
+<td>Only this kind of term, e.g. <code>reward</code>, <code>observation</code>, <code>event</code>.</td>
+</tr>
+<tr>
+<td><code>-g</code>, <code>--grep PATTERN</code></td>
+<td>Only terms whose name, parameters or summary match <code>PATTERN</code>, a case-insensitive regular expression. Exits 1 with a message when nothing matches.</td>
+</tr>
+<tr>
+<td><code>--json</code></td>
+<td>Emit the catalog as JSON.</td>
+</tr>
+<tr>
+<td><code>--markdown</code></td>
+<td>Emit the catalog as the full docs page, with parameters (<a href="../../api/terms/catalog/">Term catalog</a> is generated this way).</td>
+</tr>
+</tbody>
+</table>
+<p><code>--json</code> and <code>--markdown</code> are mutually exclusive.</p>
+<h3 id="eden-train"><code>eden train</code><a class="headerlink" href="#eden-train" title="Permanent link">&para;</a></h3>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>eden<span class="w"> </span>train<span class="w"> </span>--task<span class="w"> </span>&lt;task&gt;<span class="w"> </span><span class="o">[</span>variant<span class="w"> </span>flags<span class="o">]</span><span class="w"> </span><span class="o">[</span>flags<span class="o">]</span>
+</span></code></pre></div>
+<p>Trains a registered task with the runner its <code>runner_options</code> select: rsl_rl by default, rl_games when the
+options are an rl_games runner's. Each run writes to <code>logs/&lt;task&gt;/&lt;timestamp&gt;[-&lt;run_name&gt;]-&lt;id&gt;/</code> under the current
+directory: checkpoints, <code>config.json</code>, <code>run.json</code>, and the logger's files. A task whose <code>runner_options</code> is <code>None</code>
+is not trained through <code>eden train</code>. See <a href="../../guides/training-runs/">Training runs</a>.</p>
+<p>Besides the <a href="#flags-shared-by-the-task-commands">shared flags</a>:</p>
+<table>
+<thead>
+<tr>
+<th>Flag</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--num_envs N</code></td>
+<td>Override the task's number of parallel environments (per rank in a multi-GPU run).</td>
+</tr>
+<tr>
+<td><code>--logger {tensorboard,neptune,wandb}</code></td>
+<td>rsl_rl's logger. Default <code>tensorboard</code>. Ignored for rl_games.</td>
+</tr>
+<tr>
+<td><code>--resume REF</code></td>
+<td>Continue a previous run of this task, found under <code>logs/&lt;task&gt;/</code>: <code>latest</code> (the most recently modified), a run id, or a substring of a run name. Loads that run's latest checkpoint into a new run directory, which records its parent. Cannot be combined with <code>--checkpoint</code>.</td>
+</tr>
+<tr>
+<td><code>--wandb_group GROUP</code></td>
+<td>The W&amp;B group for this run. Default: the task name. Ignored unless <code>--logger wandb</code>.</td>
+</tr>
+</tbody>
+</table>
+<p><code>--checkpoint</code> starts training from that checkpoint's weights.</p>
+<h3 id="eden-inference"><code>eden inference</code><a class="headerlink" href="#eden-inference" title="Permanent link">&para;</a></h3>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>eden<span class="w"> </span>inference<span class="w"> </span>--task<span class="w"> </span>&lt;task&gt;<span class="w"> </span>--checkpoint<span class="w"> </span>&lt;path/to/model.pt&gt;<span class="w"> </span><span class="o">[</span>flags<span class="o">]</span>
+</span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>eden<span class="w"> </span>inference<span class="w"> </span>--policy<span class="w"> </span>&lt;name&gt;<span class="w"> </span><span class="o">[</span>--task<span class="w"> </span>&lt;task&gt;<span class="o">]</span><span class="w"> </span><span class="o">[</span>flags<span class="o">]</span>
+</span></code></pre></div>
+<p>Rolls a policy out in simulation, in evaluation mode, under <code>logs/&lt;task&gt;/</code> (or <code>logs/inference/</code> without a task).
+It needs either <code>--checkpoint</code> (with <code>--task</code>) or <code>--policy</code>, which runs a frozen published policy instead; the two
+cannot be combined. See <a href="../../guides/training-runs/">Training runs</a> and the <a href="../../guides/policy-zoo/">policy zoo</a>.</p>
+<table>
+<thead>
+<tr>
+<th>Flag</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--vis</code>, <code>--show_viewer</code></td>
+<td>Open the Genesis viewer.</td>
+</tr>
+<tr>
+<td><code>--rec</code></td>
+<td>Record an <code>.mp4</code> through a <code>rec</code> camera, saved in the run's log directory.</td>
+</tr>
+<tr>
+<td><code>--num_envs N</code></td>
+<td>Parallel evaluation environments. Default 1.</td>
+</tr>
+<tr>
+<td><code>--steps N</code></td>
+<td>Stop after <code>N</code> steps. Default: one episode for a checkpoint, 1000 steps for <code>--policy</code>.</td>
+</tr>
+<tr>
+<td><code>--episodes N</code></td>
+<td>Run until each environment has finished <code>ceil(N / num_envs)</code> episodes. Not with <code>--policy</code>.</td>
+</tr>
+<tr>
+<td><code>--async</code>, <code>--sim2sim</code></td>
+<td>Run deployment-style: the policy runs in a background thread, the simulation is paced to wall-clock time, and the last action repeats when the policy is late. A simulation-side rehearsal of <code>eden deploy</code>.</td>
+</tr>
+<tr>
+<td><code>--policy NAME</code>, <code>--extension_policy NAME</code></td>
+<td>A published policy: a package name under <code>eden/extensions/policies/</code> (e.g. <code>holosoma</code>, <code>homie</code>), its <code>POLICY_REGISTRY</code> key, or the key without <code>_policy</code>. Makes <code>--task</code> and <code>--checkpoint</code> optional.</td>
+</tr>
+<tr>
+<td><code>--robot ROBOT</code></td>
+<td>The robot options class from <code>eden.robots</code> for a <code>--policy</code> run without a task. Default <code>G1Dofs29</code>. Ignored with <code>--task</code>.</td>
+</tr>
+<tr>
+<td><code>--entity_name NAME</code></td>
+<td>The scene entity the policy controls. Default <code>robot</code>.</td>
+</tr>
+<tr>
+<td><code>--base_command VX VY WZ</code></td>
+<td>A constant velocity command for policies driven by one. Default: stand still.</td>
+</tr>
+<tr>
+<td><code>--motion_file FILE</code></td>
+<td>The reference motion <code>.npz</code> for motion-tracking policies (e.g. <code>sonic</code>); required by those.</td>
+</tr>
+<tr>
+<td><code>--clip_name CLIP</code></td>
+<td>The clip to track, for policies with per-clip checkpoints (e.g. <code>beyondmimic_moves</code>).</td>
+</tr>
+</tbody>
+</table>
+<h3 id="eden-export"><code>eden export</code><a class="headerlink" href="#eden-export" title="Permanent link">&para;</a></h3>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>eden<span class="w"> </span><span class="nb">export</span><span class="w"> </span>--task<span class="w"> </span>&lt;task&gt;<span class="w"> </span>--checkpoint<span class="w"> </span>&lt;path/to/model.pt&gt;<span class="w"> </span><span class="o">[</span>flags<span class="o">]</span>
+</span></code></pre></div>
+<p>Exports a trained checkpoint's policy for a runtime outside Eden, with a <code>policy_spec.json</code> describing its
+observations, actions and control rate. The environment is built from the checkpoint's <code>config.json</code>, with one
+environment. See <a href="../../guides/policy-export/">Exporting a policy</a>.</p>
+<table>
+<thead>
+<tr>
+<th>Flag</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--format FORMAT</code></td>
+<td>Comma-separated formats from <code>onnx</code> and <code>jit</code>. Default: all of them.</td>
+</tr>
+<tr>
+<td><code>--out DIR</code></td>
+<td>The output directory. Default: <code>exported/&lt;checkpoint name&gt;/</code> beside the checkpoint.</td>
+</tr>
+<tr>
+<td><code>--no_verify</code></td>
+<td>Skip checking each exported graph against the policy on the environment's observations. The ONNX check needs the <code>onnx</code> extra.</td>
+</tr>
+</tbody>
+</table>
+<h3 id="eden-deploy"><code>eden deploy</code><a class="headerlink" href="#eden-deploy" title="Permanent link">&para;</a></h3>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>eden<span class="w"> </span>deploy<span class="w"> </span>--task<span class="w"> </span>&lt;task&gt;<span class="w"> </span>--checkpoint<span class="w"> </span>model.pt<span class="w"> </span>--mujoco<span class="w"> </span><span class="o">[</span>--vis<span class="o">]</span><span class="w">     </span><span class="c1"># sim-to-sim</span>
+</span><span id="__span-7-2"><a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>eden<span class="w"> </span>deploy<span class="w"> </span>--task<span class="w"> </span>&lt;task&gt;<span class="w"> </span>--checkpoint<span class="w"> </span>model.pt<span class="w">                      </span><span class="c1"># hardware</span>
+</span><span id="__span-7-3"><a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a>eden<span class="w"> </span>deploy<span class="w"> </span>--policy<span class="w"> </span>&lt;name&gt;<span class="w"> </span><span class="o">[</span>--mujoco<span class="o">]</span><span class="w">                               </span><span class="c1"># a published policy, no task</span>
+</span></code></pre></div>
+<p>Runs a policy through the deployment loop: on the real robot that the task's scene names, or, with <code>--mujoco</code>,
+against a MuJoCo model of it. Training-time randomization is stripped, and the deploy config is saved as
+<code>deploy_config.json</code> in the run directory. Read <a href="../../guides/deployment/">Deployment</a> before using it on hardware:
+it explains every safety flag below.</p>
+<p><strong>Policies and slots.</strong> Several policies can be loaded at once and switched live (the G1 remote's Select button,
+or the keys <code>n</code> and <code>1</code> to <code>9</code>; nine at most).</p>
+<table>
+<thead>
+<tr>
+<th>Flag</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--checkpoint PATH</code></td>
+<td>The trained policy.</td>
+</tr>
+<tr>
+<td><code>--policy NAME</code>, <code>--extension_policy NAME</code></td>
+<td>A published policy to load as an extra slot (repeatable). Makes <code>--task</code> and <code>--checkpoint</code> optional.</td>
+</tr>
+<tr>
+<td><code>--extra_checkpoint PATH</code></td>
+<td>Another checkpoint to preload as a slot (repeatable).</td>
+</tr>
+<tr>
+<td><code>--base_policy {auto,holosoma,none}</code></td>
+<td>A known-good policy loaded as slot 1 and active on boot. <code>auto</code> (default) loads the Holosoma walking policy on a G1 29-DOF and nothing elsewhere.</td>
+</tr>
+<tr>
+<td><code>--policy_checkpoint NAME=PATH</code></td>
+<td>Point a published policy at a local checkpoint (repeatable).</td>
+</tr>
+<tr>
+<td><code>--robot ROBOT</code></td>
+<td>The robot for a task-less <code>--policy</code> deploy. Default <code>G1Dofs29</code>.</td>
+</tr>
+<tr>
+<td><code>--entity_name NAME</code></td>
+<td>The scene entity to deploy. Default <code>robot</code>. For a composite rig (an arm with a hand), every part deploys through its own backend; name one part to deploy it alone.</td>
+</tr>
+<tr>
+<td><code>--motion_file FILE</code></td>
+<td>The reference motion for motion-tracking policies; the motion restarts from frame 0 at each switch.</td>
+</tr>
+<tr>
+<td><code>--on_motion_end {continue,stand,switch}</code></td>
+<td>What a motion-imitation deploy does when its clip ends. Default <code>continue</code>.</td>
+</tr>
+<tr>
+<td><code>--motion_end_slot N</code></td>
+<td>The slot <code>--on_motion_end switch</code> hands control to. Default 1.</td>
+</tr>
+<tr>
+<td><code>--stand_steps N</code></td>
+<td>Control cycles of the <code>--on_motion_end stand</code> ramp. Default 100.</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Gains and commands.</strong></p>
+<table>
+<thead>
+<tr>
+<th>Flag</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--deploy_kp_kd_scale S</code></td>
+<td>Scale on the default Kp/Kd. Ramp up from 0.2 to 1.0 when commissioning.</td>
+</tr>
+<tr>
+<td><code>--gain_ramp_steps N</code></td>
+<td>Control steps over which a slot switch ramps to the new slot's gains. Backend default 50; 0 jumps.</td>
+</tr>
+<tr>
+<td><code>--target_lpf A</code></td>
+<td>First-order low-pass on the commanded joint targets, <code>a</code> in (0, 1]; 1.0 is off.</td>
+</tr>
+<tr>
+<td><code>--init_steps N</code></td>
+<td>Control cycles of the ramp to the start pose before the policy takes over. Default 250; 0 disables it.</td>
+</tr>
+<tr>
+<td><code>--init_target {default,motion,motion_rsi}</code></td>
+<td>Where that ramp drives the joints: the default pose, or frame 0 of the tracked clip. <code>motion_rsi</code> also teleports the base and works only with <code>--mujoco</code>.</td>
+</tr>
+<tr>
+<td><code>--velocity_command {constant,keyboard,gamepad,task}</code></td>
+<td>What drives the task's velocity command. Default <code>constant</code> (holds <code>--base_command</code>). <code>task</code> keeps the training-time random command generator.</td>
+</tr>
+<tr>
+<td><code>--base_command VX VY WZ</code></td>
+<td>The constant velocity command. Default: stand still.</td>
+</tr>
+<tr>
+<td><code>--velocity_command_scale VX VY WZ</code></td>
+<td>A per-axis limit on the substituted velocity command.</td>
+</tr>
+<tr>
+<td><code>--gamepad_layout {ps4,xbox}</code></td>
+<td>Axis scaling for <code>--velocity_command gamepad</code>. Default <code>ps4</code>.</td>
+</tr>
+<tr>
+<td><code>--disable_joints NAME ...</code></td>
+<td>Joint names or patterns sent with kp = kd = 0, for bench debugging. Never on load-bearing joints of an unsupported robot.</td>
+</tr>
+<tr>
+<td><code>--ignore_action_terms TERM ...</code></td>
+<td>Action terms whose commands the wire format cannot carry and that you drive yourself; without it, deployment refuses to start.</td>
+</tr>
+<tr>
+<td><code>--part_option PART.OPTION=VALUE</code></td>
+<td>Composite rigs: set one option of one part's backend (repeatable), e.g. <code>--part_option robot.robot_ip=172.16.0.2</code>.</td>
+</tr>
+</tbody>
+</table>
+<p><strong>State estimation and diagnostics.</strong></p>
+<table>
+<thead>
+<tr>
+<th>Flag</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--estimate_lin_vel</code></td>
+<td>Estimate the base linear velocity onboard with a contact-aided Kalman filter.</td>
+</tr>
+<tr>
+<td><code>--feet_links LINK ...</code></td>
+<td>The foot links that filter uses. Default: the robot's declared feet.</td>
+</tr>
+<tr>
+<td><code>--debug_record</code></td>
+<td>Record commanded targets and measured state, written as an <code>.npz</code>.</td>
+</tr>
+<tr>
+<td><code>--debug_record_path PATH</code></td>
+<td>Where. Default <code>&lt;log_dir&gt;/deploy_record.npz</code>.</td>
+</tr>
+<tr>
+<td><code>--debug_record_flush_steps N</code></td>
+<td>Steps per streamed chunk of the recording. Backend default 100.</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Backend-specific.</strong></p>
+<table>
+<thead>
+<tr>
+<th>Flag</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--publish_rate HZ</code></td>
+<td>LimX Oli, Unitree G1 and Go2: the rate at which the held command is re-sent between control ticks. Backend defaults: 1000 Hz (Oli), 500 Hz (G1, Go2).</td>
+</tr>
+<tr>
+<td><code>--power_protect_factor N</code></td>
+<td>Unitree Go1 only: the SDK's power-protection factor, 1 to 10 (10%–100% of rated power). Backend default 10.</td>
+</tr>
+</tbody>
+</table>
+<p><strong>MuJoCo sim-to-sim</strong> (with <code>--mujoco</code>).</p>
+<table>
+<thead>
+<tr>
+<th>Flag</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--mujoco</code></td>
+<td>Deploy against a MuJoCo model of the robot instead of hardware. Works for any task or robot. Add <code>--vis</code> for MuJoCo's viewer.</td>
+</tr>
+<tr>
+<td><code>--menagerie</code></td>
+<td>Use the robot's MuJoCo Menagerie model instead of its own training asset. Errors if the robot has none.</td>
+</tr>
+<tr>
+<td><code>--async</code></td>
+<td>Run the physics on its own thread in wall-clock time, as a robot's controller does, instead of in lockstep.</td>
+</tr>
+<tr>
+<td><code>--mujoco_props [ENTITY ...]</code></td>
+<td>Composite rigs: the scene entities to simulate besides the rig. Default: every colliding one but the ground.</td>
+</tr>
+<tr>
+<td><code>--imu_noise ACC GYRO</code></td>
+<td>White noise on the simulated IMU (per-axis standard deviation).</td>
+</tr>
+<tr>
+<td><code>--imu_bias AX AY AZ GX GY GZ</code></td>
+<td>A constant bias on the simulated IMU.</td>
+</tr>
+<tr>
+<td><code>--imu_noise_seed SEED</code></td>
+<td>Seed for <code>--imu_noise</code>.</td>
+</tr>
+<tr>
+<td><code>--gantry</code></td>
+<td>Hang the robot from a simulated overhead hoist. Simulation only.</td>
+</tr>
+<tr>
+<td><code>--gantry_body LINK ...</code></td>
+<td>The bodies the ropes are tied to. Default: the robot's declared mount links, else its base.</td>
+</tr>
+<tr>
+<td><code>--gantry_attach X Y Z</code></td>
+<td>The attachment point in each rope's body frame, in metres.</td>
+</tr>
+<tr>
+<td><code>--gantry_height Z</code></td>
+<td>The world height of the anchor. Default: 1 m above the attachment point.</td>
+</tr>
+<tr>
+<td><code>--gantry_step M</code></td>
+<td>Metres the <code>+</code> / <code>-</code> keys move the anchor. Default 0.05.</td>
+</tr>
+<tr>
+<td><code>--gantry_slack M</code></td>
+<td>Slack in the rope. Default 0 (taut).</td>
+</tr>
+<tr>
+<td><code>--gantry_support S</code></td>
+<td>Scale on the rope force, 0 to 1. Default 1.</td>
+</tr>
+<tr>
+<td><code>--gantry_no_draw</code></td>
+<td>Do not draw the ropes and their force arrows in the viewer.</td>
+</tr>
+<tr>
+<td><code>--gantry_force_scale S</code></td>
+<td>Metres of force arrow per newton. Default 1e-3.</td>
+</tr>
+</tbody>
+</table>
+<p><code>--vis</code> (<code>--show_viewer</code>) opens the Genesis viewer mirroring the hardware state, or MuJoCo's viewer with <code>--mujoco</code>.</p>
+<h3 id="eden-smoke"><code>eden smoke</code><a class="headerlink" href="#eden-smoke" title="Permanent link">&para;</a></h3>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-8-1"><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>eden<span class="w"> </span>smoke<span class="w"> </span>--task<span class="w"> </span>&lt;task&gt;<span class="w"> </span><span class="o">[</span>flags<span class="o">]</span>
+</span></code></pre></div>
+<p>Builds a task and steps it a few times with no action, under <code>logs/smoke/&lt;task&gt;/</code>. It runs every term's <code>build()</code>,
+so a wrong name in the config fails here in seconds rather than in a training run. Prints
+<code>✅ smoke OK: built '&lt;task&gt;' with N env(s) and ran M step(s).</code> on success.</p>
+<table>
+<thead>
+<tr>
+<th>Flag</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--num_envs N</code></td>
+<td>Environments to build. Default 2.</td>
+</tr>
+<tr>
+<td><code>--steps N</code></td>
+<td>Steps to run. Default 2.</td>
+</tr>
+<tr>
+<td><code>--eval_mode</code></td>
+<td>Build in evaluation mode (training and randomization off).</td>
+</tr>
+<tr>
+<td><code>--show_viewer</code></td>
+<td>Open the Genesis viewer.</td>
+</tr>
+<tr>
+<td><code>--profile</code></td>
+<td>Time each term's <code>compute()</code> instead, and write <code>term_cost.json</code>.</td>
+</tr>
+<tr>
+<td><code>--profile_warmup N</code></td>
+<td>Warm-up steps before measuring, with <code>--profile</code>. Default 10.</td>
+</tr>
+<tr>
+<td><code>--profile_steps N</code></td>
+<td>Measured steps, with <code>--profile</code>. Default 50.</td>
+</tr>
+</tbody>
+</table>
+<h3 id="eden-preprocess"><code>eden preprocess</code><a class="headerlink" href="#eden-preprocess" title="Permanent link">&para;</a></h3>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-9-1"><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>eden<span class="w"> </span>preprocess<span class="w"> </span>--task<span class="w"> </span>&lt;task&gt;<span class="w"> </span><span class="o">[</span>--num_batches<span class="w"> </span>N<span class="w"> </span>--batch_idx<span class="w"> </span>I<span class="o">]</span>
+</span></code></pre></div>
+<p>Builds the dataset cache of a motion task ahead of training. With <code>--num_batches N</code> greater than 1 the clip list is
+split into <code>N</code> contiguous batches and this process handles one, so you can run one process per GPU.</p>
+<table>
+<thead>
+<tr>
+<th>Flag</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--num_batches N</code></td>
+<td>Split the clip list into this many batches.</td>
+</tr>
+<tr>
+<td><code>--batch_idx I</code></td>
+<td>The batch this process owns, in <code>[0, N)</code>. Default <code>0</code>: pass it to every process, or they all build batch 0.</td>
+</tr>
+</tbody>
+</table>
+<h3 id="eden-datagen"><code>eden datagen</code><a class="headerlink" href="#eden-datagen" title="Permanent link">&para;</a></h3>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-10-1"><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>eden<span class="w"> </span>datagen<span class="w"> </span>--task<span class="w"> </span>&lt;task&gt;<span class="w"> </span><span class="o">[</span>flags<span class="o">]</span>
+</span></code></pre></div>
+<p>Rolls a task's scripted demonstrator out in parallel environments and records the episodes to HDF5. Only tasks
+with a scripted demonstrator support it. See <a href="../../guides/scripted-demos/">Scripted demonstrations</a>.</p>
+<table>
+<thead>
+<tr>
+<th>Flag</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--num_episodes N</code></td>
+<td>Episodes to record. Default 100.</td>
+</tr>
+<tr>
+<td><code>--num_envs N</code></td>
+<td>Parallel environments. Default 16.</td>
+</tr>
+<tr>
+<td><code>--output_dir DIR</code></td>
+<td>The dataset's directory. Default <code>data/demos</code>.</td>
+</tr>
+<tr>
+<td><code>--filename NAME</code></td>
+<td>The file name without extension. Default: the task name.</td>
+</tr>
+<tr>
+<td><code>--export {all,succeeded,separate}</code></td>
+<td>Keep every episode (tagged with its success), only the successful ones, or the failed ones in a separate <code>&lt;filename&gt;_failed</code> file. Default <code>all</code>.</td>
+</tr>
+<tr>
+<td><code>--seed SEED</code></td>
+<td>Seed of the environment and the demonstrator. Default 0.</td>
+</tr>
+<tr>
+<td><code>--p_mistake P</code></td>
+<td>Probability that a subgoal is a deliberate mistake. Default: the demonstrator's own.</td>
+</tr>
+<tr>
+<td><code>--episode_length_s S</code></td>
+<td>The episode time limit. Default: the demonstrator's own, else 90.</td>
+</tr>
+<tr>
+<td><code>--camera_only</code></td>
+<td>Locate objects through the task's cameras instead of the simulator's state (demonstrators that support it, e.g. <code>robosuite_pick_place</code>).</td>
+</tr>
+<tr>
+<td><code>--show_viewer</code></td>
+<td>Open the Genesis viewer.</td>
+</tr>
+</tbody>
+</table>
+<h2 id="examples">Examples<a class="headerlink" href="#examples" title="Permanent link">&para;</a></h2>
+<p>These read the <code>examples/</code> directory of a clone; a PyPI install has none. See <a href="../../examples/">Examples</a>.</p>
+<h3 id="eden-examples-list"><code>eden examples list</code><a class="headerlink" href="#eden-examples-list" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Flag</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--tier {project,policy,recipe}</code></td>
+<td>Only this tier.</td>
+</tr>
+<tr>
+<td><code>--capability TAG</code></td>
+<td>Only examples with this capability: a full <code>namespace.leaf</code> tag (<code>sensor.lidar</code>) or a namespace (<code>sensor</code>).</td>
+</tr>
+<tr>
+<td><code>--hardware {cpu,gpu,gpu-fp64,real-robot}</code></td>
+<td>Only examples with this hardware requirement.</td>
+</tr>
+<tr>
+<td><code>--search QUERY</code></td>
+<td>A substring search over key, purpose and capabilities.</td>
+</tr>
+<tr>
+<td><code>--json</code></td>
+<td>Print JSON records instead of a table.</td>
+</tr>
+</tbody>
+</table>
+<h3 id="eden-examples-smoke"><code>eden examples smoke</code><a class="headerlink" href="#eden-examples-smoke" title="Permanent link">&para;</a></h3>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-11-1"><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>eden<span class="w"> </span>examples<span class="w"> </span>smoke<span class="w"> </span>recipes/physics/mpm_tutorial
+</span></code></pre></div>
+<p>Runs one example headless for a few steps, with <code>EDEN_SMOKE=1</code>. The key is positional, as <code>eden examples list</code>
+prints it. It refuses (exit 2, with the reason) examples that need real hardware, a teleoperation device, a missing
+optional dependency, or a GPU the machine lacks.</p>
+<table>
+<thead>
+<tr>
+<th>Flag</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--timeout SECONDS</code></td>
+<td>Per-example timeout. Default 900.</td>
+</tr>
+</tbody>
+</table>
+<h2 id="data">Data<a class="headerlink" href="#data" title="Permanent link">&para;</a></h2>
+<h3 id="eden-lerobot-convert"><code>eden lerobot convert</code><a class="headerlink" href="#eden-lerobot-convert" title="Permanent link">&para;</a></h3>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-12-1"><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a>eden<span class="w"> </span>lerobot<span class="w"> </span>convert<span class="w"> </span>--hdf5<span class="w"> </span>teleoperation.hdf5<span class="w"> </span>--output-dir<span class="w"> </span>lerobot_output<span class="w"> </span>--repo-id<span class="w"> </span>local/teleop<span class="w"> </span>--force
+</span></code></pre></div>
+<p>Converts an Eden HDF5 recording into a LeRobot v3 dataset. It reads <code>state/qpos</code>, <code>state/dofs_vel</code>, <code>state/pos</code>,
+<code>state/quat</code>, <code>action</code> and <code>timestamp</code> from each <code>demo_*</code> group under <code>/data</code>, the layout the state and action
+recorders write. See <a href="../../guides/datasets-and-recording/">Datasets and recording</a>.</p>
+<table>
+<thead>
+<tr>
+<th>Flag</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--hdf5 PATH</code></td>
+<td>The input HDF5 file.</td>
+</tr>
+<tr>
+<td><code>--output-dir DIR</code></td>
+<td>Where the LeRobot dataset is created.</td>
+</tr>
+<tr>
+<td><code>--repo-id ID</code></td>
+<td>The LeRobot dataset <code>repo_id</code>.</td>
+</tr>
+<tr>
+<td><code>--robot-type TYPE</code></td>
+<td>The robot type recorded in the LeRobot metadata.</td>
+</tr>
+<tr>
+<td><code>--task TEXT</code></td>
+<td>The task string stored for every frame.</td>
+</tr>
+<tr>
+<td><code>--image-writer-threads N</code></td>
+<td>Threads LeRobot uses to encode videos.</td>
+</tr>
+<tr>
+<td><code>--force</code></td>
+<td>Overwrite <code>--output-dir</code> if it exists (it must be empty or a LeRobot dataset).</td>
+</tr>
+</tbody>
+</table>
+<h3 id="eden-pose-gvhmr"><code>eden pose gvhmr</code><a class="headerlink" href="#eden-pose-gvhmr" title="Permanent link">&para;</a></h3>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-13-1"><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a>eden<span class="w"> </span>pose<span class="w"> </span>gvhmr<span class="w"> </span>--src<span class="w"> </span>video.mp4<span class="w"> </span>--out<span class="w"> </span>motion.npz
+</span></code></pre></div>
+<p>Recovers world-grounded SMPL-X motion from monocular video with GVHMR and writes AMASS-style <code>.npz</code> files. Needs the
+<code>pose</code> extra and GVHMR's checkpoints (<code>gvhmr-download-checkpoints</code>). See <a href="../../guides/pose-estimation/">Pose estimation</a>.</p>
+<table>
+<thead>
+<tr>
+<th>Flag</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--src SRC</code></td>
+<td>A video, or a directory searched recursively. Required.</td>
+</tr>
+<tr>
+<td><code>--out OUT</code></td>
+<td>The output directory (the source tree is mirrored), or an <code>.npz</code> file for a single video. Required.</td>
+</tr>
+<tr>
+<td><code>--pattern GLOB</code></td>
+<td>The file pattern for a directory <code>--src</code>. Default <code>*.mp4</code>.</td>
+</tr>
+<tr>
+<td><code>--checkpoint-root DIR</code></td>
+<td>GVHMR's checkpoint directory. Default: <code>$GVHMR_CHECKPOINT_ROOT</code>, else <code>./inputs/checkpoints</code>.</td>
+</tr>
+<tr>
+<td><code>--ckpt FILE</code></td>
+<td>The GVHMR checkpoint. Default <code>&lt;root&gt;/gvhmr/gvhmr_siga24_release.ckpt</code>.</td>
+</tr>
+<tr>
+<td><code>--static-cam</code></td>
+<td>Assume a static camera (skips visual odometry; much faster).</td>
+</tr>
+<tr>
+<td><code>--use-dpvo</code></td>
+<td>Use DPVO instead of SimpleVO for camera motion.</td>
+</tr>
+<tr>
+<td><code>--f-mm MM</code></td>
+<td>Full-frame focal length in mm. Default: estimated.</td>
+</tr>
+<tr>
+<td><code>--output-root DIR</code></td>
+<td>Where GVHMR writes and reuses its per-video intermediates.</td>
+</tr>
+<tr>
+<td><code>--skip-existing</code></td>
+<td>Skip a video whose output already exists.</td>
+</tr>
+<tr>
+<td><code>--verbose</code></td>
+<td>Save GVHMR's intermediate overlays.</td>
+</tr>
+</tbody>
+</table>
+<h3 id="eden-retarget"><code>eden retarget</code><a class="headerlink" href="#eden-retarget" title="Permanent link">&para;</a></h3>
+<p>Each retargeter is a subcommand. See <a href="../../guides/retargeting/">Retargeting</a> and
+<a href="../../guides/dex-retargeting/">Hand retargeting</a>.</p>
+<h4 id="eden-retarget-omniretarget"><code>eden retarget omniretarget</code><a class="headerlink" href="#eden-retarget-omniretarget" title="Permanent link">&para;</a></h4>
+<p>Robot-only OMOMO to G1 retargeting with OmniRetarget, ignoring the object.</p>
+<table>
+<thead>
+<tr>
+<th>Flag</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--src DIR</code></td>
+<td>The OMOMO dataset directory (the <code>.pt</code> sequence files). Required.</td>
+</tr>
+<tr>
+<td><code>--out DIR</code></td>
+<td>The output directory; joint positions are written as <code>&lt;task-name&gt;.npy</code>. Required.</td>
+</tr>
+<tr>
+<td><code>--task-name NAME</code></td>
+<td>The sequence to retarget, with or without <code>.pt</code>. Default <code>sub3_largebox_003</code>.</td>
+</tr>
+<tr>
+<td><code>--num-frames N</code></td>
+<td>Truncate the sequence to <code>N</code> frames.</td>
+</tr>
+<tr>
+<td><code>--skip-existing</code></td>
+<td>Skip when the output exists.</td>
+</tr>
+</tbody>
+</table>
+<h4 id="eden-retarget-otretarget"><code>eden retarget otretarget</code><a class="headerlink" href="#eden-retarget-otretarget" title="Permanent link">&para;</a></h4>
+<p>Joint robot and object retargeting from surface interactions with OTRetarget. Needs the <code>ot-retargeter</code> extra.</p>
+<table>
+<thead>
+<tr>
+<th>Flag</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--source {omomo,seed}</code></td>
+<td>The demonstration format. Required.</td>
+</tr>
+<tr>
+<td><code>--src PATH</code></td>
+<td>omomo: a sequence directory or a folder of them; seed: a <code>.bvh</code> file or a directory of them. Required.</td>
+</tr>
+<tr>
+<td><code>--out DIR</code></td>
+<td>The output directory; one <code>&lt;rig&gt;_&lt;clip&gt;.npz</code> per clip. Required.</td>
+</tr>
+<tr>
+<td><code>--body-model-path PATH</code></td>
+<td>omomo: the folder with <code>SMPLX_{NEUTRAL,MALE,FEMALE}.npz</code>; seed: <code>SOMA_neutral.npz</code>. Required.</td>
+</tr>
+<tr>
+<td><code>--objects-dir DIR</code></td>
+<td>omomo: the release's <code>objects/</code> folder.</td>
+</tr>
+<tr>
+<td><code>--rig {g1_wuji,oli_wuji,g1,oli}</code></td>
+<td>The target embodiment. Default <code>g1_wuji</code>.</td>
+</tr>
+<tr>
+<td><code>--num-frames N</code></td>
+<td>Truncate each clip to <code>N</code> frames.</td>
+</tr>
+<tr>
+<td><code>--cpu</code></td>
+<td>Run Genesis on the CPU.</td>
+</tr>
+<tr>
+<td><code>--skip-existing</code></td>
+<td>Skip a clip whose output exists.</td>
+</tr>
+<tr>
+<td><code>--shard K/N</code></td>
+<td>Retarget only every <code>N</code>-th clip of the sorted list, starting at the <code>K</code>-th. Default <code>0/1</code>.</td>
+</tr>
+<tr>
+<td><code>--clip-list FILE</code></td>
+<td>A text file of clip names, one per line: retarget only those.</td>
+</tr>
+<tr>
+<td><code>--supports</code></td>
+<td>omomo: add the untracked tables the object rests on as fixed plates.</td>
+</tr>
+<tr>
+<td><code>--keep-going</code></td>
+<td>On a clip that raises, write <code>&lt;rig&gt;_&lt;clip&gt;.error.txt</code> and continue; exit non-zero at the end.</td>
+</tr>
+</tbody>
+</table>
+<h4 id="eden-retarget-soma"><code>eden retarget soma</code><a class="headerlink" href="#eden-retarget-soma" title="Permanent link">&para;</a></h4>
+<p>Batch retargeting of AMASS-style SMPL, SMPL-H or SMPL-X motion to a robot with SomaRetargeter. Needs the
+<code>soma-retargeter</code> extra (uv in a clone only).</p>
+<table>
+<thead>
+<tr>
+<th>Flag</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--src PATH</code></td>
+<td>An <code>.npz</code> clip, or a directory searched recursively. Required.</td>
+</tr>
+<tr>
+<td><code>--out PATH</code></td>
+<td>The output directory (source tree mirrored), or a file for a single clip. Required.</td>
+</tr>
+<tr>
+<td><code>--body-model {smpl,smplh,smplx}</code></td>
+<td>The source body model. Default <code>smplx</code>.</td>
+</tr>
+<tr>
+<td><code>--body-model-path PATH</code></td>
+<td>The body-model file (e.g. <code>SMPLX_NEUTRAL.npz</code>) or a per-gender directory. Required.</td>
+</tr>
+<tr>
+<td><code>--robot {unitree_g1,limx_oli}</code></td>
+<td>The target robot. Default <code>unitree_g1</code>.</td>
+</tr>
+<tr>
+<td><code>--gender {neutral,male,female}</code></td>
+<td>The default gender; a clip's own <code>gender</code> field overrides it. Default <code>neutral</code>.</td>
+</tr>
+<tr>
+<td><code>--target-fps FPS</code></td>
+<td>The frame rate every clip is resampled to. Default 30.</td>
+</tr>
+<tr>
+<td><code>--source-fps FPS</code></td>
+<td>Override the source frame rate when the clip's metadata is missing or wrong.</td>
+</tr>
+<tr>
+<td><code>--num-frames N</code></td>
+<td>Truncate each clip to <code>N</code> frames.</td>
+</tr>
+<tr>
+<td><code>--snap-to-ground</code></td>
+<td>Shift each clip vertically so its lowest collision point touches the ground.</td>
+</tr>
+<tr>
+<td><code>--skip-existing</code></td>
+<td>Skip a clip whose output exists.</td>
+</tr>
+<tr>
+<td><code>--cpu</code></td>
+<td>Use the CPU backend.</td>
+</tr>
+</tbody>
+</table>
+<h4 id="eden-retarget-dex"><code>eden retarget dex</code><a class="headerlink" href="#eden-retarget-dex" title="Permanent link">&para;</a></h4>
+<p>Offline position retargeting of MANO keypoints to a dexterous hand with DexRetargeter. Needs the <code>dex-retargeter</code>
+extra.</p>
+<table>
+<thead>
+<tr>
+<th>Flag</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--src PATH</code></td>
+<td>An <code>.npz</code> with keypoints <code>(T, 21, 3)</code> and <code>fps</code>, or a directory of them. Required.</td>
+</tr>
+<tr>
+<td><code>--out PATH</code></td>
+<td>An output <code>.pkl</code> file (single input) or directory. Required.</td>
+</tr>
+<tr>
+<td><code>--preset {xhand1_right_position}</code></td>
+<td>The hand preset. Default <code>xhand1_right_position</code>.</td>
+</tr>
+<tr>
+<td><code>--skip-existing</code></td>
+<td>Skip a clip whose output exists.</td>
+</tr>
+</tbody>
+</table>
+<h4 id="eden-retarget-flashdex-import"><code>eden retarget flashdex import</code><a class="headerlink" href="#eden-retarget-flashdex-import" title="Permanent link">&para;</a></h4>
+<p>Imports a released hand-object dataset (MANO hands and object poses) into a FlashDexRetarget dataset:
+<code>&lt;dataset&gt;/human_demo/&lt;clip&gt;.npz</code> and <code>&lt;dataset&gt;/objects/&lt;id&gt;/visual.obj</code>. Needs the <code>flashdexretarget</code> extra.</p>
+<table>
+<thead>
+<tr>
+<th>Flag</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--source {dexycb,hot3d,oakink2,taco}</code></td>
+<td>The release, read by its <code>eden.datasets</code> loader.</td>
+</tr>
+<tr>
+<td><code>--raw DIR</code></td>
+<td>The downloaded release's root directory.</td>
+</tr>
+<tr>
+<td><code>--dataset DIR</code></td>
+<td>The dataset directory to write.</td>
+</tr>
+<tr>
+<td><code>--mano-dir DIR</code></td>
+<td>The directory with <code>MANO_RIGHT.pkl</code> and <code>MANO_LEFT.pkl</code>.</td>
+</tr>
+<tr>
+<td><code>--sides {both,right,left}</code></td>
+<td>The hands to import. Default <code>both</code>.</td>
+</tr>
+<tr>
+<td><code>--textures</code></td>
+<td>Export the objects with their materials and textures, for rendering.</td>
+</tr>
+<tr>
+<td><code>--config FILE</code></td>
+<td>A <code>.yaml</code> or <code>.json</code> file of option values (<code>eden.options.extensions.flashdexretarget</code>).</td>
+</tr>
+<tr>
+<td><code>--override YAML</code></td>
+<td>An inline YAML mapping merged over the options last; repeatable.</td>
+</tr>
+</tbody>
+</table>
+<h4 id="eden-retarget-flashdex-kinematic"><code>eden retarget flashdex kinematic</code><a class="headerlink" href="#eden-retarget-flashdex-kinematic" title="Permanent link">&para;</a></h4>
+<p>Kinematic retargeting of an imported dataset onto robot hands: support disks and reject rules
+(<code>&lt;robot&gt;/report.csv</code>), convex object parts, MuJoCo physics IK (<code>&lt;robot&gt;/retargeted/</code>), <code>&lt;robot&gt;/motion.pt</code> and
+object SDF grids.</p>
+<table>
+<thead>
+<tr>
+<th>Flag</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--dataset DIR</code></td>
+<td>The dataset directory from the import.</td>
+</tr>
+<tr>
+<td><code>--robot {xhand,sharpa}</code></td>
+<td>The target robot. Default <code>xhand</code>.</td>
+</tr>
+<tr>
+<td><code>--workers N</code></td>
+<td>Processes. Default: half the CPU cores.</td>
+</tr>
+<tr>
+<td><code>--config FILE</code></td>
+<td>A <code>.yaml</code> or <code>.json</code> file of option values.</td>
+</tr>
+<tr>
+<td><code>--override YAML</code></td>
+<td>An inline YAML mapping merged over the options last; repeatable. Steps can be skipped, e.g. <code>--override "steps: {retarget: false, pack: false}"</code>.</td>
+</tr>
+</tbody>
+</table>
+<h2 id="teleoperation-and-devices">Teleoperation and devices<a class="headerlink" href="#teleoperation-and-devices" title="Permanent link">&para;</a></h2>
+<p>See <a href="../../guides/teleoperation/">Teleoperation</a> for the full pipelines.</p>
+<h3 id="eden-gello-calibrate"><code>eden gello calibrate</code><a class="headerlink" href="#eden-gello-calibrate" title="Permanent link">&para;</a></h3>
+<p>Computes per-joint offsets and a gripper range for a GELLO leader arm held at a known pose, and prints a
+ready-to-paste <code>GelloLeaderConfig(...)</code>. Needs the <code>gello</code> extra.</p>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-14-1"><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a>eden<span class="w"> </span>gello<span class="w"> </span>calibrate<span class="w"> </span>--port<span class="w"> </span>/dev/ttyUSB0<span class="w"> </span>--start-dofs<span class="w"> </span><span class="m">0</span><span class="w"> </span><span class="m">0</span><span class="w"> </span><span class="m">0</span><span class="w"> </span><span class="m">0</span><span class="w"> </span><span class="m">0</span><span class="w"> </span><span class="m">0</span><span class="w"> </span>--signs<span class="w"> </span><span class="m">1</span><span class="w"> </span><span class="m">1</span><span class="w"> </span>-1<span class="w"> </span><span class="m">1</span><span class="w"> </span><span class="m">1</span><span class="w"> </span><span class="m">1</span><span class="w"> </span>--gripper<span class="w"> </span><span class="se">\</span>
+</span><span id="__span-14-2"><a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a><span class="w">    </span>--output<span class="w"> </span>configs/gello_ur5e.yaml
+</span></code></pre></div>
+<table>
+<thead>
+<tr>
+<th>Flag</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--port PORT</code></td>
+<td>The Dynamixel serial port.</td>
+</tr>
+<tr>
+<td><code>--start-dofs RAD ...</code></td>
+<td>The arm's known joint positions (rad) at the calibration pose.</td>
+</tr>
+<tr>
+<td><code>--signs S ...</code></td>
+<td>The sign (<code>-1</code> or <code>1</code>) of each arm joint.</td>
+</tr>
+<tr>
+<td><code>--joint-ids ID ...</code></td>
+<td>Dynamixel IDs of the arm joints. Default <code>1..N</code>.</td>
+</tr>
+<tr>
+<td><code>--gripper</code></td>
+<td>A gripper is attached.</td>
+</tr>
+<tr>
+<td><code>--gripper-id ID</code></td>
+<td>The gripper's Dynamixel ID. Default <code>N+1</code>.</td>
+</tr>
+<tr>
+<td><code>--baudrate</code>, <code>--warmup-reads</code>, <code>--max-pi-multiple</code>, <code>--gripper-open-delta-deg</code>, <code>--gripper-close-delta-deg</code></td>
+<td>Low-level calibration settings.</td>
+</tr>
+<tr>
+<td><code>-o</code>, <code>--output PATH</code></td>
+<td>Save the <code>GelloLeaderConfig</code> (<code>.json</code>, <code>.yaml</code> or <code>.yml</code>).</td>
+</tr>
+</tbody>
+</table>
+<h3 id="eden-gello-leader"><code>eden gello leader</code><a class="headerlink" href="#eden-gello-leader" title="Permanent link">&para;</a></h3>
+<p>Reads calibrated joint positions from the leader arm and sends them to a <code>GelloZMQServer</code> over ZMQ.</p>
+<table>
+<thead>
+<tr>
+<th>Flag</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>-c</code>, <code>--config PATH</code></td>
+<td>The <code>GelloLeaderConfig</code> file from <code>eden gello calibrate</code>.</td>
+</tr>
+<tr>
+<td><code>--port PORT</code></td>
+<td>The Dynamixel serial port.</td>
+</tr>
+<tr>
+<td><code>--zmq-host HOST</code></td>
+<td>The ZMQ host.</td>
+</tr>
+<tr>
+<td><code>--zmq-port PORT</code></td>
+<td>The ZMQ port.</td>
+</tr>
+</tbody>
+</table>
+<h3 id="eden-metaquest-bridge"><code>eden metaquest bridge</code><a class="headerlink" href="#eden-metaquest-bridge" title="Permanent link">&para;</a></h3>
+<p>Runs the televuer WebXR server that a Meta Quest connects to over Wi-Fi, and bridges its poses and the stereo view
+to Eden over ZMQ. On start it prints the URL to open in the headset's browser. Needs the <code>metaquest</code> extra and its
+git group.</p>
+<table>
+<thead>
+<tr>
+<th>Flag</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--width PX</code></td>
+<td>The full stereo frame width (both eyes). Default 1280.</td>
+</tr>
+<tr>
+<td><code>--height PX</code></td>
+<td>The frame height. Default 480.</td>
+</tr>
+<tr>
+<td><code>--fps FPS</code></td>
+<td>The headset display rate. Default 30.</td>
+</tr>
+<tr>
+<td><code>--display-mode {immersive,ego,pass-through}</code></td>
+<td>Default <code>immersive</code>.</td>
+</tr>
+<tr>
+<td><code>--tracking {hand,controller}</code></td>
+<td>Track hand joints (default) or motion controllers.</td>
+</tr>
+</tbody>
+</table>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p><code>eden metaquest bridge --help</code> currently prints Vuer's own parameters instead of these flags. The table above is
+read from <code>eden/utils/devices/metaquest/xr_bridge.py</code>.</p>
+</div>
+<h3 id="eden-pico-bridge"><code>eden pico bridge</code><a class="headerlink" href="#eden-pico-bridge" title="Permanent link">&para;</a></h3>
+<p>Publishes PICO headset and controller tracking over ZMQ and streams Eden's rendered view back to the headset. Needs
+the <code>pico</code> extra and the <code>xrobotoolkit_sdk</code> module built from source.</p>
+<table>
+<thead>
+<tr>
+<th>Flag</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--fps FPS</code></td>
+<td>The pose publish rate (frames are forwarded as they arrive).</td>
+</tr>
+<tr>
+<td><code>--control-address HOST:PORT</code></td>
+<td>Where to listen for the app's <code>OPEN_CAMERA</code> / <code>CLOSE_CAMERA</code> commands.</td>
+</tr>
+<tr>
+<td><code>--pose-port PORT</code></td>
+<td>The ZMQ PUB port for the tracking state.</td>
+</tr>
+<tr>
+<td><code>--frame-port PORT</code></td>
+<td>The ZMQ PULL port for Eden's rendered frames.</td>
+</tr>
+<tr>
+<td><code>--no-video</code></td>
+<td>Publish tracking only.</td>
+</tr>
+<tr>
+<td><code>--no-derived-body</code></td>
+<td>Publish only the lossless <code>body_raw</code>, without the derived per-joint body and trackers.</td>
+</tr>
+<tr>
+<td><code>--tracker-role SERIAL=ROLE</code></td>
+<td>Label a motion tracker by serial, e.g. <code>--tracker-role PA1234=waist</code> (repeatable).</td>
+</tr>
+</tbody>
+</table>
+<h3 id="eden-teleop-sonic-robot"><code>eden teleop sonic robot</code><a class="headerlink" href="#eden-teleop-sonic-robot" title="Permanent link">&para;</a></h3>
+<p>The robot side of SONIC whole-body teleoperation: a G1 body, the SONIC policy and its planner, listening for the
+operator's commands. The body is the Genesis simulator by default. Needs the <code>sonic</code> extra and an <code>onnx</code> extra.</p>
+<table>
+<thead>
+<tr>
+<th>Flag</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--mujoco</code> / <code>--real</code></td>
+<td>Drive the body through the <code>eden deploy</code> MuJoCo backend, or the real Unitree G1 over DDS.</td>
+</tr>
+<tr>
+<td><code>-v</code>, <code>--vis</code></td>
+<td>Show the viewer (MuJoCo's own under <code>--mujoco</code>).</td>
+</tr>
+<tr>
+<td><code>-c</code>, <code>--cpu</code></td>
+<td>Use the CPU backend.</td>
+</tr>
+<tr>
+<td><code>-s</code>, <code>--steps N</code></td>
+<td>Stop after <code>N</code> control ticks.</td>
+</tr>
+<tr>
+<td><code>--operator-host HOST</code></td>
+<td>The host running the operator station.</td>
+</tr>
+<tr>
+<td><code>--cmd-port PORT</code>, <code>--debug-port PORT</code></td>
+<td>The command and debug ports.</td>
+</tr>
+<tr>
+<td><code>--encoder-path</code>, <code>--decoder-path</code>, <code>--planner-path</code></td>
+<td>Local overrides for the SONIC ONNX models.</td>
+</tr>
+<tr>
+<td><code>--max-close-ratio R</code></td>
+<td>The Dex3 close limit in [0.2, 1.0] (Genesis body only).</td>
+</tr>
+<tr>
+<td><code>--no-band</code></td>
+<td>Start with the elastic band (the gantry under <code>--mujoco</code>) released.</td>
+</tr>
+<tr>
+<td><code>--drop-band-after SECONDS</code></td>
+<td>Release the band this many seconds in.</td>
+</tr>
+<tr>
+<td><code>--auto-reset</code></td>
+<td>Reset to the launch state when the base falls with the band off.</td>
+</tr>
+<tr>
+<td><code>--deploy_kp_kd_scale</code>, <code>--target_lpf</code>, <code>--disable_joints</code>, <code>--debug_record</code>, <code>--debug_record_path</code></td>
+<td>As for <a href="#eden-deploy"><code>eden deploy</code></a>, with <code>--mujoco</code> or <code>--real</code>.</td>
+</tr>
+<tr>
+<td><code>--joint-vel-limit RAD_S</code></td>
+<td><code>--real</code>: stop when any body joint exceeds this speed (0 disables).</td>
+</tr>
+</tbody>
+</table>
+<h3 id="eden-teleop-sonic-operator"><code>eden teleop sonic operator</code><a class="headerlink" href="#eden-teleop-sonic-operator" title="Permanent link">&para;</a></h3>
+<p>The operator station: PICO body tracking, calibration, the mode state machine, and streaming to the robot process.</p>
+<table>
+<thead>
+<tr>
+<th>Flag</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--robot-host HOST</code></td>
+<td>The host running <code>eden teleop sonic robot</code>.</td>
+</tr>
+<tr>
+<td><code>--port PORT</code>, <code>--feedback-port PORT</code></td>
+<td>The command publish port and the robot's debug port.</td>
+</tr>
+<tr>
+<td><code>--target-fps FPS</code></td>
+<td>The pose stream rate.</td>
+</tr>
+<tr>
+<td><code>--num-frames N</code></td>
+<td>Frames per pose message.</td>
+</tr>
+<tr>
+<td><code>--record-dir DIR</code></td>
+<td>Record each sent pose message as <code>.npz</code> here.</td>
+</tr>
+<tr>
+<td><code>--no-service-start</code></td>
+<td>Do not spawn the XRoboToolkit PC service.</td>
+</tr>
+<tr>
+<td><code>--bridge-host HOST</code></td>
+<td>Connect to an <code>eden pico bridge</code> on this host instead of spawning one.</td>
+</tr>
+<tr>
+<td><code>--bridge-port PORT</code>, <code>--bridge-fps FPS</code></td>
+<td>The bridge's pose port and publish rate.</td>
+</tr>
+<tr>
+<td><code>--no-bridge-start</code></td>
+<td>Connect to a bridge already running locally.</td>
+</tr>
+<tr>
+<td><code>--sdk</code></td>
+<td>Read the XRoboToolkit SDK in-process instead of through the bridge.</td>
+</tr>
+<tr>
+<td><code>--vis-vr3pt</code></td>
+<td>Visualize the calibrated VR 3-point pose (needs the <code>sonic-viz</code> extra).</td>
+</tr>
+<tr>
+<td><code>--vis-smpl</code></td>
+<td>Also render the SMPL body (needs <code>--vis-vr3pt</code>).</td>
+</tr>
+<tr>
+<td><code>--waist-tracking</code>, <code>--no-g1</code></td>
+<td>Visualization only: the waist follows the neck; hide the G1 mesh.</td>
+</tr>
+</tbody>
+</table>
+<h3 id="eden-wuji-scan"><code>eden wuji scan</code><a class="headerlink" href="#eden-wuji-scan" title="Permanent link">&para;</a></h3>
+<p>Lists every Wuji Glove on the bus. Needs the <code>wuji</code> extra (Linux only). Takes no flags.</p>
+<h3 id="eden-wuji-monitor"><code>eden wuji monitor</code><a class="headerlink" href="#eden-wuji-monitor" title="Permanent link">&para;</a></h3>
+<p>Shows a Wuji Glove's live hand pose and tactile sheet in the terminal, the first check after plugging one in.</p>
+<table>
+<thead>
+<tr>
+<th>Flag</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--sn SN</code></td>
+<td>The glove's serial number. Default: the only one found.</td>
+</tr>
+<tr>
+<td><code>--side {left,right}</code></td>
+<td>Pick between two connected gloves.</td>
+</tr>
+<tr>
+<td><code>--streams STREAM ...</code></td>
+<td>The streams to subscribe to, from <code>hand_skeleton</code>, <code>hand_joint_angles</code>, <code>tip_poses</code>, <code>emf_poses</code>, <code>tactile</code>, <code>tactile_zones</code>, <code>tactile_binary</code>, <code>tactile_residual</code>, <code>tactile_point_cloud</code>. Default <code>hand_skeleton hand_joint_angles tactile</code>.</td>
+</tr>
+<tr>
+<td><code>--rate-hz HZ</code></td>
+<td>Lower the device's push rate. Default 120 Hz.</td>
+</tr>
+<tr>
+<td><code>--seconds S</code></td>
+<td>Run for this long; 0 runs until Ctrl-C.</td>
+</tr>
+<tr>
+<td><code>--exclusive</code></td>
+<td>Take the glove for this process alone.</td>
+</tr>
+</tbody>
+</table>
+<h2 id="viewing-and-utilities">Viewing and utilities<a class="headerlink" href="#viewing-and-utilities" title="Permanent link">&para;</a></h2>
+<h3 id="eden-view"><code>eden view</code><a class="headerlink" href="#eden-view" title="Permanent link">&para;</a></h3>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-15-1"><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a>eden<span class="w"> </span>view<span class="w"> </span>Yam<span class="w">                     </span><span class="c1"># an entity options class by name</span>
+</span><span id="__span-15-2"><a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a>eden<span class="w"> </span>view<span class="w"> </span>scan.ply<span class="w">                </span><span class="c1"># a Gaussian-splat .ply</span>
+</span></code></pre></div>
+<p>Opens an entity, by the name of its options class or a composite rig's name, or a Gaussian-splat <code>.ply</code> file, in a
+viewer.</p>
+<table>
+<thead>
+<tr>
+<th>Flag</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>-c</code>, <code>--collision</code></td>
+<td>Show collision geometry (entity mode).</td>
+</tr>
+<tr>
+<td><code>-m</code>, <code>--multiplier M</code></td>
+<td>The splat's radiance multiplier (splat mode).</td>
+</tr>
+<tr>
+<td><code>--env-brightness B</code></td>
+<td>A constant-color environment map's brightness in [0, 1] (splat mode).</td>
+</tr>
+</tbody>
+</table>
+<h3 id="eden-arrange"><code>eden arrange</code><a class="headerlink" href="#eden-arrange" title="Permanent link">&para;</a></h3>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-16-1"><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a>eden<span class="w"> </span>arrange<span class="w"> </span>FrankaEmikaPanda<span class="w"> </span>YCB003CrackerBox<span class="w"> </span>-o<span class="w"> </span>scene_snippet.py
+</span></code></pre></div>
+<p>Spawns entities (by options class name) with ImGui sliders for each one's base pose and joints, and exports a
+<code>SceneOptions</code> snippet with the arrangement. Needs the <code>vis</code> extra.</p>
+<table>
+<thead>
+<tr>
+<th>Flag</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>-c</code>, <code>--collision</code></td>
+<td>Show collision geometry.</td>
+</tr>
+<tr>
+<td><code>-o</code>, <code>--output PATH</code></td>
+<td>Also write the snippet to this file.</td>
+</tr>
+<tr>
+<td><code>--spacing M</code></td>
+<td>Initial x-spacing between entities. Default 1.0 m.</td>
+</tr>
+</tbody>
+</table>
+<h3 id="eden-snap"><code>eden snap</code><a class="headerlink" href="#eden-snap" title="Permanent link">&para;</a></h3>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-17-1"><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a>eden<span class="w"> </span>snap<span class="w"> </span>Yam<span class="w"> </span>-o<span class="w"> </span>yam.png
+</span></code></pre></div>
+<p>Renders one image of an entity.</p>
+<table>
+<thead>
+<tr>
+<th>Flag</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>-o</code>, <code>--output PATH</code></td>
+<td>The output image. Default <code>snapshot.png</code>.</td>
+</tr>
+<tr>
+<td><code>-c</code>, <code>--collision</code></td>
+<td>Show collision geometry.</td>
+</tr>
+</tbody>
+</table>
+<h3 id="eden-gif"><code>eden gif</code><a class="headerlink" href="#eden-gif" title="Permanent link">&para;</a></h3>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-18-1"><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a>eden<span class="w"> </span>gif<span class="w"> </span>video.mp4<span class="w">                </span><span class="c1"># writes video.gif beside it</span>
+</span></code></pre></div>
+<p>Converts an <code>.mp4</code> to a <code>.gif</code> at 10 fps and 640 px wide. Calls <code>ffmpeg</code>, which must be on your <code>PATH</code>.</p>
+<h3 id="eden-clean"><code>eden clean</code><a class="headerlink" href="#eden-clean" title="Permanent link">&para;</a></h3>
+<p>Removes empty log directories, and run directories that hold only a <code>config.json</code> (runs that stopped before saving
+anything else). Takes no flags.</p>
+<div class="admonition warning">
+<p class="admonition-title">Warning</p>
+<p><code>eden clean</code> currently looks for a <code>logs/</code> directory inside the installed <code>eden</code> package
+(<code>eden/utils/logs</code>), not the <code>logs/</code> directory of your working directory, so it usually finds nothing.</p>
+</div>
+<h2 id="see-also">See also<a class="headerlink" href="#see-also" title="Permanent link">&para;</a></h2>
+<ul>
+<li><a href="../../getting-started/quickstart/">Quick start</a></li>
+<li><a href="../environment-variables/">Environment variables</a></li>
+<li><a href="../../guides/training-runs/">Training runs</a></li>
+<li><a href="../../guides/deployment/">Deployment</a></li>
+</ul>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+  <script>var tabs=__md_get("__tabs");if(Array.isArray(tabs))e:for(var set of document.querySelectorAll(".tabbed-set")){var labels=set.querySelector(".tabbed-labels");for(var tab of tabs)for(var label of labels.getElementsByTagName("label"))if(label.innerText.trim()===tab){var input=document.getElementById(label.htmlFor);input.checked=!0;continue e}}</script>
+
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+    
+      
+      <nav class="md-footer__inner md-grid" aria-label="Footer" >
+        
+          
+          <a href="../../examples/" class="md-footer__link md-footer__link--prev" aria-label="Previous: Examples">
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+            </div>
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Previous
+              </span>
+              <div class="md-ellipsis">
+                Examples
+              </div>
+            </div>
+          </a>
+        
+        
+          
+          <a href="../environment-variables/" class="md-footer__link md-footer__link--next" aria-label="Next: Environment Variables">
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Next
+              </span>
+              <div class="md-ellipsis">
+                Environment Variables
+              </div>
+            </div>
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 11v2h12l-5.5 5.5 1.42 1.42L19.84 12l-7.92-7.92L10.5 5.5 16 11z"/></svg>
+            </div>
+          </a>
+        
+      </nav>
+    
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+    <div class="md-copyright__highlight">
+      Copyright &copy; 2025 Eden Authors
+    </div>
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+        
+<div class="md-social">
+  
+    
+    
+    
+    
+      
+      
+    
+    <a href="https://github.com/embodied-ai-nexus/Eden" target="_blank" rel="noopener" title="github.com" class="md-social__link">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+      <div class="md-progress" data-md-component="progress" role="progressbar"></div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.instant", "navigation.instant.progress", "navigation.tracking", "navigation.path", "navigation.tabs", "navigation.tabs.sticky", "navigation.sections", "navigation.top", "navigation.footer", "search.suggest", "search.highlight", "content.action.edit", "content.action.view", "content.code.copy", "content.code.annotate", "content.tabs.link", "content.tooltips", "toc.follow"], "search": "../../assets/javascripts/workers/search.a7633da7.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.a5f9d56c.min.js"></script>
+      
+    
+  </body>
+</html>

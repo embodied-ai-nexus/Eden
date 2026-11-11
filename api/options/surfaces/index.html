@@ -1,0 +1,6781 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Embodied-AI Development Environments Nexus — Vectorized RL environments for robot learning">
+      
+      
+      
+        <link rel="canonical" href="https://embodied-ai-nexus.github.io/Eden/api/options/surfaces/">
+      
+      
+        <link rel="prev" href="../materials/">
+      
+      
+        <link rel="next" href="../scenes/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../../assets/logo/eden-mark.svg">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.1">
+    
+    
+      
+        <title>Surfaces - Eden</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../../assets/stylesheets/main.57a0d79d.min.css">
+      
+        
+        <link rel="stylesheet" href="../../../assets/stylesheets/palette.fb2fffe2.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Inter:300,300i,400,400i,700,700i%7CJetBrains+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Inter";--md-code-font:"JetBrains Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../../../assets/_mkdocstrings.css">
+    
+      <link rel="stylesheet" href="../../../assets/stylesheets/extra.css">
+    
+    <script>__md_scope=new URL("../../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#surface-options" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow md-header--lifted" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../../.." title="Eden" class="md-header__button md-logo" aria-label="Eden" data-md-component="logo">
+      
+  <img src="../../../assets/logo/eden-mark.svg" alt="logo">
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Eden
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Surfaces
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme)" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m14.3 16-.7-2h-3.2l-.7 2H7.8L11 7h2l3.2 9zM20 8.69V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12zm-9.15 3.96h2.3L12 9z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="custom" data-md-color-accent="custom"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_2" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="custom" data-md-color-accent="custom"  aria-label="Switch to system preference"  type="radio" name="__palette" id="__palette_2">
+    
+      <label class="md-header__button md-icon" title="Switch to system preference" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/embodied-ai-nexus/Eden" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+  </div>
+  <div class="md-source__repository">
+    embodied-ai-nexus/Eden
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+    
+      
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../.." class="md-tabs__link">
+        
+  
+  
+    
+  
+  Home
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../../getting-started/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Get Started
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../../guides/task-config/" class="md-tabs__link">
+          
+  
+  
+  Guides
+
+        </a>
+      </li>
+    
+  
+
+    
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../../tasks/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Tasks
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../../examples/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Examples
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+    
+  
+  
+    
+    
+      <li class="md-tabs__item md-tabs__item--active">
+        <a href="../../../reference/cli/" class="md-tabs__link">
+          
+  
+  
+  Reference
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../../contributing/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Contributing
+
+      </a>
+    </li>
+  
+
+      
+    </ul>
+  </div>
+</nav>
+    
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../../.." title="Eden" class="md-nav__button md-logo" aria-label="Eden" data-md-component="logo">
+      
+  <img src="../../../assets/logo/eden-mark.svg" alt="logo">
+
+    </a>
+    Eden
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/embodied-ai-nexus/Eden" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+  </div>
+  <div class="md-source__repository">
+    embodied-ai-nexus/Eden
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../../getting-started/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Get Started
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_2" id="__nav_2_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Get Started
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../getting-started/installation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Installation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../getting-started/quickstart/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Quick Start
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../getting-started/concepts/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Key Concepts
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../getting-started/first-task/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Tutorial: Your First Task
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../getting-started/assets/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Assets and Caches
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../getting-started/troubleshooting/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Troubleshooting
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Guides
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Guides
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_1" >
+        
+          
+          <label class="md-nav__link" for="__nav_3_1" id="__nav_3_1_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Building Tasks
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_1_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_1">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Building Tasks
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../guides/task-config/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Task Configuration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../guides/task-mods/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Task Variants (TaskMods)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../guides/environments/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Environments and the Step Loop
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_3_2" id="__nav_3_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Managers and Terms
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Managers and Terms
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../guides/terms/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Writing Terms
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../guides/actions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Actions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../guides/observations/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Observations
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../guides/rewards-and-terminations/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Rewards and Terminations
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../guides/commands/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Commands
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../guides/events/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Events and Domain Randomization
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../guides/curricula/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Curricula
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../guides/metrics-and-recorders/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Metrics and Recorders
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3_3" id="__nav_3_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Scenes and Physics
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Scenes and Physics
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../guides/entities/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Entities
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../guides/robots/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Robots
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../guides/scenes-and-terrains/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Scenes, Objects and Terrains
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../guides/physics/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Physics and Solvers
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../guides/sensors-and-rendering/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Sensors and Rendering
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../guides/engine-addons/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Engine Add-ons
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_3_4" id="__nav_3_4_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Motion and Data
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Motion and Data
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../guides/motion-tracking/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Motion Tracking
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../guides/motion-datasets/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Motion Datasets
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../guides/retargeting/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Motion Retargeting
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../guides/dex-retargeting/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Dexterous Hand Retargeting
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../guides/pose-estimation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Pose Estimation from Video
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../guides/teleoperation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Teleoperation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../guides/scripted-demos/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Scripted Demonstrations
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../guides/grasp-sampling/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Grasp Sampling
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../guides/datasets-and-recording/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Datasets and Recording
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../guides/planning-and-sysid/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Planning and System Identification
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_3_5" id="__nav_3_5_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Training and Policies
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Training and Policies
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../guides/training-runs/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Training Runs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../guides/rl-libraries/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Other RL Libraries
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../guides/ddp/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Multi-GPU Training
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../guides/policy-zoo/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Policy Zoo
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../guides/policy-porting/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Porting a Pretrained Policy
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../guides/policy-export/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Exporting a Policy
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../guides/remote-policies/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Remote Policy Clients
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../guides/extending-policies/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Adding a Policy
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_6" >
+        
+          
+          <label class="md-nav__link" for="__nav_3_6" id="__nav_3_6_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deployment
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Deployment
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../guides/deployment/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deploying a Policy
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../guides/deployment-hardware/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Hardware Setup
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../../tasks/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Tasks
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_4" id="__nav_4_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Tasks
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_1" >
+        
+          
+          <label class="md-nav__link" for="__nav_4_1" id="__nav_4_1_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Eden Tasks
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_1_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4_1">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Eden Tasks
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../tasks/locomotion/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Locomotion
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../guides/velocity-tracking/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Velocity Tracking Design Notes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../guides/tcrs-terrain-adaptation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    TCRS Terrain Adaptation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../tasks/motion-tracking/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Motion Tracking
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../tasks/manipulation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Manipulation and Dexterity
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_4_2" id="__nav_4_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Ported Benchmarks
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Ported Benchmarks
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../tasks/robosuite/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    robosuite
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../tasks/libero/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    LIBERO
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../tasks/simpler/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    SIMPLER
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../tasks/polaris/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    PolaRiS
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../tasks/mochi/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deformables (Mochi)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../tasks/whiteboard/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Whiteboard Drawing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../tasks/art/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Calligraphy and Painting
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../examples/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Examples
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reference
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Reference
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference/cli/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CLI
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference/environment-variables/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Environment Variables
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+          
+          
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6_3" checked>
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    API Reference
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_6_3" id="__nav_6_3_label" tabindex="">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_6_3_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_6_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    API Reference
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../configs/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Configs and Task Registry
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../envs/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Environments
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../entities/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Entities
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6_3_4" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_6_3_4" id="__nav_6_3_4_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Options
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_6_3_4_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_6_3_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Options
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../envs/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Environment
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../entities/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Entities
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../materials/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Materials
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Surfaces
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Surfaces
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#eden.options.surfaces" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-module"></code>&nbsp;surfaces
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#eden.options.surfaces-attributes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Attributes
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Attributes">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#eden.options.surfaces.SurfaceLike" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;SurfaceLike
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#eden.options.surfaces-classes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Classes
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Classes">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#eden.options.surfaces.SurfaceOptions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;SurfaceOptions
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label=" SurfaceOptions">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#eden.options.surfaces.SurfaceOptions-attributes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Attributes
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Attributes">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#eden.options.surfaces.SurfaceOptions.color" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;color
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#eden.options.surfaces.SurfaceOptions.opacity" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;opacity
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#eden.options.surfaces.SurfaceOptions.roughness" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;roughness
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#eden.options.surfaces.SurfaceOptions.metallic" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;metallic
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#eden.options.surfaces.SurfaceOptions.emissive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;emissive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#eden.options.surfaces.SurfaceOptions.ior" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;ior
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#eden.options.surfaces.SurfaceOptions.vis_mode" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;vis_mode
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#eden.options.surfaces.SurfaceOptions.double_sided" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;double_sided
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#eden.options.surfaces.SurfaceOptions.smooth" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;smooth
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#eden.options.surfaces.SurfaceOptions-functions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Methods:
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Methods:">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#eden.options.surfaces.SurfaceOptions.to_genesis_surface" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;to_genesis_surface
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#eden.options.surfaces.DefaultSurfaceOptions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;DefaultSurfaceOptions
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#eden.options.surfaces.PlasticSurfaceOptions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;PlasticSurfaceOptions
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#eden.options.surfaces.MetalSurfaceOptions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;MetalSurfaceOptions
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#eden.options.surfaces.BSDFSurfaceOptions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;BSDFSurfaceOptions
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#eden.options.surfaces.GlassSurfaceOptions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;GlassSurfaceOptions
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#eden.options.surfaces.EmissionSurfaceOptions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;EmissionSurfaceOptions
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#eden.options.surfaces-functions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Functions:
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Functions:">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#eden.options.surfaces.resolve_surface" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;resolve_surface
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#see-also" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        See also
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../scenes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Scenes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../robots/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Robots
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../actuators/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Actuators
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../sensors/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Sensors and Cameras
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../splat/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Splats and Renderers
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../managers/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Managers
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../learning/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Learning
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../managers/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Managers
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6_3_6" >
+        
+          
+          <label class="md-nav__link" for="__nav_6_3_6" id="__nav_6_3_6_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Built-in Terms
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_6_3_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6_3_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Built-in Terms
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../terms/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../terms/catalog/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Term Catalog
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../terms/actions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Actions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../terms/observations/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Observations
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../terms/rewards/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Rewards
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../terms/terminations/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Terminations
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../terms/commands/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Commands
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../terms/events/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Events
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../terms/curricula/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Curricula
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../terms/metrics/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Metrics
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../terms/recorders/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Recorders
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../terms/modifiers/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Modifiers
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../datasets/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Datasets
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../motion_reference/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Motion Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../engine/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Engine
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../learning/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Learning
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6_3_11" >
+        
+          
+          <label class="md-nav__link" for="__nav_6_3_11" id="__nav_6_3_11_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Extensions
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_6_3_11_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6_3_11">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Extensions
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../extensions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../extensions/deployment/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deployment
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../extensions/policies/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Policies
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../extensions/retargeting/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Retargeting
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../extensions/sysid/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    System Identification
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../extensions/motion-planning/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Motion Planning
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../extensions/motion-optimization/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Motion Optimization
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../extensions/grasp-sampling/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Grasp Sampling
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../extensions/pose-estimation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Pose Estimation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../extensions/scripted-demos/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Scripted Demonstrations
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../extensions/teleop/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Teleoperation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../extensions/visualization/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Visualization
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../constants/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Constants and Types
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6_3_13" >
+        
+          
+          <label class="md-nav__link" for="__nav_6_3_13" id="__nav_6_3_13_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Utilities
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_6_3_13_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6_3_13">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Utilities
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../utils/core/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Core
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../utils/math/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Math and Geometry
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../utils/robotics/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Robotics and Assets
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../utils/devices/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Teleoperation Devices
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../utils/io/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    I/O
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../utils/rendering/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Rendering
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../utils/cli/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CLI Internals
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_7" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../../contributing/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Contributing
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_7" id="__nav_7_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_7_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_7">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Contributing
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../guides/testing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Testing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../guides/error-messages/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Writing Error Messages
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../contributing/docs/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Writing Docs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#eden.options.surfaces" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-module"></code>&nbsp;surfaces
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#eden.options.surfaces-attributes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Attributes
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Attributes">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#eden.options.surfaces.SurfaceLike" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;SurfaceLike
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#eden.options.surfaces-classes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Classes
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Classes">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#eden.options.surfaces.SurfaceOptions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;SurfaceOptions
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label=" SurfaceOptions">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#eden.options.surfaces.SurfaceOptions-attributes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Attributes
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Attributes">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#eden.options.surfaces.SurfaceOptions.color" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;color
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#eden.options.surfaces.SurfaceOptions.opacity" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;opacity
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#eden.options.surfaces.SurfaceOptions.roughness" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;roughness
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#eden.options.surfaces.SurfaceOptions.metallic" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;metallic
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#eden.options.surfaces.SurfaceOptions.emissive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;emissive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#eden.options.surfaces.SurfaceOptions.ior" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;ior
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#eden.options.surfaces.SurfaceOptions.vis_mode" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;vis_mode
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#eden.options.surfaces.SurfaceOptions.double_sided" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;double_sided
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#eden.options.surfaces.SurfaceOptions.smooth" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;smooth
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#eden.options.surfaces.SurfaceOptions-functions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Methods:
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Methods:">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#eden.options.surfaces.SurfaceOptions.to_genesis_surface" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;to_genesis_surface
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#eden.options.surfaces.DefaultSurfaceOptions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;DefaultSurfaceOptions
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#eden.options.surfaces.PlasticSurfaceOptions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;PlasticSurfaceOptions
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#eden.options.surfaces.MetalSurfaceOptions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;MetalSurfaceOptions
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#eden.options.surfaces.BSDFSurfaceOptions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;BSDFSurfaceOptions
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#eden.options.surfaces.GlassSurfaceOptions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;GlassSurfaceOptions
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#eden.options.surfaces.EmissionSurfaceOptions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;EmissionSurfaceOptions
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#eden.options.surfaces-functions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Functions:
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Functions:">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#eden.options.surfaces.resolve_surface" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;resolve_surface
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#see-also" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        See also
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+                
+
+
+
+  
+
+
+  <nav class="md-path" aria-label="Navigation" >
+    <ol class="md-path__list">
+      
+        
+  
+  
+    <li class="md-path__item">
+      <a href="../../.." class="md-path__link">
+        
+  <span class="md-ellipsis">
+    Home
+  </span>
+
+      </a>
+    </li>
+  
+
+      
+      
+        
+  
+  
+    
+    
+      <li class="md-path__item">
+        <a href="../../../reference/cli/" class="md-path__link">
+          
+  <span class="md-ellipsis">
+    Reference
+  </span>
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+    
+    
+      <li class="md-path__item">
+        <a href="../../configs/" class="md-path__link">
+          
+  <span class="md-ellipsis">
+    API Reference
+  </span>
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+    
+    
+      <li class="md-path__item">
+        <a href="../" class="md-path__link">
+          
+  <span class="md-ellipsis">
+    Options
+  </span>
+
+        </a>
+      </li>
+    
+  
+
+      
+    </ol>
+  </nav>
+
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+    <a href="https://github.com/embodied-ai-nexus/Eden/edit/main/docs/api/options/surfaces.md" title="Edit this page" class="md-content__button md-icon" rel="edit">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M10 20H6V4h7v5h5v3.1l2-2V8l-6-6H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h4zm10.2-7c.1 0 .3.1.4.2l1.3 1.3c.2.2.2.6 0 .8l-1 1-2.1-2.1 1-1c.1-.1.2-.2.4-.2m0 3.9L14.1 23H12v-2.1l6.1-6.1z"/></svg>
+    </a>
+  
+  
+    
+      
+    
+    <a href="https://github.com/embodied-ai-nexus/Eden/raw/main/docs/api/options/surfaces.md" title="View source of this page" class="md-content__button md-icon">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M17 18c.56 0 1 .44 1 1s-.44 1-1 1-1-.44-1-1 .44-1 1-1m0-3c-2.73 0-5.06 1.66-6 4 .94 2.34 3.27 4 6 4s5.06-1.66 6-4c-.94-2.34-3.27-4-6-4m0 6.5a2.5 2.5 0 0 1-2.5-2.5 2.5 2.5 0 0 1 2.5-2.5 2.5 2.5 0 0 1 2.5 2.5 2.5 2.5 0 0 1-2.5 2.5M9.27 20H6V4h7v5h5v4.07c.7.08 1.36.25 2 .49V8l-6-6H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h4.5a8.2 8.2 0 0 1-1.23-2"/></svg>
+    </a>
+  
+
+
+<h1 id="surface-options">Surface Options<a class="headerlink" href="#surface-options" title="Permanent link">&para;</a></h1>
+<p>Surface options describe how an entity renders (colour, roughness, metalness, emission, textures). Genesis
+surfaces cannot be created before <code>gs.init()</code>, so <code>SurfaceOptions</code> records the specification in the config and
+creates the Genesis surface when the scene is built. Set one as an entity's <code>surface</code> field.</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">eden.options.surfaces</span><span class="w"> </span><span class="kn">import</span> <span class="n">PlasticSurfaceOptions</span>
+</span></code></pre></div>
+
+
+<div class="doc doc-object doc-module">
+
+
+
+<a id="eden.options.surfaces"></a>
+    <div class="doc doc-contents first">
+
+        <p>Surface appearance options (plastic, metal, glass, ...).</p>
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+<h2 id="eden.options.surfaces-attributes">Attributes<a href="#eden.options.surfaces-attributes" class="headerlink" title="Permanent link">&para;</a></h2>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="eden.options.surfaces.SurfaceLike" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-attribute"></code>            <span class="doc doc-object-name doc-attribute-name">SurfaceLike</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-module-attribute"><code>module-attribute</code></small>
+  </span>
+
+<a href="#eden.options.surfaces.SurfaceLike" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="n">SurfaceLike</span><span class="p">:</span> <span class="n"><a class="autorefs autorefs-external" title="&lt;code&gt;typing.TypeAlias&lt;/code&gt;" href="https://docs.python.org/3/library/typing.html#typing.TypeAlias">TypeAlias</a></span> <span class="o">=</span> <span class="n"><a class="autorefs autorefs-internal" title="&lt;code class=&quot;doc-symbol doc-symbol-heading doc-symbol-class&quot;&gt;&lt;/code&gt;            &lt;span class=&quot;doc doc-object-name doc-class-name&quot;&gt;SurfaceOptions&lt;/span&gt; (&lt;code&gt;eden.options.surfaces.SurfaceOptions&lt;/code&gt;)" href="#eden.options.surfaces.SurfaceOptions">SurfaceOptions</a></span> <span class="o">|</span> <span class="n"><span title="genesis.options.surfaces.Surface">Surface</span></span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Either an Eden :class:<code>SurfaceOptions</code> (deferred) or a built Genesis :class:<code>Surface</code>.</p>
+
+    </div>
+
+</div>
+
+<h2 id="eden.options.surfaces-classes">Classes<a href="#eden.options.surfaces-classes" class="headerlink" title="Permanent link">&para;</a></h2>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h3 id="eden.options.surfaces.SurfaceOptions" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-class"></code>            <span class="doc doc-object-name doc-class-name">SurfaceOptions</span>
+
+
+<a href="#eden.options.surfaces.SurfaceOptions" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">SurfaceOptions</span><span class="p">(</span><span class="o">**</span><span class="n">data</span><span class="p">)</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+            <p class="doc doc-class-bases">
+              Bases: <code><a class="autorefs autorefs-internal" title="&lt;code class=&quot;doc-symbol doc-symbol-heading doc-symbol-class&quot;&gt;&lt;/code&gt;            &lt;span class=&quot;doc doc-object-name doc-class-name&quot;&gt;ConfigurableOptions&lt;/span&gt; (&lt;code&gt;eden.options.options.ConfigurableOptions&lt;/code&gt;)" href="../#eden.options.options.ConfigurableOptions">ConfigurableOptions</a></code></p>
+
+
+
+        <p>Deferred, serializable description of a Genesis surface.</p>
+<p>Genesis surfaces (<code>gs.surfaces.*</code>) cannot be instantiated before <code>gs.init()</code>
+(they reference <code>gs.EPS</code> internally), so they cannot be embedded directly in an
+<code>EdenConfig</code> that is constructed at import time. <code>SurfaceOptions</code> captures the
+surface specification as plain config data and materializes the real Genesis surface
+lazily via :meth:<code>to_genesis_surface</code> at build time.</p>
+<p>Subclasses set <code>_genesis_surface_cls</code> to the corresponding <code>gs.surfaces.*</code> class;
+every non-<code>None</code> field (declared or extra) is forwarded to it.</p>
+
+
+<table>
+      <thead>
+        <tr>
+          <th><span class="doc-section-title">PARAMETER</span></th>
+          <th><span>DESCRIPTION</span></th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>color</code>
+            </td>
+            <td class="doc-param-details">
+              <div class="doc-md-description">
+                <p>Surface color. Shortcut for the primary texture with a single color (RGB or RGBA).</p>
+              </div>
+              <p>
+                  <span class="doc-param-annotation">
+                    <b>TYPE:</b>
+                      <code><a class="autorefs autorefs-external" href="https://docs.python.org/3/library/array.html#module-array">array</a> - <span title="like">like</span>[<a class="autorefs autorefs-external" href="https://docs.python.org/3/builtins/functions.html#float">float</a>] | None</code>
+                  </span>
+              </p>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>opacity</code>
+            </td>
+            <td class="doc-param-details">
+              <div class="doc-md-description">
+                <p>Opacity of the surface in [0, 1].</p>
+              </div>
+              <p>
+                  <span class="doc-param-annotation">
+                    <b>TYPE:</b>
+                      <code><a class="autorefs autorefs-external" href="https://docs.python.org/3/builtins/functions.html#float">float</a> | None</code>
+                  </span>
+              </p>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>roughness</code>
+            </td>
+            <td class="doc-param-details">
+              <div class="doc-md-description">
+                <p>Roughness of the surface in [0, 1].</p>
+              </div>
+              <p>
+                  <span class="doc-param-annotation">
+                    <b>TYPE:</b>
+                      <code><a class="autorefs autorefs-external" href="https://docs.python.org/3/builtins/functions.html#float">float</a> | None</code>
+                  </span>
+              </p>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>metallic</code>
+            </td>
+            <td class="doc-param-details">
+              <div class="doc-md-description">
+                <p>Metalness of the surface in [0, 1].</p>
+              </div>
+              <p>
+                  <span class="doc-param-annotation">
+                    <b>TYPE:</b>
+                      <code><a class="autorefs autorefs-external" href="https://docs.python.org/3/builtins/functions.html#float">float</a> | None</code>
+                  </span>
+              </p>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>emissive</code>
+            </td>
+            <td class="doc-param-details">
+              <div class="doc-md-description">
+                <p>Emissive color of the surface.</p>
+              </div>
+              <p>
+                  <span class="doc-param-annotation">
+                    <b>TYPE:</b>
+                      <code><a class="autorefs autorefs-external" href="https://docs.python.org/3/library/array.html#module-array">array</a> - <span title="like">like</span>[<a class="autorefs autorefs-external" href="https://docs.python.org/3/builtins/functions.html#float">float</a>] | None</code>
+                  </span>
+              </p>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>ior</code>
+            </td>
+            <td class="doc-param-details">
+              <div class="doc-md-description">
+                <p>Index of refraction.</p>
+              </div>
+              <p>
+                  <span class="doc-param-annotation">
+                    <b>TYPE:</b>
+                      <code><a class="autorefs autorefs-external" href="https://docs.python.org/3/builtins/functions.html#float">float</a> | None</code>
+                  </span>
+              </p>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>vis_mode</code>
+            </td>
+            <td class="doc-param-details">
+              <div class="doc-md-description">
+                <p>How the entity should be visualized ('visual', 'collision', 'particle', 'sdf', 'recon').</p>
+              </div>
+              <p>
+                  <span class="doc-param-annotation">
+                    <b>TYPE:</b>
+                      <code><a class="autorefs autorefs-external" href="https://docs.python.org/3/builtins/stdtypes.html#str">str</a> | None</code>
+                  </span>
+              </p>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>double_sided</code>
+            </td>
+            <td class="doc-param-details">
+              <div class="doc-md-description">
+                <p>Whether to render both sides of the surface.</p>
+              </div>
+              <p>
+                  <span class="doc-param-annotation">
+                    <b>TYPE:</b>
+                      <code><a class="autorefs autorefs-external" href="https://docs.python.org/3/builtins/functions.html#bool">bool</a> | None</code>
+                  </span>
+              </p>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>smooth</code>
+            </td>
+            <td class="doc-param-details">
+              <div class="doc-md-description">
+                <p>Whether to smooth face normals by interpolating vertex normals. Default True.</p>
+              </div>
+              <p>
+                  <span class="doc-param-annotation">
+                    <b>TYPE:</b>
+                      <code><a class="autorefs autorefs-external" href="https://docs.python.org/3/builtins/functions.html#bool">bool</a></code>
+                  </span>
+              </p>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+
+
+
+
+
+
+                  <details class="mkdocstrings-source">
+                    <summary>Source code in <code>eden/options/options.py</code></summary>
+                    <div class="language-python highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#eden.options.surfaces.SurfaceOptions--source--__codelineno-0-439">439</a></span>
+<span class="normal"><a href="#eden.options.surfaces.SurfaceOptions--source--__codelineno-0-440">440</a></span>
+<span class="normal"><a href="#eden.options.surfaces.SurfaceOptions--source--__codelineno-0-441">441</a></span>
+<span class="normal"><a href="#eden.options.surfaces.SurfaceOptions--source--__codelineno-0-442">442</a></span>
+<span class="normal"><a href="#eden.options.surfaces.SurfaceOptions--source--__codelineno-0-443">443</a></span>
+<span class="normal"><a href="#eden.options.surfaces.SurfaceOptions--source--__codelineno-0-444">444</a></span>
+<span class="normal"><a href="#eden.options.surfaces.SurfaceOptions--source--__codelineno-0-445">445</a></span>
+<span class="normal"><a href="#eden.options.surfaces.SurfaceOptions--source--__codelineno-0-446">446</a></span>
+<span class="normal"><a href="#eden.options.surfaces.SurfaceOptions--source--__codelineno-0-447">447</a></span>
+<span class="normal"><a href="#eden.options.surfaces.SurfaceOptions--source--__codelineno-0-448">448</a></span>
+<span class="normal"><a href="#eden.options.surfaces.SurfaceOptions--source--__codelineno-0-449">449</a></span>
+<span class="normal"><a href="#eden.options.surfaces.SurfaceOptions--source--__codelineno-0-450">450</a></span>
+<span class="normal"><a href="#eden.options.surfaces.SurfaceOptions--source--__codelineno-0-451">451</a></span>
+<span class="normal"><a href="#eden.options.surfaces.SurfaceOptions--source--__codelineno-0-452">452</a></span>
+<span class="normal"><a href="#eden.options.surfaces.SurfaceOptions--source--__codelineno-0-453">453</a></span></pre></div></td><td class="code"><div><pre><span></span><code><span id="eden.options.surfaces.SurfaceOptions--source--__span-0-439"><a id="eden.options.surfaces.SurfaceOptions--source--__codelineno-0-439" name="eden.options.surfaces.SurfaceOptions--source--__codelineno-0-439"></a><span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">**</span><span class="n">data</span><span class="p">):</span>
+</span><span id="eden.options.surfaces.SurfaceOptions--source--__span-0-440"><a id="eden.options.surfaces.SurfaceOptions--source--__codelineno-0-440" name="eden.options.surfaces.SurfaceOptions--source--__codelineno-0-440"></a>    <span class="c1"># Seed type metadata as construction data so BaseModel validates it into</span>
+</span><span id="eden.options.surfaces.SurfaceOptions--source--__span-0-441"><a id="eden.options.surfaces.SurfaceOptions--source--__codelineno-0-441" name="eden.options.surfaces.SurfaceOptions--source--__codelineno-0-441"></a>    <span class="c1"># __pydantic_extra__ (no-op for extra="forbid" classes, which use</span>
+</span><span id="eden.options.surfaces.SurfaceOptions--source--__span-0-442"><a id="eden.options.surfaces.SurfaceOptions--source--__codelineno-0-442" name="eden.options.surfaces.SurfaceOptions--source--__codelineno-0-442"></a>    <span class="c1"># the serialization envelope instead).</span>
+</span><span id="eden.options.surfaces.SurfaceOptions--source--__span-0-443"><a id="eden.options.surfaces.SurfaceOptions--source--__codelineno-0-443" name="eden.options.surfaces.SurfaceOptions--source--__codelineno-0-443"></a>    <span class="n">data</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">option_metadata</span><span class="p">(</span><span class="bp">self</span><span class="p">))</span>
+</span><span id="eden.options.surfaces.SurfaceOptions--source--__span-0-444"><a id="eden.options.surfaces.SurfaceOptions--source--__codelineno-0-444" name="eden.options.surfaces.SurfaceOptions--source--__codelineno-0-444"></a>    <span class="c1"># NOTE: all of the option modifications/validations should be done in the __init__ method</span>
+</span><span id="eden.options.surfaces.SurfaceOptions--source--__span-0-445"><a id="eden.options.surfaces.SurfaceOptions--source--__codelineno-0-445" name="eden.options.surfaces.SurfaceOptions--source--__codelineno-0-445"></a>    <span class="k">try</span><span class="p">:</span>
+</span><span id="eden.options.surfaces.SurfaceOptions--source--__span-0-446"><a id="eden.options.surfaces.SurfaceOptions--source--__codelineno-0-446" name="eden.options.surfaces.SurfaceOptions--source--__codelineno-0-446"></a>        <span class="n">BaseModel</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">**</span><span class="n">data</span><span class="p">)</span>
+</span><span id="eden.options.surfaces.SurfaceOptions--source--__span-0-447"><a id="eden.options.surfaces.SurfaceOptions--source--__codelineno-0-447" name="eden.options.surfaces.SurfaceOptions--source--__codelineno-0-447"></a>    <span class="k">except</span> <span class="n">ValidationError</span> <span class="k">as</span> <span class="n">exc</span><span class="p">:</span>
+</span><span id="eden.options.surfaces.SurfaceOptions--source--__span-0-448"><a id="eden.options.surfaces.SurfaceOptions--source--__codelineno-0-448" name="eden.options.surfaces.SurfaceOptions--source--__codelineno-0-448"></a>        <span class="c1"># A misspelled field on an extra="forbid" class should teach the field set, not just</span>
+</span><span id="eden.options.surfaces.SurfaceOptions--source--__span-0-449"><a id="eden.options.surfaces.SurfaceOptions--source--__codelineno-0-449" name="eden.options.surfaces.SurfaceOptions--source--__codelineno-0-449"></a>        <span class="c1"># name the typo. Only rewritten when every error is extra_forbidden.</span>
+</span><span id="eden.options.surfaces.SurfaceOptions--source--__span-0-450"><a id="eden.options.surfaces.SurfaceOptions--source--__codelineno-0-450" name="eden.options.surfaces.SurfaceOptions--source--__codelineno-0-450"></a>        <span class="n">enriched</span> <span class="o">=</span> <span class="n">_enrich_extra_forbidden</span><span class="p">(</span><span class="nb">type</span><span class="p">(</span><span class="bp">self</span><span class="p">),</span> <span class="n">exc</span><span class="p">)</span>
+</span><span id="eden.options.surfaces.SurfaceOptions--source--__span-0-451"><a id="eden.options.surfaces.SurfaceOptions--source--__codelineno-0-451" name="eden.options.surfaces.SurfaceOptions--source--__codelineno-0-451"></a>        <span class="k">if</span> <span class="n">enriched</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+</span><span id="eden.options.surfaces.SurfaceOptions--source--__span-0-452"><a id="eden.options.surfaces.SurfaceOptions--source--__codelineno-0-452" name="eden.options.surfaces.SurfaceOptions--source--__codelineno-0-452"></a>            <span class="k">raise</span>
+</span><span id="eden.options.surfaces.SurfaceOptions--source--__span-0-453"><a id="eden.options.surfaces.SurfaceOptions--source--__codelineno-0-453" name="eden.options.surfaces.SurfaceOptions--source--__codelineno-0-453"></a>        <span class="k">raise</span> <span class="n">enriched</span> <span class="kn">from</span><span class="w"> </span><span class="kc">None</span>
+</span></code></pre></div></td></tr></table></div>
+                  </details>
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+<h4 id="eden.options.surfaces.SurfaceOptions-attributes">Attributes<a href="#eden.options.surfaces.SurfaceOptions-attributes" class="headerlink" title="Permanent link">&para;</a></h4>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h5 id="eden.options.surfaces.SurfaceOptions.color" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-attribute"></code>            <span class="doc doc-object-name doc-attribute-name">color</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#eden.options.surfaces.SurfaceOptions.color" class="headerlink" title="Permanent link">&para;</a></h5>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="n">color</span><span class="p">:</span> <span class="n"><span title="genesis.typing.FArrayType">FArrayType</span></span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h5 id="eden.options.surfaces.SurfaceOptions.opacity" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-attribute"></code>            <span class="doc doc-object-name doc-attribute-name">opacity</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#eden.options.surfaces.SurfaceOptions.opacity" class="headerlink" title="Permanent link">&para;</a></h5>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="n">opacity</span><span class="p">:</span> <span class="n"><span title="genesis.typing.UnitInterval">UnitInterval</span></span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h5 id="eden.options.surfaces.SurfaceOptions.roughness" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-attribute"></code>            <span class="doc doc-object-name doc-attribute-name">roughness</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#eden.options.surfaces.SurfaceOptions.roughness" class="headerlink" title="Permanent link">&para;</a></h5>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="n">roughness</span><span class="p">:</span> <span class="n"><span title="genesis.typing.UnitInterval">UnitInterval</span></span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h5 id="eden.options.surfaces.SurfaceOptions.metallic" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-attribute"></code>            <span class="doc doc-object-name doc-attribute-name">metallic</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#eden.options.surfaces.SurfaceOptions.metallic" class="headerlink" title="Permanent link">&para;</a></h5>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="n">metallic</span><span class="p">:</span> <span class="n"><span title="genesis.typing.UnitInterval">UnitInterval</span></span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h5 id="eden.options.surfaces.SurfaceOptions.emissive" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-attribute"></code>            <span class="doc doc-object-name doc-attribute-name">emissive</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#eden.options.surfaces.SurfaceOptions.emissive" class="headerlink" title="Permanent link">&para;</a></h5>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="n">emissive</span><span class="p">:</span> <span class="n"><span title="genesis.typing.FArrayType">FArrayType</span></span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h5 id="eden.options.surfaces.SurfaceOptions.ior" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-attribute"></code>            <span class="doc doc-object-name doc-attribute-name">ior</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#eden.options.surfaces.SurfaceOptions.ior" class="headerlink" title="Permanent link">&para;</a></h5>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="n">ior</span><span class="p">:</span> <span class="n"><a class="autorefs autorefs-external" href="https://docs.python.org/3/builtins/functions.html#float">float</a></span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h5 id="eden.options.surfaces.SurfaceOptions.vis_mode" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-attribute"></code>            <span class="doc doc-object-name doc-attribute-name">vis_mode</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#eden.options.surfaces.SurfaceOptions.vis_mode" class="headerlink" title="Permanent link">&para;</a></h5>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="n">vis_mode</span><span class="p">:</span> <span class="n"><a class="autorefs autorefs-external" title="&lt;code&gt;typing.Literal&lt;/code&gt;" href="https://docs.python.org/3/library/typing.html#typing.Literal">Literal</a></span><span class="p">[</span><span class="s1">'visual'</span><span class="p">,</span> <span class="s1">'collision'</span><span class="p">,</span> <span class="s1">'particle'</span><span class="p">,</span> <span class="s1">'sdf'</span><span class="p">,</span> <span class="s1">'recon'</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h5 id="eden.options.surfaces.SurfaceOptions.double_sided" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-attribute"></code>            <span class="doc doc-object-name doc-attribute-name">double_sided</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#eden.options.surfaces.SurfaceOptions.double_sided" class="headerlink" title="Permanent link">&para;</a></h5>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="n">double_sided</span><span class="p">:</span> <span class="n"><a class="autorefs autorefs-external" href="https://docs.python.org/3/builtins/functions.html#bool">bool</a></span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h5 id="eden.options.surfaces.SurfaceOptions.smooth" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-attribute"></code>            <span class="doc doc-object-name doc-attribute-name">smooth</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#eden.options.surfaces.SurfaceOptions.smooth" class="headerlink" title="Permanent link">&para;</a></h5>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="n">smooth</span><span class="p">:</span> <span class="n"><a class="autorefs autorefs-external" href="https://docs.python.org/3/builtins/functions.html#bool">bool</a></span> <span class="o">=</span> <span class="kc">True</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+    </div>
+
+</div>
+
+
+<h4 id="eden.options.surfaces.SurfaceOptions-functions">Methods:<a href="#eden.options.surfaces.SurfaceOptions-functions" class="headerlink" title="Permanent link">&para;</a></h4>
+
+<div class="doc doc-object doc-function">
+
+
+<h5 id="eden.options.surfaces.SurfaceOptions.to_genesis_surface" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>            <span class="doc doc-object-name doc-function-name">to_genesis_surface</span>
+
+
+<a href="#eden.options.surfaces.SurfaceOptions.to_genesis_surface" class="headerlink" title="Permanent link">&para;</a></h5>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">to_genesis_surface</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="n"><span title="genesis.options.surfaces.Surface">Surface</span></span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Materialize the Genesis surface. Must be called after <code>gs.init()</code>.</p>
+
+
+            <details class="mkdocstrings-source">
+              <summary>Source code in <code>eden/options/surfaces.py</code></summary>
+              <div class="language-python highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#eden.options.surfaces.SurfaceOptions.to_genesis_surface--source--__codelineno-0-61">61</a></span>
+<span class="normal"><a href="#eden.options.surfaces.SurfaceOptions.to_genesis_surface--source--__codelineno-0-62">62</a></span>
+<span class="normal"><a href="#eden.options.surfaces.SurfaceOptions.to_genesis_surface--source--__codelineno-0-63">63</a></span>
+<span class="normal"><a href="#eden.options.surfaces.SurfaceOptions.to_genesis_surface--source--__codelineno-0-64">64</a></span>
+<span class="normal"><a href="#eden.options.surfaces.SurfaceOptions.to_genesis_surface--source--__codelineno-0-65">65</a></span>
+<span class="normal"><a href="#eden.options.surfaces.SurfaceOptions.to_genesis_surface--source--__codelineno-0-66">66</a></span></pre></div></td><td class="code"><div><pre><span></span><code><span id="eden.options.surfaces.SurfaceOptions.to_genesis_surface--source--__span-0-61"><a id="eden.options.surfaces.SurfaceOptions.to_genesis_surface--source--__codelineno-0-61" name="eden.options.surfaces.SurfaceOptions.to_genesis_surface--source--__codelineno-0-61"></a><span class="k">def</span><span class="w"> </span><span class="nf">to_genesis_surface</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Surface</span><span class="p">:</span>
+</span><span id="eden.options.surfaces.SurfaceOptions.to_genesis_surface--source--__span-0-62"><a id="eden.options.surfaces.SurfaceOptions.to_genesis_surface--source--__codelineno-0-62" name="eden.options.surfaces.SurfaceOptions.to_genesis_surface--source--__codelineno-0-62"></a><span class="w">    </span><span class="sd">"""Materialize the Genesis surface. Must be called after ``gs.init()``."""</span>
+</span><span id="eden.options.surfaces.SurfaceOptions.to_genesis_surface--source--__span-0-63"><a id="eden.options.surfaces.SurfaceOptions.to_genesis_surface--source--__codelineno-0-63" name="eden.options.surfaces.SurfaceOptions.to_genesis_surface--source--__codelineno-0-63"></a>    <span class="c1"># Forward every set value (declared fields + dynamic extras), dropping unset</span>
+</span><span id="eden.options.surfaces.SurfaceOptions.to_genesis_surface--source--__span-0-64"><a id="eden.options.surfaces.SurfaceOptions.to_genesis_surface--source--__codelineno-0-64" name="eden.options.surfaces.SurfaceOptions.to_genesis_surface--source--__codelineno-0-64"></a>    <span class="c1"># ``None`` shortcuts so the Genesis surface keeps its own defaults.</span>
+</span><span id="eden.options.surfaces.SurfaceOptions.to_genesis_surface--source--__span-0-65"><a id="eden.options.surfaces.SurfaceOptions.to_genesis_surface--source--__codelineno-0-65" name="eden.options.surfaces.SurfaceOptions.to_genesis_surface--source--__codelineno-0-65"></a>    <span class="n">kwargs</span> <span class="o">=</span> <span class="p">{</span><span class="n">key</span><span class="p">:</span> <span class="n">value</span> <span class="k">for</span> <span class="n">key</span><span class="p">,</span> <span class="n">value</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">dict</span><span class="p">()</span><span class="o">.</span><span class="n">items</span><span class="p">()</span> <span class="k">if</span> <span class="n">value</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">}</span>
+</span><span id="eden.options.surfaces.SurfaceOptions.to_genesis_surface--source--__span-0-66"><a id="eden.options.surfaces.SurfaceOptions.to_genesis_surface--source--__codelineno-0-66" name="eden.options.surfaces.SurfaceOptions.to_genesis_surface--source--__codelineno-0-66"></a>    <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_genesis_surface_cls</span><span class="p">(</span><span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+</span></code></pre></div></td></tr></table></div>
+            </details>
+    </div>
+
+</div>
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h3 id="eden.options.surfaces.DefaultSurfaceOptions" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-class"></code>            <span class="doc doc-object-name doc-class-name">DefaultSurfaceOptions</span>
+
+
+<a href="#eden.options.surfaces.DefaultSurfaceOptions" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">DefaultSurfaceOptions</span><span class="p">(</span><span class="o">**</span><span class="n">data</span><span class="p">)</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+            <p class="doc doc-class-bases">
+              Bases: <code><a class="autorefs autorefs-internal" title="&lt;code class=&quot;doc-symbol doc-symbol-heading doc-symbol-class&quot;&gt;&lt;/code&gt;            &lt;span class=&quot;doc doc-object-name doc-class-name&quot;&gt;SurfaceOptions&lt;/span&gt; (&lt;code&gt;eden.options.surfaces.SurfaceOptions&lt;/code&gt;)" href="#eden.options.surfaces.SurfaceOptions">SurfaceOptions</a></code></p>
+
+
+
+        <p>Options for <code>gs.surfaces.Default</code>.</p>
+
+
+
+
+
+
+
+
+                  <details class="mkdocstrings-source">
+                    <summary>Source code in <code>eden/options/options.py</code></summary>
+                    <div class="language-python highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#eden.options.surfaces.DefaultSurfaceOptions--source--__codelineno-0-439">439</a></span>
+<span class="normal"><a href="#eden.options.surfaces.DefaultSurfaceOptions--source--__codelineno-0-440">440</a></span>
+<span class="normal"><a href="#eden.options.surfaces.DefaultSurfaceOptions--source--__codelineno-0-441">441</a></span>
+<span class="normal"><a href="#eden.options.surfaces.DefaultSurfaceOptions--source--__codelineno-0-442">442</a></span>
+<span class="normal"><a href="#eden.options.surfaces.DefaultSurfaceOptions--source--__codelineno-0-443">443</a></span>
+<span class="normal"><a href="#eden.options.surfaces.DefaultSurfaceOptions--source--__codelineno-0-444">444</a></span>
+<span class="normal"><a href="#eden.options.surfaces.DefaultSurfaceOptions--source--__codelineno-0-445">445</a></span>
+<span class="normal"><a href="#eden.options.surfaces.DefaultSurfaceOptions--source--__codelineno-0-446">446</a></span>
+<span class="normal"><a href="#eden.options.surfaces.DefaultSurfaceOptions--source--__codelineno-0-447">447</a></span>
+<span class="normal"><a href="#eden.options.surfaces.DefaultSurfaceOptions--source--__codelineno-0-448">448</a></span>
+<span class="normal"><a href="#eden.options.surfaces.DefaultSurfaceOptions--source--__codelineno-0-449">449</a></span>
+<span class="normal"><a href="#eden.options.surfaces.DefaultSurfaceOptions--source--__codelineno-0-450">450</a></span>
+<span class="normal"><a href="#eden.options.surfaces.DefaultSurfaceOptions--source--__codelineno-0-451">451</a></span>
+<span class="normal"><a href="#eden.options.surfaces.DefaultSurfaceOptions--source--__codelineno-0-452">452</a></span>
+<span class="normal"><a href="#eden.options.surfaces.DefaultSurfaceOptions--source--__codelineno-0-453">453</a></span></pre></div></td><td class="code"><div><pre><span></span><code><span id="eden.options.surfaces.DefaultSurfaceOptions--source--__span-0-439"><a id="eden.options.surfaces.DefaultSurfaceOptions--source--__codelineno-0-439" name="eden.options.surfaces.DefaultSurfaceOptions--source--__codelineno-0-439"></a><span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">**</span><span class="n">data</span><span class="p">):</span>
+</span><span id="eden.options.surfaces.DefaultSurfaceOptions--source--__span-0-440"><a id="eden.options.surfaces.DefaultSurfaceOptions--source--__codelineno-0-440" name="eden.options.surfaces.DefaultSurfaceOptions--source--__codelineno-0-440"></a>    <span class="c1"># Seed type metadata as construction data so BaseModel validates it into</span>
+</span><span id="eden.options.surfaces.DefaultSurfaceOptions--source--__span-0-441"><a id="eden.options.surfaces.DefaultSurfaceOptions--source--__codelineno-0-441" name="eden.options.surfaces.DefaultSurfaceOptions--source--__codelineno-0-441"></a>    <span class="c1"># __pydantic_extra__ (no-op for extra="forbid" classes, which use</span>
+</span><span id="eden.options.surfaces.DefaultSurfaceOptions--source--__span-0-442"><a id="eden.options.surfaces.DefaultSurfaceOptions--source--__codelineno-0-442" name="eden.options.surfaces.DefaultSurfaceOptions--source--__codelineno-0-442"></a>    <span class="c1"># the serialization envelope instead).</span>
+</span><span id="eden.options.surfaces.DefaultSurfaceOptions--source--__span-0-443"><a id="eden.options.surfaces.DefaultSurfaceOptions--source--__codelineno-0-443" name="eden.options.surfaces.DefaultSurfaceOptions--source--__codelineno-0-443"></a>    <span class="n">data</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">option_metadata</span><span class="p">(</span><span class="bp">self</span><span class="p">))</span>
+</span><span id="eden.options.surfaces.DefaultSurfaceOptions--source--__span-0-444"><a id="eden.options.surfaces.DefaultSurfaceOptions--source--__codelineno-0-444" name="eden.options.surfaces.DefaultSurfaceOptions--source--__codelineno-0-444"></a>    <span class="c1"># NOTE: all of the option modifications/validations should be done in the __init__ method</span>
+</span><span id="eden.options.surfaces.DefaultSurfaceOptions--source--__span-0-445"><a id="eden.options.surfaces.DefaultSurfaceOptions--source--__codelineno-0-445" name="eden.options.surfaces.DefaultSurfaceOptions--source--__codelineno-0-445"></a>    <span class="k">try</span><span class="p">:</span>
+</span><span id="eden.options.surfaces.DefaultSurfaceOptions--source--__span-0-446"><a id="eden.options.surfaces.DefaultSurfaceOptions--source--__codelineno-0-446" name="eden.options.surfaces.DefaultSurfaceOptions--source--__codelineno-0-446"></a>        <span class="n">BaseModel</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">**</span><span class="n">data</span><span class="p">)</span>
+</span><span id="eden.options.surfaces.DefaultSurfaceOptions--source--__span-0-447"><a id="eden.options.surfaces.DefaultSurfaceOptions--source--__codelineno-0-447" name="eden.options.surfaces.DefaultSurfaceOptions--source--__codelineno-0-447"></a>    <span class="k">except</span> <span class="n">ValidationError</span> <span class="k">as</span> <span class="n">exc</span><span class="p">:</span>
+</span><span id="eden.options.surfaces.DefaultSurfaceOptions--source--__span-0-448"><a id="eden.options.surfaces.DefaultSurfaceOptions--source--__codelineno-0-448" name="eden.options.surfaces.DefaultSurfaceOptions--source--__codelineno-0-448"></a>        <span class="c1"># A misspelled field on an extra="forbid" class should teach the field set, not just</span>
+</span><span id="eden.options.surfaces.DefaultSurfaceOptions--source--__span-0-449"><a id="eden.options.surfaces.DefaultSurfaceOptions--source--__codelineno-0-449" name="eden.options.surfaces.DefaultSurfaceOptions--source--__codelineno-0-449"></a>        <span class="c1"># name the typo. Only rewritten when every error is extra_forbidden.</span>
+</span><span id="eden.options.surfaces.DefaultSurfaceOptions--source--__span-0-450"><a id="eden.options.surfaces.DefaultSurfaceOptions--source--__codelineno-0-450" name="eden.options.surfaces.DefaultSurfaceOptions--source--__codelineno-0-450"></a>        <span class="n">enriched</span> <span class="o">=</span> <span class="n">_enrich_extra_forbidden</span><span class="p">(</span><span class="nb">type</span><span class="p">(</span><span class="bp">self</span><span class="p">),</span> <span class="n">exc</span><span class="p">)</span>
+</span><span id="eden.options.surfaces.DefaultSurfaceOptions--source--__span-0-451"><a id="eden.options.surfaces.DefaultSurfaceOptions--source--__codelineno-0-451" name="eden.options.surfaces.DefaultSurfaceOptions--source--__codelineno-0-451"></a>        <span class="k">if</span> <span class="n">enriched</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+</span><span id="eden.options.surfaces.DefaultSurfaceOptions--source--__span-0-452"><a id="eden.options.surfaces.DefaultSurfaceOptions--source--__codelineno-0-452" name="eden.options.surfaces.DefaultSurfaceOptions--source--__codelineno-0-452"></a>            <span class="k">raise</span>
+</span><span id="eden.options.surfaces.DefaultSurfaceOptions--source--__span-0-453"><a id="eden.options.surfaces.DefaultSurfaceOptions--source--__codelineno-0-453" name="eden.options.surfaces.DefaultSurfaceOptions--source--__codelineno-0-453"></a>        <span class="k">raise</span> <span class="n">enriched</span> <span class="kn">from</span><span class="w"> </span><span class="kc">None</span>
+</span></code></pre></div></td></tr></table></div>
+                  </details>
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h3 id="eden.options.surfaces.PlasticSurfaceOptions" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-class"></code>            <span class="doc doc-object-name doc-class-name">PlasticSurfaceOptions</span>
+
+
+<a href="#eden.options.surfaces.PlasticSurfaceOptions" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">PlasticSurfaceOptions</span><span class="p">(</span><span class="o">**</span><span class="n">data</span><span class="p">)</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+            <p class="doc doc-class-bases">
+              Bases: <code><a class="autorefs autorefs-internal" title="&lt;code class=&quot;doc-symbol doc-symbol-heading doc-symbol-class&quot;&gt;&lt;/code&gt;            &lt;span class=&quot;doc doc-object-name doc-class-name&quot;&gt;SurfaceOptions&lt;/span&gt; (&lt;code&gt;eden.options.surfaces.SurfaceOptions&lt;/code&gt;)" href="#eden.options.surfaces.SurfaceOptions">SurfaceOptions</a></code></p>
+
+
+
+        <p>Options for <code>gs.surfaces.Plastic</code>.</p>
+
+
+
+
+
+
+
+
+                  <details class="mkdocstrings-source">
+                    <summary>Source code in <code>eden/options/options.py</code></summary>
+                    <div class="language-python highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#eden.options.surfaces.PlasticSurfaceOptions--source--__codelineno-0-439">439</a></span>
+<span class="normal"><a href="#eden.options.surfaces.PlasticSurfaceOptions--source--__codelineno-0-440">440</a></span>
+<span class="normal"><a href="#eden.options.surfaces.PlasticSurfaceOptions--source--__codelineno-0-441">441</a></span>
+<span class="normal"><a href="#eden.options.surfaces.PlasticSurfaceOptions--source--__codelineno-0-442">442</a></span>
+<span class="normal"><a href="#eden.options.surfaces.PlasticSurfaceOptions--source--__codelineno-0-443">443</a></span>
+<span class="normal"><a href="#eden.options.surfaces.PlasticSurfaceOptions--source--__codelineno-0-444">444</a></span>
+<span class="normal"><a href="#eden.options.surfaces.PlasticSurfaceOptions--source--__codelineno-0-445">445</a></span>
+<span class="normal"><a href="#eden.options.surfaces.PlasticSurfaceOptions--source--__codelineno-0-446">446</a></span>
+<span class="normal"><a href="#eden.options.surfaces.PlasticSurfaceOptions--source--__codelineno-0-447">447</a></span>
+<span class="normal"><a href="#eden.options.surfaces.PlasticSurfaceOptions--source--__codelineno-0-448">448</a></span>
+<span class="normal"><a href="#eden.options.surfaces.PlasticSurfaceOptions--source--__codelineno-0-449">449</a></span>
+<span class="normal"><a href="#eden.options.surfaces.PlasticSurfaceOptions--source--__codelineno-0-450">450</a></span>
+<span class="normal"><a href="#eden.options.surfaces.PlasticSurfaceOptions--source--__codelineno-0-451">451</a></span>
+<span class="normal"><a href="#eden.options.surfaces.PlasticSurfaceOptions--source--__codelineno-0-452">452</a></span>
+<span class="normal"><a href="#eden.options.surfaces.PlasticSurfaceOptions--source--__codelineno-0-453">453</a></span></pre></div></td><td class="code"><div><pre><span></span><code><span id="eden.options.surfaces.PlasticSurfaceOptions--source--__span-0-439"><a id="eden.options.surfaces.PlasticSurfaceOptions--source--__codelineno-0-439" name="eden.options.surfaces.PlasticSurfaceOptions--source--__codelineno-0-439"></a><span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">**</span><span class="n">data</span><span class="p">):</span>
+</span><span id="eden.options.surfaces.PlasticSurfaceOptions--source--__span-0-440"><a id="eden.options.surfaces.PlasticSurfaceOptions--source--__codelineno-0-440" name="eden.options.surfaces.PlasticSurfaceOptions--source--__codelineno-0-440"></a>    <span class="c1"># Seed type metadata as construction data so BaseModel validates it into</span>
+</span><span id="eden.options.surfaces.PlasticSurfaceOptions--source--__span-0-441"><a id="eden.options.surfaces.PlasticSurfaceOptions--source--__codelineno-0-441" name="eden.options.surfaces.PlasticSurfaceOptions--source--__codelineno-0-441"></a>    <span class="c1"># __pydantic_extra__ (no-op for extra="forbid" classes, which use</span>
+</span><span id="eden.options.surfaces.PlasticSurfaceOptions--source--__span-0-442"><a id="eden.options.surfaces.PlasticSurfaceOptions--source--__codelineno-0-442" name="eden.options.surfaces.PlasticSurfaceOptions--source--__codelineno-0-442"></a>    <span class="c1"># the serialization envelope instead).</span>
+</span><span id="eden.options.surfaces.PlasticSurfaceOptions--source--__span-0-443"><a id="eden.options.surfaces.PlasticSurfaceOptions--source--__codelineno-0-443" name="eden.options.surfaces.PlasticSurfaceOptions--source--__codelineno-0-443"></a>    <span class="n">data</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">option_metadata</span><span class="p">(</span><span class="bp">self</span><span class="p">))</span>
+</span><span id="eden.options.surfaces.PlasticSurfaceOptions--source--__span-0-444"><a id="eden.options.surfaces.PlasticSurfaceOptions--source--__codelineno-0-444" name="eden.options.surfaces.PlasticSurfaceOptions--source--__codelineno-0-444"></a>    <span class="c1"># NOTE: all of the option modifications/validations should be done in the __init__ method</span>
+</span><span id="eden.options.surfaces.PlasticSurfaceOptions--source--__span-0-445"><a id="eden.options.surfaces.PlasticSurfaceOptions--source--__codelineno-0-445" name="eden.options.surfaces.PlasticSurfaceOptions--source--__codelineno-0-445"></a>    <span class="k">try</span><span class="p">:</span>
+</span><span id="eden.options.surfaces.PlasticSurfaceOptions--source--__span-0-446"><a id="eden.options.surfaces.PlasticSurfaceOptions--source--__codelineno-0-446" name="eden.options.surfaces.PlasticSurfaceOptions--source--__codelineno-0-446"></a>        <span class="n">BaseModel</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">**</span><span class="n">data</span><span class="p">)</span>
+</span><span id="eden.options.surfaces.PlasticSurfaceOptions--source--__span-0-447"><a id="eden.options.surfaces.PlasticSurfaceOptions--source--__codelineno-0-447" name="eden.options.surfaces.PlasticSurfaceOptions--source--__codelineno-0-447"></a>    <span class="k">except</span> <span class="n">ValidationError</span> <span class="k">as</span> <span class="n">exc</span><span class="p">:</span>
+</span><span id="eden.options.surfaces.PlasticSurfaceOptions--source--__span-0-448"><a id="eden.options.surfaces.PlasticSurfaceOptions--source--__codelineno-0-448" name="eden.options.surfaces.PlasticSurfaceOptions--source--__codelineno-0-448"></a>        <span class="c1"># A misspelled field on an extra="forbid" class should teach the field set, not just</span>
+</span><span id="eden.options.surfaces.PlasticSurfaceOptions--source--__span-0-449"><a id="eden.options.surfaces.PlasticSurfaceOptions--source--__codelineno-0-449" name="eden.options.surfaces.PlasticSurfaceOptions--source--__codelineno-0-449"></a>        <span class="c1"># name the typo. Only rewritten when every error is extra_forbidden.</span>
+</span><span id="eden.options.surfaces.PlasticSurfaceOptions--source--__span-0-450"><a id="eden.options.surfaces.PlasticSurfaceOptions--source--__codelineno-0-450" name="eden.options.surfaces.PlasticSurfaceOptions--source--__codelineno-0-450"></a>        <span class="n">enriched</span> <span class="o">=</span> <span class="n">_enrich_extra_forbidden</span><span class="p">(</span><span class="nb">type</span><span class="p">(</span><span class="bp">self</span><span class="p">),</span> <span class="n">exc</span><span class="p">)</span>
+</span><span id="eden.options.surfaces.PlasticSurfaceOptions--source--__span-0-451"><a id="eden.options.surfaces.PlasticSurfaceOptions--source--__codelineno-0-451" name="eden.options.surfaces.PlasticSurfaceOptions--source--__codelineno-0-451"></a>        <span class="k">if</span> <span class="n">enriched</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+</span><span id="eden.options.surfaces.PlasticSurfaceOptions--source--__span-0-452"><a id="eden.options.surfaces.PlasticSurfaceOptions--source--__codelineno-0-452" name="eden.options.surfaces.PlasticSurfaceOptions--source--__codelineno-0-452"></a>            <span class="k">raise</span>
+</span><span id="eden.options.surfaces.PlasticSurfaceOptions--source--__span-0-453"><a id="eden.options.surfaces.PlasticSurfaceOptions--source--__codelineno-0-453" name="eden.options.surfaces.PlasticSurfaceOptions--source--__codelineno-0-453"></a>        <span class="k">raise</span> <span class="n">enriched</span> <span class="kn">from</span><span class="w"> </span><span class="kc">None</span>
+</span></code></pre></div></td></tr></table></div>
+                  </details>
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h3 id="eden.options.surfaces.MetalSurfaceOptions" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-class"></code>            <span class="doc doc-object-name doc-class-name">MetalSurfaceOptions</span>
+
+
+<a href="#eden.options.surfaces.MetalSurfaceOptions" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">MetalSurfaceOptions</span><span class="p">(</span><span class="o">**</span><span class="n">data</span><span class="p">)</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+            <p class="doc doc-class-bases">
+              Bases: <code><a class="autorefs autorefs-internal" title="&lt;code class=&quot;doc-symbol doc-symbol-heading doc-symbol-class&quot;&gt;&lt;/code&gt;            &lt;span class=&quot;doc doc-object-name doc-class-name&quot;&gt;SurfaceOptions&lt;/span&gt; (&lt;code&gt;eden.options.surfaces.SurfaceOptions&lt;/code&gt;)" href="#eden.options.surfaces.SurfaceOptions">SurfaceOptions</a></code></p>
+
+
+
+        <p>Options for <code>gs.surfaces.Metal</code>.</p>
+
+
+
+
+
+
+
+
+                  <details class="mkdocstrings-source">
+                    <summary>Source code in <code>eden/options/options.py</code></summary>
+                    <div class="language-python highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#eden.options.surfaces.MetalSurfaceOptions--source--__codelineno-0-439">439</a></span>
+<span class="normal"><a href="#eden.options.surfaces.MetalSurfaceOptions--source--__codelineno-0-440">440</a></span>
+<span class="normal"><a href="#eden.options.surfaces.MetalSurfaceOptions--source--__codelineno-0-441">441</a></span>
+<span class="normal"><a href="#eden.options.surfaces.MetalSurfaceOptions--source--__codelineno-0-442">442</a></span>
+<span class="normal"><a href="#eden.options.surfaces.MetalSurfaceOptions--source--__codelineno-0-443">443</a></span>
+<span class="normal"><a href="#eden.options.surfaces.MetalSurfaceOptions--source--__codelineno-0-444">444</a></span>
+<span class="normal"><a href="#eden.options.surfaces.MetalSurfaceOptions--source--__codelineno-0-445">445</a></span>
+<span class="normal"><a href="#eden.options.surfaces.MetalSurfaceOptions--source--__codelineno-0-446">446</a></span>
+<span class="normal"><a href="#eden.options.surfaces.MetalSurfaceOptions--source--__codelineno-0-447">447</a></span>
+<span class="normal"><a href="#eden.options.surfaces.MetalSurfaceOptions--source--__codelineno-0-448">448</a></span>
+<span class="normal"><a href="#eden.options.surfaces.MetalSurfaceOptions--source--__codelineno-0-449">449</a></span>
+<span class="normal"><a href="#eden.options.surfaces.MetalSurfaceOptions--source--__codelineno-0-450">450</a></span>
+<span class="normal"><a href="#eden.options.surfaces.MetalSurfaceOptions--source--__codelineno-0-451">451</a></span>
+<span class="normal"><a href="#eden.options.surfaces.MetalSurfaceOptions--source--__codelineno-0-452">452</a></span>
+<span class="normal"><a href="#eden.options.surfaces.MetalSurfaceOptions--source--__codelineno-0-453">453</a></span></pre></div></td><td class="code"><div><pre><span></span><code><span id="eden.options.surfaces.MetalSurfaceOptions--source--__span-0-439"><a id="eden.options.surfaces.MetalSurfaceOptions--source--__codelineno-0-439" name="eden.options.surfaces.MetalSurfaceOptions--source--__codelineno-0-439"></a><span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">**</span><span class="n">data</span><span class="p">):</span>
+</span><span id="eden.options.surfaces.MetalSurfaceOptions--source--__span-0-440"><a id="eden.options.surfaces.MetalSurfaceOptions--source--__codelineno-0-440" name="eden.options.surfaces.MetalSurfaceOptions--source--__codelineno-0-440"></a>    <span class="c1"># Seed type metadata as construction data so BaseModel validates it into</span>
+</span><span id="eden.options.surfaces.MetalSurfaceOptions--source--__span-0-441"><a id="eden.options.surfaces.MetalSurfaceOptions--source--__codelineno-0-441" name="eden.options.surfaces.MetalSurfaceOptions--source--__codelineno-0-441"></a>    <span class="c1"># __pydantic_extra__ (no-op for extra="forbid" classes, which use</span>
+</span><span id="eden.options.surfaces.MetalSurfaceOptions--source--__span-0-442"><a id="eden.options.surfaces.MetalSurfaceOptions--source--__codelineno-0-442" name="eden.options.surfaces.MetalSurfaceOptions--source--__codelineno-0-442"></a>    <span class="c1"># the serialization envelope instead).</span>
+</span><span id="eden.options.surfaces.MetalSurfaceOptions--source--__span-0-443"><a id="eden.options.surfaces.MetalSurfaceOptions--source--__codelineno-0-443" name="eden.options.surfaces.MetalSurfaceOptions--source--__codelineno-0-443"></a>    <span class="n">data</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">option_metadata</span><span class="p">(</span><span class="bp">self</span><span class="p">))</span>
+</span><span id="eden.options.surfaces.MetalSurfaceOptions--source--__span-0-444"><a id="eden.options.surfaces.MetalSurfaceOptions--source--__codelineno-0-444" name="eden.options.surfaces.MetalSurfaceOptions--source--__codelineno-0-444"></a>    <span class="c1"># NOTE: all of the option modifications/validations should be done in the __init__ method</span>
+</span><span id="eden.options.surfaces.MetalSurfaceOptions--source--__span-0-445"><a id="eden.options.surfaces.MetalSurfaceOptions--source--__codelineno-0-445" name="eden.options.surfaces.MetalSurfaceOptions--source--__codelineno-0-445"></a>    <span class="k">try</span><span class="p">:</span>
+</span><span id="eden.options.surfaces.MetalSurfaceOptions--source--__span-0-446"><a id="eden.options.surfaces.MetalSurfaceOptions--source--__codelineno-0-446" name="eden.options.surfaces.MetalSurfaceOptions--source--__codelineno-0-446"></a>        <span class="n">BaseModel</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">**</span><span class="n">data</span><span class="p">)</span>
+</span><span id="eden.options.surfaces.MetalSurfaceOptions--source--__span-0-447"><a id="eden.options.surfaces.MetalSurfaceOptions--source--__codelineno-0-447" name="eden.options.surfaces.MetalSurfaceOptions--source--__codelineno-0-447"></a>    <span class="k">except</span> <span class="n">ValidationError</span> <span class="k">as</span> <span class="n">exc</span><span class="p">:</span>
+</span><span id="eden.options.surfaces.MetalSurfaceOptions--source--__span-0-448"><a id="eden.options.surfaces.MetalSurfaceOptions--source--__codelineno-0-448" name="eden.options.surfaces.MetalSurfaceOptions--source--__codelineno-0-448"></a>        <span class="c1"># A misspelled field on an extra="forbid" class should teach the field set, not just</span>
+</span><span id="eden.options.surfaces.MetalSurfaceOptions--source--__span-0-449"><a id="eden.options.surfaces.MetalSurfaceOptions--source--__codelineno-0-449" name="eden.options.surfaces.MetalSurfaceOptions--source--__codelineno-0-449"></a>        <span class="c1"># name the typo. Only rewritten when every error is extra_forbidden.</span>
+</span><span id="eden.options.surfaces.MetalSurfaceOptions--source--__span-0-450"><a id="eden.options.surfaces.MetalSurfaceOptions--source--__codelineno-0-450" name="eden.options.surfaces.MetalSurfaceOptions--source--__codelineno-0-450"></a>        <span class="n">enriched</span> <span class="o">=</span> <span class="n">_enrich_extra_forbidden</span><span class="p">(</span><span class="nb">type</span><span class="p">(</span><span class="bp">self</span><span class="p">),</span> <span class="n">exc</span><span class="p">)</span>
+</span><span id="eden.options.surfaces.MetalSurfaceOptions--source--__span-0-451"><a id="eden.options.surfaces.MetalSurfaceOptions--source--__codelineno-0-451" name="eden.options.surfaces.MetalSurfaceOptions--source--__codelineno-0-451"></a>        <span class="k">if</span> <span class="n">enriched</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+</span><span id="eden.options.surfaces.MetalSurfaceOptions--source--__span-0-452"><a id="eden.options.surfaces.MetalSurfaceOptions--source--__codelineno-0-452" name="eden.options.surfaces.MetalSurfaceOptions--source--__codelineno-0-452"></a>            <span class="k">raise</span>
+</span><span id="eden.options.surfaces.MetalSurfaceOptions--source--__span-0-453"><a id="eden.options.surfaces.MetalSurfaceOptions--source--__codelineno-0-453" name="eden.options.surfaces.MetalSurfaceOptions--source--__codelineno-0-453"></a>        <span class="k">raise</span> <span class="n">enriched</span> <span class="kn">from</span><span class="w"> </span><span class="kc">None</span>
+</span></code></pre></div></td></tr></table></div>
+                  </details>
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h3 id="eden.options.surfaces.BSDFSurfaceOptions" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-class"></code>            <span class="doc doc-object-name doc-class-name">BSDFSurfaceOptions</span>
+
+
+<a href="#eden.options.surfaces.BSDFSurfaceOptions" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">BSDFSurfaceOptions</span><span class="p">(</span><span class="o">**</span><span class="n">data</span><span class="p">)</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+            <p class="doc doc-class-bases">
+              Bases: <code><a class="autorefs autorefs-internal" title="&lt;code class=&quot;doc-symbol doc-symbol-heading doc-symbol-class&quot;&gt;&lt;/code&gt;            &lt;span class=&quot;doc doc-object-name doc-class-name&quot;&gt;SurfaceOptions&lt;/span&gt; (&lt;code&gt;eden.options.surfaces.SurfaceOptions&lt;/code&gt;)" href="#eden.options.surfaces.SurfaceOptions">SurfaceOptions</a></code></p>
+
+
+
+        <p>Options for <code>gs.surfaces.BSDF</code> — a general PBR surface (color / metallic / roughness).</p>
+
+
+
+
+
+
+
+
+                  <details class="mkdocstrings-source">
+                    <summary>Source code in <code>eden/options/options.py</code></summary>
+                    <div class="language-python highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#eden.options.surfaces.BSDFSurfaceOptions--source--__codelineno-0-439">439</a></span>
+<span class="normal"><a href="#eden.options.surfaces.BSDFSurfaceOptions--source--__codelineno-0-440">440</a></span>
+<span class="normal"><a href="#eden.options.surfaces.BSDFSurfaceOptions--source--__codelineno-0-441">441</a></span>
+<span class="normal"><a href="#eden.options.surfaces.BSDFSurfaceOptions--source--__codelineno-0-442">442</a></span>
+<span class="normal"><a href="#eden.options.surfaces.BSDFSurfaceOptions--source--__codelineno-0-443">443</a></span>
+<span class="normal"><a href="#eden.options.surfaces.BSDFSurfaceOptions--source--__codelineno-0-444">444</a></span>
+<span class="normal"><a href="#eden.options.surfaces.BSDFSurfaceOptions--source--__codelineno-0-445">445</a></span>
+<span class="normal"><a href="#eden.options.surfaces.BSDFSurfaceOptions--source--__codelineno-0-446">446</a></span>
+<span class="normal"><a href="#eden.options.surfaces.BSDFSurfaceOptions--source--__codelineno-0-447">447</a></span>
+<span class="normal"><a href="#eden.options.surfaces.BSDFSurfaceOptions--source--__codelineno-0-448">448</a></span>
+<span class="normal"><a href="#eden.options.surfaces.BSDFSurfaceOptions--source--__codelineno-0-449">449</a></span>
+<span class="normal"><a href="#eden.options.surfaces.BSDFSurfaceOptions--source--__codelineno-0-450">450</a></span>
+<span class="normal"><a href="#eden.options.surfaces.BSDFSurfaceOptions--source--__codelineno-0-451">451</a></span>
+<span class="normal"><a href="#eden.options.surfaces.BSDFSurfaceOptions--source--__codelineno-0-452">452</a></span>
+<span class="normal"><a href="#eden.options.surfaces.BSDFSurfaceOptions--source--__codelineno-0-453">453</a></span></pre></div></td><td class="code"><div><pre><span></span><code><span id="eden.options.surfaces.BSDFSurfaceOptions--source--__span-0-439"><a id="eden.options.surfaces.BSDFSurfaceOptions--source--__codelineno-0-439" name="eden.options.surfaces.BSDFSurfaceOptions--source--__codelineno-0-439"></a><span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">**</span><span class="n">data</span><span class="p">):</span>
+</span><span id="eden.options.surfaces.BSDFSurfaceOptions--source--__span-0-440"><a id="eden.options.surfaces.BSDFSurfaceOptions--source--__codelineno-0-440" name="eden.options.surfaces.BSDFSurfaceOptions--source--__codelineno-0-440"></a>    <span class="c1"># Seed type metadata as construction data so BaseModel validates it into</span>
+</span><span id="eden.options.surfaces.BSDFSurfaceOptions--source--__span-0-441"><a id="eden.options.surfaces.BSDFSurfaceOptions--source--__codelineno-0-441" name="eden.options.surfaces.BSDFSurfaceOptions--source--__codelineno-0-441"></a>    <span class="c1"># __pydantic_extra__ (no-op for extra="forbid" classes, which use</span>
+</span><span id="eden.options.surfaces.BSDFSurfaceOptions--source--__span-0-442"><a id="eden.options.surfaces.BSDFSurfaceOptions--source--__codelineno-0-442" name="eden.options.surfaces.BSDFSurfaceOptions--source--__codelineno-0-442"></a>    <span class="c1"># the serialization envelope instead).</span>
+</span><span id="eden.options.surfaces.BSDFSurfaceOptions--source--__span-0-443"><a id="eden.options.surfaces.BSDFSurfaceOptions--source--__codelineno-0-443" name="eden.options.surfaces.BSDFSurfaceOptions--source--__codelineno-0-443"></a>    <span class="n">data</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">option_metadata</span><span class="p">(</span><span class="bp">self</span><span class="p">))</span>
+</span><span id="eden.options.surfaces.BSDFSurfaceOptions--source--__span-0-444"><a id="eden.options.surfaces.BSDFSurfaceOptions--source--__codelineno-0-444" name="eden.options.surfaces.BSDFSurfaceOptions--source--__codelineno-0-444"></a>    <span class="c1"># NOTE: all of the option modifications/validations should be done in the __init__ method</span>
+</span><span id="eden.options.surfaces.BSDFSurfaceOptions--source--__span-0-445"><a id="eden.options.surfaces.BSDFSurfaceOptions--source--__codelineno-0-445" name="eden.options.surfaces.BSDFSurfaceOptions--source--__codelineno-0-445"></a>    <span class="k">try</span><span class="p">:</span>
+</span><span id="eden.options.surfaces.BSDFSurfaceOptions--source--__span-0-446"><a id="eden.options.surfaces.BSDFSurfaceOptions--source--__codelineno-0-446" name="eden.options.surfaces.BSDFSurfaceOptions--source--__codelineno-0-446"></a>        <span class="n">BaseModel</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">**</span><span class="n">data</span><span class="p">)</span>
+</span><span id="eden.options.surfaces.BSDFSurfaceOptions--source--__span-0-447"><a id="eden.options.surfaces.BSDFSurfaceOptions--source--__codelineno-0-447" name="eden.options.surfaces.BSDFSurfaceOptions--source--__codelineno-0-447"></a>    <span class="k">except</span> <span class="n">ValidationError</span> <span class="k">as</span> <span class="n">exc</span><span class="p">:</span>
+</span><span id="eden.options.surfaces.BSDFSurfaceOptions--source--__span-0-448"><a id="eden.options.surfaces.BSDFSurfaceOptions--source--__codelineno-0-448" name="eden.options.surfaces.BSDFSurfaceOptions--source--__codelineno-0-448"></a>        <span class="c1"># A misspelled field on an extra="forbid" class should teach the field set, not just</span>
+</span><span id="eden.options.surfaces.BSDFSurfaceOptions--source--__span-0-449"><a id="eden.options.surfaces.BSDFSurfaceOptions--source--__codelineno-0-449" name="eden.options.surfaces.BSDFSurfaceOptions--source--__codelineno-0-449"></a>        <span class="c1"># name the typo. Only rewritten when every error is extra_forbidden.</span>
+</span><span id="eden.options.surfaces.BSDFSurfaceOptions--source--__span-0-450"><a id="eden.options.surfaces.BSDFSurfaceOptions--source--__codelineno-0-450" name="eden.options.surfaces.BSDFSurfaceOptions--source--__codelineno-0-450"></a>        <span class="n">enriched</span> <span class="o">=</span> <span class="n">_enrich_extra_forbidden</span><span class="p">(</span><span class="nb">type</span><span class="p">(</span><span class="bp">self</span><span class="p">),</span> <span class="n">exc</span><span class="p">)</span>
+</span><span id="eden.options.surfaces.BSDFSurfaceOptions--source--__span-0-451"><a id="eden.options.surfaces.BSDFSurfaceOptions--source--__codelineno-0-451" name="eden.options.surfaces.BSDFSurfaceOptions--source--__codelineno-0-451"></a>        <span class="k">if</span> <span class="n">enriched</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+</span><span id="eden.options.surfaces.BSDFSurfaceOptions--source--__span-0-452"><a id="eden.options.surfaces.BSDFSurfaceOptions--source--__codelineno-0-452" name="eden.options.surfaces.BSDFSurfaceOptions--source--__codelineno-0-452"></a>            <span class="k">raise</span>
+</span><span id="eden.options.surfaces.BSDFSurfaceOptions--source--__span-0-453"><a id="eden.options.surfaces.BSDFSurfaceOptions--source--__codelineno-0-453" name="eden.options.surfaces.BSDFSurfaceOptions--source--__codelineno-0-453"></a>        <span class="k">raise</span> <span class="n">enriched</span> <span class="kn">from</span><span class="w"> </span><span class="kc">None</span>
+</span></code></pre></div></td></tr></table></div>
+                  </details>
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h3 id="eden.options.surfaces.GlassSurfaceOptions" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-class"></code>            <span class="doc doc-object-name doc-class-name">GlassSurfaceOptions</span>
+
+
+<a href="#eden.options.surfaces.GlassSurfaceOptions" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">GlassSurfaceOptions</span><span class="p">(</span><span class="o">**</span><span class="n">data</span><span class="p">)</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+            <p class="doc doc-class-bases">
+              Bases: <code><a class="autorefs autorefs-internal" title="&lt;code class=&quot;doc-symbol doc-symbol-heading doc-symbol-class&quot;&gt;&lt;/code&gt;            &lt;span class=&quot;doc doc-object-name doc-class-name&quot;&gt;SurfaceOptions&lt;/span&gt; (&lt;code&gt;eden.options.surfaces.SurfaceOptions&lt;/code&gt;)" href="#eden.options.surfaces.SurfaceOptions">SurfaceOptions</a></code></p>
+
+
+
+        <p>Options for <code>gs.surfaces.Glass</code>.</p>
+
+
+
+
+
+
+
+
+                  <details class="mkdocstrings-source">
+                    <summary>Source code in <code>eden/options/options.py</code></summary>
+                    <div class="language-python highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#eden.options.surfaces.GlassSurfaceOptions--source--__codelineno-0-439">439</a></span>
+<span class="normal"><a href="#eden.options.surfaces.GlassSurfaceOptions--source--__codelineno-0-440">440</a></span>
+<span class="normal"><a href="#eden.options.surfaces.GlassSurfaceOptions--source--__codelineno-0-441">441</a></span>
+<span class="normal"><a href="#eden.options.surfaces.GlassSurfaceOptions--source--__codelineno-0-442">442</a></span>
+<span class="normal"><a href="#eden.options.surfaces.GlassSurfaceOptions--source--__codelineno-0-443">443</a></span>
+<span class="normal"><a href="#eden.options.surfaces.GlassSurfaceOptions--source--__codelineno-0-444">444</a></span>
+<span class="normal"><a href="#eden.options.surfaces.GlassSurfaceOptions--source--__codelineno-0-445">445</a></span>
+<span class="normal"><a href="#eden.options.surfaces.GlassSurfaceOptions--source--__codelineno-0-446">446</a></span>
+<span class="normal"><a href="#eden.options.surfaces.GlassSurfaceOptions--source--__codelineno-0-447">447</a></span>
+<span class="normal"><a href="#eden.options.surfaces.GlassSurfaceOptions--source--__codelineno-0-448">448</a></span>
+<span class="normal"><a href="#eden.options.surfaces.GlassSurfaceOptions--source--__codelineno-0-449">449</a></span>
+<span class="normal"><a href="#eden.options.surfaces.GlassSurfaceOptions--source--__codelineno-0-450">450</a></span>
+<span class="normal"><a href="#eden.options.surfaces.GlassSurfaceOptions--source--__codelineno-0-451">451</a></span>
+<span class="normal"><a href="#eden.options.surfaces.GlassSurfaceOptions--source--__codelineno-0-452">452</a></span>
+<span class="normal"><a href="#eden.options.surfaces.GlassSurfaceOptions--source--__codelineno-0-453">453</a></span></pre></div></td><td class="code"><div><pre><span></span><code><span id="eden.options.surfaces.GlassSurfaceOptions--source--__span-0-439"><a id="eden.options.surfaces.GlassSurfaceOptions--source--__codelineno-0-439" name="eden.options.surfaces.GlassSurfaceOptions--source--__codelineno-0-439"></a><span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">**</span><span class="n">data</span><span class="p">):</span>
+</span><span id="eden.options.surfaces.GlassSurfaceOptions--source--__span-0-440"><a id="eden.options.surfaces.GlassSurfaceOptions--source--__codelineno-0-440" name="eden.options.surfaces.GlassSurfaceOptions--source--__codelineno-0-440"></a>    <span class="c1"># Seed type metadata as construction data so BaseModel validates it into</span>
+</span><span id="eden.options.surfaces.GlassSurfaceOptions--source--__span-0-441"><a id="eden.options.surfaces.GlassSurfaceOptions--source--__codelineno-0-441" name="eden.options.surfaces.GlassSurfaceOptions--source--__codelineno-0-441"></a>    <span class="c1"># __pydantic_extra__ (no-op for extra="forbid" classes, which use</span>
+</span><span id="eden.options.surfaces.GlassSurfaceOptions--source--__span-0-442"><a id="eden.options.surfaces.GlassSurfaceOptions--source--__codelineno-0-442" name="eden.options.surfaces.GlassSurfaceOptions--source--__codelineno-0-442"></a>    <span class="c1"># the serialization envelope instead).</span>
+</span><span id="eden.options.surfaces.GlassSurfaceOptions--source--__span-0-443"><a id="eden.options.surfaces.GlassSurfaceOptions--source--__codelineno-0-443" name="eden.options.surfaces.GlassSurfaceOptions--source--__codelineno-0-443"></a>    <span class="n">data</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">option_metadata</span><span class="p">(</span><span class="bp">self</span><span class="p">))</span>
+</span><span id="eden.options.surfaces.GlassSurfaceOptions--source--__span-0-444"><a id="eden.options.surfaces.GlassSurfaceOptions--source--__codelineno-0-444" name="eden.options.surfaces.GlassSurfaceOptions--source--__codelineno-0-444"></a>    <span class="c1"># NOTE: all of the option modifications/validations should be done in the __init__ method</span>
+</span><span id="eden.options.surfaces.GlassSurfaceOptions--source--__span-0-445"><a id="eden.options.surfaces.GlassSurfaceOptions--source--__codelineno-0-445" name="eden.options.surfaces.GlassSurfaceOptions--source--__codelineno-0-445"></a>    <span class="k">try</span><span class="p">:</span>
+</span><span id="eden.options.surfaces.GlassSurfaceOptions--source--__span-0-446"><a id="eden.options.surfaces.GlassSurfaceOptions--source--__codelineno-0-446" name="eden.options.surfaces.GlassSurfaceOptions--source--__codelineno-0-446"></a>        <span class="n">BaseModel</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">**</span><span class="n">data</span><span class="p">)</span>
+</span><span id="eden.options.surfaces.GlassSurfaceOptions--source--__span-0-447"><a id="eden.options.surfaces.GlassSurfaceOptions--source--__codelineno-0-447" name="eden.options.surfaces.GlassSurfaceOptions--source--__codelineno-0-447"></a>    <span class="k">except</span> <span class="n">ValidationError</span> <span class="k">as</span> <span class="n">exc</span><span class="p">:</span>
+</span><span id="eden.options.surfaces.GlassSurfaceOptions--source--__span-0-448"><a id="eden.options.surfaces.GlassSurfaceOptions--source--__codelineno-0-448" name="eden.options.surfaces.GlassSurfaceOptions--source--__codelineno-0-448"></a>        <span class="c1"># A misspelled field on an extra="forbid" class should teach the field set, not just</span>
+</span><span id="eden.options.surfaces.GlassSurfaceOptions--source--__span-0-449"><a id="eden.options.surfaces.GlassSurfaceOptions--source--__codelineno-0-449" name="eden.options.surfaces.GlassSurfaceOptions--source--__codelineno-0-449"></a>        <span class="c1"># name the typo. Only rewritten when every error is extra_forbidden.</span>
+</span><span id="eden.options.surfaces.GlassSurfaceOptions--source--__span-0-450"><a id="eden.options.surfaces.GlassSurfaceOptions--source--__codelineno-0-450" name="eden.options.surfaces.GlassSurfaceOptions--source--__codelineno-0-450"></a>        <span class="n">enriched</span> <span class="o">=</span> <span class="n">_enrich_extra_forbidden</span><span class="p">(</span><span class="nb">type</span><span class="p">(</span><span class="bp">self</span><span class="p">),</span> <span class="n">exc</span><span class="p">)</span>
+</span><span id="eden.options.surfaces.GlassSurfaceOptions--source--__span-0-451"><a id="eden.options.surfaces.GlassSurfaceOptions--source--__codelineno-0-451" name="eden.options.surfaces.GlassSurfaceOptions--source--__codelineno-0-451"></a>        <span class="k">if</span> <span class="n">enriched</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+</span><span id="eden.options.surfaces.GlassSurfaceOptions--source--__span-0-452"><a id="eden.options.surfaces.GlassSurfaceOptions--source--__codelineno-0-452" name="eden.options.surfaces.GlassSurfaceOptions--source--__codelineno-0-452"></a>            <span class="k">raise</span>
+</span><span id="eden.options.surfaces.GlassSurfaceOptions--source--__span-0-453"><a id="eden.options.surfaces.GlassSurfaceOptions--source--__codelineno-0-453" name="eden.options.surfaces.GlassSurfaceOptions--source--__codelineno-0-453"></a>        <span class="k">raise</span> <span class="n">enriched</span> <span class="kn">from</span><span class="w"> </span><span class="kc">None</span>
+</span></code></pre></div></td></tr></table></div>
+                  </details>
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h3 id="eden.options.surfaces.EmissionSurfaceOptions" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-class"></code>            <span class="doc doc-object-name doc-class-name">EmissionSurfaceOptions</span>
+
+
+<a href="#eden.options.surfaces.EmissionSurfaceOptions" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">EmissionSurfaceOptions</span><span class="p">(</span><span class="o">**</span><span class="n">data</span><span class="p">)</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+            <p class="doc doc-class-bases">
+              Bases: <code><a class="autorefs autorefs-internal" title="&lt;code class=&quot;doc-symbol doc-symbol-heading doc-symbol-class&quot;&gt;&lt;/code&gt;            &lt;span class=&quot;doc doc-object-name doc-class-name&quot;&gt;SurfaceOptions&lt;/span&gt; (&lt;code&gt;eden.options.surfaces.SurfaceOptions&lt;/code&gt;)" href="#eden.options.surfaces.SurfaceOptions">SurfaceOptions</a></code></p>
+
+
+
+        <p>Options for <code>gs.surfaces.Emission</code>.</p>
+
+
+
+
+
+
+
+
+                  <details class="mkdocstrings-source">
+                    <summary>Source code in <code>eden/options/options.py</code></summary>
+                    <div class="language-python highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#eden.options.surfaces.EmissionSurfaceOptions--source--__codelineno-0-439">439</a></span>
+<span class="normal"><a href="#eden.options.surfaces.EmissionSurfaceOptions--source--__codelineno-0-440">440</a></span>
+<span class="normal"><a href="#eden.options.surfaces.EmissionSurfaceOptions--source--__codelineno-0-441">441</a></span>
+<span class="normal"><a href="#eden.options.surfaces.EmissionSurfaceOptions--source--__codelineno-0-442">442</a></span>
+<span class="normal"><a href="#eden.options.surfaces.EmissionSurfaceOptions--source--__codelineno-0-443">443</a></span>
+<span class="normal"><a href="#eden.options.surfaces.EmissionSurfaceOptions--source--__codelineno-0-444">444</a></span>
+<span class="normal"><a href="#eden.options.surfaces.EmissionSurfaceOptions--source--__codelineno-0-445">445</a></span>
+<span class="normal"><a href="#eden.options.surfaces.EmissionSurfaceOptions--source--__codelineno-0-446">446</a></span>
+<span class="normal"><a href="#eden.options.surfaces.EmissionSurfaceOptions--source--__codelineno-0-447">447</a></span>
+<span class="normal"><a href="#eden.options.surfaces.EmissionSurfaceOptions--source--__codelineno-0-448">448</a></span>
+<span class="normal"><a href="#eden.options.surfaces.EmissionSurfaceOptions--source--__codelineno-0-449">449</a></span>
+<span class="normal"><a href="#eden.options.surfaces.EmissionSurfaceOptions--source--__codelineno-0-450">450</a></span>
+<span class="normal"><a href="#eden.options.surfaces.EmissionSurfaceOptions--source--__codelineno-0-451">451</a></span>
+<span class="normal"><a href="#eden.options.surfaces.EmissionSurfaceOptions--source--__codelineno-0-452">452</a></span>
+<span class="normal"><a href="#eden.options.surfaces.EmissionSurfaceOptions--source--__codelineno-0-453">453</a></span></pre></div></td><td class="code"><div><pre><span></span><code><span id="eden.options.surfaces.EmissionSurfaceOptions--source--__span-0-439"><a id="eden.options.surfaces.EmissionSurfaceOptions--source--__codelineno-0-439" name="eden.options.surfaces.EmissionSurfaceOptions--source--__codelineno-0-439"></a><span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">**</span><span class="n">data</span><span class="p">):</span>
+</span><span id="eden.options.surfaces.EmissionSurfaceOptions--source--__span-0-440"><a id="eden.options.surfaces.EmissionSurfaceOptions--source--__codelineno-0-440" name="eden.options.surfaces.EmissionSurfaceOptions--source--__codelineno-0-440"></a>    <span class="c1"># Seed type metadata as construction data so BaseModel validates it into</span>
+</span><span id="eden.options.surfaces.EmissionSurfaceOptions--source--__span-0-441"><a id="eden.options.surfaces.EmissionSurfaceOptions--source--__codelineno-0-441" name="eden.options.surfaces.EmissionSurfaceOptions--source--__codelineno-0-441"></a>    <span class="c1"># __pydantic_extra__ (no-op for extra="forbid" classes, which use</span>
+</span><span id="eden.options.surfaces.EmissionSurfaceOptions--source--__span-0-442"><a id="eden.options.surfaces.EmissionSurfaceOptions--source--__codelineno-0-442" name="eden.options.surfaces.EmissionSurfaceOptions--source--__codelineno-0-442"></a>    <span class="c1"># the serialization envelope instead).</span>
+</span><span id="eden.options.surfaces.EmissionSurfaceOptions--source--__span-0-443"><a id="eden.options.surfaces.EmissionSurfaceOptions--source--__codelineno-0-443" name="eden.options.surfaces.EmissionSurfaceOptions--source--__codelineno-0-443"></a>    <span class="n">data</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">option_metadata</span><span class="p">(</span><span class="bp">self</span><span class="p">))</span>
+</span><span id="eden.options.surfaces.EmissionSurfaceOptions--source--__span-0-444"><a id="eden.options.surfaces.EmissionSurfaceOptions--source--__codelineno-0-444" name="eden.options.surfaces.EmissionSurfaceOptions--source--__codelineno-0-444"></a>    <span class="c1"># NOTE: all of the option modifications/validations should be done in the __init__ method</span>
+</span><span id="eden.options.surfaces.EmissionSurfaceOptions--source--__span-0-445"><a id="eden.options.surfaces.EmissionSurfaceOptions--source--__codelineno-0-445" name="eden.options.surfaces.EmissionSurfaceOptions--source--__codelineno-0-445"></a>    <span class="k">try</span><span class="p">:</span>
+</span><span id="eden.options.surfaces.EmissionSurfaceOptions--source--__span-0-446"><a id="eden.options.surfaces.EmissionSurfaceOptions--source--__codelineno-0-446" name="eden.options.surfaces.EmissionSurfaceOptions--source--__codelineno-0-446"></a>        <span class="n">BaseModel</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">**</span><span class="n">data</span><span class="p">)</span>
+</span><span id="eden.options.surfaces.EmissionSurfaceOptions--source--__span-0-447"><a id="eden.options.surfaces.EmissionSurfaceOptions--source--__codelineno-0-447" name="eden.options.surfaces.EmissionSurfaceOptions--source--__codelineno-0-447"></a>    <span class="k">except</span> <span class="n">ValidationError</span> <span class="k">as</span> <span class="n">exc</span><span class="p">:</span>
+</span><span id="eden.options.surfaces.EmissionSurfaceOptions--source--__span-0-448"><a id="eden.options.surfaces.EmissionSurfaceOptions--source--__codelineno-0-448" name="eden.options.surfaces.EmissionSurfaceOptions--source--__codelineno-0-448"></a>        <span class="c1"># A misspelled field on an extra="forbid" class should teach the field set, not just</span>
+</span><span id="eden.options.surfaces.EmissionSurfaceOptions--source--__span-0-449"><a id="eden.options.surfaces.EmissionSurfaceOptions--source--__codelineno-0-449" name="eden.options.surfaces.EmissionSurfaceOptions--source--__codelineno-0-449"></a>        <span class="c1"># name the typo. Only rewritten when every error is extra_forbidden.</span>
+</span><span id="eden.options.surfaces.EmissionSurfaceOptions--source--__span-0-450"><a id="eden.options.surfaces.EmissionSurfaceOptions--source--__codelineno-0-450" name="eden.options.surfaces.EmissionSurfaceOptions--source--__codelineno-0-450"></a>        <span class="n">enriched</span> <span class="o">=</span> <span class="n">_enrich_extra_forbidden</span><span class="p">(</span><span class="nb">type</span><span class="p">(</span><span class="bp">self</span><span class="p">),</span> <span class="n">exc</span><span class="p">)</span>
+</span><span id="eden.options.surfaces.EmissionSurfaceOptions--source--__span-0-451"><a id="eden.options.surfaces.EmissionSurfaceOptions--source--__codelineno-0-451" name="eden.options.surfaces.EmissionSurfaceOptions--source--__codelineno-0-451"></a>        <span class="k">if</span> <span class="n">enriched</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+</span><span id="eden.options.surfaces.EmissionSurfaceOptions--source--__span-0-452"><a id="eden.options.surfaces.EmissionSurfaceOptions--source--__codelineno-0-452" name="eden.options.surfaces.EmissionSurfaceOptions--source--__codelineno-0-452"></a>            <span class="k">raise</span>
+</span><span id="eden.options.surfaces.EmissionSurfaceOptions--source--__span-0-453"><a id="eden.options.surfaces.EmissionSurfaceOptions--source--__codelineno-0-453" name="eden.options.surfaces.EmissionSurfaceOptions--source--__codelineno-0-453"></a>        <span class="k">raise</span> <span class="n">enriched</span> <span class="kn">from</span><span class="w"> </span><span class="kc">None</span>
+</span></code></pre></div></td></tr></table></div>
+                  </details>
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+<h2 id="eden.options.surfaces-functions">Functions:<a href="#eden.options.surfaces-functions" class="headerlink" title="Permanent link">&para;</a></h2>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="eden.options.surfaces.resolve_surface" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <span class="doc doc-object-name doc-function-name">resolve_surface</span>
+
+
+<a href="#eden.options.surfaces.resolve_surface" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">resolve_surface</span><span class="p">(</span><span class="n">surface</span><span class="p">:</span> <span class="n"><a class="autorefs autorefs-internal" title="&lt;code class=&quot;doc-symbol doc-symbol-heading doc-symbol-attribute&quot;&gt;&lt;/code&gt;            &lt;span class=&quot;doc doc-object-name doc-attribute-name&quot;&gt;SurfaceLike&lt;/span&gt;
+
+
+  &lt;span class=&quot;doc doc-labels&quot;&gt;
+      &lt;small class=&quot;doc doc-label doc-label-module-attribute&quot;&gt;&lt;code&gt;module-attribute&lt;/code&gt;&lt;/small&gt;
+  &lt;/span&gt; (&lt;code&gt;eden.options.surfaces.SurfaceLike&lt;/code&gt;)" href="#eden.options.surfaces.SurfaceLike">SurfaceLike</a></span> <span class="o">|</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n"><span title="genesis.options.surfaces.Surface">Surface</span></span> <span class="o">|</span> <span class="kc">None</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Resolve a surface spec to a Genesis surface, building deferred <code>SurfaceOptions</code>.</p>
+
+
+            <details class="mkdocstrings-source">
+              <summary>Source code in <code>eden/options/surfaces.py</code></summary>
+              <div class="language-python highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#eden.options.surfaces.resolve_surface--source--__codelineno-0-109">109</a></span>
+<span class="normal"><a href="#eden.options.surfaces.resolve_surface--source--__codelineno-0-110">110</a></span>
+<span class="normal"><a href="#eden.options.surfaces.resolve_surface--source--__codelineno-0-111">111</a></span>
+<span class="normal"><a href="#eden.options.surfaces.resolve_surface--source--__codelineno-0-112">112</a></span>
+<span class="normal"><a href="#eden.options.surfaces.resolve_surface--source--__codelineno-0-113">113</a></span></pre></div></td><td class="code"><div><pre><span></span><code><span id="eden.options.surfaces.resolve_surface--source--__span-0-109"><a id="eden.options.surfaces.resolve_surface--source--__codelineno-0-109" name="eden.options.surfaces.resolve_surface--source--__codelineno-0-109"></a><span class="k">def</span><span class="w"> </span><span class="nf">resolve_surface</span><span class="p">(</span><span class="n">surface</span><span class="p">:</span> <span class="n">SurfaceLike</span> <span class="o">|</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Surface</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
+</span><span id="eden.options.surfaces.resolve_surface--source--__span-0-110"><a id="eden.options.surfaces.resolve_surface--source--__codelineno-0-110" name="eden.options.surfaces.resolve_surface--source--__codelineno-0-110"></a><span class="w">    </span><span class="sd">"""Resolve a surface spec to a Genesis surface, building deferred ``SurfaceOptions``."""</span>
+</span><span id="eden.options.surfaces.resolve_surface--source--__span-0-111"><a id="eden.options.surfaces.resolve_surface--source--__codelineno-0-111" name="eden.options.surfaces.resolve_surface--source--__codelineno-0-111"></a>    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">surface</span><span class="p">,</span> <span class="n">SurfaceOptions</span><span class="p">):</span>
+</span><span id="eden.options.surfaces.resolve_surface--source--__span-0-112"><a id="eden.options.surfaces.resolve_surface--source--__codelineno-0-112" name="eden.options.surfaces.resolve_surface--source--__codelineno-0-112"></a>        <span class="k">return</span> <span class="n">surface</span><span class="o">.</span><span class="n">to_genesis_surface</span><span class="p">()</span>
+</span><span id="eden.options.surfaces.resolve_surface--source--__span-0-113"><a id="eden.options.surfaces.resolve_surface--source--__codelineno-0-113" name="eden.options.surfaces.resolve_surface--source--__codelineno-0-113"></a>    <span class="k">return</span> <span class="n">surface</span>
+</span></code></pre></div></td></tr></table></div>
+            </details>
+    </div>
+
+</div>
+
+
+
+  </div>
+
+    </div>
+
+</div><h2 id="see-also">See also<a class="headerlink" href="#see-also" title="Permanent link">&para;</a></h2>
+<ul>
+<li><a href="../../../guides/sensors-and-rendering/">Sensors and rendering guide</a></li>
+</ul>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+  <script>var tabs=__md_get("__tabs");if(Array.isArray(tabs))e:for(var set of document.querySelectorAll(".tabbed-set")){var labels=set.querySelector(".tabbed-labels");for(var tab of tabs)for(var label of labels.getElementsByTagName("label"))if(label.innerText.trim()===tab){var input=document.getElementById(label.htmlFor);input.checked=!0;continue e}}</script>
+
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+    
+      
+      <nav class="md-footer__inner md-grid" aria-label="Footer" >
+        
+          
+          <a href="../materials/" class="md-footer__link md-footer__link--prev" aria-label="Previous: Materials">
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+            </div>
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Previous
+              </span>
+              <div class="md-ellipsis">
+                Materials
+              </div>
+            </div>
+          </a>
+        
+        
+          
+          <a href="../scenes/" class="md-footer__link md-footer__link--next" aria-label="Next: Scenes">
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Next
+              </span>
+              <div class="md-ellipsis">
+                Scenes
+              </div>
+            </div>
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 11v2h12l-5.5 5.5 1.42 1.42L19.84 12l-7.92-7.92L10.5 5.5 16 11z"/></svg>
+            </div>
+          </a>
+        
+      </nav>
+    
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+    <div class="md-copyright__highlight">
+      Copyright &copy; 2025 Eden Authors
+    </div>
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+        
+<div class="md-social">
+  
+    
+    
+    
+    
+      
+      
+    
+    <a href="https://github.com/embodied-ai-nexus/Eden" target="_blank" rel="noopener" title="github.com" class="md-social__link">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+      <div class="md-progress" data-md-component="progress" role="progressbar"></div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../../..", "features": ["navigation.instant", "navigation.instant.progress", "navigation.tracking", "navigation.path", "navigation.tabs", "navigation.tabs.sticky", "navigation.sections", "navigation.top", "navigation.footer", "search.suggest", "search.highlight", "content.action.edit", "content.action.view", "content.code.copy", "content.code.annotate", "content.tabs.link", "content.tooltips", "toc.follow"], "search": "../../../assets/javascripts/workers/search.a7633da7.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../../../assets/javascripts/bundle.a5f9d56c.min.js"></script>
+      
+    
+  </body>
+</html>

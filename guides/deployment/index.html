@@ -1,0 +1,7077 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Embodied-AI Development Environments Nexus — Vectorized RL environments for robot learning">
+      
+      
+      
+        <link rel="canonical" href="https://embodied-ai-nexus.github.io/Eden/guides/deployment/">
+      
+      
+        <link rel="prev" href="../extending-policies/">
+      
+      
+        <link rel="next" href="../deployment-hardware/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../assets/logo/eden-mark.svg">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.1">
+    
+    
+      
+        <title>Deploying a Policy - Eden</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.57a0d79d.min.css">
+      
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.fb2fffe2.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Inter:300,300i,400,400i,700,700i%7CJetBrains+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Inter";--md-code-font:"JetBrains Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/_mkdocstrings.css">
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/extra.css">
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#deployment" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow md-header--lifted" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="Eden" class="md-header__button md-logo" aria-label="Eden" data-md-component="logo">
+      
+  <img src="../../assets/logo/eden-mark.svg" alt="logo">
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Eden
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Deploying a Policy
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme)" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m14.3 16-.7-2h-3.2l-.7 2H7.8L11 7h2l3.2 9zM20 8.69V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12zm-9.15 3.96h2.3L12 9z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="custom" data-md-color-accent="custom"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_2" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="custom" data-md-color-accent="custom"  aria-label="Switch to system preference"  type="radio" name="__palette" id="__palette_2">
+    
+      <label class="md-header__button md-icon" title="Switch to system preference" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/embodied-ai-nexus/Eden" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+  </div>
+  <div class="md-source__repository">
+    embodied-ai-nexus/Eden
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+    
+      
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../.." class="md-tabs__link">
+        
+  
+  
+    
+  
+  Home
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../getting-started/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Get Started
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+    
+  
+  
+    
+    
+      
+  
+  
+  
+    
+  
+  
+    
+    
+      <li class="md-tabs__item md-tabs__item--active">
+        <a href="../task-config/" class="md-tabs__link">
+          
+  
+  
+  Guides
+
+        </a>
+      </li>
+    
+  
+
+    
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../tasks/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Tasks
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../examples/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Examples
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../reference/cli/" class="md-tabs__link">
+          
+  
+  
+  Reference
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../contributing/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Contributing
+
+      </a>
+    </li>
+  
+
+      
+    </ul>
+  </div>
+</nav>
+    
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="Eden" class="md-nav__button md-logo" aria-label="Eden" data-md-component="logo">
+      
+  <img src="../../assets/logo/eden-mark.svg" alt="logo">
+
+    </a>
+    Eden
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/embodied-ai-nexus/Eden" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+  </div>
+  <div class="md-source__repository">
+    embodied-ai-nexus/Eden
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../getting-started/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Get Started
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_2" id="__nav_2_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Get Started
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../getting-started/installation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Installation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../getting-started/quickstart/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Quick Start
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../getting-started/concepts/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Key Concepts
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../getting-started/first-task/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Tutorial: Your First Task
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../getting-started/assets/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Assets and Caches
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../getting-started/troubleshooting/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Troubleshooting
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Guides
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Guides
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+          
+          
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_1" >
+        
+          
+          <label class="md-nav__link" for="__nav_3_1" id="__nav_3_1_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Building Tasks
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_1_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_1">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Building Tasks
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../task-config/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Task Configuration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../task-mods/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Task Variants (TaskMods)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../environments/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Environments and the Step Loop
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+          
+          
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_3_2" id="__nav_3_2_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Managers and Terms
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Managers and Terms
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../terms/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Writing Terms
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../actions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Actions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../observations/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Observations
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../rewards-and-terminations/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Rewards and Terminations
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../commands/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Commands
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../events/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Events and Domain Randomization
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../curricula/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Curricula
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../metrics-and-recorders/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Metrics and Recorders
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+          
+          
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3_3" id="__nav_3_3_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Scenes and Physics
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Scenes and Physics
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../entities/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Entities
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../robots/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Robots
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../scenes-and-terrains/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Scenes, Objects and Terrains
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../physics/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Physics and Solvers
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../sensors-and-rendering/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Sensors and Rendering
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../engine-addons/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Engine Add-ons
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+          
+          
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_3_4" id="__nav_3_4_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Motion and Data
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Motion and Data
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../motion-tracking/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Motion Tracking
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../motion-datasets/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Motion Datasets
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../retargeting/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Motion Retargeting
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../dex-retargeting/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Dexterous Hand Retargeting
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../pose-estimation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Pose Estimation from Video
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../teleoperation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Teleoperation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../scripted-demos/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Scripted Demonstrations
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../grasp-sampling/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Grasp Sampling
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../datasets-and-recording/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Datasets and Recording
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../planning-and-sysid/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Planning and System Identification
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+          
+          
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_3_5" id="__nav_3_5_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Training and Policies
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Training and Policies
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../training-runs/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Training Runs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../rl-libraries/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Other RL Libraries
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ddp/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Multi-GPU Training
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../policy-zoo/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Policy Zoo
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../policy-porting/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Porting a Pretrained Policy
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../policy-export/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Exporting a Policy
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../remote-policies/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Remote Policy Clients
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../extending-policies/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Adding a Policy
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+          
+          
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_6" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_3_6" id="__nav_3_6_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deployment
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_6_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_3_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Deployment
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deploying a Policy
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deploying a Policy
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#quick-start" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Quick start
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#how-a-deployment-works" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How a deployment works
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="How a deployment works">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#picking-the-backend" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Picking the backend
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#what-eden-deploy-builds" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What eden deploy builds
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="What eden deploy builds">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#training-randomization-is-stripped" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Training randomization is stripped
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#one-control-tick" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        One control tick
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-operator-state-machine" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The operator state machine
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#running-a-deployment" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Running a deployment
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Running a deployment">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#gains-and-the-init-ramp" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Gains and the INIT ramp
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#base-linear-velocity-and-estimate_lin_vel" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Base linear velocity and --estimate_lin_vel
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#the-velocity-command-at-deploy-time" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The velocity command at deploy time
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#action-terms-that-reach-the-robot" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Action terms that reach the robot
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#motion-imitation-deploys" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Motion-imitation deploys
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#policy-slots" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Policy slots
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Policy slots">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#the-holosoma-safety-slot" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The Holosoma safety slot
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#loading-a-frozen-policy-as-a-slot" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Loading a frozen policy as a slot
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#each-slot-runs-at-its-own-pd-gains" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Each slot runs at its own PD gains
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#start-up-checks-on-the-slots" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Start-up checks on the slots
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#safety" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Safety
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#timing-and-diagnostics" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Timing and diagnostics
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Timing and diagnostics">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#control-loop-timing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Control-loop timing
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#republishing-the-wire-command" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Republishing the wire command
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#-debug_record" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        --debug_record
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#deploying-a-composite-rig" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Deploying a composite rig
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#sim-to-sim-validation-with-mujoco" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Sim-to-sim validation with MuJoCo
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Sim-to-sim validation with MuJoCo">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#which-model-is-loaded" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Which model is loaded
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#what-the-backend-reconstructs" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What the backend reconstructs
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#lockstep-or-asynchronous-physics" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Lockstep or asynchronous physics
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#differences-from-a-hardware-run" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Differences from a hardware run
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Differences from a hardware run">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#the-gantry" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The gantry
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#recording-and-ending-a-headless-run" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Recording and ending a headless run
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#a-composite-rig-in-mujoco" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        A composite rig in MuJoCo
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#backend-options" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Backend options
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#relation-to-eden-inference-async" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Relation to eden inference --async
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#writing-terms-that-deploy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Writing terms that deploy
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#driving-a-backend-from-a-script" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Driving a backend from a script
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#see-also" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        See also
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../deployment-hardware/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Hardware Setup
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../tasks/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Tasks
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_4" id="__nav_4_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Tasks
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_1" >
+        
+          
+          <label class="md-nav__link" for="__nav_4_1" id="__nav_4_1_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Eden Tasks
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_1_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4_1">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Eden Tasks
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../tasks/locomotion/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Locomotion
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../velocity-tracking/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Velocity Tracking Design Notes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../tcrs-terrain-adaptation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    TCRS Terrain Adaptation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../tasks/motion-tracking/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Motion Tracking
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../tasks/manipulation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Manipulation and Dexterity
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_4_2" id="__nav_4_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Ported Benchmarks
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Ported Benchmarks
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../tasks/robosuite/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    robosuite
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../tasks/libero/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    LIBERO
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../tasks/simpler/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    SIMPLER
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../tasks/polaris/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    PolaRiS
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../tasks/mochi/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deformables (Mochi)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../tasks/whiteboard/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Whiteboard Drawing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../tasks/art/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Calligraphy and Painting
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Examples
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6" >
+        
+          
+          <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reference
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Reference
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/cli/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CLI
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/environment-variables/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Environment Variables
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6_3" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../api/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    API Reference
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_6_3" id="__nav_6_3_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_6_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    API Reference
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/configs/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Configs and Task Registry
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/envs/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Environments
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/entities/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Entities
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6_3_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_6_3_4" id="__nav_6_3_4_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Options
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_6_3_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6_3_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Options
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/options/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/options/envs/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Environment
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/options/entities/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Entities
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/options/materials/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Materials
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/options/surfaces/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Surfaces
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/options/scenes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Scenes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/options/robots/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Robots
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/options/actuators/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Actuators
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/options/sensors/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Sensors and Cameras
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/options/splat/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Splats and Renderers
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/options/managers/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Managers
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/options/learning/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Learning
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/managers/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Managers
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6_3_6" >
+        
+          
+          <label class="md-nav__link" for="__nav_6_3_6" id="__nav_6_3_6_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Built-in Terms
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_6_3_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6_3_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Built-in Terms
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/terms/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/terms/catalog/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Term Catalog
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/terms/actions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Actions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/terms/observations/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Observations
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/terms/rewards/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Rewards
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/terms/terminations/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Terminations
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/terms/commands/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Commands
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/terms/events/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Events
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/terms/curricula/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Curricula
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/terms/metrics/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Metrics
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/terms/recorders/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Recorders
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/terms/modifiers/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Modifiers
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/datasets/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Datasets
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/motion_reference/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Motion Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/engine/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Engine
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/learning/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Learning
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6_3_11" >
+        
+          
+          <label class="md-nav__link" for="__nav_6_3_11" id="__nav_6_3_11_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Extensions
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_6_3_11_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6_3_11">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Extensions
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/extensions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/extensions/deployment/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deployment
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/extensions/policies/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Policies
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/extensions/retargeting/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Retargeting
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/extensions/sysid/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    System Identification
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/extensions/motion-planning/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Motion Planning
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/extensions/motion-optimization/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Motion Optimization
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/extensions/grasp-sampling/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Grasp Sampling
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/extensions/pose-estimation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Pose Estimation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/extensions/scripted-demos/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Scripted Demonstrations
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/extensions/teleop/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Teleoperation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/extensions/visualization/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Visualization
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/constants/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Constants and Types
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6_3_13" >
+        
+          
+          <label class="md-nav__link" for="__nav_6_3_13" id="__nav_6_3_13_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Utilities
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_6_3_13_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6_3_13">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Utilities
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/utils/core/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Core
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/utils/math/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Math and Geometry
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/utils/robotics/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Robotics and Assets
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/utils/devices/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Teleoperation Devices
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/utils/io/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    I/O
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/utils/rendering/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Rendering
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/utils/cli/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CLI Internals
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_7" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../contributing/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Contributing
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_7" id="__nav_7_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_7_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_7">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Contributing
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../testing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Testing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../error-messages/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Writing Error Messages
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../contributing/docs/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Writing Docs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#quick-start" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Quick start
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#how-a-deployment-works" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How a deployment works
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="How a deployment works">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#picking-the-backend" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Picking the backend
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#what-eden-deploy-builds" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What eden deploy builds
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="What eden deploy builds">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#training-randomization-is-stripped" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Training randomization is stripped
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#one-control-tick" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        One control tick
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-operator-state-machine" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The operator state machine
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#running-a-deployment" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Running a deployment
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Running a deployment">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#gains-and-the-init-ramp" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Gains and the INIT ramp
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#base-linear-velocity-and-estimate_lin_vel" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Base linear velocity and --estimate_lin_vel
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#the-velocity-command-at-deploy-time" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The velocity command at deploy time
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#action-terms-that-reach-the-robot" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Action terms that reach the robot
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#motion-imitation-deploys" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Motion-imitation deploys
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#policy-slots" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Policy slots
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Policy slots">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#the-holosoma-safety-slot" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The Holosoma safety slot
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#loading-a-frozen-policy-as-a-slot" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Loading a frozen policy as a slot
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#each-slot-runs-at-its-own-pd-gains" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Each slot runs at its own PD gains
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#start-up-checks-on-the-slots" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Start-up checks on the slots
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#safety" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Safety
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#timing-and-diagnostics" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Timing and diagnostics
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Timing and diagnostics">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#control-loop-timing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Control-loop timing
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#republishing-the-wire-command" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Republishing the wire command
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#-debug_record" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        --debug_record
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#deploying-a-composite-rig" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Deploying a composite rig
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#sim-to-sim-validation-with-mujoco" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Sim-to-sim validation with MuJoCo
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Sim-to-sim validation with MuJoCo">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#which-model-is-loaded" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Which model is loaded
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#what-the-backend-reconstructs" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What the backend reconstructs
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#lockstep-or-asynchronous-physics" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Lockstep or asynchronous physics
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#differences-from-a-hardware-run" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Differences from a hardware run
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Differences from a hardware run">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#the-gantry" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The gantry
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#recording-and-ending-a-headless-run" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Recording and ending a headless run
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#a-composite-rig-in-mujoco" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        A composite rig in MuJoCo
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#backend-options" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Backend options
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#relation-to-eden-inference-async" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Relation to eden inference --async
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#writing-terms-that-deploy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Writing terms that deploy
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#driving-a-backend-from-a-script" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Driving a backend from a script
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#see-also" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        See also
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+                
+
+
+
+  
+
+
+  <nav class="md-path" aria-label="Navigation" >
+    <ol class="md-path__list">
+      
+        
+  
+  
+    <li class="md-path__item">
+      <a href="../.." class="md-path__link">
+        
+  <span class="md-ellipsis">
+    Home
+  </span>
+
+      </a>
+    </li>
+  
+
+      
+      
+        
+  
+  
+    
+    
+      
+  
+  
+    
+    
+      <li class="md-path__item">
+        <a href="../task-config/" class="md-path__link">
+          
+  <span class="md-ellipsis">
+    Guides
+  </span>
+
+        </a>
+      </li>
+    
+  
+
+    
+  
+
+      
+        
+  
+  
+    
+    
+      <li class="md-path__item">
+        <a href="./" class="md-path__link">
+          
+  <span class="md-ellipsis">
+    Deployment
+  </span>
+
+        </a>
+      </li>
+    
+  
+
+      
+    </ol>
+  </nav>
+
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+    <a href="https://github.com/embodied-ai-nexus/Eden/edit/main/docs/guides/deployment.md" title="Edit this page" class="md-content__button md-icon" rel="edit">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M10 20H6V4h7v5h5v3.1l2-2V8l-6-6H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h4zm10.2-7c.1 0 .3.1.4.2l1.3 1.3c.2.2.2.6 0 .8l-1 1-2.1-2.1 1-1c.1-.1.2-.2.4-.2m0 3.9L14.1 23H12v-2.1l6.1-6.1z"/></svg>
+    </a>
+  
+  
+    
+      
+    
+    <a href="https://github.com/embodied-ai-nexus/Eden/raw/main/docs/guides/deployment.md" title="View source of this page" class="md-content__button md-icon">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M17 18c.56 0 1 .44 1 1s-.44 1-1 1-1-.44-1-1 .44-1 1-1m0-3c-2.73 0-5.06 1.66-6 4 .94 2.34 3.27 4 6 4s5.06-1.66 6-4c-.94-2.34-3.27-4-6-4m0 6.5a2.5 2.5 0 0 1-2.5-2.5 2.5 2.5 0 0 1 2.5-2.5 2.5 2.5 0 0 1 2.5 2.5 2.5 2.5 0 0 1-2.5 2.5M9.27 20H6V4h7v5h5v4.07c.7.08 1.36.25 2 .49V8l-6-6H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h4.5a8.2 8.2 0 0 1-1.23-2"/></svg>
+    </a>
+  
+
+
+<h1 id="deployment">Deployment<a class="headerlink" href="#deployment" title="Permanent link">&para;</a></h1>
+<p><code>eden deploy</code> runs a trained policy on a real robot, or on an independent MuJoCo simulation of
+it, through one control loop. This page covers how that loop works, how to drive it, every safety
+mechanism it has, and how to validate a policy in MuJoCo before it touches hardware. Per-robot
+setup (SDKs, network, remotes, wire details) is on <a href="../deployment-hardware/">Robot setup for deployment</a>.</p>
+<p>To run a policy on a stack without Eden (ROS 2, a Jetson, C++), export it instead; see
+<a href="../policy-export/">Exporting a policy</a>.</p>
+<h2 id="quick-start">Quick start<a class="headerlink" href="#quick-start" title="Permanent link">&para;</a></h2>
+<p>Validate in MuJoCo first. It needs no SDK and no hardware, and runs the same loop a robot run does:</p>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>eden<span class="w"> </span>deploy<span class="w"> </span>--task<span class="w"> </span>velocity_tracking_flat<span class="w"> </span>--checkpoint<span class="w"> </span>logs/velocity_tracking_flat/&lt;run&gt;/model_&lt;n&gt;.pt<span class="w"> </span><span class="se">\</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="w">    </span>--mujoco<span class="w"> </span>--menagerie<span class="w"> </span>--base_policy<span class="w"> </span>none<span class="w"> </span>--vis
+</span></code></pre></div>
+<p>Then deploy onto the robot, starting at reduced gains:</p>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>eden<span class="w"> </span>deploy<span class="w"> </span>--task<span class="w"> </span>velocity_tracking_flat<span class="w"> </span>--checkpoint<span class="w"> </span>logs/velocity_tracking_flat/&lt;run&gt;/model_&lt;n&gt;.pt<span class="w"> </span><span class="se">\</span>
+</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="w">    </span>--deploy_kp_kd_scale<span class="w"> </span><span class="m">0</span>.2<span class="w"> </span>--estimate_lin_vel<span class="w"> </span>--vis
+</span></code></pre></div>
+<p>Either way the robot <strong>boots in STOP</strong>, holding the pose it is measured at. Nothing moves until
+you press INIT (it ramps the joints to the start pose) and then START (the policy takes over):
+<code>i</code> + Enter, then <code>s</code> + Enter, or the robot's remote. <code>k</code> + Enter (KILL) or Ctrl-C ends the run;
+legged backends soft-damp before they let go. See <a href="#the-operator-state-machine">The operator state machine</a>.</p>
+<div class="admonition danger">
+<p class="admonition-title">Connecting touches real hardware</p>
+<p>Without <code>--mujoco</code>, <code>connect()</code> opens the link to the physical robot. Keep the e-stop within
+reach, support a legged robot (hoist or gantry) for first runs, start with a low
+<code>--deploy_kp_kd_scale</code>, and on a G1 confirm the Holosoma safety slot holds a stand before
+switching to your policy.</p>
+</div>
+<h2 id="how-a-deployment-works">How a deployment works<a class="headerlink" href="#how-a-deployment-works" title="Permanent link">&para;</a></h2>
+<h3 id="picking-the-backend">Picking the backend<a class="headerlink" href="#picking-the-backend" title="Permanent link">&para;</a></h3>
+<p>The backend comes from the robot the task puts under <code>--entity_name</code> (default <code>robot</code>). Each
+backend module binds the robot options classes it drives with <code>bind_deployment(robot_cls,
+"&lt;registry key&gt;")</code>, and <code>resolve_deployment_for(robot_options)</code> walks the robot class's MRO to find
+one, so a robot subclass inherits its parent's backend. To support a new robot, write a
+<code>DeploymentBase</code> subclass, register it with <code>@DEPLOYMENT_REGISTRY.register()</code> and add one
+<code>bind_deployment(...)</code> line.</p>
+<table>
+<thead>
+<tr>
+<th>Robot options class</th>
+<th>Backend</th>
+<th>Wire</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>G1Dofs23</code>, <code>G1Dofs29</code>, <code>G1Dofs29NoHands</code></td>
+<td><code>UnitreeG1Deployment</code></td>
+<td>Unitree SDK2 over CycloneDDS (<code>unitree_hg</code>)</td>
+</tr>
+<tr>
+<td><code>Go2</code></td>
+<td><code>UnitreeGo2Deployment</code></td>
+<td>Unitree SDK2 over CycloneDDS (<code>unitree_go</code>)</td>
+</tr>
+<tr>
+<td><code>Go1</code></td>
+<td><code>UnitreeGo1Deployment</code></td>
+<td>Legacy <code>unitree_legged_sdk</code> (<code>robot_interface</code>, UDP)</td>
+</tr>
+<tr>
+<td><code>Oli</code></td>
+<td><code>LimxOliDeployment</code></td>
+<td>LimX low-level SDK (<code>limxsdk</code>)</td>
+</tr>
+<tr>
+<td><code>FrankaEmikaPanda</code>, <code>FrankaResearch3</code>, <code>FrankaEmikaPandaNoHand</code></td>
+<td><code>FrankaPandaDeployment</code></td>
+<td><code>panda-python</code> (libfranka)</td>
+</tr>
+<tr>
+<td><code>XHand1_R</code>, <code>XHand1_L</code></td>
+<td><code>RoboTeraXHandDeployment</code></td>
+<td><code>xhand_controller</code> (RS485 or EtherCAT)</td>
+</tr>
+<tr>
+<td><code>WujiHand1_R</code> / <code>_L</code>, <code>WujiHand2Beta2_R</code> / <code>_L</code> (and their subclasses)</td>
+<td><code>WujiHandDeployment</code></td>
+<td><code>wujihandpy</code> (Hand 1) / <code>wuji_sdk</code> (Hand 2)</td>
+</tr>
+<tr>
+<td>Any composite rig (<code>FrankaXHand</code>, <code>OliWuji</code>, …)</td>
+<td><code>CompositeDeployment</code></td>
+<td>Each part through its own backend</td>
+</tr>
+<tr>
+<td>Anything, with <code>--mujoco</code></td>
+<td><code>MujocoDeployment</code> / <code>MujocoCompositeDeployment</code></td>
+<td>In-process MuJoCo</td>
+</tr>
+</tbody>
+</table>
+<p>A robot with no binding is refused at startup, naming the class and the <code>bind_deployment</code> line to
+add. The <code>Go2W</code> resolves to the Go2 backend through the MRO, and its wheel motors are refused at
+construction: they have no confirmed SDK motor index. Install and wire details for each are on
+<a href="../deployment-hardware/">Robot setup for deployment</a>.</p>
+<h3 id="what-eden-deploy-builds">What <code>eden deploy</code> builds<a class="headerlink" href="#what-eden-deploy-builds" title="Permanent link">&para;</a></h3>
+<ol>
+<li><strong>The config.</strong> With <code>--task</code>, a checkpoint's sibling <code>config.json</code> (the exact trained config)
+   is loaded when there is one; otherwise the task is rebuilt from <code>--task</code> and its TaskMod flags.
+   Training-only randomization is then disabled (below), <code>num_envs</code> is forced to 1 and the episode
+   length to effectively infinite. The deploy config is saved as <code>deploy_config.json</code> in the run's
+   log directory (<code>logs/&lt;task&gt;/…</code>, or <code>logs/deploy/…</code> for a task-less deploy), distinct from a
+   training <code>config.json</code>.</li>
+<li><strong>The env.</strong> Built in eval mode with <code>RslRlVecEnvWrapper.from_config(...)</code>, which builds and
+   resets it. The env is never stepped: it mirrors the robot's state for the observation terms
+   and the <code>--vis</code> viewer.</li>
+<li><strong>The policy slots.</strong> Checkpoints are loaded and extension policies constructed before any
+   hardware contact, so a malformed checkpoint aborts with the robot untouched.</li>
+<li><strong>The deployment.</strong> Constructing the backend swaps <code>env.entities[entity_name]</code> for a
+   <code>RobotStateEntity</code> (see <a href="#writing-terms-that-deploy">Writing terms that deploy</a>) and runs every
+   construction-time check. It does not touch the wire.</li>
+<li><strong><code>connect()</code></strong>, then <code>reset()</code> (boot into STOP), then the control loop until KILL or Ctrl-C,
+   then <code>close()</code>, which every exit path reaches.</li>
+</ol>
+<p><code>eden deploy</code> supports rsl_rl checkpoints only. It refuses rl_games checkpoints, FlashSAC
+policies (their tanh actions are scaled by the training wrapper, which the deploy loop bypasses),
+and tasks whose <code>runner_options.class_name</code> names a custom runner (<code>"module:Class"</code>), whose
+checkpoint layout the stock <code>OnPolicyRunner</code> cannot load. Each refusal happens before the robot is
+touched; the FlashSAC and custom-runner ones point at <code>eden inference</code> for a replay in sim.</p>
+<h4 id="training-randomization-is-stripped">Training randomization is stripped<a class="headerlink" href="#training-randomization-is-stripped" title="Permanent link">&para;</a></h4>
+<p>The deploy env is built without the task's domain randomization: every event term from
+<code>eden/managers/terms/events/domain_rand.py</code> (subclasses included) is disabled, and so is every
+randomized reset from <code>eden/managers/terms/events/resets.py</code> that targets a robot entity, since the
+env mirrors the robot's actual state. Terms are matched by type (function resets by registry key),
+whatever key the task stored them under. Object placement is scene setup and stays on. The log
+line <code>[deploy] Stripped randomization event terms: {...}</code> lists what was disabled.</p>
+<p>This matters beyond the mirror env: some of these terms reach the hardware. A
+<code>RandomizeDofsPosOffset</code> or <code>RandomizeStartupDofsPosBias</code> left on would add its draw to every
+position target the robot is sent. A task-local subclass of a domain-randomization term is
+disabled with its base, so a term that sets a pose the task needs (rather than randomizing one)
+must not derive from one.</p>
+<h3 id="one-control-tick">One control tick<a class="headerlink" href="#one-control-tick" title="Permanent link">&para;</a></h3>
+<p>Every backend runs the same <code>DeploymentBase.step(action)</code>. The CLI's loop calls it once per
+control period with the active slot's action:</p>
+<ol>
+<li><code>_before_step()</code>: a backend's pre-command hook (the Franka re-syncs the sim entity its IK reads;
+   a Wuji hand stops the run on stale feedback).</li>
+<li>Advance a <code>kp</code>/<code>kd</code> ramp in progress (a policy switch, see
+   <a href="#each-slot-runs-at-its-own-pd-gains">Each slot runs at its own PD gains</a>).</li>
+<li>Poll the operator inputs and pick the payload: the STOP hold, the INIT ramp, the end-of-clip
+   action, or the policy's command (the action through <code>action_manager.compute</code>, then each joint
+   term's <code>processed_action</code> gathered into deployment DOF order).</li>
+<li><code>send_payload(payload)</code>, then sleep off the rest of the control period (<code>RateLimiter</code>).</li>
+<li>Advance the motion reference (only while the policy drives) and run
+   <code>command_manager.compute()</code>.</li>
+<li><code>read_state()</code>, sync it onto the <code>RobotStateEntity</code> (and the sim entity's kinematics), run the
+   velocity estimator, run <code>observation_manager.post_physics_refresh()</code>, and compute the
+   observation the next action is chosen from.</li>
+<li>Record the tick if <code>--debug_record</code> is on.</li>
+</ol>
+<p>A backend that sets <code>sync_before_commands</code> (the Wuji hand) reads the robot before step 5, so a
+command that grades the new state sees it in the same tick.</p>
+<h2 id="the-operator-state-machine">The operator state machine<a class="headerlink" href="#the-operator-state-machine" title="Permanent link">&para;</a></h2>
+<p>Every backend (humanoid, quadruped, arm, hand, and the MuJoCo robot) runs the same INIT / START /
+STOP / KILL state machine, so a deployment never moves a robot the operator has not told it to.</p>
+<pre class="mermaid"><code>stateDiagram-v2
+    [*] --&gt; STOP: reset() (boot)
+    STOP --&gt; INIT: INIT
+    INIT --&gt; START: START
+    STOP --&gt; START: START
+    START --&gt; STOP: STOP
+    INIT --&gt; STOP: STOP
+    START --&gt; INIT: INIT
+    STOP --&gt; [*]: KILL
+    INIT --&gt; [*]: KILL
+    START --&gt; [*]: KILL</code></pre>
+<table>
+<thead>
+<tr>
+<th>State</th>
+<th>Entered by</th>
+<th>What the robot is sent</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>STOP (boot)</td>
+<td><code>reset()</code>, or STOP at any time</td>
+<td>The pose measured when the hold began, latched and held there, at the active slot's gains</td>
+</tr>
+<tr>
+<td>INIT</td>
+<td>INIT</td>
+<td>A ramp from the pose measured at the press to the <code>--init_target</code> pose over <code>--init_steps</code> ticks (gains × <code>init_dofs_kp_scale</code> / <code>init_dofs_kd_scale</code>), then that pose, held</td>
+</tr>
+<tr>
+<td>START</td>
+<td>START</td>
+<td>On the START tick, what was being sent before it (the INIT target or the hold); from the next tick, the active policy slot's command, with the clip at frame 0 and the yaw re-captured</td>
+</tr>
+<tr>
+<td>KILL</td>
+<td>KILL</td>
+<td>Leaves the loop; <code>close()</code> settles the robot (G1, Go2, Go1 and Oli ramp to a damping state, kp = 0)</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Inputs.</strong> Commands come from the keyboard (line-based, so it works over SSH: type the key, then
+Enter) and from the robot's own remote where it has one:</p>
+<table>
+<thead>
+<tr>
+<th>Command</th>
+<th>Keyboard</th>
+<th>Unitree G1 remote</th>
+<th>LimX Oli remote</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>START</td>
+<td><code>s</code></td>
+<td>A</td>
+<td>R1 + □</td>
+</tr>
+<tr>
+<td>STOP</td>
+<td><code>x</code></td>
+<td>B</td>
+<td>L1 + ✕</td>
+</tr>
+<tr>
+<td>INIT</td>
+<td><code>i</code></td>
+<td>Y</td>
+<td>L1 + △</td>
+</tr>
+<tr>
+<td>KILL</td>
+<td><code>k</code></td>
+<td>L1 + R1</td>
+<td>L1 + □</td>
+</tr>
+<tr>
+<td>Next policy slot</td>
+<td><code>n</code></td>
+<td>Select</td>
+<td>L1 + ○</td>
+</tr>
+<tr>
+<td>Policy slot 1–9</td>
+<td><code>1</code>–<code>9</code></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td>Raise / lower the sim gantry</td>
+<td><code>+</code> / <code>-</code></td>
+<td></td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<p>Each backend prints its own cheat sheet at <code>reset()</code>. A remote command fires once per press, so a
+held button is one command (the G1's L1 + R1 KILL fires while both are held).</p>
+<p><strong>No operator, no motion.</strong> A hardware backend with neither a remote nor a TTY holds in STOP for
+good and says so once. Only a simulator (<code>--mujoco</code>) presses INIT and START itself when nobody is
+there, and logs that it did.</p>
+<p><strong>Why the hold latches.</strong> STOP latches the pose measured on its first tick and holds that. Re-reading
+the measured pose every tick would leave the command chasing the robot, turning the PD into a
+damper that follows a sagging robot to the floor. Entering the hold never steps the torque,
+however fast the robot is moving.</p>
+<p><strong>The START handover.</strong> START hands over on the tick after it is pressed. The action <code>step()</code> is
+given on the START tick was computed before START (from the hold's observation, in the old yaw
+frame, by a slot not yet re-armed), so it is not sent: that tick repeats the INIT target or the
+hold, and its read is the policy's first observation, with history windows cleared, the episode
+clock at 0 and the clip at frame 0. The loop re-arms the slot (<code>on_activate()</code>), and the slot's
+action on that observation is the first command the policy sends. START pressed while the policy
+already drives (to restart its clip) holds that tick at the measured pose, as STOP would.</p>
+<p>At START every backend also warns about any joint whose <code>q</code>, <code>qd</code> and <code>tau</code> never changed by a
+single bit through STOP and INIT while its command moved: that joint's encoder or driver is not
+reporting, and the policy would act on a stale reading. <code>--disable_joints</code> does not help there;
+check the joint's power and wiring.</p>
+<p><strong>From a script.</strong> A script that drives a deployment without an operator presses the keys itself:
+<code>dep.reset()</code>, <code>dep.request_init()</code>, <code>dep.step(None)</code> until <code>dep.init_done</code>, then
+<code>dep.request_start()</code> (<code>dep.request_stop()</code> to hold again). Targets reach the robot only after
+that START. A script that reads the keyboard itself (a pynput teleop device, which also hears every
+key typed into the terminal) passes <code>operator_keyboard=False</code> and relays its own operator keys to
+those methods, as <code>examples/recipes/deployment/real_franka_teleoperation_keyboard.py</code> does;
+otherwise a teleop key and a command key share a line, and <code>s</code> is both START and a WASD axis.</p>
+<h2 id="running-a-deployment">Running a deployment<a class="headerlink" href="#running-a-deployment" title="Permanent link">&para;</a></h2>
+<h3 id="gains-and-the-init-ramp">Gains and the INIT ramp<a class="headerlink" href="#gains-and-the-init-ramp" title="Permanent link">&para;</a></h3>
+<ul>
+<li><code>--deploy_kp_kd_scale</code> scales every slot's kp/kd. <strong>Ramp up from <code>0.2</code> toward <code>1.0</code></strong> while
+  commissioning a policy. Backends that program gains once at connect or run their own loop treat
+  it differently: the XHand refuses anything but 1.0 (lower its firmware <code>dofs_kp</code> / <code>dofs_kd</code>
+  instead), a Wuji Hand 2 programs its MIT gains from it, Hand 1 refuses it, and on the Franka the
+  arm runs panda-py's own stiffness, so command gains do not reach it.</li>
+<li><code>--disable_joints NAME|PATTERN ...</code> sends kp = kd = 0 on matching joints so they go limp (the
+  policy still observes and commands them). It is for bench debugging: isolate a buzzing joint,
+  free the arms. <strong>Do not disable load-bearing leg joints on an unsupported robot; it collapses.</strong>
+  Backends that ignore command gains (XHand, Wuji) refuse it.</li>
+<li><code>--target_lpf A</code> low-passes every commanded target, <code>sent = A·new + (1−A)·prev</code> with <code>A</code> in
+  (0, 1] (1.0 = off). It attenuates high-frequency command content, such as a single-frame
+  policy's half-rate limit cycle or motor whine, without touching kp/kd or the standing stiffness,
+  at the cost of about <code>1/(A·f)</code> of lag. Try 0.5 or 0.3 at full gains.</li>
+<li><code>--init_steps N</code> (default 250, 5 s at 50 Hz; 0 disables the ramp) sets how long INIT takes, so a
+  lying or folded robot rises instead of snapping upright under full PD.</li>
+<li><code>--init_target default|motion|motion_rsi</code>. <code>default</code> ramps to the robot's <code>default_dofs_pos</code>,
+  the only target safe from an arbitrary starting pose. <code>motion</code> ramps to frame 0 of the tracked
+  clip, so a motion-imitation policy starts from the pose it was trained to continue from. It is
+  <strong>not</strong> automatically safe: frame 0 of a crouched clip is an open-loop squat held by nothing but
+  the joint PD, and it can topple. Ramp slowly, support the robot the first time, and prefer
+  entering through a balance policy slot. <code>motion_rsi</code> also teleports the base to frame 0, which
+  only a simulator can do; every hardware backend refuses it at construction.</li>
+</ul>
+<div class="admonition warning">
+<p class="admonition-title">A joint-space stand-up is blind to the feet</p>
+<p>The INIT ramp interpolates joint angles; it does not resolve foot contact. A quadruped started
+from an awkward stance (feet splayed or shifted to one side) has legs fighting the ground to
+reach their target angles, which drives those motors into thermal derating. Set the robot
+down in a neutral stance with the feet under the hips before INIT, and wait for
+<code>[deploy] INIT reached the target pose and holds it</code> and a visual check before START.</p>
+</div>
+<h3 id="base-linear-velocity-and-estimate_lin_vel">Base linear velocity and <code>--estimate_lin_vel</code><a class="headerlink" href="#base-linear-velocity-and-estimate_lin_vel" title="Permanent link">&para;</a></h3>
+<p>No hardware backend publishes a base linear velocity (an IMU measures none), so
+<code>RobotStateEntity</code> reports zeros for it unless the onboard estimator runs. A deploy whose policy
+is fed a <code>base_lin_vel</code> observation (a checkpoint actor's observation groups, or a <code>--policy</code> that
+declares the term) with neither the estimator nor a backend that publishes the velocity is
+<strong>refused at startup</strong>, naming the terms. A critic-only <code>base_lin_vel</code>, as in the
+<code>velocity_tracking</code> layout, is never fed to the actor and needs no estimator.</p>
+<p><code>--estimate_lin_vel</code> runs a contact-aided Kalman filter
+(<code>eden/extensions/deployment/utils/lin_vel_estimator.py</code>) that fuses IMU acceleration with
+leg-kinematics odometry:</p>
+<ul>
+<li>It hangs its odometry and contact detection on the robot's own feet,
+  <code>RobotOptions.feet_links_name</code>, which every robot with a legged hardware backend declares (the G1
+  and Oli families, Go1, Go2). <code>--feet_links &lt;left&gt; &lt;right&gt;</code> overrides them, for a robot that
+  declares none or to estimate off a different pair of links.</li>
+<li>Contact comes from the motors' <code>tau_est</code>: the leg's gravity-compensated torque solved for the
+  full foot wrench on a leg with six or more DOFs, and for a point force on a shorter one, latched
+  above 12% of the robot's weight (about 40 N on a G1). A loaded foot more than 5 cm above another
+  loaded foot is swinging and is not latched. When no foot is latched but the accelerometer reads
+  support, the most-loaded foot is latched if it reads any real load, never a dangling foot, so a
+  robot on a hoist is not anchored on a leg swinging free.</li>
+<li>After 0.5 s with no foot in contact the estimate decays toward zero instead of integrating the
+  IMU open loop, and a warning says so.</li>
+<li>With <code>--debug_record</code> the recording carries the estimate (<code>x_base_lin_vel_estimate</code>) and, per
+  foot, the latch (<code>x_contacts</code>) and the solved contact force (<code>x_forces</code>), so a contact dropout
+  can be told apart from IMU drift afterwards.</li>
+</ul>
+<p>The base <em>position</em> is unknown on hardware too: <code>RobotStateEntity</code> holds it at the env's spawn
+pose unless something supplies <code>RobotState.extra["base_pos"]</code> (an external estimator, mocap).</p>
+<h3 id="the-velocity-command-at-deploy-time">The velocity command at deploy time<a class="headerlink" href="#the-velocity-command-at-deploy-time" title="Permanent link">&para;</a></h3>
+<p>A locomotion policy deployed from its training config would keep generating the command it was
+trained on: <code>UniformVelocityCommand</code> resamples a fresh random <code>(vx, vy, wz)</code> every few seconds,
+which on a robot reads as the machine wandering off on its own. So a deploy <strong>substitutes</strong> that
+term:</p>
+<table>
+<thead>
+<tr>
+<th><code>--velocity_command</code></th>
+<th>Substituted term</th>
+<th>Command</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>constant</code> <em>(default)</em></td>
+<td><code>ConstantVelocityCommand</code></td>
+<td>Holds <code>--base_command VX VY WZ</code>, default <code>0 0 0</code>: the robot stands until told otherwise, unless the task pinned that axis (below)</td>
+</tr>
+<tr>
+<td><code>keyboard</code></td>
+<td><code>OperatorVelocityCommand</code></td>
+<td><kbd>↑</kbd>/<kbd>↓</kbd> <code>vx</code> · <kbd>←</kbd>/<kbd>→</kbd> <code>vy</code> · <kbd>,</kbd>/<kbd>.</kbd> <code>wz</code></td>
+</tr>
+<tr>
+<td><code>gamepad</code></td>
+<td><code>OperatorVelocityCommand</code></td>
+<td>Left stick <code>vx</code>/<code>vy</code> · right stick X <code>wz</code> (<code>--gamepad_layout ps4|xbox</code>, default <code>ps4</code>)</td>
+</tr>
+<tr>
+<td><code>task</code></td>
+<td><em>(no swap)</em></td>
+<td>The training generator, resampling at random</td>
+</tr>
+</tbody>
+</table>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>eden<span class="w"> </span>deploy<span class="w"> </span>--task<span class="w"> </span>velocity_tracking_flat<span class="w"> </span>--robot<span class="w"> </span>g1<span class="w"> </span>--checkpoint<span class="w"> </span>model.pt<span class="w"> </span>--velocity_command<span class="w"> </span>keyboard
+</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>eden<span class="w"> </span>deploy<span class="w"> </span>--task<span class="w"> </span>velocity_tracking_flat<span class="w"> </span>--robot<span class="w"> </span>g1<span class="w"> </span>--checkpoint<span class="w"> </span>model.pt<span class="w"> </span>--base_command<span class="w"> </span><span class="m">0</span>.5<span class="w"> </span><span class="m">0</span><span class="w"> </span><span class="m">0</span>
+</span></code></pre></div>
+<ul>
+<li>A held key or a pushed stick is <strong>full</strong> deflection, the fastest command the policy was trained
+  on, from the first press. An operator command returns to zero the moment you release. A gamepad
+  unplugged mid-run zeroes its axes rather than holding its last value.</li>
+<li><code>--base_command</code> and an operator device are mutually exclusive: passing both is an error, not a
+  silently ignored flag.</li>
+<li>Only an exact <code>UniformVelocityCommand</code> is substituted. A <em>subclass</em> carries behaviour a held
+  command would drop, so it is left running with a warning, and <code>--velocity_command
+  keyboard|gamepad</code> on one is refused. Two such terms on one entity are refused as ambiguous.</li>
+<li>The keyboard needs <code>pynput</code>, the gamepad <code>inputs</code>; both come with the <code>all</code> extra
+  (<code>pip install 'eden-world[all]'</code>, or <code>uv sync --inexact --extra all</code> in a checkout). Each device
+  says which package is missing.</li>
+<li>With <code>--policy</code> slots, <code>--velocity_command keyboard|gamepad</code> also drives the policies that take a
+  command through <code>set_command</code>; one device drives whichever slot is active, so switching between
+  the safety policy and your checkpoint keeps one set of controls.</li>
+<li>All of it behaves identically under <code>--mujoco</code>, which is the place to get used to the controls.</li>
+</ul>
+<div class="admonition warning">
+<p class="admonition-title">Full deflection is what the <em>saved config</em> declares</p>
+<p>The substitute is clamped to the <code>lin_vel_x_range</code> / <code>lin_vel_y_range</code> / <code>ang_vel_z_range</code> of
+the term it replaces, so neither an operator nor a <code>--base_command</code> typo can drive the policy
+outside the distribution it was trained on.</p>
+<p>For a task with a <strong>command curriculum</strong> that is the <em>initial</em> range: the curriculum widens the
+ranges at runtime and the saved config holds the starting values. <code>velocity_tracking_flat</code>
+starts at <code>lin_vel_x_range=(-1.0, 1.0)</code> with curricula out to <code>(-2.0, 3.0)</code>, so its ceiling is
+1.0 m/s until you raise it with <code>--velocity_command_scale VX VY WZ</code> (symmetric per-axis
+limits). Lowering it below the trained range is the right move while commissioning.</p>
+<p>A command-driven <strong>extension policy</strong> takes <code>--base_command</code> through <code>set_command</code> with no
+term in between, so before it goes anywhere the command is capped at a per-axis <em>ceiling</em>,
+<code>|v| ≤ max(|lo|, |hi|)</code>, logged when it bites. On an asymmetric range the ceiling and the
+term's clamp differ: with <code>lin_vel_x_range=(-1.0, 3.0)</code>, <code>--base_command -3 0 0</code> reaches an
+extension policy as <code>-3.0</code> while the substituted term clamps it to <code>-1.0</code>. Pass
+<code>--velocity_command_scale</code> if you want one number to mean one thing on both. On a task-less
+<code>--policy</code> deploy there is no trained range at all, so nothing caps <code>--base_command</code> unless
+you pass <code>--velocity_command_scale</code>; an operator device there defaults to ±1 on each axis.</p>
+</div>
+<div class="admonition note">
+<p class="admonition-title">A pinned axis is not controllable, and holds its trained value</p>
+<p><code>move_forward</code> ships <code>lin_vel_x_range=(0.5, 0.5)</code>: the policy has never seen another forward
+speed, so neither <code>--base_command</code> nor a device can change it. A <code>move_forward</code> deploy walks
+at 0.5 m/s from the moment the policy is armed, and the log says so (<code>Velocity command [0.0,
+0.0, 0.0] is outside the trained ranges ...; holding [0.5, 0.0, 0.0] instead.</code>). Read "stands
+until told otherwise" as applying to the axes the task left free.</p>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Why the bindings are arrows and not WASD</p>
+<p><code>pynput</code> listens to the keyboard <em>globally</em>, so it also sees the <code>s</code> / <code>x</code> / <code>i</code> / <code>k</code> / <code>n</code> /
+digit keys you type to drive the state machine; on WASD, typing START would also command the
+robot backwards. Global listening cuts the other way too: the arrows drive the robot from
+whatever window has focus, and <kbd>↑</kbd> in the terminal you type START into is also your
+shell's history key. It also needs a local display: over a plain SSH shell <code>pynput</code> cannot open
+the keyboard, and the device raises saying so.</p>
+</div>
+<p>The substitution is generic: <code>DeploymentBase.command_overrides</code> (<code>{term_name: CommandTermOptions}</code>)
+installs any substitute through <code>CommandManager.swap_term</code> at construction, and <code>close()</code> puts the
+original term back (a substitute whose input device has stopped would report zeros forever to
+anything still using the env). Terms that resolved the replaced term once in their own <code>build()</code>
+are repointed at the substitute, but only in the term trees the deploy loop steps (observations
+and commands).</p>
+<h3 id="action-terms-that-reach-the-robot">Action terms that reach the robot<a class="headerlink" href="#action-terms-that-reach-the-robot" title="Permanent link">&para;</a></h3>
+<p>The payload (<code>RobotCommand</code>) carries per-joint <code>dofs_pos</code> / <code>dofs_vel</code> / <code>dofs_torque</code> /
+<code>dofs_kp</code> / <code>dofs_kd</code> and nothing else, and a deploy fills only the position target (velocity and
+feedforward torque go out as zeros). It can only be built from a term whose <code>processed_action</code> is
+a <code>(num_envs, n_dofs)</code> joint buffer:</p>
+<ul>
+<li>A term commanding something else (a suction term's per-env vacuum bit) has no channel. The
+  deployment refuses to start rather than drop it silently, naming the term. If you drive it over
+  a channel of your own, acknowledge it with <code>--ignore_action_terms &lt;term&gt;</code>. The flag is
+  validated: it rejects a name that is not an action term, and one whose joint targets the payload
+  <em>does</em> carry (use <code>--disable_joints</code> to leave joints undriven).</li>
+<li>A joint term driving <strong>another entity</strong> (the hand of an arm + hand rig, deployed arm-only) is
+  skipped with a log line. Ownership is decided by entity, not DOF name: two entities built from
+  one asset share joint names, so a term of the wrong entity that spells its joints the same way
+  is dropped too, at <code>WARNING</code>.</li>
+<li>A term of the deployed entity that reaches only part of its DOFs still maps, minus those, and the
+  gap is logged at <code>WARNING</code>. Any DOF no action term reaches is logged once at construction: it is
+  not left alone but sent position target <code>0.0</code> at the robot's default stiffness. Use
+  <code>--disable_joints</code> to actually leave a joint undriven.</li>
+<li>A term that only stands in for something the real robot does itself declares
+  <code>_sim_surrogate_ = True</code> (<code>ActionTerm.sim_surrogate</code>; for example <code>ParallelJawWelding</code>, which
+  welds the object to the gripper because sim contact friction is unreliable). It is not sent, and
+  the log says so.</li>
+<li>A task's <code>ActionDelay</code> models the simulated actuator's latency inside <code>apply_actions()</code>, which no
+  deployment calls, so every backend sends the command undelayed; the robot's own latency takes its
+  place. The log names each deployed term whose delay is left out (see
+  <a href="../actions/#action-modifiers">Actions</a>).</li>
+<li>The Franka backend refuses torque-mode terms (<code>OperationalSpaceController</code>): panda-py's
+  <code>JointPosition</code> controller would read their torques as joint angles.</li>
+</ul>
+<h3 id="motion-imitation-deploys">Motion-imitation deploys<a class="headerlink" href="#motion-imitation-deploys" title="Permanent link">&para;</a></h3>
+<ul>
+<li>The deploy loop advances the motion reference itself, through both paths a task may use: the
+  motion manager (<code>MimicRLEnvBase.motion_manager</code>) and a <code>MotionCommand</code>'s
+  <code>CommandTerm.advance_reference()</code>. The clip holds at frame 0 through STOP and INIT and plays
+  from the START handover; it is rewound (clock only, no resampling and no robot teleport) at
+  reset, INIT, START and every policy switch.</li>
+<li>On a deploy, <code>MotionCommand</code> holds its last frame instead of wrapping. <code>--on_motion_end</code> decides
+  what happens then: <code>continue</code> (default) keeps running the policy against a reference that has
+  stopped; <code>switch</code> hands control to <code>--motion_end_slot</code> through the same queue the operator uses
+  (point it at a loco policy at zero command, and the robot keeps its balance); <code>stand</code> disengages
+  the policy and ramps the joints to the default stance over <code>--stand_steps</code> (default 100), which
+  holds a shape, not a stand, so a biped topples within seconds. It suits a quadruped or a
+  fixed-base arm. All three run off the motion clock and send ordinary wire commands.</li>
+<li><code>--motion_file</code> gives the reference clip to a motion-tracking extension policy such as <code>sonic</code>;
+  it is required when one is loaded.</li>
+<li><code>--vis</code> on a motion-imitation task draws the reference as a translucent ghost next to the robot.</li>
+</ul>
+<h2 id="policy-slots">Policy slots<a class="headerlink" href="#policy-slots" title="Permanent link">&para;</a></h2>
+<p>A deploy can hold up to 9 policies and switch between them live (<code>n</code> / Select / <code>1</code>–<code>9</code>). Slots
+are numbered in load order: the base policy (if any) is slot 1 and active at boot, then
+<code>--checkpoint</code>, then <code>--extra_checkpoint</code>s, then the <code>--policy</code> extensions.</p>
+<h3 id="the-holosoma-safety-slot">The Holosoma safety slot<a class="headerlink" href="#the-holosoma-safety-slot" title="Permanent link">&para;</a></h3>
+<p>On a G1 29-DOF (<code>G1Dofs29</code>), <code>--base_policy auto</code> (the default) preloads the frozen Holosoma
+locomotion policy as slot 1: after INIT and START the robot stands (or walks <code>--base_command</code>)
+under a known-good controller, and you switch to your checkpoint, and back, at any time. On any
+other robot <code>auto</code> loads nothing and <code>--checkpoint</code> becomes slot 1; <code>holosoma</code> forces it (an error
+on a non-G1); <code>none</code> disables it. Holosoma is an ONNX policy, so a G1 deploy with the default
+needs one of the ONNX runtime extras (see <a href="../deployment-hardware/#onnx-runtime">Robot setup</a>).</p>
+<p><code>--base_policy none</code> makes your checkpoint the boot slot: the robot then runs your policy right
+after START with no safety controller to fall back to, which is not recommended for first
+commissioning.</p>
+<h3 id="loading-a-frozen-policy-as-a-slot">Loading a frozen policy as a slot<a class="headerlink" href="#loading-a-frozen-policy-as-a-slot" title="Permanent link">&para;</a></h3>
+<p><code>--policy NAME</code> (repeatable) preloads a policy from <code>eden/extensions/policies</code> as a slot, with or
+without a <code>--task</code>. <code>NAME</code> is the package name (<code>holosoma</code>, <code>homie</code>), the <code>POLICY_REGISTRY</code> key, or
+the key without its <code>_policy</code> suffix. <code>--policy_checkpoint NAME=PATH</code> points one at a local
+checkpoint instead of its released weights. Without <code>--task</code>, <code>--robot</code> (default <code>G1Dofs29</code>) names
+the robot, and the env is built from the loaded policies' own spec. See <a href="../policy-zoo/">Policy zoo</a>
+for what each policy needs.</p>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="c1"># The Holosoma safety slot boots; switch to the tracker with Select / `n`.</span>
+</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>eden<span class="w"> </span>deploy<span class="w"> </span>--policy<span class="w"> </span>beyondmimic_moves<span class="w"> </span>--vis
+</span></code></pre></div>
+<ul>
+<li><strong>Each slot converts its own actions.</strong> A policy's <code>action_options()</code> terms are built privately
+  for its slot, so a policy trained with a scaled, offset controller (BeyondMimic Moves scales per
+  joint on top of its training pose) deploys exactly as one emitting absolute targets (Holosoma).</li>
+<li><strong>Only joint-position controllers</strong> (<code>ImplicitPDController</code>, <code>ExplicitPDController</code>) are
+  accepted, because a slot writes only the payload's position field. A
+  <code>VelocityFeedforwardPDController</code> (its feedforward half would be dropped) or a torque-commanding
+  term is refused at startup.</li>
+<li><strong>A policy that reads the env's observations owns the env.</strong> A policy whose <code>step(obs)</code> reads the
+  observation dict (<code>PolicyBase.reads_env_observations</code>: <code>amo</code>, <code>beyondmimic_moves</code>, <code>gmt</code>,
+  <code>humanoid_gpt</code>, <code>husky</code>, <code>metamotivo</code>, <code>omnireset</code>, <code>omnixtreme</code>, <code>protomotionv3</code>, <code>twist2</code>, and
+  the server-backed client policies) gets an env built from its own observation groups and action
+  terms, and its action is routed through the env's action manager so env-computed observations
+  (<code>last_action</code> above all) reflect what the robot was commanded. Two such policies together, or
+  one alongside <code>--task</code>, are refused: one env publishes one observation layout. Policies that read
+  raw robot state (Holosoma) can ride along on any env.</li>
+<li>When <strong>no</strong> loaded policy reads the env, the first policy you named with <code>--policy</code> owns it,
+  ahead of the Holosoma base the CLI inserts for you: the env's robot fixes the standing pose
+  every slot is held to.</li>
+<li><strong>One robot, one rate.</strong> Every slot shares the env's control rate and robot, so a policy is
+  refused if the env's rate is not the one it declares, or (when its controller or observations
+  are relative to the default pose) if the robot spawns in another pose than it was trained in.
+  When the slot that disagrees is the Holosoma base the CLI added, <code>--base_policy none</code> drops it.</li>
+</ul>
+<h3 id="each-slot-runs-at-its-own-pd-gains">Each slot runs at its own PD gains<a class="headerlink" href="#each-slot-runs-at-its-own-pd-gains" title="Permanent link">&para;</a></h3>
+<p>A slot's kp/kd come from its policy's pinned robot (<code>robot_options()</code>) on every joint that robot
+names, and from the env's robot on the rest, so a <code>--checkpoint</code> (trained in the env) and a policy
+pinning no robot run at the env robot's gains. With <code>--task</code>, the task's robot sets every slot's
+gains, extension policies included (a task robot is how a deploy retunes gains for the hardware),
+and the deploy warns at startup for each policy whose pinned gains differ. <code>--deploy_kp_kd_scale</code>
+and <code>--disable_joints</code> apply to every slot alike.</p>
+<p>The boot slot's gains are on the wire from the first command. A switch ramps kp/kd linearly to the
+new slot's over <code>--gain_ramp_steps</code> control steps (default 50, 1 s at 50 Hz; <code>0</code> jumps), because a
+stiffness step of the size between SONIC's and Holosoma's hip-pitch gains (about 2.4×) can knock a
+standing robot over. The ramp covers every command (the policy's, the STOP hold and the INIT ramp),
+and the new policy drives from the switch on, through the ramp: a humanoid is balanced only by its
+policy, and holding the measured pose while the gains ramp toppled a free-standing G1 in MuJoCo
+sim-to-sim. The deploy logs the largest change:</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>[deploy] Ramping kp/kd over 50 control steps to the gains 'holosoma base (loco)' was trained at:
+</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>4 gain(s) change, the largest left_hip_pitch_joint kp 99.10 -&gt; 40.18.
+</span></code></pre></div>
+<p>The Wuji and XHand hands and the Franka do not take gains per command (they program theirs once at
+connect or run their own loop), so the robot runs one gain set whichever slot is active, and the
+deploy warns at startup for each slot that will not run at its own, naming the joints and both
+values. Deploy slots trained at other gains separately.</p>
+<p>A policy whose pinned robot gives gains for only some of its joints is refused at startup. A
+pydantic dict field is replaced whole, so an override such as
+<code>G1Dofs29(default_dofs_kp={"*_hip_pitch_joint": 200.0})</code> leaves every other joint without a gain.
+A robot declaring no gains at all (<code>G1Dofs23</code>'s empty map) runs at the env robot's.</p>
+<h3 id="start-up-checks-on-the-slots">Start-up checks on the slots<a class="headerlink" href="#start-up-checks-on-the-slots" title="Permanent link">&para;</a></h3>
+<p>Before the robot is enabled, each slot's <code>step()</code> is run once against the observations the env
+publishes, and what it emits is checked against the action terms it declared. A policy that
+<em>raises</em> on that input is refused at startup if it reads the observation dict (that is its real
+input). For a policy that reads raw state instead, a raise there says nothing, so it is a warning,
+and the check moves to the first control step; a failure there closes the deployment on the way
+out, so the robot settles rather than holding its last command.</p>
+<p>On a switch, <code>DeploymentBase.restart_observations()</code> restarts every observation window from the
+last reading, so the switched-in slot does not read history another slot drove.</p>
+<h2 id="safety">Safety<a class="headerlink" href="#safety" title="Permanent link">&para;</a></h2>
+<p>Every mechanism below is on by default; this list is the place to check before a first run.</p>
+<ul>
+<li><strong>Boot in STOP, INIT, then START.</strong> Nothing moves until the operator says so, and a hardware run
+  with no operator input holds in STOP forever. See <a href="#the-operator-state-machine">The operator state machine</a>.</li>
+<li><strong>Fail before connecting.</strong> Unknown entities, joints, action terms, command terms, gain maps,
+  unsupported options and impossible <code>--init_target</code> / <code>--on_motion_end</code> values all raise at
+  construction, before <code>connect()</code>. A construction that fails rolls back the entity and command
+  swaps, so the env is reusable.</li>
+<li><strong>Settle on the way out.</strong> KILL, Ctrl-C and errors all reach <code>close()</code>. The G1, Go2, Go1 and Oli
+  backends send <code>shutdown_damping_steps</code> (default 50) ticks of kp = 0 with kd ×
+  <code>shutdown_damping_kd_scale</code> before releasing the link, so the joints settle instead of holding
+  their last stiff target until a watchdog trips.</li>
+<li><strong>Stale observations are cleared.</strong> The first read of every episode (after construction,
+  <code>reset()</code> and START) clears per-step observation state and the action manager's last actions, in
+  an env reset's order (see <a href="#writing-terms-that-deploy">Writing terms that deploy</a>).</li>
+<li><strong>Frozen joints are reported</strong> at START (see above).</li>
+<li><strong>Torque budgets.</strong> The Oli clamps every target so the position term of the implied PD torque
+  stays within each joint's budget. The Franka clamps each step's joint delta to a fraction
+  (<code>velocity_safety_factor</code>, default 0.5) of the joint velocity limits, so libfranka's velocity
+  reflex does not trip. The Go1 applies the SDK's <code>PowerProtect</code>. Details per robot on
+  <a href="../deployment-hardware/">Robot setup</a>.</li>
+<li><strong>Hand feedback.</strong> A Wuji hand stops the run on stale joint feedback and, by default, on a
+  latched hardware fault, checked before every tick.</li>
+</ul>
+<div class="admonition warning">
+<p class="admonition-title">A stalled control thread is reported, not acted on</p>
+<p>On the backends that re-send the held command between ticks (G1, Go2, Oli; see
+<a href="#republishing-the-wire-command">Republishing the wire command</a>), the re-send loop keeps
+sending the last command for as long as the process lives. It does not fall back to a damping
+state when the control thread stalls. The robot therefore never sees a command dropout, so any
+receive-side watchdog it has will not engage: it holds the last commanded pose, at the gains it
+was commanded with, until the process goes away. This matches what the vendor references do.
+The loop warns when the held command goes stale; the soft shutdown in <code>close()</code> is the only
+orderly way down, so stop the process (KILL, Ctrl-C) or hit the e-stop.</p>
+</div>
+<h2 id="timing-and-diagnostics">Timing and diagnostics<a class="headerlink" href="#timing-and-diagnostics" title="Permanent link">&para;</a></h2>
+<h3 id="control-loop-timing">Control-loop timing<a class="headerlink" href="#control-loop-timing" title="Permanent link">&para;</a></h3>
+<p>The loop's <code>RateLimiter</code> paces it at the control rate and <strong>warns once a second while it is
+overrunning</strong>:</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>[deploy] control loop overran 34/40 ticks in the last 1.2 s (worst 10.3 ms late; 33.1 Hz achieved against 50 Hz). ...
+</span></code></pre></div>
+<p>and every backend logs the run's summary (ticks, overruns, worst lateness, achieved rate) at
+<code>close()</code>. An overrunning loop is otherwise silent: the robot still receives targets, only late,
+the motion reference plays slower than real time, and every history observation is stretched.
+Lockstep <code>--mujoco</code> cannot show it, because physics advances per tick regardless of the wall clock;
+<code>--mujoco --async</code> can (see <a href="#lockstep-or-asynchronous-physics">Lockstep or asynchronous physics</a>).</p>
+<p><strong>ONNX thread pools.</strong> ONNX Runtime's default is one <em>spinning</em> thread per core per session. Eden
+builds every ONNX session with one non-spinning intra-op thread instead; <code>ONNX_INTRA_OP_THREADS=&lt;n&gt;</code>
+overrides the count. The code records the measurement behind it
+(<code>eden/extensions/policies/onnx.py</code>): with the default pool, SONIC's two graphs plus the Holosoma
+base made 72 busy-waiting threads on a 24-core box and 70–89% of the 50 Hz ticks overran (policy
+step 13–18 ms); with one thread per session the step took 3.7 ms and no tick overran. The CPU wheel
+is therefore fast enough for the deployed policies.</p>
+<h3 id="republishing-the-wire-command">Republishing the wire command<a class="headerlink" href="#republishing-the-wire-command" title="Permanent link">&para;</a></h3>
+<p>Some robots evaluate the PD law of their <strong>parallel-linkage</strong> joints (ankles, waist roll/pitch)
+once per <em>received command packet</em>, on that packet's state. At one packet per 50 Hz tick the
+derivative term acts on a 20 ms-old velocity, which is anti-damping at 25 Hz, and the linkage rings
+at that frequency once anything kicks it. The fix is not a faster policy but re-sending the same
+command between ticks, so the robot re-closes those joints against fresh state. The G1 (500 Hz),
+Go2 (500 Hz, for vendor-rate parity only) and Oli (1000 Hz) backends do this from a background
+thread (<code>eden/extensions/deployment/utils/republisher.py</code>); <code>--publish_rate HZ</code> changes the rate,
+and <code>--publish_rate 0</code> sends one packet per tick, for A/B only. Why each robot needs it is on
+<a href="../deployment-hardware/">Robot setup</a>.</p>
+<p>Every re-sent packet is byte-identical to the last, so a re-send loop that has stopped doing its
+job looks exactly like one that works, and the robot quietly goes back to one packet per tick. The
+loop therefore reports on itself once a second as <code>[deploy] Republisher degraded: …</code>, naming which
+of these applies:</p>
+<ul>
+<li><strong>sends that failed</strong>: counted and retried at the next deadline, rather than killing the loop;</li>
+<li><strong>a starved loop</strong>: publishing below half its target rate;</li>
+<li><strong>a stale command</strong>: re-sending a command the control thread stopped refreshing for more than
+  about 10 control ticks (every path, policy, hold and INIT alike, refreshes it every tick).</li>
+</ul>
+<p>A <code>[deploy] Republisher recovered: …</code> line says when the condition clears, a thread that dies
+outright logs at error level with its traceback, and the end-of-run summary repeats the packet rate
+it achieved.</p>
+<h3 id="-debug_record"><code>--debug_record</code><a class="headerlink" href="#-debug_record" title="Permanent link">&para;</a></h3>
+<p><code>--debug_record</code> records, per control step, the command actually sent (<code>cmd_pos</code>, <code>cmd_kp</code>,
+<code>cmd_kd</code>), the measured proprioception (<code>q</code>, <code>qd</code>, <code>tau</code>, base orientation, angular velocity and
+linear acceleration), a wall-clock <code>stamp</code>, and every numeric <code>RobotState.extra</code> entry under an
+<code>x_</code> prefix (the Go1's motor temperatures, the velocity estimate, …). It writes
+<code>&lt;log_dir&gt;/deploy_record.npz</code> unless <code>--debug_record_path</code> says otherwise.</p>
+<p>The record is <strong>streamed to disk as the run goes</strong>, in <code>--debug_record_flush_steps</code> chunks (default
+100, 2 s at 50 Hz), because the runs worth recording are the ones that end badly, where the exit
+path may not finish. Chunks are written on a background thread and atomically renamed into place.
+A clean exit merges them into the single <code>.npz</code>; a killed run (a second Ctrl-C, a segfault) leaves a
+<code>&lt;stem&gt;.parts/</code> directory with every completed chunk, losing at most the last chunk. Read either
+with:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+</span><span id="__span-6-2"><a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>
+</span><span id="__span-6-3"><a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a><span class="kn">from</span><span class="w"> </span><span class="nn">eden.extensions.deployment.utils.record</span><span class="w"> </span><span class="kn">import</span> <span class="n">load_deploy_record</span>
+</span><span id="__span-6-4"><a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a>
+</span><span id="__span-6-5"><a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a><span class="n">rec</span> <span class="o">=</span> <span class="n">load_deploy_record</span><span class="p">(</span><span class="s2">"deploy_record.npz"</span><span class="p">)</span>  <span class="c1"># the merged file, or the surviving chunks</span>
+</span><span id="__span-6-6"><a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a><span class="nb">print</span><span class="p">(</span><span class="s2">"achieved control rate:"</span><span class="p">,</span> <span class="mf">1.0</span> <span class="o">/</span> <span class="n">np</span><span class="o">.</span><span class="n">diff</span><span class="p">(</span><span class="n">rec</span><span class="p">[</span><span class="s2">"stamp"</span><span class="p">])</span><span class="o">.</span><span class="n">mean</span><span class="p">(),</span> <span class="s2">"Hz"</span><span class="p">)</span>
+</span></code></pre></div>
+<p>Check the achieved control rate first on any hardware record. A useful rule: a joint stuck with its
+measured <code>tau</code> far below the commanded PD demand (<code>kp·(cmd − q) − kd·qd</code>, reconstructable from the
+record) is a motor limiting itself (temperature, battery), not the controller or the policy.</p>
+<h2 id="deploying-a-composite-rig">Deploying a composite rig<a class="headerlink" href="#deploying-a-composite-rig" title="Permanent link">&para;</a></h2>
+<p>A task whose scene places a composite rig (<code>robot=FrankaXHand(...)</code>, an arm with a hand welded to
+its flange, or <code>robot=OliWuji(...)</code>, a humanoid with a hand on each wrist) deploys onto all of its
+hardware at once, with no extra flags, assuming every part is connected:</p>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>eden<span class="w"> </span>deploy<span class="w"> </span>--task<span class="w"> </span>manipulation_dex_lift<span class="w"> </span>--checkpoint<span class="w"> </span>/path/to/model.pt<span class="w"> </span><span class="se">\</span>
+</span><span id="__span-7-2"><a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a><span class="w">    </span>--part_option<span class="w"> </span>robot.robot_ip<span class="o">=</span><span class="m">172</span>.16.0.2<span class="w"> </span><span class="se">\</span>
+</span><span id="__span-7-3"><a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a><span class="w">    </span>--part_option<span class="w"> </span>hand.protocol<span class="o">=</span>EtherCAT
+</span></code></pre></div>
+<p><code>CompositeDeployment</code> (<code>eden/extensions/deployment/composite.py</code>) builds each part's own backend
+from that part's robot binding (<code>FrankaPandaDeployment</code> + <code>RoboTeraXHandDeployment</code>, or
+<code>LimxOliDeployment</code> + two <code>WujiHandDeployment</code>s) and drives them as one robot. Each part runs as it
+does deployed alone, with its backend's own option defaults, wire and hooks.</p>
+<ul>
+<li><strong>One state machine and one loop.</strong> The rig boots in STOP holding every part's pose, INIT ramps
+  every joint, START hands the whole rig to the policy. Every part's remote drives it (the Oli's
+  on an <code>OliWuji</code>), plus one keyboard. The action manager runs once per tick, each term's targets
+  go to the part whose entity it drives, every part's reading is joined into one <code>RobotState</code>, and
+  one observation is computed from all of them.</li>
+<li><strong>One DOF layout.</strong> The parts' DOFs are laid end to end in <code>entity_parts</code> order, a welded part
+  always after the part it is welded to (the arm's 7 joints, then the hand's 12).
+  <code>--disable_joints</code>, <code>--debug_record</code> (each part's extras as <code>x_&lt;part&gt;.&lt;key&gt;</code>) and a policy's
+  <code>write_dofs_targets</code> use it. Two parts with a joint of the same name are refused.</li>
+<li><strong>Each part on its own thread.</strong> Every part's <code>connect</code>, <code>read_state</code>, <code>send_payload</code>, idle tick
+  and <code>close</code> run on its own thread, all parts at once, so a tick's I/O takes as long as the slowest
+  part, not the sum. A part that raises on its thread raises in the loop, naming the part. A part
+  that fails to <code>connect</code> disconnects the ones that came up; <code>close</code> closes every part, even if one
+  raises. The state sync and other per-tick hooks run on the loop's thread in rig order, so a
+  welded part's forward kinematics reads its parent's fresh pose.</li>
+<li><strong>The pace.</strong> The parts are built with <code>sync=False</code> and the rig's rate limiter paces the loop,
+  unless a part's send itself waits out the control period (a Wuji hand's default
+  <code>stream_mode="sync"</code>). Then that part paces the rig, and two such hands still take one period.</li>
+<li><strong>Loop settings.</strong> <code>sync_before_commands</code> and <code>advances_episode_clock</code> act on the env every part
+  shares, so the rig follows one only when every part sets it, and otherwise runs the standard loop
+  and warns which parts it does not follow.</li>
+<li><strong>The base.</strong> Orientation and the velocity estimator come from the root part, on the rig's feet
+  (a <code>HumanoidOptions.feet_links_name</code> override, else the root robot's). A welded part's base pose
+  is read off forward kinematics through the weld; the hands have no IMU.</li>
+<li><strong>Gains.</strong> Commands carry each part's robot gains scaled by <code>--deploy_kp_kd_scale</code>, and each part
+  applies the scale its own way (the Oli per command, a Wuji Hand 2 at connect, an XHand refuses
+  anything but 1.0). A part may run its own: <code>--deploy_kp_kd_scale 0.2 --part_option
+  hand.deploy_kp_kd_scale=1.0</code> commissions the body at 0.2 next to a hand that cannot be scaled.
+  <code>--disable_joints</code> on a part that runs its own gains is refused, and so is an
+  <code>init_dofs_kp_scale</code> / <code>init_dofs_kd_scale</code> other than 1.0 on a rig with such a part.</li>
+<li><strong><code>--part_option PART.OPTION=VALUE</code></strong> (repeatable) sets one option of one part's backend (its
+  address, bus, firmware gains, <code>stream_mode</code>) and may override <code>connect_timeout_s</code>, <code>target_lpf</code>
+  and <code>deploy_kp_kd_scale</code> for that part. <code>VALUE</code> is read as the option's declared type: a <code>str</code>
+  stays as typed (a serial number <code>0123</code>, an IP), a <code>bool</code> takes <code>true</code> / <code>false</code>, a number or tuple
+  is read as a Python literal, and anything else is refused, naming the option. Options the rig
+  owns (the state machine, the recording, the estimator) are refused there. A backend-specific flag
+  (<code>--publish_rate</code>, <code>--power_protect_factor</code>) goes to every part whose backend declares it; a
+  <code>--part_option</code> for the same option wins on its part.</li>
+</ul>
+<p><code>--entity_name &lt;part&gt;</code> (for example <code>left_hand</code>) deploys that part alone through its own backend.
+<code>--entity_name robot</code> names the scene entry, so it is always the whole rig.</p>
+<div class="admonition warning">
+<p class="admonition-title">Not supported yet</p>
+<p>Refused at startup rather than run partly: on hardware, a part no backend is bound to
+(<code>KukaSharpa</code>'s parts, <code>G1Inspire</code>'s Inspire hands) and a part whose backend overrides a
+<code>DeploymentBase</code> method the composite never calls on a part (anything outside
+<code>composite.PART_HOOKS</code>); under <code>--mujoco</code>, the single-robot MuJoCo flags (<code>--menagerie</code>,
+<code>--async</code>, <code>--gantry</code>, <code>--imu_noise</code> / <code>--imu_bias</code>). Each message says how to deploy one part
+alone with <code>--entity_name &lt;part&gt;</code>.</p>
+</div>
+<h2 id="sim-to-sim-validation-with-mujoco">Sim-to-sim validation with MuJoCo<a class="headerlink" href="#sim-to-sim-validation-with-mujoco" title="Permanent link">&para;</a></h2>
+<p><code>--mujoco</code> runs the <strong>same deploy loop</strong> against an in-process MuJoCo simulation of the robot
+instead of a hardware wire: policy slots, the <code>RobotStateEntity</code> swap, observation assembly,
+command terms, the operator state machine, <code>--target_lpf</code>, <code>--disable_joints</code>, <code>--gain_ramp_steps</code>
+and <code>--debug_record</code> are unchanged; only state reads and command writes are redirected. That makes
+it a check of a Genesis-trained checkpoint against an <em>independent</em> physics engine before the
+policy touches a robot.</p>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-8-1"><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>eden<span class="w"> </span>deploy<span class="w"> </span>--task<span class="w"> </span>velocity_tracking_flat<span class="w"> </span>--checkpoint<span class="w"> </span>/path/to/model.pt<span class="w"> </span><span class="se">\</span>
+</span><span id="__span-8-2"><a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a><span class="w">    </span>--mujoco<span class="w"> </span>--menagerie<span class="w"> </span>--base_policy<span class="w"> </span>none<span class="w"> </span>--vis
+</span></code></pre></div>
+<p>The flag selects <code>MujocoDeployment</code> by registry name, <strong>overriding</strong> the robot→backend binding, so
+it works for any <code>--task</code> / <code>--robot</code>, not just robots with a hardware backend. It needs none of the
+hardware setup: <code>mujoco</code> is a core dependency, and an ONNX runtime is needed only if you load an
+ONNX policy. It is the robot-agnostic counterpart of Unitree's <code>unitree_mujoco</code> bridge, driving
+MuJoCo directly instead of over the DDS protocol.</p>
+<h3 id="which-model-is-loaded">Which model is loaded<a class="headerlink" href="#which-model-is-loaded" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Selector</th>
+<th>Model</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><em>(default)</em></td>
+<td>The robot's own Genesis <strong>training asset</strong> (<code>robot_options.file</code>). Always available.</td>
+</tr>
+<tr>
+<td><code>--menagerie</code></td>
+<td>A <a href="https://github.com/google-deepmind/mujoco_menagerie">MuJoCo Menagerie</a> model (or the vendor's own MJCF), fetched from an HF dataset mirror. Errors if the robot is unmapped or the download fails.</td>
+</tr>
+<tr>
+<td><code>mjcf_path=...</code></td>
+<td>Any hand-authored MuJoCo scene, bypassing resolution (backend option, see <a href="#backend-options">Backend options</a>).</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Prefer <code>--menagerie</code> when the robot has a mapping.</strong> Menagerie models carry the joint armature,
+damping, frictionloss and contact parameters MuJoCo needs, which Eden's Genesis-authored training
+assets do not, so they are both higher-fidelity and a more independent target. The difference is not
+subtle: a G1 holds a stand under a plain PD on the Menagerie model but topples on the training MJCF.
+Mapped today (<code>eden/extensions/deployment/utils/menagerie.py</code>): Unitree G1 (<code>G1Dofs29</code>,
+<code>G1Dofs29NoHands</code>), Go2, Go1, and LimX Oli, whose model is LimX's own <code>HU_D04_01.xml</code> with the
+ankle and waist linkages as real equality constraints.</p>
+<div class="admonition tip">
+<p class="admonition-title">A topple on the training asset is not automatically a policy bug</p>
+<p>On the Eden asset the reconstructed dynamics (below) are the backend's best effort at a model
+never authored for MuJoCo. If a checkpoint falls over there, re-run with <code>--menagerie</code> before
+concluding anything about the policy.</p>
+</div>
+<p>The models download and cache like any other asset. To add a robot, map its options class in
+<code>menagerie.py</code> (the lookup walks the MRO, so subclasses inherit a mapping) and mirror that robot's
+directory, with its <code>LICENSE</code>, into the dataset. Every name in the robot's <code>dofs_name</code> must exist in
+the model: <code>MujocoSim</code> maps by name and reorders, so extra model joints are tolerated but a missing
+controlled joint raises at <code>connect()</code>. That is why the 23-DOF G1 has no entry.</p>
+<h3 id="what-the-backend-reconstructs">What the backend reconstructs<a class="headerlink" href="#what-the-backend-reconstructs" title="Permanent link">&para;</a></h3>
+<p>Eden's training assets are authored for Genesis: zero joint armature and damping, no ground plane,
+sometimes no free joint, and no <code>&lt;actuator&gt;</code> elements. A stiff PD on such a model <strong>diverges</strong> in
+MuJoCo, so <code>MujocoSim</code> (<code>eden/extensions/deployment/utils/mujoco_sim.py</code>) rebuilds a runnable scene
+at <code>connect()</code>:</p>
+<ul>
+<li>injects a ground plane where the scene's ground plane stands, raised or tilted alike, with its
+  friction but MuJoCo's default solver parameters: the robot's own geoms keep its asset's, and a
+  contact mixing a Genesis value with a MuJoCo one would be neither engine's. A scene with no ground
+  keeps MuJoCo's plain floor at <code>z = 0</code>, and so does one with several, with a warning; a terrain
+  lends the floor its friction but not its shape, with a warning. An asset with a plane of its own
+  keeps that one, and no warning about the scene's ground is given;</li>
+<li>adds a free joint on the base body of a floating-base robot whose asset lacks one;</li>
+<li>injects its own IMU site with gyro, accelerometer and frame-quaternion sensors on the base body,
+  so proprioception is identical across robots. The accelerometer reads specific force (<code>+g</code> when
+  supported), like a real IMU;</li>
+<li>adds <code>kd · sim_dt</code> to each actuated DOF's armature (it follows the active slot's kd through a gain
+  ramp). This mirrors what Genesis does under <code>EnvOptions(integrator="euler")</code>; Genesis' implicit
+  integrators, the default included, damp the position-mode <code>kd</code> implicitly instead;</li>
+<li>integrates with <code>implicitfast</code> and re-evaluates <code>tau = tau_ff + kp·(q* − q) + kd·(dq* − dq)</code>
+  <strong>every physics substep</strong> (<code>control_dt / sim_dt</code> substeps per control step), applied through
+  <code>qfrc_applied</code>, so the asset needs no actuators.</li>
+</ul>
+<p>The last two are what keep a stiff joint PD numerically stable; changing either is the first thing
+to suspect if a sim-to-sim run blows up. <code>MujocoSim</code> takes nothing but an asset path and a list of
+DOF names, so it is usable, and unit-testable, outside a deployment.</p>
+<p>In lockstep every control tick ends on a physics step. A <code>--mujoco_sim_dt</code> that does not divide the
+control period is refused, naming the largest step under it that does; rounding the step count
+instead would run the physics clock ahead of or behind the policy's. An asset's own timestep that
+does not divide it gives way to that largest step, with an info line.</p>
+<h3 id="lockstep-or-asynchronous-physics">Lockstep or asynchronous physics<a class="headerlink" href="#lockstep-or-asynchronous-physics" title="Permanent link">&para;</a></h3>
+<p>A robot and its policy run on two clocks that nothing keeps in step. The robot closes its PD loop
+and publishes state at its own rate whether or not the policy is ready; a policy that overruns its
+period does not pause the robot, which keeps executing the previous command.</p>
+<p>By default <code>--mujoco</code> hides all of that. Physics advances exactly one control period inside each
+<code>send_payload</code> and then waits for the next command, so the loop's timing has <strong>no effect</strong> on the
+rollout: deterministic, and the right mode for comparing two runs, or a run against <code>eden
+inference</code>. It is the wrong mode for asking whether a policy that is <em>sometimes late</em> still stands.</p>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-9-1"><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>eden<span class="w"> </span>deploy<span class="w"> </span>--policy<span class="w"> </span>sonic<span class="w"> </span>--mujoco<span class="w"> </span>--async<span class="w"> </span>--base_policy<span class="w"> </span>none<span class="w"> </span>--motion_file<span class="w"> </span>clip.npz
+</span></code></pre></div>
+<p><code>--async</code> (backend option <code>async_physics=True</code>) makes the simulation the robot. It advances on its
+own thread so simulated time tracks wall time one-to-one, stepping at <code>1 / sim_dt</code> (500 Hz for a
+0.002 s timestep) whether or not a new command has arrived. <code>send_payload</code> only replaces the
+command the thread holds, and <code>read_state</code> returns the latest published state. An overrunning loop
+therefore leaves the robot on its previous command and observes an older state, and the
+<a href="#control-loop-timing">control-loop timing</a> warnings now describe something that hurts.</p>
+<ul>
+<li><strong>It is not deterministic.</strong> Use lockstep for A/B comparisons and <code>--async</code> for "does it survive
+  the loop I actually have".</li>
+<li><strong>Sim time is kept equal to wall time by catching up.</strong> The thread schedules substep <code>k</code> at
+  <code>t0 + k·sim_dt</code> and runs whatever is overdue in one burst on each wake. A Python thread waiting
+  for the GIL while the control thread runs pure-Python code waits out the interpreter's 5 ms switch
+  interval, so a 500 Hz thread routinely wakes a few substeps late; a burst under one held command
+  is what lockstep does for a whole period, so only <em>when</em> a new command is picked up jitters.</li>
+<li><strong>A thread that cannot keep up says so.</strong> Past a 250 ms backlog it drops the missing simulated
+  time, counts it, and warns once a second while it keeps happening (<code>... fell behind wall clock
+  Nx ...</code>); the shutdown summary repeats it. A run that logs that line was not real-time, and its
+  timing conclusions do not hold.</li>
+<li><strong>A thread that dies fails the run</strong>: <code>read_state</code> and <code>send_payload</code> raise with its traceback,
+  instead of the loop reading a robot frozen mid-air.</li>
+<li><strong><code>--vis</code></strong> is synced from the physics thread at 60 Hz, so the window shows the robot's clock.</li>
+</ul>
+<p>The loop is <code>RealtimePhysics</code> in <code>eden/extensions/deployment/utils/realtime_physics.py</code>.</p>
+<h3 id="differences-from-a-hardware-run">Differences from a hardware run<a class="headerlink" href="#differences-from-a-hardware-run" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>The operator sequence is the robot's, minus the remote.</strong> The robot boots in STOP and nothing
+  moves until INIT and START from the keyboard; with no TTY (headless) the backend presses them
+  itself and logs it. On a G1 the default <code>--base_policy auto</code> still boots Holosoma in slot 1; pass
+  <code>--base_policy none</code> to boot straight into your <code>--checkpoint</code> or <code>--policy</code>.</li>
+<li><strong>Sim-only extras.</strong> <code>--init_target motion_rsi</code> teleports the base to the clip's first frame, and
+  <code>--gantry</code> hangs the robot from a simulated hoist (below).</li>
+<li><strong>The base state is ground truth.</strong> <code>provide_ground_truth_base</code> (default on) hands MuJoCo's exact
+  base position and linear velocity to the observations, so <code>base_pos</code> / <code>base_lin_vel</code> terms work
+  without <code>--estimate_lin_vel</code>. Turn it off to emulate a hardware-blind base.</li>
+<li><strong><code>--estimate_lin_vel</code> works here too</strong>, which is the point: sim-to-sim is where you validate the
+  estimator. With ground truth on, the estimate is what the policy observes, while MuJoCo's truth
+  stays in <code>state.extra["base_lin_vel"]</code> next to <code>state.extra["base_lin_vel_estimate"]</code> for
+  scoring.</li>
+<li><strong>The IMU is exact unless you say otherwise.</strong> An exact accelerometer barely drifts even when the
+  estimator has lost every foot contact. <code>--imu_noise ACC GYRO</code> adds white noise (per-axis standard
+  deviation, m/s² and rad/s; <code>0.3 0.05</code> is a reasonable start), <code>--imu_bias AX AY AZ GX GY GZ</code> a
+  constant body-frame bias, and <code>--imu_noise_seed</code> makes a noisy run repeatable.</li>
+<li><strong>The robot has no command latency.</strong> No deployment applies a task's <code>ActionDelay</code>, and the MuJoCo
+  robot has none of its own: each command acts from the substep it arrives on. A policy trained
+  against a delay therefore runs with less latency than it trained with; with a fixed delay (both
+  ends of the range equal) it never trained without one. <code>--async</code> adds only the loop's real
+  lateness. To run a policy with its trained delay, use <code>eden inference --async</code>, which steps the
+  training env.</li>
+<li><strong><code>--vis</code> opens MuJoCo's own passive viewer</strong>, and the Genesis viewer stays closed (the Genesis env
+  is only a state mirror), so a motion-imitation run gets no reference ghost.</li>
+<li><strong>The loop is wall-clock paced, like hardware.</strong> <code>eden deploy</code> passes <code>sync=True</code>, so <code>step()</code>
+  sleeps off the control period rather than running as fast as MuJoCo allows; that is what makes
+  <code>--velocity_command</code> drivable. Without <code>--async</code> the physics still waits for each command, so a
+  late policy costs nothing.</li>
+</ul>
+<h4 id="the-gantry">The gantry<a class="headerlink" href="#the-gantry" title="Permanent link">&para;</a></h4>
+<p><code>--gantry</code> hangs the robot from a tension-only rope to a fixed anchor, the sim counterpart of a
+bring-up hoist, attached above the centre of mass so it gives a real restoring torque. By default
+the ropes tie to the robot's declared mount links (<code>RobotOptions.gantry_links_name</code>; both shoulders
+on Oli, like a spreader bar), else one rope to the base. <code>+</code> / <code>-</code> (+ Enter) crank the anchor by
+<code>--gantry_step</code> (default 0.05 m). <code>--gantry_body</code>, <code>--gantry_attach</code>, <code>--gantry_height</code>,
+<code>--gantry_slack</code> (a positive value makes it a safety tether that does nothing until the robot drops
+that far) and <code>--gantry_support</code> (0–1, ramp down across runs to hand the weight back) tune it; the
+ropes and their forces are drawn under <code>--vis</code> unless <code>--gantry_no_draw</code>.</p>
+<p><strong>The gantry is the rig, not the robot: anything that only stands with it does not stand.</strong> It is
+needed for an unsupported bring-up because no joint-space hold can balance a biped: holding every
+joint still leaves an inverted pendulum, and a G1's two ankle-pitch joints together carry roughly a
+quarter of the <code>m·g·h</code> needed to resist the lean, so it topples rigidly.</p>
+<h3 id="recording-and-ending-a-headless-run">Recording and ending a headless run<a class="headerlink" href="#recording-and-ending-a-headless-run" title="Permanent link">&para;</a></h3>
+<p><code>--mujoco_record out.mp4</code> renders the rollout offscreen from the first START on, every tick
+including a STOP's holds, as two views side by side framed on the robot, with the scene's kinematic
+markers (goal spheres and boxes) drawn in their own colour. Without a display, set <code>MUJOCO_GL=egl</code>
+(or <code>osmesa</code>). A single robot records in lockstep only: <code>--async</code> steps MuJoCo on its own thread,
+under the render, and is refused with it.</p>
+<p><code>--mujoco_seconds S</code> ends the run, as KILL does, once the policy has driven the robot for <code>S</code>
+seconds since its latest START. It is the base option <code>policy_seconds</code>, which only a simulator
+takes: a hardware backend refuses it, as the operator ends a robot's run.</p>
+<h3 id="a-composite-rig-in-mujoco">A composite rig in MuJoCo<a class="headerlink" href="#a-composite-rig-in-mujoco" title="Permanent link">&para;</a></h3>
+<p><code>--mujoco</code> on a rig runs <code>MujocoCompositeDeployment</code> (<code>eden/extensions/deployment/mujoco_composite.py</code>):
+the composite deployment itself (per-part threads, one state machine, the joined observation) with
+every part on a <code>MujocoPartDeployment</code> in place of its hardware backend. It needs no backend bound
+to the parts, so rigs without hardware backends run too:</p>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-10-1"><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>eden<span class="w"> </span>deploy<span class="w"> </span>--policy<span class="w"> </span>simtoolreal<span class="w"> </span>--base_policy<span class="w"> </span>none<span class="w"> </span>--mujoco<span class="w"> </span>--debug_record
+</span></code></pre></div>
+<ul>
+<li><strong>One MuJoCo model of the rig and its props</strong>, assembled from the built env: each part from its
+  own asset, welded where the env welds it (the mount read off the env's forward kinematics), and
+  checked link by link against that kinematics at connect (<code>kinematics_tolerance</code>, default 1e-4);
+  each part keeps its built armature, joint damping, per-link friction and gravity compensation. The
+  asset's own actuators are dropped; every joint runs the per-substep PD above.</li>
+<li><strong>Inertias MuJoCo cannot compile are repaired.</strong> A body inertia that is not positive definite (the
+  XHand1 URDFs' dummy links carry a rank-1 one) or whose principal moments break <code>A + B &gt;= C</code> is
+  replaced by an isotropic one of the same mass and trace, with a warning naming the bodies and
+  saying which are welded to their parent. The XHand's all are: Genesis merges fixed links into
+  their parent and MuJoCo welds them, so in both engines they only add to the parent's rigid body.
+  The asset is what to fix; the repair keeps it running.</li>
+<li><strong>Contacts as the env built them.</strong> Every link's and prop's contact solver parameters are read off
+  the built env, a task's <code>set_contact_sol_params</code> startup event included, and become its MuJoCo
+  geoms' <code>solref</code> / <code>solimp</code>. Both engines take a contact's parameters as the mean of its two geoms'
+  and its friction as their max (an asset's geom <code>priority</code> / <code>solmix</code>, which would make MuJoCo pick
+  one geom's, is reset), then floor the mixed time constant: Genesis at twice its substep, MuJoCo at
+  twice its timestep. Where those floors differ and a geom's time constant lies below the higher
+  one, the run warns, naming the <code>--mujoco_sim_dt</code> that floors them alike. A link whose geoms carry
+  different values in the env (an MJCF asset's own) keeps the asset's, with a warning if they are
+  not the same set. Friction alone is not enough: at MuJoCo's default impedance a cube held in
+  Genesis slips out of the hand.</li>
+<li><strong>The floor</strong> stands where the scene's ground plane does, raised or tilted alike, with its
+  friction and solver parameters. A scene with no ground keeps MuJoCo's plain floor at <code>z = 0</code>, and
+  so does one with several, with a warning; a terrain lends the floor its contact but not its shape,
+  with a warning.</li>
+<li><strong>Props.</strong> Every colliding scene entity besides the rig and the ground is simulated at its spawn
+  pose, with the mass, centre of mass and inertia the env built it with (MuJoCo would otherwise
+  derive them at 1000 kg/m³, where Genesis uses the material's <code>rho</code>, 200 by default). Each tick its
+  MuJoCo pose is written into its env entity before the observation, as a mocap system would report
+  it. A prop must be a box primitive or a jointless rigid URDF / MJCF body; anything else is
+  refused, naming it. <code>--mujoco_props &lt;entity&gt; ...</code> simulates only those named (none: the rig
+  alone). A kinematic entity (a goal marker the env moves) is never a prop: it is left out of the
+  default set, and naming it in <code>--mujoco_props</code> is refused, saying why.</li>
+<li><strong>A camera instead of mocap.</strong> Where the hardware sees the object through a camera, as an
+  AprilTag pose estimate, <code>--prop_noise POS ROT</code> turns what the policy reads of every free prop into
+  one: per-axis position noise (m) and a rotation error about a random axis (rad), both standard
+  deviations, with a random quaternion sign. <code>--prop_camera HZ LATENCY_S</code> delivers it at the
+  camera's frame rate on the simulation clock, held between frames, each frame that old (rounded half
+  up to whole control ticks, with a warning when that changes it). <code>--prop_noise_seed</code> repeats a
+  run. Only the observation changes; <code>--debug_record</code> keeps the exact pose beside the estimate
+  (<code>&lt;prop&gt;.true_pos</code> / <code>&lt;prop&gt;.true_quat</code>).</li>
+<li><strong>Recording</strong> frames the rig and its free props.</li>
+<li><strong>Lockstep.</strong> Every part writes its command on its own thread, then the composite advances the
+  physics one control period. <code>sim_dt</code> (<code>--mujoco_sim_dt</code>) defaults to the largest step of at most
+  2 ms that divides the control period exactly, and a timestep given must divide it too. The
+  friction cone is elliptic by default (grasps hold far better).</li>
+</ul>
+<p>A DexLift policy against an AprilTag camera's cube pose, recorded:</p>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-11-1"><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="nv">MUJOCO_GL</span><span class="o">=</span>egl<span class="w"> </span>eden<span class="w"> </span>deploy<span class="w"> </span>--task<span class="w"> </span>manipulation_dex_lift<span class="w"> </span>--checkpoint<span class="w"> </span>/path/to/model.pt<span class="w"> </span>--mujoco<span class="w"> </span>--base_policy<span class="w"> </span>none<span class="w"> </span><span class="se">\</span>
+</span><span id="__span-11-2"><a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a><span class="w">    </span>--prop_noise<span class="w"> </span><span class="m">0</span>.003<span class="w"> </span><span class="m">0</span>.035<span class="w"> </span>--prop_camera<span class="w"> </span><span class="m">30</span><span class="w"> </span><span class="m">0</span>.04<span class="w"> </span>--mujoco_record<span class="w"> </span>lift.mp4<span class="w"> </span>--mujoco_seconds<span class="w"> </span><span class="m">6</span>
+</span></code></pre></div>
+<h3 id="backend-options">Backend options<a class="headerlink" href="#backend-options" title="Permanent link">&para;</a></h3>
+<p><code>--mujoco</code>, <code>--menagerie</code>, <code>--async</code>, <code>--vis</code>, <code>--gantry*</code>, <code>--imu_*</code>, <code>--mujoco_sim_dt</code>,
+<code>--mujoco_record</code>, <code>--mujoco_seconds</code>, <code>--init_target</code> and <code>--on_motion_end</code> are the CLI surface
+(plus <code>--mujoco_props</code>, <code>--prop_noise</code>, <code>--prop_camera</code> and <code>--prop_noise_seed</code> on a rig). The
+remaining <code>MujocoDeployment</code> options (<code>mjcf_path</code>, <code>mjcf_source</code> = <code>"eden"</code> / <code>"menagerie"</code> /
+<code>"auto"</code>, where <code>auto</code> falls back to the Eden asset when Menagerie is unavailable; <code>integrator</code>;
+<code>add_floor</code>; <code>provide_ground_truth_base</code>;
+<code>menagerie_registry</code> / <code>menagerie_dataset</code>; the gantry's <code>gantry_stiffness</code> / <code>gantry_damping</code>) are
+set when constructing the backend in a script:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-12-1"><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">eden.extensions.deployment.mujoco</span><span class="w"> </span><span class="kn">import</span> <span class="n">MujocoDeployment</span>
+</span><span id="__span-12-2"><a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a>
+</span><span id="__span-12-3"><a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a><span class="n">dep</span> <span class="o">=</span> <span class="n">MujocoDeployment</span><span class="p">(</span><span class="n">env</span><span class="p">,</span> <span class="n">MujocoDeployment</span><span class="o">.</span><span class="n">configure</span><span class="p">(</span><span class="n">sim_dt</span><span class="o">=</span><span class="mf">0.001</span><span class="p">,</span> <span class="n">integrator</span><span class="o">=</span><span class="s2">"implicit"</span><span class="p">))</span>
+</span></code></pre></div>
+<p>See <a href="../../api/extensions/deployment/"><code>MujocoDeployment</code></a> for the full option reference.</p>
+<h3 id="relation-to-eden-inference-async">Relation to <code>eden inference --async</code><a class="headerlink" href="#relation-to-eden-inference-async" title="Permanent link">&para;</a></h3>
+<p>Both are dry runs of the deploy loop, and they catch different bugs:</p>
+<table>
+<thead>
+<tr>
+<th></th>
+<th>Engine</th>
+<th>Catches</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>eden inference --async</code> (alias <code>--sim2sim</code>)</td>
+<td>Genesis, the engine the policy trained in</td>
+<td>Latency behaviour: async inference on a wall-clock loop, stale actions, overruns, real-time factor; keeps the trained <code>ActionDelay</code></td>
+</tr>
+<tr>
+<td><code>eden deploy --mujoco</code></td>
+<td>MuJoCo, independent, lockstep</td>
+<td>Dynamics assumptions only Genesis satisfies (armature, damping, contacts, integrator); deterministic, so the run to A/B against</td>
+</tr>
+<tr>
+<td><code>eden deploy --mujoco --async</code></td>
+<td>MuJoCo, independent, wall-clock</td>
+<td>Both at once, through the real deploy loop: the robot keeps moving while the policy is late, and the loop's timing report means what it says</td>
+</tr>
+</tbody>
+</table>
+<p>Run <code>eden inference --async</code> first (cheaper, needs no MuJoCo model), then <code>--mujoco --menagerie</code> as
+the closed-loop step of <a href="../policy-porting/">policy-porting verification</a>, and <code>--mujoco --async</code>
+last, as the rehearsal of the loop you will run on the robot.</p>
+<h2 id="writing-terms-that-deploy">Writing terms that deploy<a class="headerlink" href="#writing-terms-that-deploy" title="Permanent link">&para;</a></h2>
+<p>A term that works in simulation can be silently wrong on a robot. What changes for term authors:</p>
+<p><strong>Which hooks run.</strong> The deploy loop never calls <code>env.step()</code>. Per control tick it runs:</p>
+<table>
+<thead>
+<tr>
+<th>Runs at deploy</th>
+<th>Does not run at deploy</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ActionTerm.compute()</code> (via <code>action_manager.compute</code>); <code>processed_action</code> is what is sent</td>
+<td><code>ActionTerm.apply_actions()</code> and anything in it (per-substep torque laws, <code>ActionDelay</code>)</td>
+</tr>
+<tr>
+<td><code>CommandTerm.advance_reference()</code> (defaults to <code>pre_physics_advance()</code>), <code>CommandManager.compute()</code></td>
+<td><code>CommandTerm.post_physics_refresh()</code></td>
+</tr>
+<tr>
+<td><code>ObservationTerm.post_physics_refresh()</code> (once per tick, after the robot state is synced), observation <code>compute()</code></td>
+<td>Rewards, terminations, metrics, curricula, event terms</td>
+</tr>
+<tr>
+<td>On each episode's first read: <code>ActionManager.clear_action_history()</code>, observation <code>reset()</code> / <code>post_reset()</code></td>
+<td>Physics; the scene is never stepped</td>
+</tr>
+</tbody>
+</table>
+<p>So <strong>grading state belongs in <code>CommandTerm.post_physics_refresh()</code>, and the deploy path never
+runs it</strong>: any state a deployed term's <em>observations</em> read must be produced from <code>compute()</code> too
+(an idempotent cache refresh can live in both, as <code>MotionCommand</code> refreshes its robot-state cache).
+Per-step observation state does advance on hardware, in <code>ObservationTerm.post_physics_refresh()</code>, so
+put it there and never in <code>compute()</code>, which runs several times per step. A backend that overrides
+<code>state_to_observation</code> must accept and forward the keyword <code>post_physics_refresh</code>; the constructor
+refuses one that does not. See <a href="../terms/#which-hook-grade-the-step-or-prepare-the-next-one">Terms</a> for
+which hook state belongs in, and <a href="../terms/#compute-is-a-read-not-a-tick">why <code>compute()</code> cannot hold it</a>.</p>
+<p><strong>The entity is hot-swapped.</strong> Constructing a deployment replaces <code>env.entities[entity_name]</code> with a
+<code>RobotStateEntity</code>, a wrapper that serves the real robot's state through the entity getter
+interface. It implements the base and joint getters (<code>get_pos</code>, <code>get_quat</code>, <code>get_vel</code>, <code>get_ang</code>,
+<code>get_dofs_pos</code> / <code>_vel</code> / <code>_force</code>, …) from the robot reading, link poses and velocities
+through the sim entity's forward kinematics (whose joints and base pose it syncs from the robot
+every tick), and copies the resolved <code>default_dofs_*</code> tensors at construction. Anything else falls
+through to the sim entity, which is never stepped: contact forces, sensors and similar reads there
+do not describe the real robot.</p>
+<ul>
+<li><strong>Resolve the entity lazily.</strong> Reach it with <code>self.resolve_entity(name)</code>
+  (<code>ManagerTermBase.resolve_entity</code>) in <code>compute()</code>, not a handle cached in <code>build()</code>. Cache only
+  derived data (link and DOF indices stay valid across the swap).</li>
+<li><strong>Still touch it in <code>build()</code></strong>, so a missing entity or link raises at env construction, not on
+  the first deploy tick.</li>
+<li><strong>The safety net.</strong> The deployment repoints cached handles by object identity in every
+  observation term, its modifiers, every action term and the action modifiers it owns, whatever the
+  attribute is called. A handle it cannot reassign (a bound method of the entity, the entity inside
+  a top-level list / tuple / set / dict) or a <code>__slots__</code> term it cannot scan raises at construction
+  with the fix. References nested deeper (inside a helper object, a <code>functools.partial</code>, a closure)
+  are out of its reach and would read the sim entity silently, so do not rely on the net.</li>
+<li><strong>Command terms</strong> cached in <code>build()</code> (<code>self._command = env.command_manager.get_term(...)</code>) are
+  repointed when the deploy substitutes a velocity command, but only in observation and command
+  terms. Prefer <code>env.command_manager.get_command(name)</code> in <code>compute()</code>.</li>
+</ul>
+<p><strong>What a hardware reading lacks.</strong> No base linear velocity unless <code>--estimate_lin_vel</code> (and a deploy
+that feeds one to the policy without it is refused), no base position unless something supplies
+<code>extra["base_pos"]</code>, IMU angular velocity in the body frame, and a joint velocity that is a finite
+difference on the hands (XHand, Wuji). World-frame quantities are yaw-aligned at START
+(<code>auto_yaw_align</code>), so the policy sees the yaw frame it trained in.</p>
+<p><strong>Observation state is cleared at each episode's first read.</strong> The observation manager reaches a
+deployment holding state computed against the <em>simulated</em> robot at its spawn pose (the training
+wrapper's <code>reset()</code>), and at START it holds frames from the hold and the INIT ramp in the pre-START
+yaw frame. A <code>history_length</code> window, an <code>ExponentialMovingAverage</code>, an <code>ObservationDelay</code> and a
+stateful term's own buffer would all carry that forward into the policy's first action. So the
+first read after construction, <code>reset()</code> and START runs this tick's <code>post_physics_refresh</code>, then
+<code>ActionManager.clear_action_history()</code> (a <code>last_action</code> term reads zero), then
+<code>observation_manager.reset()</code>, then <code>post_reset()</code> (which a term like <code>ParkourProprio</code> needs to
+backfill its history from the current frame), then the read, which backfills every window from the
+robot. Only the last actions are cleared on the action side: a full <code>action_manager.reset()</code> would
+also reset each term's modifiers and <code>ACCUMULATE</code> target, which nothing rewrites on a robot.</p>
+<p>There is one tick of skew relative to simulation, inherent to the loop's order: the new command is
+published before <code>read_state</code>, so a term that integrates <code>command − measured</code> in
+<code>post_physics_refresh</code> pairs this tick's measurement with the command just published.</p>
+<h2 id="driving-a-backend-from-a-script">Driving a backend from a script<a class="headerlink" href="#driving-a-backend-from-a-script" title="Permanent link">&para;</a></h2>
+<p>The CLI is a thin layer over <code>DeploymentBase</code>. A script builds the env, constructs the backend with
+<code>configure()</code>, connects, and steps it. Excerpt from <code>examples/recipes/deployment/real_wuji_hand2.py</code>:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-13-1"><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a><span class="n">env</span> <span class="o">=</span> <span class="n">RLEnvBase</span><span class="o">.</span><span class="n">from_config</span><span class="p">(</span><span class="n">make_config</span><span class="p">(</span><span class="n">robot</span><span class="p">))</span>
+</span><span id="__span-13-2"><a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a><span class="n">env</span><span class="o">.</span><span class="n">build</span><span class="p">()</span>
+</span><span id="__span-13-3"><a id="__codelineno-13-3" name="__codelineno-13-3" href="#__codelineno-13-3"></a><span class="n">env</span><span class="o">.</span><span class="n">reset</span><span class="p">()</span>
+</span><span id="__span-13-4"><a id="__codelineno-13-4" name="__codelineno-13-4" href="#__codelineno-13-4"></a>
+</span><span id="__span-13-5"><a id="__codelineno-13-5" name="__codelineno-13-5" href="#__codelineno-13-5"></a><span class="n">dep</span> <span class="o">=</span> <span class="n">WujiHandDeployment</span><span class="p">(</span>
+</span><span id="__span-13-6"><a id="__codelineno-13-6" name="__codelineno-13-6" href="#__codelineno-13-6"></a>    <span class="n">env</span><span class="p">,</span>
+</span><span id="__span-13-7"><a id="__codelineno-13-7" name="__codelineno-13-7" href="#__codelineno-13-7"></a>    <span class="n">WujiHandDeployment</span><span class="o">.</span><span class="n">configure</span><span class="p">(</span><span class="n">entity_name</span><span class="o">=</span><span class="s2">"robot"</span><span class="p">,</span> <span class="n">mit_kp</span><span class="o">=</span><span class="n">MIT_KP</span><span class="p">,</span> <span class="n">mit_kd</span><span class="o">=</span><span class="n">MIT_KD</span><span class="p">,</span> <span class="n">clip_targets_to_joint_limits</span><span class="o">=</span><span class="kc">True</span><span class="p">),</span>
+</span><span id="__span-13-8"><a id="__codelineno-13-8" name="__codelineno-13-8" href="#__codelineno-13-8"></a><span class="p">)</span>
+</span><span id="__span-13-9"><a id="__codelineno-13-9" name="__codelineno-13-9" href="#__codelineno-13-9"></a><span class="n">dep</span><span class="o">.</span><span class="n">connect</span><span class="p">()</span>
+</span><span id="__span-13-10"><a id="__codelineno-13-10" name="__codelineno-13-10" href="#__codelineno-13-10"></a><span class="k">try</span><span class="p">:</span>
+</span><span id="__span-13-11"><a id="__codelineno-13-11" name="__codelineno-13-11" href="#__codelineno-13-11"></a>    <span class="n">dep</span><span class="o">.</span><span class="n">observe</span><span class="p">()</span>        <span class="c1"># read the hand once</span>
+</span><span id="__span-13-12"><a id="__codelineno-13-12" name="__codelineno-13-12" href="#__codelineno-13-12"></a>    <span class="n">dep</span><span class="o">.</span><span class="n">request_start</span><span class="p">()</span>  <span class="c1"># the script is the operator: its targets now go out</span>
+</span><span id="__span-13-13"><a id="__codelineno-13-13" name="__codelineno-13-13" href="#__codelineno-13-13"></a>    <span class="o">...</span>                  <span class="c1"># dep.write_dofs_targets(targets, dep.dofs_name); dep.step(None)</span>
+</span><span id="__span-13-14"><a id="__codelineno-13-14" name="__codelineno-13-14" href="#__codelineno-13-14"></a><span class="k">finally</span><span class="p">:</span>
+</span><span id="__span-13-15"><a id="__codelineno-13-15" name="__codelineno-13-15" href="#__codelineno-13-15"></a>    <span class="n">dep</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+</span></code></pre></div>
+<p><code>write_dofs_targets(targets, dofs_name)</code> writes absolute joint targets into the payload buffer, and
+<code>step(None)</code> then sends them without running the action manager; <code>step(None)</code> before anything was
+written sends nothing rather than an all-zero command. Every backend's <code>close()</code> must call
+<code>_teardown_common()</code> before dropping its transport (it flushes the recording and restores
+substituted command terms), and a backend's own config checks belong in <code>_resolve_options()</code>, which
+runs before the entity swap, so a raise there leaves the env untouched.</p>
+<h2 id="see-also">See also<a class="headerlink" href="#see-also" title="Permanent link">&para;</a></h2>
+<ul>
+<li><a href="../deployment-hardware/">Robot setup for deployment</a>: SDKs, network, remotes and wire details per robot</li>
+<li><a href="../policy-zoo/">Policy zoo</a>: the frozen policies <code>--policy</code> loads</li>
+<li><a href="../policy-porting/">Policy porting</a>: matching a ported policy's dynamics before deploying it</li>
+<li><a href="../policy-export/">Exporting a policy</a>: running a policy outside Eden</li>
+<li><a href="../training-runs/">Training runs</a>: <code>eden inference</code>, checkpoints and logs</li>
+<li><a href="../terms/">Terms</a>: the term lifecycle and per-step hooks</li>
+<li><a href="../../reference/cli/">CLI reference</a>: every <code>eden deploy</code> flag</li>
+</ul>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+  <script>var tabs=__md_get("__tabs");if(Array.isArray(tabs))e:for(var set of document.querySelectorAll(".tabbed-set")){var labels=set.querySelector(".tabbed-labels");for(var tab of tabs)for(var label of labels.getElementsByTagName("label"))if(label.innerText.trim()===tab){var input=document.getElementById(label.htmlFor);input.checked=!0;continue e}}</script>
+
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+    
+      
+      <nav class="md-footer__inner md-grid" aria-label="Footer" >
+        
+          
+          <a href="../extending-policies/" class="md-footer__link md-footer__link--prev" aria-label="Previous: Adding a Policy">
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+            </div>
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Previous
+              </span>
+              <div class="md-ellipsis">
+                Adding a Policy
+              </div>
+            </div>
+          </a>
+        
+        
+          
+          <a href="../deployment-hardware/" class="md-footer__link md-footer__link--next" aria-label="Next: Hardware Setup">
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Next
+              </span>
+              <div class="md-ellipsis">
+                Hardware Setup
+              </div>
+            </div>
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 11v2h12l-5.5 5.5 1.42 1.42L19.84 12l-7.92-7.92L10.5 5.5 16 11z"/></svg>
+            </div>
+          </a>
+        
+      </nav>
+    
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+    <div class="md-copyright__highlight">
+      Copyright &copy; 2025 Eden Authors
+    </div>
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+        
+<div class="md-social">
+  
+    
+    
+    
+    
+      
+      
+    
+    <a href="https://github.com/embodied-ai-nexus/Eden" target="_blank" rel="noopener" title="github.com" class="md-social__link">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+      <div class="md-progress" data-md-component="progress" role="progressbar"></div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.instant", "navigation.instant.progress", "navigation.tracking", "navigation.path", "navigation.tabs", "navigation.tabs.sticky", "navigation.sections", "navigation.top", "navigation.footer", "search.suggest", "search.highlight", "content.action.edit", "content.action.view", "content.code.copy", "content.code.annotate", "content.tabs.link", "content.tooltips", "toc.follow"], "search": "../../assets/javascripts/workers/search.a7633da7.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.a5f9d56c.min.js"></script>
+      
+    
+  </body>
+</html>
