@@ -1,0 +1,23 @@
+# Install the documentation toolchain into .venv: the `docs` extra's packages, read from pyproject.toml, at the
+# versions in constraints.txt. Used by the `docs` job in ci.yml and by docs.yml, after checkout and setup-uv.
+#
+# Only those packages: griffe reads eden's source without importing it, so torch, Genesis and the other core
+# dependencies are not needed to render the API pages.
+name: Docs toolchain
+description: Install the docs extra's packages, pinned by constraints.txt, into .venv
+runs:
+  using: composite
+  steps:
+    - name: Install the docs toolchain
+      shell: bash
+      run: |
+        uv run --no-project python - > "$RUNNER_TEMP/docs-requirements.txt" <<'EOF'
+        import tomllib
+
+        docs = tomllib.load(open("pyproject.toml", "rb"))["project"]["optional-dependencies"]["docs"]
+        # Naming eden-world here would install Eden, and with it torch and Genesis, from PyPI.
+        assert not any(r.startswith("eden-world") for r in docs), f"the docs extra must not name eden-world: {docs}"
+        print("\n".join(docs))
+        EOF
+        uv venv --allow-existing
+        uv pip install -r "$RUNNER_TEMP/docs-requirements.txt" -c "$GITHUB_ACTION_PATH/constraints.txt"

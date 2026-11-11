@@ -1,0 +1,22 @@
+name: "🚀 Feature Request"
+description: Sugest a new feature request or improvement on the project
+title: '[Feature Request] '
+labels:
+  - feature
+  - enhancement
+  - triage-needed
+body:
+  - type: markdown
+    attributes:
+      value: "Please providee a well-structured and concise breakdown of context, expected outcomes, and potential of the feature you are proposing. \n"
+  - type: textarea
+    id: suggestion
+    attributes:
+      label: What feature or enhancement are you proposing?
+    validations:
+      required: true
+  - type: textarea
+    id: additionalinfo
+    attributes:
+      label: Additional information
+      description: If you think that any additional information would be useful please provide them here.

@@ -1,0 +1,406 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+# Dev tooling (PEP 735). `uv sync` installs the `dev` group by default; dependency groups are
+# never part of the published wheel.
+[dependency-groups]
+dev = [
+  "ruff",
+  "pre-commit",
+  "pytest",
+  # The reference implementation the body-model tests check eden.datasets.utils.body_model against, and build
+  # their synthetic MANO releases with. Eden itself does not import it.
+  "smplx>=0.1.28"
+]
+# Packages an extra needs that are not on PyPI. PyPI refuses a wheel whose metadata holds a direct (`git+`)
+# reference, extras included, so each lives here, in a group that is never published, and completes the extra it is
+# named after: `uv sync --inexact --extra metaquest --group metaquest-git`. Outside a checkout, the extra's install
+# command names the same pin (`eden.utils.distribution.UNPUBLISHED_REQUIREMENTS`; tests/test_pyproject.py keeps the two
+# equal). A group goes once its package is published, and the package becomes an ordinary requirement of the extra.
+# A fork of unitreerobotics/televuer (MIT) with numpy 2 admitted and a websocket-drop fix.
+metaquest-git = ["televuer @ git+https://github.com/Kashu7100/televuer@a1d8d6a0784fb289ddcde9aa108b92c7cf52f41b"]
+# The commit FlashDexRetarget's submodule uses.
+flashsac-git = [
+  "rsl-rl-flashsac @ git+https://github.com/Holiday-Robot/rsl_rl_flashsac@9822b1b7e0b5cce45e7f79d6b3e2c169fa042faa"
+]
+
+[project]
+# The distribution, not the import name (`import eden`): PyPI's `eden` is an unrelated Kivy project. Runtime code
+# reads this as eden.utils.distribution.DISTRIBUTION_NAME, which tests/test_pyproject.py pins to it.
+name = "eden-world"
+version = "0.1.0"
+description = "Eden: Embodied-AI Development Environments Nexus"
+readme = "README.md"
+# <3.14: Eden has not been run on Python 3.14. genesis-world admits it since 1.4.6 (`<3.15`), so widening this is
+# Eden's own call: resolve and run the suite on 3.14 first.
+requires-python = ">=3.12,<3.14"
+license = "Apache-2.0"
+authors = [{name = "Kashu Yamazaki"}]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Intended Audience :: Science/Research",
+  "Operating System :: POSIX :: Linux",
+  "Operating System :: MacOS",
+  "Operating System :: Microsoft :: Windows",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Topic :: Scientific/Engineering :: Artificial Intelligence"
+]
+dependencies = [
+  # A released version, never a git reference: PyPI rejects a direct reference in the published metadata, and
+  # .github/workflows/release.yml refuses to publish one. 1.4.6 is genesis-world commit 3975e557 (tag v1.4.6).
+  "genesis-world==1.4.6",
+  "torch>=2.9.2",
+  "torchvision>=0.19.0",
+  "numpy>=1.26.4",
+  "wandb",
+  "scipy>=1.17.0",
+  "strenum",
+  "yourdfpy",
+  # >=3.3.6: `MjSpec.delete` (eden/extensions/deployment/utils/mujoco_rig.py) arrived in 3.3.4, and before 3.3.6
+  # the robosuite arenas fail to compile with "body mass is too small".
+  # <3.17: MuJoCo 3.17 widened eq_data from 11 to 12 values. Genesis' MJCF parser copies MuJoCo's width while its
+  # URDF parser writes 11, so a scene holding both (an MJCF robot and a URDF gripper with a mimic joint) fails to
+  # build with "inhomogeneous shape" in RigidSolver._init_equality_fields. Lift once Genesis pads eq_data.
+  "mujoco>=3.3.6,<3.17",
+  # genesis-world imports matplotlib at module scope (`genesis/utils/hybrid.py`, reached from `import genesis`) but
+  # declares it only in its `dev` extra; `vtk` used to pull it in, and
+  # https://github.com/Genesis-Embodied-AI/Genesis/pull/3654 dropped `vtk`. Without this line a fresh install
+  # cannot `import genesis`. Drop it once genesis-world declares matplotlib itself.
+  # 3.7.3: the first release with CPython 3.12 wheels (older sdists fail to build).
+  "matplotlib>=3.7.3",
+  # 0.26: offline `snapshot_download(local_dir=...)` resolves from the files already there; 0.25 raises
+  # LocalEntryNotFoundError, which breaks every HF_HUB_OFFLINE run on fetched assets.
+  "huggingface_hub>=0.26",
+  # 1.1 introduced `gymnasium.vector.AutoresetMode`, which `eden/envs/wrappers/gymnasium_env.py` declares.
+  "gymnasium>=1.1",
+  # 3.0: 0.3 is Python 2 source (TabError on import), and 1.x/2.x import pkg_resources.
+  "prettytable>=3.0",
+  # HDF5 is a first-party data format: ConTrack reference clips, the `hdf5_file_handler`
+  # recorder backend, and `eden lerobot convert` input. Prebuilt wheels bundle libhdf5; 3.11 is the first with
+  # CPython 3.12 wheels.
+  "h5py>=3.11.0",
+  # Deliberately spans both checkpoint layouts: 3.x saves one `model_state_dict`, 4.x/5.x
+  # split it into `actor_state_dict`/`critic_state_dict`. Eden reads both — the legacy
+  # converter migrates a 3.x checkpoint into a 4.x/5.x runner (verified end to end against
+  # both real releases), and the version probes in `eden/envs/wrappers/rsl_rl_env.py` route
+  # by structure. `run.json` records which version wrote a run so a cross-version replay
+  # fails with a message naming both. The floor could be raised since migration works,
+  # but that is a separate call: it would force an upgrade on every environment
+  # pinned to 3.x, and nothing enforces the pin at runtime anyway.
+  "rsl-rl-lib>=3.0",
+  "tensorboard>=2.12.0", # older releases install no CPython 3.12 wheel
+  "tqdm",
+  "pyyaml>=6.0.1", # 6.0.1: the first with CPython 3.12 wheels (older sdists fail to build)
+  "requests",
+  # Imported at `import eden` time (eden/utils/torch.py, and the soma-retargeter
+  # version preflight); declared so a resolution change cannot drop the
+  # transitive copy we would otherwise be relying on.
+  "packaging"
+]
+
+[project.optional-dependencies]
+# Human pose estimation from video (`eden pose gvhmr`). Installs additively next to Eden — no
+# downgrades. Checkpoints are a separate download (`gvhmr-download-checkpoints`) and the
+# SMPL/SMPL-X body models are licence-gated. Capped below 2.0 because GVHMR's estimate is
+# sensitive to its decoder/detector versions, so a major bump should be an opt-in.
+#
+# The 1.1.1 floor is a hard requirement, not a preference: 1.1.0 reads its SLAM cache with a bare
+# `torch.load`, and torch >= 2.6 defaults `weights_only=True`, which rejects that numpy payload —
+# so every `eden pose gvhmr` run against Eden's torch dies with an UnpicklingError.
+pose = ["eden-gvhmr>=1.1.1,<2.0.0"]
+# ONNX Runtime for the frozen ONNX policies (sonic, omnixtreme, ...). The CPU
+# (`onnxruntime`) and GPU (`onnxruntime-gpu`) wheels are mutually exclusive — pick
+# ONE. `onnx-gpu` requires a matching CUDA/cuDNN; if the runtime falls back to CPU
+# the policy still works but is ~10-50x slower (onnx.py warns once when this happens).
+# `onnx` (the graph tooling, distinct from the runtime) is needed by
+# `dynamic_batch_onnx` to patch static-batch-1 graphs for batched rollout.
+onnx = [
+  "onnx>=1.16.0",
+  "onnxruntime"
+]
+onnx-gpu = [
+  "onnx>=1.16.0",
+  # CUDA runtime: no macOS wheels exist (use the CPU `onnx` extra on Mac).
+  "onnxruntime-gpu; sys_platform != 'darwin'"
+]
+# The Nyx renderer bridge (gs-nyx-plugin) reads the rigid solver's private state, so the plugin
+# and Genesis are a matched pair: each plugin release caps the Genesis minor it was built
+# against. Capped below 0.2 because that coupling has already broken once. No macOS
+# wheels exist, hence the platform gate.
+#
+# The plugin floor is 0.1.10: 0.1.7 is the first release that admits the Genesis pin above
+# (`genesis-world >= 1.4.0, < 1.5.0`) and no longer reads `Scene.t` (removed in
+# https://github.com/Genesis-Embodied-AI/Genesis/pull/3237), and 0.1.10 renamed the deformable buffers that the
+# Mochi recipes' bridge (`examples/recipes/mochi/_nyx.py`) fills to `_deformable_{uvs,indices}_backend`.
+# It takes the tone mapper and exposure from a camera-profile file, which `NyxSplatEnvBase`
+# writes. The renderer floor is 0.1.6: 0.1.4 and 0.1.5 light surfaces from an
+# environment map with more energy than the map holds (a matte 0.25-albedo sphere renders
+# brighter than the sky), which washes out every scene with an env map.
+#
+# BUMPING GENESIS: every plugin release so far (0.1.7 - 0.1.10) declares `genesis-world < 1.5.0`,
+# and uv resolves ONE universal lockfile (`tool.uv.required-environments` below). Moving the pin
+# above to a 1.5 version therefore makes `uv sync` / `uv run` fail for every user, nyx or not,
+# until a plugin release admits it. Raise the plugin floor to that release in the same change.
+nyx = [
+  "gs-nyx>=0.1.6,<0.2; platform_system != 'Darwin'",
+  "gs-nyx-plugin>=0.1.10,<0.2; platform_system != 'Darwin'"
+]
+# The rl_games PPO backend (`eden train --runner rl_games`). rsl_rl is a core
+# dependency because it is the default runner; rl_games is opt-in, and
+# `eden/envs/wrappers/rl_games_env.py` imports it at module level, so without
+# this extra that whole module (and its tests) is unreachable.
+rl-games = [
+  "rl-games>=1.6"
+]
+# stable-baselines3 and skrl through the gymnasium vector-env wrapper
+# (`eden/envs/wrappers/{sb3_env,skrl_env}.py`, both built on `gymnasium_env.py`). CleanRL needs no
+# extra: its single-file loops take the gymnasium wrapper as they are.
+sb3 = [
+  # 2.6 is the first release that admits gymnasium 1.1 (see the core `gymnasium` floor).
+  "stable-baselines3>=2.6"
+]
+skrl = [
+  "skrl>=2.1"
+]
+gello = [
+  "pyzmq>=25.1.1"
+]
+# Meta Quest WebXR teleoperation. televuer hosts the Vuer WebXR server the Quest
+# connects to over Wi-Fi (head/wrist/hand poses + stereo frame display). The XR
+# bridge (`eden metaquest bridge`) talks to Eden over ZMQ in the same env.
+# televuer itself is not on PyPI: it comes from the `metaquest-git` group (see the top of this file).
+metaquest = [
+  # televuer -> vuer 0.0.60 imports `Flag`/`PrefixProto`/`Proto` from the
+  # params_proto top level, which 3.x dropped; vuer only pins `>=2.13.0`, so
+  # constrain it back to the last compatible 2.x line.
+  "params_proto<3",
+  "pyzmq>=25.1.1"
+]
+# PICO teleoperation via XRoboToolkit. The tracking half needs the
+# `xrobotoolkit_sdk` extension module, which is NOT installable from an index --
+# it is built from source against the XRoboToolkit PC Service's shared library
+# (see eden/utils/devices/pico/xr_client.py), so it cannot be declared here.
+# This extra covers the rest: H.264/H.265 encoding for the headset's Remote
+# Vision link (av) and the ZMQ channels to Eden (pyzmq).
+pico = [
+  "av>=12.0.0",
+  "pyzmq>=25.1.1"
+]
+# SONIC whole-body teleoperation (`eden teleop sonic robot` / `eden teleop sonic operator`).
+# pyzmq + msgpack carry the operator<->robot channels; pynput reads the robot
+# process's keyboard (elastic band, e-stop). The operator side additionally
+# needs `xrobotoolkit_sdk` (see the pico extra note) and, for the policy, one
+# of the onnx extras.
+sonic = [
+  "msgpack",
+  "pynput>=1.8.1",
+  "pyzmq>=25.1.1"
+]
+# Operator-station visualization for SONIC teleop (`eden teleop sonic operator
+# --vis-vr3pt`). Separate from `sonic` so headless robot hosts don't pull VTK.
+sonic-viz = [
+  "pyvista"
+]
+# Wuji Glove teleoperation. The SDK is a prebuilt extension module that discovers the glove
+# and streams hand pose + tactile straight into this process -- no bridge process, unlike
+# the headsets.
+# The `sys_platform` marker is load-bearing, not documentation: wuji-sdk publishes manylinux
+# wheels (x86_64 / aarch64) and NO sdist, so on macOS/Windows there is nothing to resolve to.
+# `tool.uv.required-environments` below demands the whole resolution stay installable on
+# darwin-arm64 and win32-AMD64, so without the marker this extra makes `uv sync` / `uv run`
+# unsatisfiable for everyone, glove or no glove. Off Linux the extra installs nothing and
+# `WujiGlove` raises its install hint at import time instead.
+# NOTE: importing `wuji_sdk` starts a background telemetry worker that batches anonymous
+# usage events to a third-party analytics host. Set `WUJI_TELEMETRY_DISABLE=1` in the
+# environment to turn it off; Eden does not set it for you.
+wuji = [
+  "wuji-sdk>=2026.8.17; sys_platform == 'linux'"
+]
+vis = [
+  "plyfile",
+  # Gaussian-splat rendering (SplatEnvBase / SplatRLEnvBase) goes through gsplat.
+  "gsplat>=1.5,<2",
+  "viser>=1.1.0",
+  "imgui-bundle"
+]
+# Batched Gaussian-splat rendering (BatchSplatRenderer, under SplatEnvBase / SplatRLEnvBase).
+# gsplat 1.5+ added arbitrary-batch (multi-scene) rasterization, which the batched
+# path relies on. gsplat JIT-compiles a CUDA extension on first import, so the CUDA
+# toolkit (nvcc) must be present; wheels do not cover every torch/CUDA combination.
+batch-splat = [
+  "plyfile",
+  "gsplat>=1.5,<2"
+]
+docs = [
+  "mkdocs-material",
+  "mkdocstrings[python]",
+  "mkdocs-section-index"
+]
+soma-retargeter = [
+  # 0.4.0 accepts `enable_procedural_transforms`, which the public nvidia/soma-x
+  # assets make mandatory: older releases build py-soma-x's twist-joint rig
+  # unconditionally and cannot fit against a stock asset download at all.
+  "eden-soma-retargeter>=0.4.0",
+  # py-soma-x 0.1.0 fits near-zero rotation matrices and then reports them as a
+  # GPU problem — silently-wrong numerics. eden-soma-retargeter's `fit` extra
+  # floors this too; keeping it explicit here documents the reason.
+  # No chumpy: smplx reads the SMPL / SMPL-H .pkl files through Eden's stand-ins for chumpy's two pickled classes
+  # (eden.utils.chumpy_pickle, installed in the retargeter's worker process).
+  "py-soma-x[smpl]>=0.2,<0.3"
+]
+dex-retargeter = [
+  "nlopt"
+]
+# OTRetarget (eden.extensions.retargeting.otretarget): ProxQP solves the per-iterate QP of the SQP;
+# threadpoolctl pins BLAS to one thread around it (its products are tens of columns wide, where a
+# multithreaded BLAS spends ~200x longer waking its pool than computing). libigl arrives through
+# genesis-world unpinned, but the channels' winding-number tree (`igl.FastWindingNumberBVH`) is 2.6.3+.
+ot-retargeter = [
+  "libigl>=2.6.3",
+  "proxsuite>=0.6",
+  "scikit-image>=0.24", # 0.24: the first with CPython 3.12 wheels (older sdists fail to build)
+  "threadpoolctl>=3.0"
+]
+# FlashDexRetarget's dataset pipeline (`eden retarget flashdex`). warp-lang bakes the object SDF grids; Eden reads
+# the MANO .pkl files itself (eden.utils.chumpy_pickle: no chumpy) and its own SkinnedBodyModel runs the model.
+# CoACD, MuJoCo and trimesh already come with Eden. MANO itself is licence-gated and never shipped.
+flashdexretarget = [
+  "warp-lang>=1.10"
+]
+# FlashSAC, the off-policy learner FlashDexRetarget trains with (RslRlFlashSacRunnerOptions). rsl-rl-flashsac
+# itself is not on PyPI: it comes from the `flashsac-git` group (see the top of this file). Needs rsl-rl-lib >= 5.4.
+flashsac = [
+  "rsl-rl-lib>=5.4.2"
+]
+dex-retargeter-example = [
+  "nlopt",
+  # mediapipe 0.10.15+ removed the legacy `python.solutions` API the upstream
+  # single-hand detector relies on; 0.10.14 is the newest wheel that ships
+  # `mp.solutions.hands`/`drawing_utils` for Python 3.12.
+  "mediapipe==0.10.14",
+  "opencv-python",
+  "tyro"
+]
+# Franka Panda real-robot stack. panda-python wheels ship inside a per-libfranka
+# zip on GitHub releases (no direct wheel URL), so install it manually for the
+# libfranka version that matches your Panda firmware. Server v4 → libfranka 0.8.0:
+# curl -sSLO https://github.com/JeanElsner/panda-py/releases/download/v0.7.6/panda_py_0.7.6_libfranka_0.8.0.zip
+# unzip -j panda_py_0.7.6_libfranka_0.8.0.zip 'panda_python-*-cp312-*.whl' && uv pip install panda_python-*.whl
+franka = [
+  "websockets"
+]
+# Grasp sampling (eden.extensions.grasp_sampling): GraspGen and GraspGenX. Pure-Python wheels whose
+# pins are floors, so they install additively (no downgrades); neither depends on diffusers, whose
+# huggingface-hub<2 cap would hold Eden back. Inference runs on CUDA; the models download on first
+# use (`grasp_gen download` for GraspGen). GraspGen ships under NVIDIA's non-commercial license;
+# GraspGenX is Apache-2.0.
+graspgen = ["eden-grasp-gen>=0.1.7"]
+graspgenx = ["eden-graspgenx>=0.1.0"]
+# Remote policy clients (eden.utils.policy_client + eden.extensions.policies.client): the
+# transports and serialisers for server-backed policies — ZMQ + msgpack (Isaac-GR00T, RLDX-1),
+# msgpack WebSocket (OpenPI, Cosmos3, GalaxeaVLA), json_numpy / multipart HTTP
+# (open-pi-zero, Octo, MolmoAct). Each is imported lazily by the transport that
+# needs it; the core `requests` dependency covers plain-JSON HTTP servers.
+policy-client = [
+  "pyzmq>=25.1.1",
+  "msgpack",
+  "msgpack-numpy",
+  "websockets",
+  "json-numpy",
+  "pillow"
+]
+all = [
+  "plyfile",
+  "gsplat>=1.5,<2; platform_system != 'Darwin'",
+  "viser>=1.1.0",
+  "pynput>=1.8.1",
+  "inputs",
+  "cvxpy==1.8.1",
+  "pyzmq>=25.1.1"
+]
+
+[project.scripts]
+eden = "eden.__main__:main"
+
+[project.urls]
+Homepage = "https://github.com/embodied-ai-nexus/Eden"
+Documentation = "https://embodied-ai-nexus.github.io/Eden"
+Repository = "https://github.com/embodied-ai-nexus/Eden"
+Issues = "https://github.com/embodied-ai-nexus/Eden/issues"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+# --strict-markers turns an undeclared `@pytest.mark.x` into a collection error rather
+# than a decorator that silently does nothing. Markers themselves are declared in
+# tests/conftest.py's `pytest_configure`.
+addopts = "--strict-markers"
+
+[tool.ruff]
+line-length = 120
+
+[tool.ruff.lint]
+# Default ruff rules (E, F) plus pydocstyle (D) to enforce NumPy-style docstrings.
+extend-select = ["D", "D417"]
+# Every package must carry a top-of-file docstring (D104) as a navigation aid; module
+# docstrings are a convention ruff does not enforce (D100 is ignored). We don't require a
+# docstring on every class/method/function (D101/D102/D103/D105) — but any docstring that
+# exists must be valid NumPy style and document all of its parameters (D417).
+# D205/D400/D401/D404 are relaxed: the codebase writes flowing multi-line summary
+# docstrings rather than the one-line-summary-plus-blank-line form those rules enforce.
+extend-ignore = ["D100", "D101", "D102", "D103", "D105", "D205", "D400", "D401", "D404"]
+
+[tool.ruff.lint.per-file-ignores]
+"eden/__init__.py" = ["E402"]
+# The MochiSolver's kernels and their tests, ported from a Genesis fork, index tensors with the conventional
+# (i, j, k, l).
+"eden/engine/solvers/mochi/*.py" = ["E741"]
+"tests/engine/solvers/mochi/*.py" = ["E741"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "numpy"
+
+# Ship the generated, non-code data in eden/resources/ inside the wheel — chiefly the term
+# catalog an agent needs. `pip install` carries eden/ but not docs/ or .claude/, so an agent
+# working against an installed Eden reads the package, not the repo. Scoped to the one
+# data package (not a repo-wide *.md glob) so the intent — and what ships — stays obvious.
+[tool.setuptools.package-data]
+"eden.resources" = ["*.md"]
+# Vendored code ships with its license: MIT and Apache-2.0 both require the notice in every copy.
+"eden.extensions.retargeting.flashdexretarget" = ["LICENSE"]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = [
+  "eden",
+  "eden.*"
+]
+
+[tool.uv]
+# pymeshlab<2025.7: pinned for compatibility with the [soma-retargeter] extra; newer pymeshlab
+# wheels conflict with py-soma-x's transitive expectations. Harmless when the extra isn't installed.
+# trimesh[easy]>=5.0.0,<6: genesis-world 1.4.6 requires trimesh>=5.0.0, while eden-soma-retargeter
+# 0.4.0 pins trimesh==4.11.3, which makes the universal resolution unsatisfiable for every user.
+# soma_retargeter itself never imports trimesh; py-soma-x's `soma` only loads OBJ meshes with it
+# (`process=False`) and queries their closest points. On the 11 OBJ files of the `nvidia/soma-x`
+# model, trimesh 5.1.1 returns the same vertices, faces and closest faces as 4.11.3, bit for bit;
+# the SMPL meshes `soma.smpl` loads (licence-gated, supplied by the user) were not compared. An
+# override replaces every requirement on trimesh, extras and bounds included, so it keeps the `easy`
+# extra yourdfpy asks for (shapely for eden.utils.mesh, pycollada for .dae meshes) and viser's `<6`
+# cap. Drop it once an eden-soma-retargeter release admits trimesh 5.
+override-dependencies = [
+  "pymeshlab<2025.7",
+  "trimesh[easy]>=5.0.0,<6"
+]
+# Resolution must stay installable on every supported platform: Linux x86_64
+# (primary) plus macOS arm64 and Windows AMD64 (best-effort). Guards against a
+# dependency's newest release shipping partial-platform wheels (e.g.
+# opencv-python 5.0.0.93 released macOS/Windows wheels first, breaking every
+# fresh Linux resolution). NOTE: an sdist counts as installable, so this is a
+# partial-wheel-upload guard, not full protection; a committed uv.lock is.
+required-environments = [
+  "sys_platform == 'linux' and platform_machine == 'x86_64'",
+  "sys_platform == 'darwin' and platform_machine == 'arm64'",
+  "sys_platform == 'win32' and platform_machine == 'AMD64'"
+]

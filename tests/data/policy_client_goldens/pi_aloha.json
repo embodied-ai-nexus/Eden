@@ -1,0 +1,817 @@
+{
+ "actions": [
+  {
+   "left_arm_controller": {
+    "dtype": "float32",
+    "shape": [
+     1,
+     6
+    ],
+    "values": [
+     [
+      0.0,
+      0.05497,
+      0.10978,
+      0.16425,
+      0.21823,
+      0.27155
+     ]
+    ]
+   },
+   "left_gripper_controller": {
+    "dtype": "float32",
+    "shape": [
+     1,
+     1
+    ],
+    "values": [
+     [
+      0.32404
+     ]
+    ]
+   },
+   "right_arm_controller": {
+    "dtype": "float32",
+    "shape": [
+     1,
+     6
+    ],
+    "values": [
+     [
+      0.37556,
+      0.42594,
+      0.47503,
+      0.52269,
+      0.56876,
+      0.61312
+     ]
+    ]
+   },
+   "right_gripper_controller": {
+    "dtype": "float32",
+    "shape": [
+     1,
+     1
+    ],
+    "values": [
+     [
+      0.65562
+     ]
+    ]
+   }
+  },
+  {
+   "left_arm_controller": {
+    "dtype": "float32",
+    "shape": [
+     1,
+     6
+    ],
+    "values": [
+     [
+      0.69614,
+      0.73455,
+      0.77074,
+      0.8046,
+      0.83603,
+      0.86492
+     ]
+    ]
+   },
+   "left_gripper_controller": {
+    "dtype": "float32",
+    "shape": [
+     1,
+     1
+    ],
+    "values": [
+     [
+      0.89121
+     ]
+    ]
+   },
+   "right_arm_controller": {
+    "dtype": "float32",
+    "shape": [
+     1,
+     6
+    ],
+    "values": [
+     [
+      0.91479,
+      0.93562,
+      0.95361,
+      0.96872,
+      0.98089,
+      0.9901
+     ]
+    ]
+   },
+   "right_gripper_controller": {
+    "dtype": "float32",
+    "shape": [
+     1,
+     1
+    ],
+    "values": [
+     [
+      0.99632
+     ]
+    ]
+   }
+  },
+  {
+   "left_arm_controller": {
+    "dtype": "float32",
+    "shape": [
+     1,
+     6
+    ],
+    "values": [
+     [
+      0.99953,
+      0.99971,
+      0.99687,
+      0.99101,
+      0.98215,
+      0.97033
+     ]
+    ]
+   },
+   "left_gripper_controller": {
+    "dtype": "float32",
+    "shape": [
+     1,
+     1
+    ],
+    "values": [
+     [
+      0.95557
+     ]
+    ]
+   },
+   "right_arm_controller": {
+    "dtype": "float32",
+    "shape": [
+     1,
+     6
+    ],
+    "values": [
+     [
+      0.93792,
+      0.91744,
+      0.89418,
+      0.86821,
+      0.83963,
+      0.8085
+     ]
+    ]
+   },
+   "right_gripper_controller": {
+    "dtype": "float32",
+    "shape": [
+     1,
+     1
+    ],
+    "values": [
+     [
+      0.77492
+     ]
+    ]
+   }
+  },
+  {
+   "left_arm_controller": {
+    "dtype": "float32",
+    "shape": [
+     1,
+     6
+    ],
+    "values": [
+     [
+      0.73901,
+      0.70085,
+      0.66058,
+      0.61831,
+      0.57417,
+      0.5283
+     ]
+    ]
+   },
+   "left_gripper_controller": {
+    "dtype": "float32",
+    "shape": [
+     1,
+     1
+    ],
+    "values": [
+     [
+      0.48082
+     ]
+    ]
+   },
+   "right_arm_controller": {
+    "dtype": "float32",
+    "shape": [
+     1,
+     6
+    ],
+    "values": [
+     [
+      0.43189,
+      0.38166,
+      0.33027,
+      0.27789,
+      0.22466,
+      0.17075
+     ]
+    ]
+   },
+   "right_gripper_controller": {
+    "dtype": "float32",
+    "shape": [
+     1,
+     1
+    ],
+    "values": [
+     [
+      0.11633
+     ]
+    ]
+   }
+  },
+  {
+   "left_arm_controller": {
+    "dtype": "float32",
+    "shape": [
+     1,
+     6
+    ],
+    "values": [
+     [
+      0.06155,
+      0.00659,
+      -0.04839,
+      -0.10322,
+      -0.15775,
+      -0.21179
+     ]
+    ]
+   },
+   "left_gripper_controller": {
+    "dtype": "float32",
+    "shape": [
+     1,
+     1
+    ],
+    "values": [
+     [
+      -0.2652
+     ]
+    ]
+   },
+   "right_arm_controller": {
+    "dtype": "float32",
+    "shape": [
+     1,
+     6
+    ],
+    "values": [
+     [
+      -0.3178,
+      -0.36944,
+      -0.41997,
+      -0.46922,
+      -0.51706,
+      -0.56333
+     ]
+    ]
+   },
+   "right_gripper_controller": {
+    "dtype": "float32",
+    "shape": [
+     1,
+     1
+    ],
+    "values": [
+     [
+      -0.6079
+     ]
+    ]
+   }
+  },
+  {
+   "left_arm_controller": {
+    "dtype": "float32",
+    "shape": [
+     1,
+     6
+    ],
+    "values": [
+     [
+      -0.65063,
+      -0.69139,
+      -0.73006,
+      -0.76652,
+      -0.80067,
+      -0.83239
+     ]
+    ]
+   },
+   "left_gripper_controller": {
+    "dtype": "float32",
+    "shape": [
+     1,
+     1
+    ],
+    "values": [
+     [
+      -0.8616
+     ]
+    ]
+   },
+   "right_arm_controller": {
+    "dtype": "float32",
+    "shape": [
+     1,
+     6
+    ],
+    "values": [
+     [
+      -0.8882,
+      -0.91211,
+      -0.93327,
+      -0.9516,
+      -0.96706,
+      -0.97959
+     ]
+    ]
+   },
+   "right_gripper_controller": {
+    "dtype": "float32",
+    "shape": [
+     1,
+     1
+    ],
+    "values": [
+     [
+      -0.98916
+     ]
+    ]
+   }
+  },
+  {
+   "left_arm_controller": {
+    "dtype": "float32",
+    "shape": [
+     1,
+     6
+    ],
+    "values": [
+     [
+      -0.99574,
+      -0.9993,
+      -0.99984,
+      -0.99736,
+      -0.99187,
+      -0.98337
+     ]
+    ]
+   },
+   "left_gripper_controller": {
+    "dtype": "float32",
+    "shape": [
+     1,
+     1
+    ],
+    "values": [
+     [
+      -0.9719
+     ]
+    ]
+   },
+   "right_arm_controller": {
+    "dtype": "float32",
+    "shape": [
+     1,
+     6
+    ],
+    "values": [
+     [
+      -0.95749,
+      -0.94019,
+      -0.92004,
+      -0.89711,
+      -0.87147,
+      -0.84319
+     ]
+    ]
+   },
+   "right_gripper_controller": {
+    "dtype": "float32",
+    "shape": [
+     1,
+     1
+    ],
+    "values": [
+     [
+      -0.81236
+     ]
+    ]
+   }
+  },
+  {
+   "left_arm_controller": {
+    "dtype": "float32",
+    "shape": [
+     1,
+     6
+    ],
+    "values": [
+     [
+      -0.77907,
+      -0.74343,
+      -0.70554,
+      -0.66552,
+      -0.62348,
+      -0.57956
+     ]
+    ]
+   },
+   "left_gripper_controller": {
+    "dtype": "float32",
+    "shape": [
+     1,
+     1
+    ],
+    "values": [
+     [
+      -0.53388
+     ]
+    ]
+   },
+   "right_arm_controller": {
+    "dtype": "float32",
+    "shape": [
+     1,
+     6
+    ],
+    "values": [
+     [
+      -0.48659,
+      -0.43783,
+      -0.38775,
+      -0.33649,
+      -0.28421,
+      -0.23108
+     ]
+    ]
+   },
+   "right_gripper_controller": {
+    "dtype": "float32",
+    "shape": [
+     1,
+     1
+    ],
+    "values": [
+     [
+      -0.17724
+     ]
+    ]
+   }
+  },
+  {
+   "left_arm_controller": {
+    "dtype": "float32",
+    "shape": [
+     1,
+     6
+    ],
+    "values": [
+     [
+      -0.12287,
+      -0.06813,
+      -0.01318,
+      0.0418,
+      0.09666,
+      0.15123
+     ]
+    ]
+   },
+   "left_gripper_controller": {
+    "dtype": "float32",
+    "shape": [
+     1,
+     1
+    ],
+    "values": [
+     [
+      0.20534
+     ]
+    ]
+   },
+   "right_arm_controller": {
+    "dtype": "float32",
+    "shape": [
+     1,
+     6
+    ],
+    "values": [
+     [
+      0.25883,
+      0.31154,
+      0.36331,
+      0.41397,
+      0.46339,
+      0.5114
+     ]
+    ]
+   },
+   "right_gripper_controller": {
+    "dtype": "float32",
+    "shape": [
+     1,
+     1
+    ],
+    "values": [
+     [
+      0.55787
+     ]
+    ]
+   }
+  },
+  {
+   "left_arm_controller": {
+    "dtype": "float32",
+    "shape": [
+     1,
+     6
+    ],
+    "values": [
+     [
+      0.60265,
+      0.6456,
+      0.68661,
+      0.72554,
+      0.76227,
+      0.7967
+     ]
+    ]
+   },
+   "left_gripper_controller": {
+    "dtype": "float32",
+    "shape": [
+     1,
+     1
+    ],
+    "values": [
+     [
+      0.82872
+     ]
+    ]
+   },
+   "right_arm_controller": {
+    "dtype": "float32",
+    "shape": [
+     1,
+     6
+    ],
+    "values": [
+     [
+      0.85823,
+      0.88515,
+      0.90939,
+      0.93088,
+      0.94956,
+      0.96536
+     ]
+    ]
+   },
+   "right_gripper_controller": {
+    "dtype": "float32",
+    "shape": [
+     1,
+     1
+    ],
+    "values": [
+     [
+      0.97824
+     ]
+    ]
+   }
+  },
+  {
+   "left_arm_controller": {
+    "dtype": "float32",
+    "shape": [
+     1,
+     6
+    ],
+    "values": [
+     [
+      0.0,
+      0.05996,
+      0.11971,
+      0.17903,
+      0.2377,
+      0.29552
+     ]
+    ]
+   },
+   "left_gripper_controller": {
+    "dtype": "float32",
+    "shape": [
+     1,
+     1
+    ],
+    "values": [
+     [
+      0.35227
+     ]
+    ]
+   },
+   "right_arm_controller": {
+    "dtype": "float32",
+    "shape": [
+     1,
+     6
+    ],
+    "values": [
+     [
+      0.40776,
+      0.46178,
+      0.51414,
+      0.56464,
+      0.61312,
+      0.65938
+     ]
+    ]
+   },
+   "right_gripper_controller": {
+    "dtype": "float32",
+    "shape": [
+     1,
+     1
+    ],
+    "values": [
+     [
+      0.70328
+     ]
+    ]
+   }
+  },
+  {
+   "left_arm_controller": {
+    "dtype": "float32",
+    "shape": [
+     1,
+     6
+    ],
+    "values": [
+     [
+      0.74464,
+      0.78333,
+      0.81919,
+      0.85211,
+      0.88196,
+      0.90863
+     ]
+    ]
+   },
+   "left_gripper_controller": {
+    "dtype": "float32",
+    "shape": [
+     1,
+     1
+    ],
+    "values": [
+     [
+      0.93204
+     ]
+    ]
+   },
+   "right_arm_controller": {
+    "dtype": "float32",
+    "shape": [
+     1,
+     6
+    ],
+    "values": [
+     [
+      0.95209,
+      0.96872,
+      0.98185,
+      0.99146,
+      0.99749,
+      0.99994
+     ]
+    ]
+   },
+   "right_gripper_controller": {
+    "dtype": "float32",
+    "shape": [
+     1,
+     1
+    ],
+    "values": [
+     [
+      0.99879
+     ]
+    ]
+   }
+  }
+ ],
+ "infer_calls": 2,
+ "payloads": [
+  {
+   "images": {
+    "cam_high": {
+     "dtype": "uint8",
+     "sha256": "30c53b8ea217795626bf3b91eb9e63b64a251e4f3b4ec20dfed2df0580553d14",
+     "shape": [
+      3,
+      224,
+      224
+     ]
+    },
+    "cam_left_wrist": {
+     "dtype": "uint8",
+     "sha256": "d896d3f805f261879069c6a3c53a97e517f9635f53f490f532fb88abf1d3aab9",
+     "shape": [
+      3,
+      224,
+      224
+     ]
+    }
+   },
+   "prompt": "golden task",
+   "state": {
+    "dtype": "float32",
+    "shape": [
+     14
+    ],
+    "values": [
+     -0.5,
+     -0.42308,
+     -0.34615,
+     -0.26923,
+     -0.19231,
+     -0.11538,
+     -0.03846,
+     0.03846,
+     0.11538,
+     0.19231,
+     0.26923,
+     0.34615,
+     0.42308,
+     0.5
+    ]
+   }
+  },
+  {
+   "images": {
+    "cam_high": {
+     "dtype": "uint8",
+     "sha256": "22bf4ebb652cb0168237aa3595c1afbf638674c4385b3250d83ccf33950a1cde",
+     "shape": [
+      3,
+      224,
+      224
+     ]
+    },
+    "cam_left_wrist": {
+     "dtype": "uint8",
+     "sha256": "b3bfa00c7291d75446ca20af34675c046e6793777c9c56ae9c229b8d2131388e",
+     "shape": [
+      3,
+      224,
+      224
+     ]
+    }
+   },
+   "prompt": "golden task",
+   "state": {
+    "dtype": "float32",
+    "shape": [
+     14
+    ],
+    "values": [
+     -0.5,
+     -0.42308,
+     -0.34615,
+     -0.26923,
+     -0.19231,
+     -0.11538,
+     -0.03846,
+     0.03846,
+     0.11538,
+     0.19231,
+     0.26923,
+     0.34615,
+     0.42308,
+     0.5
+    ]
+   }
+  }
+ ]
+}

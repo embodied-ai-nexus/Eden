@@ -1,0 +1,559 @@
+{
+ "actions": [
+  {
+   "ee_controller": {
+    "dtype": "float32",
+    "shape": [
+     1,
+     7
+    ],
+    "values": [
+     [
+      0.0,
+      0.05497,
+      0.10978,
+      0.16425,
+      0.21823,
+      0.27155,
+      0.32404
+     ]
+    ]
+   },
+   "gripper_controller": {
+    "dtype": "float32",
+    "shape": [
+     1,
+     1
+    ],
+    "values": [
+     [
+      0.9
+     ]
+    ]
+   }
+  },
+  {
+   "ee_controller": {
+    "dtype": "float32",
+    "shape": [
+     1,
+     7
+    ],
+    "values": [
+     [
+      0.0,
+      0.05996,
+      0.11971,
+      0.17903,
+      0.2377,
+      0.29552,
+      0.35227
+     ]
+    ]
+   },
+   "gripper_controller": {
+    "dtype": "float32",
+    "shape": [
+     1,
+     1
+    ],
+    "values": [
+     [
+      0.05
+     ]
+    ]
+   }
+  },
+  {
+   "ee_controller": {
+    "dtype": "float32",
+    "shape": [
+     1,
+     7
+    ],
+    "values": [
+     [
+      0.0,
+      0.06495,
+      0.12963,
+      0.19377,
+      0.25708,
+      0.31931,
+      0.38019
+     ]
+    ]
+   },
+   "gripper_controller": {
+    "dtype": "float32",
+    "shape": [
+     1,
+     1
+    ],
+    "values": [
+     [
+      "nan"
+     ]
+    ]
+   }
+  },
+  {
+   "ee_controller": {
+    "dtype": "float32",
+    "shape": [
+     1,
+     7
+    ],
+    "values": [
+     [
+      0.0,
+      0.06994,
+      0.13954,
+      0.20846,
+      0.27636,
+      0.3429,
+      0.40776
+     ]
+    ]
+   },
+   "gripper_controller": {
+    "dtype": "float32",
+    "shape": [
+     1,
+     1
+    ],
+    "values": [
+     [
+      0.05
+     ]
+    ]
+   }
+  },
+  {
+   "ee_controller": {
+    "dtype": "float32",
+    "shape": [
+     1,
+     7
+    ],
+    "values": [
+     [
+      0.0,
+      0.07493,
+      0.14944,
+      0.22311,
+      0.29552,
+      0.36627,
+      0.43497
+     ]
+    ]
+   },
+   "gripper_controller": {
+    "dtype": "float32",
+    "shape": [
+     1,
+     1
+    ],
+    "values": [
+     [
+      0.9
+     ]
+    ]
+   }
+  },
+  {
+   "ee_controller": {
+    "dtype": "float32",
+    "shape": [
+     1,
+     7
+    ],
+    "values": [
+     [
+      0.0,
+      0.07991,
+      0.15932,
+      0.2377,
+      0.31457,
+      0.38942,
+      0.46178
+     ]
+    ]
+   },
+   "gripper_controller": {
+    "dtype": "float32",
+    "shape": [
+     1,
+     1
+    ],
+    "values": [
+     [
+      "nan"
+     ]
+    ]
+   }
+  }
+ ],
+ "infer_calls": 6,
+ "payloads": [
+  {
+   "embodiment_type": "Droid_Franka",
+   "frequency": 15,
+   "images": {
+    "dummy_wrist_right": {
+     "dtype": "uint8",
+     "sha256": "0a3f0ee9e3cbab26f89ed53b7b20e22cb985b650fd4c52ef57e4aeb27560d773",
+     "shape": [
+      3,
+      224,
+      224
+     ]
+    },
+    "exterior_image": {
+     "dtype": "uint8",
+     "sha256": "4c94bff7d3eb4a9149b3a7812ec3a5e1ce303f5b6948e2c0bc78445f8dd50408",
+     "shape": [
+      3,
+      12,
+      16
+     ]
+    },
+    "wrist_image": {
+     "dtype": "uint8",
+     "sha256": "3a06d2e0ae4eeb41d409837669d17706077c3ad4401b0775fe3c637174e1407a",
+     "shape": [
+      3,
+      12,
+      16
+     ]
+    }
+   },
+   "state": {
+    "right_arm": {
+     "dtype": "float32",
+     "shape": [
+      7
+     ],
+     "values": [
+      0.1,
+      -0.2,
+      0.3,
+      -1.5,
+      0.05,
+      1.8,
+      0.4
+     ]
+    },
+    "right_gripper": {
+     "dtype": "float32",
+     "shape": [
+      1
+     ],
+     "values": [
+      0.7
+     ]
+    }
+   },
+   "task": "golden task"
+  },
+  {
+   "embodiment_type": "Droid_Franka",
+   "frequency": 15,
+   "images": {
+    "dummy_wrist_right": {
+     "dtype": "uint8",
+     "sha256": "0a3f0ee9e3cbab26f89ed53b7b20e22cb985b650fd4c52ef57e4aeb27560d773",
+     "shape": [
+      3,
+      224,
+      224
+     ]
+    },
+    "exterior_image": {
+     "dtype": "uint8",
+     "sha256": "2b48dbaf9252ae894f43067a0907b7cb2df6a7016c69cf46dcafe33ef34f6b08",
+     "shape": [
+      3,
+      12,
+      16
+     ]
+    },
+    "wrist_image": {
+     "dtype": "uint8",
+     "sha256": "ad61176ae994f23e95ebd777833105db228e0fc6d02cdabb4420856a17e134f3",
+     "shape": [
+      3,
+      12,
+      16
+     ]
+    }
+   },
+   "state": {
+    "right_arm": {
+     "dtype": "float32",
+     "shape": [
+      7
+     ],
+     "values": [
+      0.1,
+      -0.2,
+      0.3,
+      -1.5,
+      0.05,
+      1.8,
+      0.4
+     ]
+    },
+    "right_gripper": {
+     "dtype": "float32",
+     "shape": [
+      1
+     ],
+     "values": [
+      0.7
+     ]
+    }
+   },
+   "task": "golden task"
+  },
+  {
+   "embodiment_type": "Droid_Franka",
+   "frequency": 15,
+   "images": {
+    "dummy_wrist_right": {
+     "dtype": "uint8",
+     "sha256": "0a3f0ee9e3cbab26f89ed53b7b20e22cb985b650fd4c52ef57e4aeb27560d773",
+     "shape": [
+      3,
+      224,
+      224
+     ]
+    },
+    "exterior_image": {
+     "dtype": "uint8",
+     "sha256": "1eacc78422eda5f85364870c0f0665e5af1b0d48044ec404813f5a8a4fe7b2e4",
+     "shape": [
+      3,
+      12,
+      16
+     ]
+    },
+    "wrist_image": {
+     "dtype": "uint8",
+     "sha256": "fc897b8c0957b3e25658905735b45b4f7e9de8a1c2c934a054832908719d96a5",
+     "shape": [
+      3,
+      12,
+      16
+     ]
+    }
+   },
+   "state": {
+    "right_arm": {
+     "dtype": "float32",
+     "shape": [
+      7
+     ],
+     "values": [
+      0.1,
+      -0.2,
+      0.3,
+      -1.5,
+      0.05,
+      1.8,
+      0.4
+     ]
+    },
+    "right_gripper": {
+     "dtype": "float32",
+     "shape": [
+      1
+     ],
+     "values": [
+      0.7
+     ]
+    }
+   },
+   "task": "golden task"
+  },
+  {
+   "embodiment_type": "Droid_Franka",
+   "frequency": 15,
+   "images": {
+    "dummy_wrist_right": {
+     "dtype": "uint8",
+     "sha256": "0a3f0ee9e3cbab26f89ed53b7b20e22cb985b650fd4c52ef57e4aeb27560d773",
+     "shape": [
+      3,
+      224,
+      224
+     ]
+    },
+    "exterior_image": {
+     "dtype": "uint8",
+     "sha256": "a280f0c90a995ce76a4e5603be4a683429770e86ef241f06c07b36a3952f5f2f",
+     "shape": [
+      3,
+      12,
+      16
+     ]
+    },
+    "wrist_image": {
+     "dtype": "uint8",
+     "sha256": "a8fea91fe01d5307343afd2b2b96964efd1497cbc3d4c4612c4029ab0254b722",
+     "shape": [
+      3,
+      12,
+      16
+     ]
+    }
+   },
+   "state": {
+    "right_arm": {
+     "dtype": "float32",
+     "shape": [
+      7
+     ],
+     "values": [
+      0.1,
+      -0.2,
+      0.3,
+      -1.5,
+      0.05,
+      1.8,
+      0.4
+     ]
+    },
+    "right_gripper": {
+     "dtype": "float32",
+     "shape": [
+      1
+     ],
+     "values": [
+      0.7
+     ]
+    }
+   },
+   "task": "golden task"
+  },
+  {
+   "embodiment_type": "Droid_Franka",
+   "frequency": 15,
+   "images": {
+    "dummy_wrist_right": {
+     "dtype": "uint8",
+     "sha256": "0a3f0ee9e3cbab26f89ed53b7b20e22cb985b650fd4c52ef57e4aeb27560d773",
+     "shape": [
+      3,
+      224,
+      224
+     ]
+    },
+    "exterior_image": {
+     "dtype": "uint8",
+     "sha256": "b96f8f945600783544640c9c311f5e53984353b9a312e5f4ae81790170e3dcc4",
+     "shape": [
+      3,
+      12,
+      16
+     ]
+    },
+    "wrist_image": {
+     "dtype": "uint8",
+     "sha256": "0fa290782ffd56572e5404578e08f8c65624f100ea7771103491b018deb3f1ae",
+     "shape": [
+      3,
+      12,
+      16
+     ]
+    }
+   },
+   "state": {
+    "right_arm": {
+     "dtype": "float32",
+     "shape": [
+      7
+     ],
+     "values": [
+      0.1,
+      -0.2,
+      0.3,
+      -1.5,
+      0.05,
+      1.8,
+      0.4
+     ]
+    },
+    "right_gripper": {
+     "dtype": "float32",
+     "shape": [
+      1
+     ],
+     "values": [
+      0.7
+     ]
+    }
+   },
+   "task": "golden task"
+  },
+  {
+   "embodiment_type": "Droid_Franka",
+   "frequency": 15,
+   "images": {
+    "dummy_wrist_right": {
+     "dtype": "uint8",
+     "sha256": "0a3f0ee9e3cbab26f89ed53b7b20e22cb985b650fd4c52ef57e4aeb27560d773",
+     "shape": [
+      3,
+      224,
+      224
+     ]
+    },
+    "exterior_image": {
+     "dtype": "uint8",
+     "sha256": "3a06d2e0ae4eeb41d409837669d17706077c3ad4401b0775fe3c637174e1407a",
+     "shape": [
+      3,
+      12,
+      16
+     ]
+    },
+    "wrist_image": {
+     "dtype": "uint8",
+     "sha256": "5e03792734205e098953ef3ab5925e1fd2ccae294cb63773cacc7ffc6da4db5d",
+     "shape": [
+      3,
+      12,
+      16
+     ]
+    }
+   },
+   "state": {
+    "right_arm": {
+     "dtype": "float32",
+     "shape": [
+      7
+     ],
+     "values": [
+      0.1,
+      -0.2,
+      0.3,
+      -1.5,
+      0.05,
+      1.8,
+      0.4
+     ]
+    },
+    "right_gripper": {
+     "dtype": "float32",
+     "shape": [
+      1
+     ],
+     "values": [
+      0.7
+     ]
+    }
+   },
+   "task": "golden task"
+  }
+ ]
+}

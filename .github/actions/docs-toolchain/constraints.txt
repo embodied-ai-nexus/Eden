@@ -1,0 +1,10 @@
+# The docs toolchain CI builds with. Pinned so that the griffe warning count, which
+# docs/hooks/griffe_warnings.py caps at MAX_GRIFFE_WARNINGS, changes only when this file does.
+# To upgrade: bump these, run `mkdocs build --strict` with them, and adjust MAX_GRIFFE_WARNINGS in the same change.
+mkdocs==1.6.1
+mkdocs-material==9.8.1
+mkdocs-section-index==0.3.12
+mkdocs-autorefs==1.4.5
+mkdocstrings==1.0.8
+mkdocstrings-python==2.0.10
+griffelib==2.4.1

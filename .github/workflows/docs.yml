@@ -1,0 +1,55 @@
+# Publish the documentation site to GitHub Pages at https://embodied-ai-nexus.github.io/Eden.
+#
+# Every push to main that touches the docs, the docs config or the package (the API pages render its
+# docstrings) rebuilds the site and force-pushes the built HTML to the `docs` branch. GitHub Pages serves
+# that branch: Settings → Pages → Build and deployment → Source "Deploy from a branch" → `docs` / `(root)`.
+# The `docs` branch holds only generated HTML (one commit per deploy); never edit it by hand.
+#
+# Only the public repository publishes: the job's `if:` compares `github.repository` with 'embodied-ai-nexus/Eden'
+# (as release.yml does), so a fork or a private development copy skips the deploy instead of pushing a `docs`
+# branch nothing serves. On the organization's free plan, Pages serves only a public repository.
+#
+# Pull requests are checked by the `docs` job in ci.yml, which builds without publishing.
+name: Docs
+on:
+  push:
+    branches: [main]
+    paths:
+      - "docs/**"
+      - "mkdocs.yml"
+      - "pyproject.toml" # the docs extra
+      - ".github/actions/docs-toolchain/**"
+      - "eden/**"
+      - ".github/workflows/docs.yml"
+  workflow_dispatch:
+permissions:
+  contents: write # push the built site to the `docs` branch
+# One deploy at a time; a newer push supersedes a queued one, never a running one.
+concurrency:
+  group: docs-deploy
+  cancel-in-progress: false
+jobs:
+  deploy:
+    name: Build and publish to the docs branch
+    if: github.repository == 'embodied-ai-nexus/Eden'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          fetch-depth: 0 # gh-deploy commits on top of the existing `docs` branch
+      - uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86 # v5.4.2
+        with:
+          python-version: "3.12"
+          enable-cache: true
+      # The docs extra's packages only, at pinned versions (see the action).
+      - uses: ./.github/actions/docs-toolchain
+      - name: Configure the commit identity
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+      # gh-deploy builds into site/, writes .nojekyll, commits it to `docs` and force-pushes. --strict aborts before
+      # anything is pushed when the build warns (a broken link or anchor, a page missing from the nav), so the live
+      # site stays on the last good build; the failed run is reported to whoever pushed.
+      - name: Build and push to the docs branch
+        run: .venv/bin/mkdocs gh-deploy --strict --force --remote-branch docs --message "Deploy docs from ${GITHUB_SHA::12}"

@@ -1,0 +1,128 @@
+# Build, check and publish Eden's wheel and sdist. No stored token: both indexes trust this workflow through
+# PyPI trusted publishing (OIDC), configured once per index by the project owner.
+#
+#   v<version> tag, final release (v0.1.0)          -> PyPI
+#   v<version> tag, pre-release (v0.1.0rc1, a1, b1) -> TestPyPI, the dry run of a release
+#   Actions tab -> Release -> Run workflow           -> TestPyPI, the version pyproject.toml holds
+#
+# A tag must name the version pyproject.toml holds at that commit (the build job refuses any other), so a pre-release
+# tag and the final tag are two commits and two different builds. To cut a release:
+#   1. Optional, to rehearse the tag path: set `[project].version` to a pre-release (`0.1.0rc1`), merge it, then
+#      `git tag v0.1.0rc1 && git push origin v0.1.0rc1`.
+#   2. Set `[project].version` to the release (`0.1.0`), merge it, and before tagging run the workflow by hand on that
+#      commit (Actions tab -> Release -> Run workflow): it uploads to TestPyPI a build of the commit the tag will
+#      publish. The tag builds that commit again, so its files carry the same contents but not the same hashes.
+#   3. `git tag v0.1.0 && git push origin v0.1.0` on that commit.
+# An index never takes the same version twice: a second hand run at an unchanged version fails at the upload, so try
+# again under a new rc version.
+#
+# Publishing goes through pypa/gh-action-pypi-publish, which also uploads PEP 740 attestations. Every action is pinned
+# to a commit (the comment names its release): a job holding `id-token: write` must not follow a movable tag.
+#
+# Only the public repository runs it: the build job's `if:` compares `github.repository` with 'embodied-ai-nexus/Eden'
+# (a job-level `if:` cannot read `env`, hence the literal), and on a fork that skips it, which skips both publish jobs
+# with it (an `if:` without a status function implies `success()` of the jobs it `needs`). If the public repository
+# gets another name, change that one line and the trusted publishers on PyPI / TestPyPI together.
+name: Release
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  build:
+    name: Build and check the distributions
+    if: github.repository == 'embodied-ai-nexus/Eden'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    outputs:
+      prerelease: ${{ steps.version.outputs.prerelease }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86 # v5.4.2
+        with:
+          python-version: "3.12"
+      - name: The tag names the version pyproject.toml holds
+        id: version
+        env:
+          EVENT: ${{ github.event_name }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          version=$(uv run --no-project python -c "import tomllib; print(tomllib.load(open('pyproject.toml', 'rb'))['project']['version'])")
+          if [ "$EVENT" = push ] && [ "$TAG" != "v$version" ]; then
+            echo "::error::Tag '$TAG' does not match pyproject.toml's version '$version': tag 'v$version', or set [project].version to '${TAG#v}' and tag that commit."
+            exit 1
+          fi
+          prerelease=$(uv run --no-project --with packaging python -c "from packaging.version import Version; print(str(Version('$version').is_prerelease).lower())")
+          echo "Version $version (pre-release: $prerelease)"
+          echo "prerelease=$prerelease" >> "$GITHUB_OUTPUT"
+      # A fresh checkout, so no stale build/ or *.egg-info can leak into the distributions.
+      - name: Build
+        run: uv build
+      - name: twine check
+        run: uvx twine check --strict dist/*
+      # PyPI refuses a Requires-Dist with a direct reference (`name @ git+...`), extras included. Check before
+      # uploading anything, so a release cannot half-publish.
+      - name: The metadata holds no direct reference
+        run: |
+          refs=$(unzip -p dist/*.whl '*.dist-info/METADATA' | grep -E '^Requires-Dist: [^;]* @ ' || true)
+          if [ -n "$refs" ]; then
+            echo "::error::PyPI rejects these direct references; pin a released version of each instead:"
+            echo "$refs"
+            exit 1
+          fi
+      # Every tracked file under eden/ but a README (it documents the source tree), so a data file added without a
+      # [tool.setuptools.package-data] entry, or a package setuptools does not find, fails here and not for the user.
+      - name: The wheel ships the whole package and nothing else of the repository
+        run: |
+          shipped=$(unzip -Z1 dist/*.whl | grep -v '\.dist-info/' | sort)
+          missing=$(comm -23 <(git ls-files eden | grep -v '/README\.md$' | sort) <(echo "$shipped"))
+          if [ -n "$missing" ]; then
+            echo "::error::The wheel lacks these tracked files of the package: add a data file to [tool.setuptools.package-data] in pyproject.toml, or move a file that should not ship (a dev script, a scratch note) out of eden/:"
+            echo "$missing" | head -20
+            exit 1
+          fi
+          stray=$(grep -v '^eden/' <<< "$shipped" || true)
+          if [ -n "$stray" ]; then
+            echo "::error::The wheel ships files outside the eden package:"
+            echo "$stray" | head -20
+            exit 1
+          fi
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: dist
+          path: dist/
+          if-no-files-found: error
+  publish-pypi:
+    name: Publish to PyPI
+    needs: build
+    if: github.event_name == 'push' && needs.build.outputs.prerelease == 'false'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: pypi
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: dist
+          path: dist/
+      - uses: pypa/gh-action-pypi-publish@7245906fb61fa33a13554f9d5fb856fe61758086 # v1.14.3
+  publish-testpypi:
+    name: Publish to TestPyPI
+    needs: build
+    if: github.event_name == 'workflow_dispatch' || needs.build.outputs.prerelease == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: testpypi
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: dist
+          path: dist/
+      - uses: pypa/gh-action-pypi-publish@7245906fb61fa33a13554f9d5fb856fe61758086 # v1.14.3
+        with:
+          repository-url: https://test.pypi.org/legacy/

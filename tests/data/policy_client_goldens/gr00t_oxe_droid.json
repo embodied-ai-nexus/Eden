@@ -1,0 +1,424 @@
+{
+ "actions": [
+  {
+   "ee_controller": {
+    "dtype": "float32",
+    "shape": [
+     1,
+     7
+    ],
+    "values": [
+     [
+      0.52269,
+      0.56876,
+      0.61312,
+      0.65562,
+      0.69614,
+      0.73455,
+      0.77074
+     ]
+    ]
+   },
+   "gripper_controller": {
+    "dtype": "float32",
+    "shape": [
+     1,
+     1
+    ],
+    "values": [
+     [
+      1.0
+     ]
+    ]
+   }
+  },
+  {
+   "ee_controller": {
+    "dtype": "float32",
+    "shape": [
+     1,
+     7
+    ],
+    "values": [
+     [
+      0.99632,
+      0.99953,
+      0.99971,
+      0.99687,
+      0.99101,
+      0.98215,
+      0.97033
+     ]
+    ]
+   },
+   "gripper_controller": {
+    "dtype": "float32",
+    "shape": [
+     1,
+     1
+    ],
+    "values": [
+     [
+      1.0
+     ]
+    ]
+   }
+  },
+  {
+   "ee_controller": {
+    "dtype": "float32",
+    "shape": [
+     1,
+     7
+    ],
+    "values": [
+     [
+      0.66058,
+      0.61831,
+      0.57417,
+      0.5283,
+      0.48082,
+      0.43189,
+      0.38166
+     ]
+    ]
+   },
+   "gripper_controller": {
+    "dtype": "float32",
+    "shape": [
+     1,
+     1
+    ],
+    "values": [
+     [
+      1.0
+     ]
+    ]
+   }
+  },
+  {
+   "ee_controller": {
+    "dtype": "float32",
+    "shape": [
+     1,
+     7
+    ],
+    "values": [
+     [
+      -0.21179,
+      -0.2652,
+      -0.3178,
+      -0.36944,
+      -0.41997,
+      -0.46922,
+      -0.51706
+     ]
+    ]
+   },
+   "gripper_controller": {
+    "dtype": "float32",
+    "shape": [
+     1,
+     1
+    ],
+    "values": [
+     [
+      0.0
+     ]
+    ]
+   }
+  },
+  {
+   "ee_controller": {
+    "dtype": "float32",
+    "shape": [
+     1,
+     7
+    ],
+    "values": [
+     [
+      -0.91211,
+      -0.93327,
+      -0.9516,
+      -0.96706,
+      -0.97959,
+      -0.98916,
+      -0.99574
+     ]
+    ]
+   },
+   "gripper_controller": {
+    "dtype": "float32",
+    "shape": [
+     1,
+     1
+    ],
+    "values": [
+     [
+      0.0
+     ]
+    ]
+   }
+  },
+  {
+   "ee_controller": {
+    "dtype": "float32",
+    "shape": [
+     1,
+     7
+    ],
+    "values": [
+     [
+      -0.87147,
+      -0.84319,
+      -0.81236,
+      -0.77907,
+      -0.74343,
+      -0.70554,
+      -0.66552
+     ]
+    ]
+   },
+   "gripper_controller": {
+    "dtype": "float32",
+    "shape": [
+     1,
+     1
+    ],
+    "values": [
+     [
+      0.0
+     ]
+    ]
+   }
+  },
+  {
+   "ee_controller": {
+    "dtype": "float32",
+    "shape": [
+     1,
+     7
+    ],
+    "values": [
+     [
+      -0.12287,
+      -0.06813,
+      -0.01318,
+      0.0418,
+      0.09666,
+      0.15123,
+      0.20534
+     ]
+    ]
+   },
+   "gripper_controller": {
+    "dtype": "float32",
+    "shape": [
+     1,
+     1
+    ],
+    "values": [
+     [
+      1.0
+     ]
+    ]
+   }
+  },
+  {
+   "ee_controller": {
+    "dtype": "float32",
+    "shape": [
+     1,
+     7
+    ],
+    "values": [
+     [
+      0.72554,
+      0.76227,
+      0.7967,
+      0.82872,
+      0.85823,
+      0.88515,
+      0.90939
+     ]
+    ]
+   },
+   "gripper_controller": {
+    "dtype": "float32",
+    "shape": [
+     1,
+     1
+    ],
+    "values": [
+     [
+      1.0
+     ]
+    ]
+   }
+  },
+  {
+   "ee_controller": {
+    "dtype": "float32",
+    "shape": [
+     1,
+     7
+    ],
+    "values": [
+     [
+      0.98455,
+      0.97343,
+      0.95937,
+      0.94241,
+      0.9226,
+      0.9,
+      0.87468
+     ]
+    ]
+   },
+   "gripper_controller": {
+    "dtype": "float32",
+    "shape": [
+     1,
+     1
+    ],
+    "values": [
+     [
+      1.0
+     ]
+    ]
+   }
+  },
+  {
+   "ee_controller": {
+    "dtype": "float32",
+    "shape": [
+     1,
+     7
+    ],
+    "values": [
+     [
+      0.44375,
+      0.39381,
+      0.34269,
+      0.29053,
+      0.23749,
+      0.18373,
+      0.12941
+     ]
+    ]
+   },
+   "gripper_controller": {
+    "dtype": "float32",
+    "shape": [
+     1,
+     1
+    ],
+    "values": [
+     [
+      0.0
+     ]
+    ]
+   }
+  }
+ ],
+ "infer_calls": 1,
+ "payloads": [
+  {
+   "observation": {
+    "language": {
+     "annotation.language.language_instruction": [
+      [
+       "golden task"
+      ]
+     ]
+    },
+    "state": {
+     "eef_9d": {
+      "dtype": "float32",
+      "shape": [
+       1,
+       1,
+       9
+      ],
+      "values": [
+       [
+        [
+         0.3,
+         -0.1,
+         0.2,
+         1.0,
+         0.0,
+         0.0,
+         0.0,
+         1.0,
+         0.0
+        ]
+       ]
+      ]
+     },
+     "gripper_position": {
+      "dtype": "float32",
+      "shape": [
+       1,
+       1,
+       1
+      ],
+      "values": [
+       [
+        [
+         0.0
+        ]
+       ]
+      ]
+     },
+     "joint_position": {
+      "dtype": "float32",
+      "shape": [
+       1,
+       1,
+       7
+      ],
+      "values": [
+       [
+        [
+         0.1,
+         -0.2,
+         0.3,
+         -1.5,
+         0.05,
+         1.8,
+         0.4
+        ]
+       ]
+      ]
+     }
+    },
+    "video": {
+     "exterior_image_1_left": {
+      "dtype": "uint8",
+      "sha256": "959a23c2f3d574a69c867779e4a7dc9f65fd33fac476a4ef4a0a91a71a45d973",
+      "shape": [
+       1,
+       2,
+       6,
+       8,
+       3
+      ]
+     },
+     "wrist_image_left": {
+      "dtype": "uint8",
+      "sha256": "b1283e97979e5154244b6f34509f7d116d1f4d66ca52670326e3b07ad1cd9ce6",
+      "shape": [
+       1,
+       2,
+       6,
+       8,
+       3
+      ]
+     }
+    }
+   },
+   "options": null
+  }
+ ]
+}

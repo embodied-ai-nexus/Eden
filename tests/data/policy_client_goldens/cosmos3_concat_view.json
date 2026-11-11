@@ -1,0 +1,211 @@
+{
+ "actions": [
+  {
+   "ee_controller": {
+    "dtype": "float32",
+    "shape": [
+     1,
+     7
+    ],
+    "values": [
+     [
+      0.0,
+      0.05497,
+      0.10978,
+      0.16425,
+      0.21823,
+      0.27155,
+      0.32404
+     ]
+    ]
+   },
+   "gripper_controller": {
+    "dtype": "float32",
+    "shape": [
+     1,
+     1
+    ],
+    "values": [
+     [
+      1.0
+     ]
+    ]
+   }
+  },
+  {
+   "ee_controller": {
+    "dtype": "float32",
+    "shape": [
+     1,
+     7
+    ],
+    "values": [
+     [
+      0.42594,
+      0.47503,
+      0.52269,
+      0.56876,
+      0.61312,
+      0.65562,
+      0.69614
+     ]
+    ]
+   },
+   "gripper_controller": {
+    "dtype": "float32",
+    "shape": [
+     1,
+     1
+    ],
+    "values": [
+     [
+      1.0
+     ]
+    ]
+   }
+  },
+  {
+   "ee_controller": {
+    "dtype": "float32",
+    "shape": [
+     1,
+     7
+    ],
+    "values": [
+     [
+      0.0,
+      0.05996,
+      0.11971,
+      0.17903,
+      0.2377,
+      0.29552,
+      0.35227
+     ]
+    ]
+   },
+   "gripper_controller": {
+    "dtype": "float32",
+    "shape": [
+     1,
+     1
+    ],
+    "values": [
+     [
+      0.0
+     ]
+    ]
+   }
+  }
+ ],
+ "infer_calls": 2,
+ "payloads": [
+  {
+   "observation/exterior_image_1_left": {
+    "dtype": "uint8",
+    "sha256": "8a61df98875186551fb5cf098c2885605cbc5a37c926f0f693c0557a2774a656",
+    "shape": [
+     6,
+     8,
+     3
+    ]
+   },
+   "observation/exterior_image_2_left": {
+    "dtype": "uint8",
+    "sha256": "8a61df98875186551fb5cf098c2885605cbc5a37c926f0f693c0557a2774a656",
+    "shape": [
+     6,
+     8,
+     3
+    ]
+   },
+   "observation/gripper_position": {
+    "dtype": "float32",
+    "shape": [
+     1
+    ],
+    "values": [
+     0.1
+    ]
+   },
+   "observation/joint_position": {
+    "dtype": "float32",
+    "shape": [
+     7
+    ],
+    "values": [
+     0.1,
+     -0.2,
+     0.3,
+     -1.5,
+     0.05,
+     1.8,
+     0.4
+    ]
+   },
+   "observation/wrist_image_left": {
+    "dtype": "uint8",
+    "sha256": "ed378e372ee8ad50f13bf33fa4704cdff423fad95f7137dac45fafe3312e4901",
+    "shape": [
+     6,
+     8,
+     3
+    ]
+   },
+   "prompt": "golden task"
+  },
+  {
+   "observation/exterior_image_1_left": {
+    "dtype": "uint8",
+    "sha256": "060128910c603536125424b32524cc56a775dac95acd9971531f22684a85ccf0",
+    "shape": [
+     6,
+     8,
+     3
+    ]
+   },
+   "observation/exterior_image_2_left": {
+    "dtype": "uint8",
+    "sha256": "060128910c603536125424b32524cc56a775dac95acd9971531f22684a85ccf0",
+    "shape": [
+     6,
+     8,
+     3
+    ]
+   },
+   "observation/gripper_position": {
+    "dtype": "float32",
+    "shape": [
+     1
+    ],
+    "values": [
+     0.6
+    ]
+   },
+   "observation/joint_position": {
+    "dtype": "float32",
+    "shape": [
+     7
+    ],
+    "values": [
+     0.1,
+     -0.2,
+     0.3,
+     -1.5,
+     0.05,
+     1.8,
+     0.4
+    ]
+   },
+   "observation/wrist_image_left": {
+    "dtype": "uint8",
+    "sha256": "7c51d0790a2dbc0ba4e0caa40af7c4c65fd6c6ac40c61f43b2b6310c4c57121a",
+    "shape": [
+     6,
+     8,
+     3
+    ]
+   },
+   "prompt": "golden task"
+  }
+ ]
+}

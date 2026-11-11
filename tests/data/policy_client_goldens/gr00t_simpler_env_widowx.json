@@ -1,0 +1,471 @@
+{
+ "actions": [
+  {
+   "ee_controller": {
+    "dtype": "float32",
+    "shape": [
+     1,
+     6
+    ],
+    "values": [
+     [
+      0.0,
+      0.05497,
+      0.10978,
+      0.13297,
+      0.23851,
+      0.25194
+     ]
+    ]
+   },
+   "gripper_controller": {
+    "dtype": "float32",
+    "shape": [
+     1,
+     1
+    ],
+    "values": [
+     [
+      1.0
+     ]
+    ]
+   }
+  },
+  {
+   "ee_controller": {
+    "dtype": "float32",
+    "shape": [
+     1,
+     6
+    ],
+    "values": [
+     [
+      0.37556,
+      0.42594,
+      0.47503,
+      0.31937,
+      0.68821,
+      0.43516
+     ]
+    ]
+   },
+   "gripper_controller": {
+    "dtype": "float32",
+    "shape": [
+     1,
+     1
+    ],
+    "values": [
+     [
+      1.0
+     ]
+    ]
+   }
+  },
+  {
+   "ee_controller": {
+    "dtype": "float32",
+    "shape": [
+     1,
+     6
+    ],
+    "values": [
+     [
+      0.69614,
+      0.73455,
+      0.77074,
+      0.35712,
+      1.03768,
+      0.44156
+     ]
+    ]
+   },
+   "gripper_controller": {
+    "dtype": "float32",
+    "shape": [
+     1,
+     1
+    ],
+    "values": [
+     [
+      1.0
+     ]
+    ]
+   }
+  },
+  {
+   "ee_controller": {
+    "dtype": "float32",
+    "shape": [
+     1,
+     6
+    ],
+    "values": [
+     [
+      0.91479,
+      0.93562,
+      0.95361,
+      0.35166,
+      1.2093,
+      0.3828
+     ]
+    ]
+   },
+   "gripper_controller": {
+    "dtype": "float32",
+    "shape": [
+     1,
+     1
+    ],
+    "values": [
+     [
+      0.0
+     ]
+    ]
+   }
+  },
+  {
+   "ee_controller": {
+    "dtype": "float32",
+    "shape": [
+     1,
+     6
+    ],
+    "values": [
+     [
+      0.0,
+      0.05996,
+      0.11971,
+      0.14178,
+      0.26152,
+      0.27207
+     ]
+    ]
+   },
+   "gripper_controller": {
+    "dtype": "float32",
+    "shape": [
+     1,
+     1
+    ],
+    "values": [
+     [
+      0.0
+     ]
+    ]
+   }
+  },
+  {
+   "ee_controller": {
+    "dtype": "float32",
+    "shape": [
+     1,
+     6
+    ],
+    "values": [
+     [
+      0.40776,
+      0.46178,
+      0.51414,
+      0.32659,
+      0.74713,
+      0.44987
+     ]
+    ]
+   },
+   "gripper_controller": {
+    "dtype": "float32",
+    "shape": [
+     1,
+     1
+    ],
+    "values": [
+     [
+      0.0
+     ]
+    ]
+   }
+  }
+ ],
+ "infer_calls": 2,
+ "payloads": [
+  {
+   "observation": {
+    "annotation.human.action.task_description": [
+     "golden task"
+    ],
+    "state.gripper": {
+     "dtype": "float32",
+     "shape": [
+      1,
+      1,
+      1
+     ],
+     "values": [
+      [
+       [
+        1.0
+       ]
+      ]
+     ]
+    },
+    "state.pad": {
+     "dtype": "float32",
+     "shape": [
+      1,
+      1,
+      1
+     ],
+     "values": [
+      [
+       [
+        0.0
+       ]
+      ]
+     ]
+    },
+    "state.pitch": {
+     "dtype": "float32",
+     "shape": [
+      1,
+      1,
+      1
+     ],
+     "values": [
+      [
+       [
+        -0.7854
+       ]
+      ]
+     ]
+    },
+    "state.roll": {
+     "dtype": "float32",
+     "shape": [
+      1,
+      1,
+      1
+     ],
+     "values": [
+      [
+       [
+        0.0
+       ]
+      ]
+     ]
+    },
+    "state.x": {
+     "dtype": "float32",
+     "shape": [
+      1,
+      1,
+      1
+     ],
+     "values": [
+      [
+       [
+        0.3
+       ]
+      ]
+     ]
+    },
+    "state.y": {
+     "dtype": "float32",
+     "shape": [
+      1,
+      1,
+      1
+     ],
+     "values": [
+      [
+       [
+        -0.1
+       ]
+      ]
+     ]
+    },
+    "state.yaw": {
+     "dtype": "float32",
+     "shape": [
+      1,
+      1,
+      1
+     ],
+     "values": [
+      [
+       [
+        0.0
+       ]
+      ]
+     ]
+    },
+    "state.z": {
+     "dtype": "float32",
+     "shape": [
+      1,
+      1,
+      1
+     ],
+     "values": [
+      [
+       [
+        0.2
+       ]
+      ]
+     ]
+    },
+    "video.image_0": {
+     "dtype": "uint8",
+     "sha256": "f637ec7fc03656e20010db87e02ebe34616654a424db093c7fac9dfd1f455fdd",
+     "shape": [
+      1,
+      1,
+      6,
+      8,
+      3
+     ]
+    }
+   },
+   "options": null
+  },
+  {
+   "observation": {
+    "annotation.human.action.task_description": [
+     "golden task"
+    ],
+    "state.gripper": {
+     "dtype": "float32",
+     "shape": [
+      1,
+      1,
+      1
+     ],
+     "values": [
+      [
+       [
+        0.2
+       ]
+      ]
+     ]
+    },
+    "state.pad": {
+     "dtype": "float32",
+     "shape": [
+      1,
+      1,
+      1
+     ],
+     "values": [
+      [
+       [
+        0.0
+       ]
+      ]
+     ]
+    },
+    "state.pitch": {
+     "dtype": "float32",
+     "shape": [
+      1,
+      1,
+      1
+     ],
+     "values": [
+      [
+       [
+        -0.7854
+       ]
+      ]
+     ]
+    },
+    "state.roll": {
+     "dtype": "float32",
+     "shape": [
+      1,
+      1,
+      1
+     ],
+     "values": [
+      [
+       [
+        0.0
+       ]
+      ]
+     ]
+    },
+    "state.x": {
+     "dtype": "float32",
+     "shape": [
+      1,
+      1,
+      1
+     ],
+     "values": [
+      [
+       [
+        0.3
+       ]
+      ]
+     ]
+    },
+    "state.y": {
+     "dtype": "float32",
+     "shape": [
+      1,
+      1,
+      1
+     ],
+     "values": [
+      [
+       [
+        -0.1
+       ]
+      ]
+     ]
+    },
+    "state.yaw": {
+     "dtype": "float32",
+     "shape": [
+      1,
+      1,
+      1
+     ],
+     "values": [
+      [
+       [
+        0.0
+       ]
+      ]
+     ]
+    },
+    "state.z": {
+     "dtype": "float32",
+     "shape": [
+      1,
+      1,
+      1
+     ],
+     "values": [
+      [
+       [
+        0.2
+       ]
+      ]
+     ]
+    },
+    "video.image_0": {
+     "dtype": "uint8",
+     "sha256": "3d49733ae31f9881352bcf4d671ec877bd6ec5c9aa2934363797f5b530c5bae7",
+     "shape": [
+      1,
+      1,
+      6,
+      8,
+      3
+     ]
+    }
+   },
+   "options": null
+  }
+ ]
+}

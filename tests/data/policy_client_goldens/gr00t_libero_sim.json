@@ -1,0 +1,329 @@
+{
+ "actions": [
+  {
+   "gripper": {
+    "dtype": "float32",
+    "shape": [
+     1,
+     1
+    ],
+    "values": [
+     [
+      -1.0
+     ]
+    ]
+   },
+   "osc_pose": {
+    "dtype": "float32",
+    "shape": [
+     1,
+     6
+    ],
+    "values": [
+     [
+      0.0,
+      0.05497,
+      0.10978,
+      0.16425,
+      0.21823,
+      0.27155
+     ]
+    ]
+   }
+  },
+  {
+   "gripper": {
+    "dtype": "float32",
+    "shape": [
+     1,
+     1
+    ],
+    "values": [
+     [
+      -1.0
+     ]
+    ]
+   },
+   "osc_pose": {
+    "dtype": "float32",
+    "shape": [
+     1,
+     6
+    ],
+    "values": [
+     [
+      0.37556,
+      0.42594,
+      0.47503,
+      0.52269,
+      0.56876,
+      0.61312
+     ]
+    ]
+   }
+  },
+  {
+   "gripper": {
+    "dtype": "float32",
+    "shape": [
+     1,
+     1
+    ],
+    "values": [
+     [
+      -1.0
+     ]
+    ]
+   },
+   "osc_pose": {
+    "dtype": "float32",
+    "shape": [
+     1,
+     6
+    ],
+    "values": [
+     [
+      0.69614,
+      0.73455,
+      0.77074,
+      0.8046,
+      0.83603,
+      0.86492
+     ]
+    ]
+   }
+  },
+  {
+   "gripper": {
+    "dtype": "float32",
+    "shape": [
+     1,
+     1
+    ],
+    "values": [
+     [
+      1.0
+     ]
+    ]
+   },
+   "osc_pose": {
+    "dtype": "float32",
+    "shape": [
+     1,
+     6
+    ],
+    "values": [
+     [
+      0.91479,
+      0.93562,
+      0.95361,
+      0.96872,
+      0.98089,
+      0.9901
+     ]
+    ]
+   }
+  },
+  {
+   "gripper": {
+    "dtype": "float32",
+    "shape": [
+     1,
+     1
+    ],
+    "values": [
+     [
+      1.0
+     ]
+    ]
+   },
+   "osc_pose": {
+    "dtype": "float32",
+    "shape": [
+     1,
+     6
+    ],
+    "values": [
+     [
+      0.99953,
+      0.99971,
+      0.99687,
+      0.99101,
+      0.98215,
+      0.97033
+     ]
+    ]
+   }
+  },
+  {
+   "gripper": {
+    "dtype": "float32",
+    "shape": [
+     1,
+     1
+    ],
+    "values": [
+     [
+      1.0
+     ]
+    ]
+   },
+   "osc_pose": {
+    "dtype": "float32",
+    "shape": [
+     1,
+     6
+    ],
+    "values": [
+     [
+      0.93792,
+      0.91744,
+      0.89418,
+      0.86821,
+      0.83963,
+      0.8085
+     ]
+    ]
+   }
+  }
+ ],
+ "infer_calls": 1,
+ "payloads": [
+  {
+   "observation": {
+    "annotation.human.action.task_description": [
+     "golden task"
+    ],
+    "state.gripper": {
+     "dtype": "float32",
+     "shape": [
+      1,
+      1,
+      2
+     ],
+     "values": [
+      [
+       [
+        0.02,
+        -0.02
+       ]
+      ]
+     ]
+    },
+    "state.pitch": {
+     "dtype": "float32",
+     "shape": [
+      1,
+      1,
+      1
+     ],
+     "values": [
+      [
+       [
+        0.7854
+       ]
+      ]
+     ]
+    },
+    "state.roll": {
+     "dtype": "float32",
+     "shape": [
+      1,
+      1,
+      1
+     ],
+     "values": [
+      [
+       [
+        0.0
+       ]
+      ]
+     ]
+    },
+    "state.x": {
+     "dtype": "float32",
+     "shape": [
+      1,
+      1,
+      1
+     ],
+     "values": [
+      [
+       [
+        0.3
+       ]
+      ]
+     ]
+    },
+    "state.y": {
+     "dtype": "float32",
+     "shape": [
+      1,
+      1,
+      1
+     ],
+     "values": [
+      [
+       [
+        -0.1
+       ]
+      ]
+     ]
+    },
+    "state.yaw": {
+     "dtype": "float32",
+     "shape": [
+      1,
+      1,
+      1
+     ],
+     "values": [
+      [
+       [
+        0.0
+       ]
+      ]
+     ]
+    },
+    "state.z": {
+     "dtype": "float32",
+     "shape": [
+      1,
+      1,
+      1
+     ],
+     "values": [
+      [
+       [
+        0.2
+       ]
+      ]
+     ]
+    },
+    "video.image": {
+     "dtype": "uint8",
+     "sha256": "365a3b05714951a8abc986d3c4eb3a1c3b82718e4886a034163278708b6de079",
+     "shape": [
+      1,
+      1,
+      6,
+      8,
+      3
+     ]
+    },
+    "video.wrist_image": {
+     "dtype": "uint8",
+     "sha256": "9a3433e3250de1d517445658e80f3e16052177ee14f4151c721125553df90a04",
+     "shape": [
+      1,
+      1,
+      6,
+      8,
+      3
+     ]
+    }
+   },
+   "options": null
+  }
+ ]
+}

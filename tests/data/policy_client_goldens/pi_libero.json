@@ -1,0 +1,267 @@
+{
+ "actions": [
+  {
+   "gripper": {
+    "dtype": "float32",
+    "shape": [
+     1,
+     1
+    ],
+    "values": [
+     [
+      1.0
+     ]
+    ]
+   },
+   "osc_pose": {
+    "dtype": "float32",
+    "shape": [
+     1,
+     6
+    ],
+    "values": [
+     [
+      0.0,
+      0.05497,
+      0.10978,
+      0.16425,
+      0.21823,
+      0.27155
+     ]
+    ]
+   }
+  },
+  {
+   "gripper": {
+    "dtype": "float32",
+    "shape": [
+     1,
+     1
+    ],
+    "values": [
+     [
+      1.0
+     ]
+    ]
+   },
+   "osc_pose": {
+    "dtype": "float32",
+    "shape": [
+     1,
+     6
+    ],
+    "values": [
+     [
+      0.37556,
+      0.42594,
+      0.47503,
+      0.52269,
+      0.56876,
+      0.61312
+     ]
+    ]
+   }
+  },
+  {
+   "gripper": {
+    "dtype": "float32",
+    "shape": [
+     1,
+     1
+    ],
+    "values": [
+     [
+      1.0
+     ]
+    ]
+   },
+   "osc_pose": {
+    "dtype": "float32",
+    "shape": [
+     1,
+     6
+    ],
+    "values": [
+     [
+      0.69614,
+      0.73455,
+      0.77074,
+      0.8046,
+      0.83603,
+      0.86492
+     ]
+    ]
+   }
+  },
+  {
+   "gripper": {
+    "dtype": "float32",
+    "shape": [
+     1,
+     1
+    ],
+    "values": [
+     [
+      0.0
+     ]
+    ]
+   },
+   "osc_pose": {
+    "dtype": "float32",
+    "shape": [
+     1,
+     6
+    ],
+    "values": [
+     [
+      0.91479,
+      0.93562,
+      0.95361,
+      0.96872,
+      0.98089,
+      0.9901
+     ]
+    ]
+   }
+  },
+  {
+   "gripper": {
+    "dtype": "float32",
+    "shape": [
+     1,
+     1
+    ],
+    "values": [
+     [
+      0.0
+     ]
+    ]
+   },
+   "osc_pose": {
+    "dtype": "float32",
+    "shape": [
+     1,
+     6
+    ],
+    "values": [
+     [
+      0.99953,
+      0.99971,
+      0.99687,
+      0.99101,
+      0.98215,
+      0.97033
+     ]
+    ]
+   }
+  },
+  {
+   "gripper": {
+    "dtype": "float32",
+    "shape": [
+     1,
+     1
+    ],
+    "values": [
+     [
+      0.0
+     ]
+    ]
+   },
+   "osc_pose": {
+    "dtype": "float32",
+    "shape": [
+     1,
+     6
+    ],
+    "values": [
+     [
+      0.0,
+      0.05996,
+      0.11971,
+      0.17903,
+      0.2377,
+      0.29552
+     ]
+    ]
+   }
+  }
+ ],
+ "infer_calls": 2,
+ "payloads": [
+  {
+   "observation/image": {
+    "dtype": "uint8",
+    "sha256": "7bb71415220c921958bd999d3f1ab503eac80bb4e9487b676f4862e87cae818f",
+    "shape": [
+     224,
+     224,
+     3
+    ]
+   },
+   "observation/state": {
+    "dtype": "float32",
+    "shape": [
+     8
+    ],
+    "values": [
+     0.3,
+     -0.1,
+     0.2,
+     0.0,
+     0.7854,
+     0.0,
+     0.02,
+     -0.02
+    ]
+   },
+   "observation/wrist_image": {
+    "dtype": "uint8",
+    "sha256": "2032aad1d96753aadf82fad787f26159492367538c116410c0e9f8d9c3aaae98",
+    "shape": [
+     224,
+     224,
+     3
+    ]
+   },
+   "prompt": "golden task"
+  },
+  {
+   "observation/image": {
+    "dtype": "uint8",
+    "sha256": "6133d80221783d1897050c88e729dc2c41e7631bd33f5f05cc8e4207a250b46f",
+    "shape": [
+     224,
+     224,
+     3
+    ]
+   },
+   "observation/state": {
+    "dtype": "float32",
+    "shape": [
+     8
+    ],
+    "values": [
+     0.3,
+     -0.1,
+     0.2,
+     0.0,
+     0.7854,
+     0.0,
+     0.02,
+     -0.02
+    ]
+   },
+   "observation/wrist_image": {
+    "dtype": "uint8",
+    "sha256": "392a73543a163a0ba9552adaa9d82e2cea237fbbe0f9778369acda87ec8f083c",
+    "shape": [
+     224,
+     224,
+     3
+    ]
+   },
+   "prompt": "golden task"
+  }
+ ]
+}

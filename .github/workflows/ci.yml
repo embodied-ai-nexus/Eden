@@ -1,0 +1,73 @@
+name: CI
+on:
+  push:
+    branches: [main]
+  pull_request:
+permissions:
+  contents: read
+# Cancel superseded PR runs, but never cancel main's runs — every main commit
+# must keep a completed CI record.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+jobs:
+  lint:
+    name: Lint (pre-commit)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - name: Cache pre-commit environments
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pre-commit
+          key: pre-commit-${{ hashFiles('.pre-commit-config.yaml') }}
+          restore-keys: pre-commit-
+      - name: Run pre-commit on all files
+        run: uvx pre-commit run --all-files --show-diff-on-failure
+  import:
+    name: Install + import (py${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.12"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          enable-cache: true
+      # --no-default-groups skips the dev dependency-group (introduced in the
+      # packaging PR; a no-op until it merges). NOTE: pulls the default
+      # (CUDA-bundled) torch wheels (~3GB) — fits the runner disk but is slow on
+      # cold cache; a CPU torch index for CI is a tracked follow-up (C6).
+      - name: Sync core dependencies
+        run: uv sync --no-default-groups
+      - name: Import eden
+        run: uv run python -c "import eden; print(eden.__file__)"
+      - name: CLI entrypoint responds
+        run: uv run eden --help
+      # `eden list` walks TASK_REGISTRY, proving the lazy task-import paths
+      # resolve — much stronger than argparse wiring alone.
+      - name: Task registry resolves
+        run: uv run eden list
+  docs:
+    name: Docs (mkdocs build)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.12"
+          enable-cache: true
+      # The docs extra's packages only, at pinned versions (see the action).
+      - uses: ./.github/actions/docs-toolchain
+      # --strict fails on any warning: a link to a missing page or anchor, or a
+      # page left out of the nav. The pre-existing griffe docstring warnings are
+      # lowered to DEBUG by docs/hooks/griffe_warnings.py, so they do not count.
+      - name: Build docs
+        run: .venv/bin/mkdocs build --strict

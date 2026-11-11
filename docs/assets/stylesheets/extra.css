@@ -1,0 +1,475 @@
+/* Eden docs theme on top of Material for MkDocs.
+ *
+ * The brand color is the logo's apple red. It drives links, buttons and the active navigation item; the header
+ * stays neutral (page background, translucent, hairline border) so the red reads as an accent, not a banner. */
+
+/* ── Color tokens ─────────────────────────────────────────────────────────── */
+:root {
+  --eden-red: #d42a3a;
+  --eden-red-strong: #b31b2c;
+  --eden-red-soft: rgba(212, 42, 58, 0.08);
+  --eden-red-glow: rgba(240, 82, 82, 0.18);
+  --eden-surface: #f7f7f8;
+  --eden-border: rgba(15, 15, 25, 0.09);
+  --eden-radius: 12px;
+  --eden-radius-sm: 8px;
+
+  --md-primary-fg-color: var(--eden-red);
+  --md-primary-fg-color--light: #e5484d;
+  --md-primary-fg-color--dark: var(--eden-red-strong);
+  --md-primary-bg-color: #ffffff;
+  --md-accent-fg-color: var(--eden-red-strong);
+  --md-accent-fg-color--transparent: var(--eden-red-soft);
+  --md-typeset-a-color: var(--eden-red-strong);
+
+  --md-default-bg-color: #ffffff;
+  --md-code-bg-color: #f6f6f8;
+  --md-footer-bg-color: var(--md-default-bg-color);
+  --md-footer-bg-color--dark: var(--md-default-bg-color);
+  --md-footer-fg-color: var(--md-default-fg-color);
+  --md-footer-fg-color--light: var(--md-default-fg-color--light);
+  --md-footer-fg-color--lighter: var(--md-default-fg-color--lighter);
+}
+
+[data-md-color-scheme="slate"] {
+  --eden-red: #f05252;
+  --eden-red-strong: #ff7b7b;
+  --eden-red-soft: rgba(240, 82, 82, 0.12);
+  --eden-red-glow: rgba(240, 82, 82, 0.22);
+  --eden-surface: #15151b;
+  --eden-border: rgba(255, 255, 255, 0.08);
+
+  --md-hue: 240;
+  --md-primary-fg-color: var(--eden-red);
+  --md-primary-fg-color--light: #ff6b6b;
+  --md-primary-fg-color--dark: #d42a3a;
+  --md-primary-bg-color: #ffffff;
+  --md-accent-fg-color: var(--eden-red-strong);
+  --md-accent-fg-color--transparent: var(--eden-red-soft);
+  --md-typeset-a-color: var(--eden-red-strong);
+
+  --md-default-bg-color: #0d0d11;
+  --md-default-bg-color--light: #15151b;
+  --md-default-fg-color: rgba(236, 236, 241, 0.92);
+  --md-default-fg-color--light: rgba(236, 236, 241, 0.64);
+  --md-default-fg-color--lighter: rgba(236, 236, 241, 0.32);
+  --md-default-fg-color--lightest: rgba(236, 236, 241, 0.1);
+  --md-code-bg-color: #16161c;
+  --md-typeset-table-color: var(--eden-border);
+  --md-footer-bg-color: var(--md-default-bg-color);
+  --md-footer-bg-color--dark: var(--md-default-bg-color);
+}
+
+/* ── Header and tabs: translucent page background, hairline border ────────── */
+.md-header,
+.md-header--shadow {
+  background-color: color-mix(in srgb, var(--md-default-bg-color) 82%, transparent);
+  -webkit-backdrop-filter: saturate(180%) blur(14px);
+  backdrop-filter: saturate(180%) blur(14px);
+  color: var(--md-default-fg-color);
+  box-shadow: none;
+  border-bottom: 1px solid var(--eden-border);
+}
+
+.md-header__title {
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.md-header__button.md-logo img,
+.md-header__button.md-logo svg {
+  height: 1.5rem;
+}
+
+.md-tabs {
+  background-color: transparent;
+  color: var(--md-default-fg-color);
+}
+
+.md-tabs__link {
+  opacity: 1;
+  color: var(--md-default-fg-color--light);
+  font-weight: 500;
+  transition: color 125ms;
+}
+
+.md-tabs__link:is(:hover, :focus) {
+  color: var(--md-default-fg-color);
+}
+
+.md-tabs__item {
+  position: relative;
+}
+
+.md-tabs__item--active .md-tabs__link {
+  color: var(--md-default-fg-color);
+}
+
+.md-tabs__item--active::after {
+  content: "";
+  position: absolute;
+  left: 0.6rem;
+  right: 0.6rem;
+  bottom: 0;
+  height: 2px;
+  border-radius: 2px 2px 0 0;
+  background: var(--eden-red);
+}
+
+.md-source {
+  color: var(--md-default-fg-color--light);
+}
+
+.md-source:hover {
+  color: var(--md-default-fg-color);
+}
+
+/* Search field: a soft pill on the neutral header instead of Material's dark inset. */
+@media screen and (min-width: 60em) {
+  .md-search__form {
+    background-color: var(--eden-surface);
+    border: 1px solid var(--eden-border);
+    border-radius: 999px;
+    transition: border-color 150ms, background-color 150ms;
+  }
+
+  .md-search__form:hover {
+    background-color: var(--eden-surface);
+    border-color: var(--md-default-fg-color--lighter);
+  }
+
+  [data-md-toggle="search"]:checked ~ .md-header .md-search__form {
+    border-radius: 0.6rem 0.6rem 0 0;
+    background-color: var(--md-default-bg-color);
+  }
+
+  .md-search__input {
+    color: var(--md-default-fg-color);
+  }
+
+  .md-search__input::placeholder,
+  .md-search__input ~ .md-search__icon {
+    color: var(--md-default-fg-color--light);
+  }
+
+  .md-search__output {
+    border-radius: 0 0 0.6rem 0.6rem;
+  }
+}
+
+/* ── Typography ───────────────────────────────────────────────────────────── */
+.md-typeset {
+  font-feature-settings: "cv11", "ss01";
+}
+
+.md-typeset h1 {
+  color: var(--md-default-fg-color);
+  font-weight: 750;
+  letter-spacing: -0.03em;
+  margin-bottom: 1rem;
+}
+
+.md-typeset h2 {
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.md-typeset h3 {
+  font-weight: 650;
+  letter-spacing: -0.01em;
+}
+
+.md-typeset h4 {
+  font-weight: 650;
+}
+
+.md-typeset a {
+  text-underline-offset: 0.2em;
+  text-decoration-thickness: 1px;
+}
+
+.md-typeset a:hover {
+  text-decoration: underline;
+}
+
+.md-typeset .headerlink {
+  text-decoration: none;
+}
+
+/* ── Sidebars ─────────────────────────────────────────────────────────────── */
+.md-nav {
+  font-size: 0.7rem;
+}
+
+.md-nav__link {
+  transition: color 125ms;
+}
+
+/* Section labels in the left sidebar: small caps, so the eye skips them when scanning pages. */
+.md-sidebar--primary .md-nav__item--section > .md-nav__link {
+  color: var(--md-default-fg-color--lighter);
+  font-size: 0.62rem;
+  font-weight: 650;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+@media screen and (min-width: 76.25em) {
+  .md-sidebar--primary .md-nav__link--active:not(.md-nav__container) {
+    color: var(--eden-red-strong);
+    background-color: var(--eden-red-soft);
+    border-radius: var(--eden-radius-sm);
+    margin-left: -0.5rem;
+    padding: 0.2rem 0.5rem;
+    font-weight: 550;
+  }
+}
+
+.md-nav--secondary .md-nav__title {
+  color: var(--md-default-fg-color--lighter);
+  font-size: 0.62rem;
+  font-weight: 650;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.md-nav--secondary .md-nav__link--active {
+  color: var(--eden-red-strong);
+}
+
+/* ── Code ─────────────────────────────────────────────────────────────────── */
+.md-typeset code {
+  border-radius: 6px;
+}
+
+/* No border on inline code: it wraps inside narrow table cells, and a border would box each fragment. */
+.md-typeset :not(pre) > code {
+  padding: 0.1em 0.35em;
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+}
+
+.md-typeset pre > code {
+  border-radius: var(--eden-radius-sm);
+}
+
+.md-typeset pre {
+  border: 1px solid var(--eden-border);
+  border-radius: var(--eden-radius-sm);
+}
+
+.md-typeset .highlighttable {
+  border-radius: var(--eden-radius-sm);
+  overflow: hidden;
+}
+
+.md-clipboard {
+  color: var(--md-default-fg-color--lighter);
+}
+
+/* ── Tables ───────────────────────────────────────────────────────────────── */
+.md-typeset table:not([class]) {
+  border: 1px solid var(--eden-border);
+  border-radius: var(--eden-radius-sm);
+  box-shadow: none;
+  font-size: 0.72rem;
+}
+
+.md-typeset table:not([class]) th {
+  background-color: var(--eden-surface);
+  font-weight: 650;
+}
+
+.md-typeset table:not([class]) th,
+.md-typeset table:not([class]) td {
+  padding: 0.6em 1em;
+}
+
+.md-typeset table:not([class]) td {
+  border-top: 1px solid var(--eden-border);
+}
+
+.md-typeset table:not([class]) tbody tr:hover {
+  background-color: var(--eden-red-soft);
+  box-shadow: none;
+}
+
+/* ── Admonitions ──────────────────────────────────────────────────────────── */
+.md-typeset .admonition,
+.md-typeset details {
+  border-width: 1px;
+  border-left-width: 3px;
+  border-radius: var(--eden-radius-sm);
+  box-shadow: none;
+  font-size: 0.74rem;
+}
+
+.md-typeset .admonition-title,
+.md-typeset summary {
+  font-weight: 650;
+}
+
+/* ── Buttons ──────────────────────────────────────────────────────────────── */
+.md-typeset .md-button {
+  border-radius: 999px;
+  border-width: 1px;
+  padding: 0.55em 1.5em;
+  font-weight: 600;
+  transition: background-color 150ms, border-color 150ms, color 150ms, transform 150ms;
+}
+
+.md-typeset .md-button:not(.md-button--primary) {
+  color: var(--md-default-fg-color);
+  border-color: var(--md-default-fg-color--lighter);
+}
+
+.md-typeset .md-button:not(.md-button--primary):is(:hover, :focus) {
+  color: var(--md-default-fg-color);
+  background-color: var(--eden-surface);
+  border-color: var(--md-default-fg-color--light);
+}
+
+.md-typeset .md-button--primary {
+  box-shadow: 0 6px 20px -6px var(--eden-red-glow);
+}
+
+.md-typeset .md-button--primary:is(:hover, :focus) {
+  background-color: var(--eden-red-strong);
+  border-color: var(--eden-red-strong);
+  color: #ffffff;
+  transform: translateY(-1px);
+}
+
+/* ── Footer ───────────────────────────────────────────────────────────────── */
+.md-footer {
+  border-top: 1px solid var(--eden-border);
+}
+
+.md-footer__link {
+  opacity: 1;
+}
+
+.md-footer__title {
+  color: var(--md-default-fg-color);
+}
+
+.md-footer-meta {
+  border-top: 1px solid var(--eden-border);
+}
+
+/* ── Home page: hero ──────────────────────────────────────────────────────── */
+.eden-hero {
+  position: relative;
+  isolation: isolate;
+  padding: 3.5rem 1rem 2.5rem;
+  text-align: center;
+}
+
+/* A soft red glow behind the logo, the one decorative flourish on the page. */
+.eden-hero::before {
+  content: "";
+  position: absolute;
+  inset: -2rem 0 auto;
+  height: 26rem;
+  z-index: -1;
+  background: radial-gradient(ellipse 50% 60% at 50% 30%, var(--eden-red-glow), transparent 70%);
+  pointer-events: none;
+}
+
+.eden-hero h1 {
+  margin-bottom: 1.25rem;
+}
+
+.eden-hero .eden-tagline {
+  margin: 0 auto 1rem;
+  color: var(--md-default-fg-color--light);
+  font-size: 0.8rem;
+  letter-spacing: 0.01em;
+}
+
+.eden-hero .eden-tagline strong {
+  color: var(--eden-red-strong);
+}
+
+.eden-hero .eden-subtitle {
+  max-width: 34rem;
+  margin: 0 auto 2rem;
+  color: var(--md-default-fg-color--light);
+  font-size: 1.05rem;
+  line-height: 1.6;
+}
+
+.eden-hero .eden-actions {
+  display: flex;
+  gap: 0.75rem;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.md-typeset .eden-teaser {
+  display: block;
+  border: 1px solid var(--eden-border);
+  border-radius: var(--eden-radius);
+  box-shadow: 0 24px 60px -24px rgba(0, 0, 0, 0.35);
+}
+
+/* ── Home page: feature cards ─────────────────────────────────────────────── */
+.eden-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 1rem;
+  margin: 1.5rem 0 2.5rem;
+}
+
+.eden-grid .eden-card {
+  padding: 1.25rem 1.4rem;
+  border: 1px solid var(--eden-border);
+  border-radius: var(--eden-radius);
+  background-color: var(--eden-surface);
+  transition: border-color 200ms, box-shadow 200ms, transform 200ms;
+}
+
+.eden-grid .eden-card:hover {
+  border-color: color-mix(in srgb, var(--eden-red) 40%, transparent);
+  box-shadow: 0 12px 32px -16px var(--eden-red-glow);
+  transform: translateY(-2px);
+}
+
+.eden-grid .eden-card h3 {
+  margin-top: 0;
+  font-size: 0.95rem;
+}
+
+.eden-grid .eden-card p {
+  margin-bottom: 0;
+  color: var(--md-default-fg-color--light);
+  font-size: 0.78rem;
+  line-height: 1.6;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .eden-grid .eden-card,
+  .md-typeset .md-button {
+    transition: none;
+  }
+
+  .eden-grid .eden-card:hover,
+  .md-typeset .md-button--primary:is(:hover, :focus) {
+    transform: none;
+  }
+}
+
+/* ── Responsive ───────────────────────────────────────────────────────────── */
+@media (max-width: 600px) {
+  .eden-hero {
+    padding-top: 2rem;
+  }
+
+  .eden-hero .eden-tagline {
+    font-size: 0.7rem;
+  }
+
+  .eden-hero .eden-subtitle {
+    font-size: 0.9rem;
+  }
+}

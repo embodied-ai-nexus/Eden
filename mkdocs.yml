@@ -1,0 +1,281 @@
+site_name: Eden
+site_description: "Embodied-AI Development Environments Nexus — Vectorized RL environments for robot learning"
+site_url: https://embodied-ai-nexus.github.io/Eden
+repo_url: https://github.com/embodied-ai-nexus/Eden
+repo_name: embodied-ai-nexus/Eden
+edit_uri: edit/main/docs/
+copyright: "Copyright &copy; 2025 Eden Authors"
+theme:
+  name: material
+  custom_dir: docs/overrides
+  palette:
+    - media: "(prefers-color-scheme)"
+      toggle:
+        icon: material/brightness-auto
+        name: Switch to light mode
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: custom
+      accent: custom
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: custom
+      accent: custom
+      toggle:
+        icon: material/brightness-4
+        name: Switch to system preference
+  font:
+    text: Inter
+    code: JetBrains Mono
+  logo: assets/logo/eden-mark.svg
+  favicon: assets/logo/eden-mark.svg
+  icon:
+    repo: fontawesome/brands/github
+  features:
+    - navigation.instant
+    - navigation.instant.progress
+    - navigation.tracking
+    - navigation.path
+    - navigation.tabs
+    - navigation.tabs.sticky
+    - navigation.sections
+    - navigation.top
+    - navigation.footer
+    - search.suggest
+    - search.highlight
+    - content.action.edit
+    - content.action.view
+    - content.code.copy
+    - content.code.annotate
+    - content.tabs.link
+    - content.tooltips
+    - toc.follow
+extra_css:
+  - assets/stylesheets/extra.css
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+  - pymdownx.inlinehilite
+  # check_paths turns a missing/renamed `--8<--` snippet into a build error, not a silent blank.
+  # (api/terms/catalog.md is generated in full by `python -m eden.managers.catalog`; the wheel ships
+  # only an index of it at eden/resources/term_catalog.md.)
+  - pymdownx.snippets:
+      base_path: ["."]
+      check_paths: true
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+  - pymdownx.tasklist:
+      custom_checkbox: true
+  - pymdownx.keys
+  - attr_list
+  - md_in_html
+  - def_list
+  - footnotes
+  - tables
+  - toc:
+      permalink: true
+plugins:
+  - search
+  - section-index
+  - mkdocstrings:
+      default_handler: python
+      handlers:
+        python:
+          # `eden.extensions` and `eden.options.extensions` are PEP 420 namespace
+          # packages, so Griffe can't auto-discover them from the repo root.
+          # Listing each child explicitly lets mkdocstrings load their contents.
+          paths:
+            - "."
+            - "eden/extensions"
+            - "eden/options/extensions"
+          inventories:
+            - https://docs.python.org/3/objects.inv
+          options:
+            allow_inspection: true
+            show_source: true
+            show_root_heading: true
+            show_root_full_path: false
+            show_symbol_type_heading: true
+            show_symbol_type_toc: true
+            members_order: source
+            group_by_category: true
+            show_category_heading: true
+            docstring_style: numpy
+            docstring_section_style: spacy
+            merge_init_into_class: true
+            show_signature_annotations: true
+            separate_signature: true
+            signature_crossrefs: true
+            show_if_no_docstring: true
+            filters:
+              - "!^_"
+              - "!^model_"
+              - "^__init__"
+# The hook lowers griffe's pre-existing docstring warnings to DEBUG, so `mkdocs build --strict` (CI, and the deploy in
+# .github/workflows/docs.yml) fails on every other warning: the `validation:` ones below above all.
+hooks:
+  - docs/hooks/griffe_warnings.py
+exclude_docs: |
+  /hooks/
+# Report links to missing pages, missing anchors and pages left out of the nav as warnings.
+validation:
+  omitted_files: warn
+  absolute_links: info
+  unrecognized_links: warn
+  anchors: warn
+nav:
+  - Home: index.md
+  - Get Started:
+      - getting-started/index.md
+      - Installation: getting-started/installation.md
+      - Quick Start: getting-started/quickstart.md
+      - Key Concepts: getting-started/concepts.md
+      - "Tutorial: Your First Task": getting-started/first-task.md
+      - Assets and Caches: getting-started/assets.md
+      - Troubleshooting: getting-started/troubleshooting.md
+  - Guides:
+      - Building Tasks:
+          - Task Configuration: guides/task-config.md
+          - Task Variants (TaskMods): guides/task-mods.md
+          - Environments and the Step Loop: guides/environments.md
+      - Managers and Terms:
+          - Writing Terms: guides/terms.md
+          - Actions: guides/actions.md
+          - Observations: guides/observations.md
+          - Rewards and Terminations: guides/rewards-and-terminations.md
+          - Commands: guides/commands.md
+          - Events and Domain Randomization: guides/events.md
+          - Curricula: guides/curricula.md
+          - Metrics and Recorders: guides/metrics-and-recorders.md
+      - Scenes and Physics:
+          - Entities: guides/entities.md
+          - Robots: guides/robots.md
+          - Scenes, Objects and Terrains: guides/scenes-and-terrains.md
+          - Physics and Solvers: guides/physics.md
+          - Sensors and Rendering: guides/sensors-and-rendering.md
+          - Engine Add-ons: guides/engine-addons.md
+      - Motion and Data:
+          - Motion Tracking: guides/motion-tracking.md
+          - Motion Datasets: guides/motion-datasets.md
+          - Motion Retargeting: guides/retargeting.md
+          - Dexterous Hand Retargeting: guides/dex-retargeting.md
+          - Pose Estimation from Video: guides/pose-estimation.md
+          - Teleoperation: guides/teleoperation.md
+          - Scripted Demonstrations: guides/scripted-demos.md
+          - Grasp Sampling: guides/grasp-sampling.md
+          - Datasets and Recording: guides/datasets-and-recording.md
+          - Planning and System Identification: guides/planning-and-sysid.md
+      - Training and Policies:
+          - Training Runs: guides/training-runs.md
+          - Other RL Libraries: guides/rl-libraries.md
+          - Multi-GPU Training: guides/ddp.md
+          - Policy Zoo: guides/policy-zoo.md
+          - Porting a Pretrained Policy: guides/policy-porting.md
+          - Exporting a Policy: guides/policy-export.md
+          - Remote Policy Clients: guides/remote-policies.md
+          - Adding a Policy: guides/extending-policies.md
+      - Deployment:
+          - Deploying a Policy: guides/deployment.md
+          - Hardware Setup: guides/deployment-hardware.md
+  - Tasks:
+      - tasks/index.md
+      - Eden Tasks:
+          - Locomotion: tasks/locomotion.md
+          - Velocity Tracking Design Notes: guides/velocity-tracking.md
+          - TCRS Terrain Adaptation: guides/tcrs-terrain-adaptation.md
+          - Motion Tracking: tasks/motion-tracking.md
+          - Manipulation and Dexterity: tasks/manipulation.md
+      - Ported Benchmarks:
+          - robosuite: tasks/robosuite.md
+          - LIBERO: tasks/libero.md
+          - SIMPLER: tasks/simpler.md
+          - PolaRiS: tasks/polaris.md
+      - Deformables (Mochi): tasks/mochi.md
+      - Whiteboard Drawing: tasks/whiteboard.md
+      - Calligraphy and Painting: tasks/art.md
+  - Examples: examples/index.md
+  - Reference:
+      - CLI: reference/cli.md
+      - Environment Variables: reference/environment-variables.md
+      - API Reference:
+          - api/index.md
+          - Configs and Task Registry: api/configs.md
+          - Environments: api/envs.md
+          - Entities: api/entities.md
+          - Options:
+              - Overview: api/options/index.md
+              - Environment: api/options/envs.md
+              - Entities: api/options/entities.md
+              - Materials: api/options/materials.md
+              - Surfaces: api/options/surfaces.md
+              - Scenes: api/options/scenes.md
+              - Robots: api/options/robots.md
+              - Actuators: api/options/actuators.md
+              - Sensors and Cameras: api/options/sensors.md
+              - Splats and Renderers: api/options/splat.md
+              - Managers: api/options/managers.md
+              - Learning: api/options/learning.md
+          - Managers: api/managers.md
+          - Built-in Terms:
+              - Overview: api/terms/index.md
+              - Term Catalog: api/terms/catalog.md
+              - Actions: api/terms/actions.md
+              - Observations: api/terms/observations.md
+              - Rewards: api/terms/rewards.md
+              - Terminations: api/terms/terminations.md
+              - Commands: api/terms/commands.md
+              - Events: api/terms/events.md
+              - Curricula: api/terms/curricula.md
+              - Metrics: api/terms/metrics.md
+              - Recorders: api/terms/recorders.md
+              - Modifiers: api/terms/modifiers.md
+          - Datasets: api/datasets.md
+          - Motion Reference: api/motion_reference.md
+          - Engine: api/engine.md
+          - Learning: api/learning.md
+          - Extensions:
+              - Overview: api/extensions/index.md
+              - Deployment: api/extensions/deployment.md
+              - Policies: api/extensions/policies.md
+              - Retargeting: api/extensions/retargeting.md
+              - System Identification: api/extensions/sysid.md
+              - Motion Planning: api/extensions/motion-planning.md
+              - Motion Optimization: api/extensions/motion-optimization.md
+              - Grasp Sampling: api/extensions/grasp-sampling.md
+              - Pose Estimation: api/extensions/pose-estimation.md
+              - Scripted Demonstrations: api/extensions/scripted-demos.md
+              - Teleoperation: api/extensions/teleop.md
+              - Visualization: api/extensions/visualization.md
+          - Constants and Types: api/constants.md
+          - Utilities:
+              - Core: api/utils/core.md
+              - Math and Geometry: api/utils/math.md
+              - Robotics and Assets: api/utils/robotics.md
+              - Teleoperation Devices: api/utils/devices.md
+              - I/O: api/utils/io.md
+              - Rendering: api/utils/rendering.md
+              - CLI Internals: api/utils/cli.md
+  - Contributing:
+      - contributing/index.md
+      - Testing: guides/testing.md
+      - Writing Error Messages: guides/error-messages.md
+      - Writing Docs: contributing/docs.md
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/embodied-ai-nexus/Eden
