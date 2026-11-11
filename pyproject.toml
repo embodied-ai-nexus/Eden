@@ -279,7 +279,12 @@ dex-retargeter-example = [
   # mediapipe 0.10.15+ removed the legacy `python.solutions` API the upstream
   # single-hand detector relies on; 0.10.14 is the newest wheel that ships
   # `mp.solutions.hands`/`drawing_utils` for Python 3.12.
-  "mediapipe==0.10.14",
+  # The `python_version` marker is load-bearing: 0.10.14 publishes wheels only up to
+  # cp312 and no sdist, and `tool.uv.required-environments` below demands every
+  # Python split (3.13 included) stay installable, so without it `uv sync` / `uv run`
+  # is unsatisfiable for everyone on uv >= 0.13. On 3.13 the extra skips mediapipe and
+  # the hand-detector example fails at `import mediapipe`.
+  "mediapipe==0.10.14; python_version < '3.13'",
   "opencv-python",
   "tyro"
 ]
