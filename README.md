@@ -39,8 +39,21 @@ run the same policy on a real robot.
 
 Eden needs Python 3.12+ and runs on Linux, macOS (Apple silicon) and Windows. Linux with an NVIDIA GPU is the
 primary platform; macOS and Windows are best-effort, and a few extras need more: Nyx path tracing has no macOS
-build, Gaussian-splat rendering needs CUDA, and the Wuji Glove SDK is Linux-only. We use
-[uv](https://docs.astral.sh/uv/):
+build, Gaussian-splat rendering needs CUDA, and the Wuji Glove SDK is Linux-only.
+
+```bash
+pip install eden-world            # or, in a uv project: uv add eden-world
+pip install "eden-world[vis]"     # with an optional extra
+```
+
+The distribution is `eden-world`, but you still `import eden` and run `eden`. `pip install eden` installs an
+unrelated project. The individual extras (`vis`, `nyx`, `batch-splat`, `gello`, `pico`, `wuji`, …) are listed in
+the [installation guide](https://embodied-ai-nexus.github.io/Eden/getting-started/installation/).
+
+### Development install
+
+The PyPI package carries the `eden` package only. To run the examples, work on Eden itself or follow `main`,
+install from a clone with [uv](https://docs.astral.sh/uv/):
 
 ```bash
 git clone https://github.com/embodied-ai-nexus/Eden.git
@@ -49,8 +62,7 @@ uv sync --all-extras --all-groups # the groups add the extras' git-only packages
 source .venv/bin/activate         # Windows: .venv\Scripts\activate
 ```
 
-`uv sync` alone installs the core; the individual extras (`vis`, `nyx`, `batch-splat`, `gello`, `pico`, `wuji`,
-…) are listed in the [installation guide](docs/getting-started/installation.md).
+`uv sync` alone installs the core plus the dev tools (ruff, pre-commit, pytest).
 
 ## Quick start
 
