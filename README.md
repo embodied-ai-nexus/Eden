@@ -220,6 +220,7 @@ Eden builds on these open-source projects:
 - [ManiSkill](https://github.com/haosulab/ManiSkill): reference holistic environment for embodied agents.
 - [ProtoMotions](https://github.com/NVlabs/ProtoMotions) and [MimicKit](https://github.com/xbpeng/MimicKit): reference environments for human motion priors.
 - [Holosoma](https://github.com/amazon-far/holosoma) and [InstinctLab](https://github.com/project-instinct/InstinctLab): reference end-to-end humanoid frameworks.
+- [project_superdex](https://github.com/facebookresearch/project_superdex): original implementation of the Mochi solver.
 
 ## Citation
 
