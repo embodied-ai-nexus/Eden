@@ -85,7 +85,9 @@ def test_an_old_sph_liquid_fails_once_saying_what_became_of_each_field():
         SPHLiquidMaterialOptions(stiffness=50_000.0, exponent=7.0, gamma=0.01)
     message = str(error.value)
     assert "1 validation error" in message and message.count("Valid fields") == 1
-    assert "Retired ['stiffness', 'exponent'] of SPHLiquidMaterialOptions: Genesis solves SPH with DFSPH" in message
+    assert (
+        "Retired ['stiffness', 'exponent'] of SPHLiquidMaterialOptions: the equation of state of the WCSPH" in message
+    )
     assert "Retired ['gamma'] of SPHLiquidMaterialOptions: Genesis replaced this unitless cohesion" in message
 
 

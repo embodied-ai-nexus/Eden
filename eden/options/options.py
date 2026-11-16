@@ -98,9 +98,10 @@ def unknown_fields_message(cls: type, fields: list[str]) -> str:
         sentences.append(f"'{field}' is not a field of {cls.__name__}.{hint}")
     sentences += [f"Retired {keys} of {cls.__name__}: {note}." for note, keys in retired_by_note.items()]
     if retired_by_note:
+        one = sum(map(len, retired_by_note.values())) == 1
         sentences.append(
-            f"A config saved before {'it was' if sum(map(len, retired_by_note.values())) == 1 else 'they were'}"
-            " retired set physics the installed Genesis no longer has, so it is refused rather than run without them."
+            f"A config saved before {'it was' if one else 'they were'} retired still sets {'it' if one else 'them'},"
+            f" so it is refused rather than run without {'it' if one else 'them'}."
         )
     return f"{' '.join(sentences)} Valid fields: {render_params(_field_specs(cls))}."
 

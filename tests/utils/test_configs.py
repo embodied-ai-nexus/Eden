@@ -253,19 +253,51 @@ def test_load_refuses_a_genesis_option_field_the_installed_genesis_lacks(tmp_pat
     assert loaded.env_options.fem_options == config.env_options.fem_options
 
 
-def test_an_untagged_genesis_option_drops_only_what_a_subclass_of_its_field_type_declares(tmp_path, eden_caplog):
-    """Without class tags the loader infers the class from the field, which may be a base of the saved one: a key a
-    subclass declares may be that subclass's, so it drops with a warning. Any other key is a mistake, and raises.
+def test_an_untagged_genesis_option_in_an_override_refuses_a_key_its_field_type_lacks():
+    """An override's keys are what the user just typed: one the field's declared class lacks raises, saying how to name
+    the subclass, rather than leave a bare ``BaseCouplerOptions`` that fails only at scene build.
     """
     base = RoundtripConfig(env_options=EnvOptions(num_envs=1))
-    typo = {"env_options": {"fem_options": {"dampng": 0.1}}}  # hand-written: FEMOptions has no subclass
-    with pytest.raises(ValueError, match="'dampng' is not a field of FEMOptions") as typo_error:
-        base.with_overrides_from_dict(typo)
-    assert "Raised applying an override to RoundtripConfig, at 'env_options.fem_options'." in typo_error.value.__notes__
-    coupler = {"env_options": {"coupler_options": {"n_sap_iterations": 50}}}  # a SAPCouplerOptions field
-    loaded = base.with_overrides_from_dict(coupler)
-    assert type(loaded.env_options.coupler_options) is gs.options.BaseCouplerOptions
+    with pytest.raises(ValueError, match="'dampng' is not a field of FEMOptions. Did you mean 'damping'?") as typo:
+        base.with_overrides_from_dict({"env_options": {"fem_options": {"dampng": 0.1}}})
+    assert typo.value.__notes__ == ["Raised applying an override to RoundtripConfig, at 'env_options.fem_options'."]
+    sap = {"n_sap_iterations": 50}
+    tags = "'_option_module_': 'genesis.options.solvers', '_option_class_': 'SAPCouplerOptions'"
+    with pytest.raises(ValueError, match=f"read as BaseCouplerOptions, .* add {tags} next to them"):
+        base.with_overrides_from_dict({"env_options": {"coupler_options": sap}})
+
+    tagged = {"_option_module_": "genesis.options.solvers", "_option_class_": "SAPCouplerOptions", **sap}
+    coupler = base.with_overrides_from_dict({"env_options": {"coupler_options": tagged}}).env_options.coupler_options
+    assert isinstance(coupler, gs.options.SAPCouplerOptions) and coupler.n_sap_iterations == 50
+
+
+def test_a_legacy_save_drops_only_the_untagged_keys_a_subclass_of_the_field_type_declares(tmp_path, eden_caplog):
+    """A file saved before class tags existed may hold a subclass under its field's base type, and nothing says which:
+    a key a subclass declares drops with a warning, so the file still loads. Any other key is a mistake, and raises.
+    """
+    config = RoundtripConfig(env_options=EnvOptions(num_envs=1, coupler_options=gs.options.SAPCouplerOptions()))
+    legacy = _saved(tmp_path, config, name="legacy.json")
+    _rewrite(legacy, lambda raw: _without_class_tags(raw["config"]["env_options"]["coupler_options"]))
+
+    coupler = RoundtripConfig.load_from_file(legacy).env_options.coupler_options
+    assert type(coupler) is gs.options.BaseCouplerOptions
     assert "a subclass of BaseCouplerOptions declares them" in eden_caplog.text
+
+    _rewrite(legacy, lambda raw: raw["config"]["env_options"]["coupler_options"].update(bogus=1))
+    with pytest.raises(ValueError, match="'bogus' is not a field of BaseCouplerOptions"):
+        RoundtripConfig.load_from_file(legacy)
+
+
+class _GroupedConfig(RoundtripConfig):
+    fems: list[gs.options.FEMOptions] = []
+
+
+def test_a_load_error_names_the_list_index_of_the_offending_value(tmp_path):
+    path = _saved(tmp_path, _GroupedConfig(fems=[gs.options.FEMOptions(), gs.options.FEMOptions()]), name="list.json")
+    _rewrite(path, lambda raw: raw["config"]["fems"][1].update(bogus=1))
+    with pytest.raises(ValueError) as error:
+        _GroupedConfig.load_from_file(path)
+    assert error.value.__notes__[0].startswith(f"Raised loading {path}, at 'fems[1]'.")
 
 
 def test_every_retired_genesis_field_is_one_its_class_no_longer_has():

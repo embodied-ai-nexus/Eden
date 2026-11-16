@@ -285,6 +285,12 @@ class MPMSandMaterialOptions(MaterialOptions):
     _genesis_material_cls: ClassVar[type] = gs.materials.MPM.Sand
 
 
+_WCSPH_EQUATION_OF_STATE = (
+    "the equation of state of the WCSPH solver, which Genesis removed (it solves SPH with DFSPH alone now); nothing"
+    " replaces it: remove from the config"
+)
+
+
 class SPHLiquidMaterialOptions(MaterialOptions):
     """Options for an SPH liquid material.
 
@@ -315,13 +321,11 @@ class SPHLiquidMaterialOptions(MaterialOptions):
     _retired_fields: ClassVar[Mapping[str, str]] = MappingProxyType(
         {
             # genesis-world#3778
-            "stiffness": "Genesis solves SPH with DFSPH alone now, and these set the equation of state of the WCSPH"
-            " solver it removed; delete them",
-            "exponent": "Genesis solves SPH with DFSPH alone now, and these set the equation of state of the WCSPH"
-            " solver it removed; delete them",
+            "stiffness": _WCSPH_EQUATION_OF_STATE,
+            "exponent": _WCSPH_EQUATION_OF_STATE,
             # genesis-world#3755
             "gamma": "Genesis replaced this unitless cohesion with 'surface_tension', in N/m (default 0.0728, water),"
-            " which a gamma value does not convert to; delete it",
+            " which a gamma value does not convert to; remove from the config",
         }
     )
 

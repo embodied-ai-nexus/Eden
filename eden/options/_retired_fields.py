@@ -15,7 +15,7 @@ from types import MappingProxyType
 _DFSPH_ONLY = "Genesis solves SPH with DFSPH alone now"
 _SAP_ONE_CONTACT_MODEL = (
     "the SAP coupler has one contact model now: every kind of pair collides, and the floor touches the vertices of FEM"
-    " entities and rigid bodies; delete them"
+    " entities and rigid bodies; remove from the config"
 )
 
 GENESIS_RETIRED_FIELDS: Mapping[str, Mapping[str, str]] = MappingProxyType(
@@ -23,16 +23,16 @@ GENESIS_RETIRED_FIELDS: Mapping[str, Mapping[str, str]] = MappingProxyType(
         # genesis-world#3807
         "genesis.options.solvers.FEMOptions": {
             "enable_vertex_constraints": "vertex constraints are always available now, up to 'max_vertex_constraints'"
-            "; delete it",
+            "; remove from the config",
         },
         # genesis-world#3778
-        "genesis.options.solvers.SPHOptions": {"pressure_solver": f"{_DFSPH_ONLY}; delete it"},
+        "genesis.options.solvers.SPHOptions": {"pressure_solver": f"{_DFSPH_ONLY}; remove from the config"},
         # genesis-world#3794
         "genesis.options.solvers.SAPCouplerOptions": {
             "enable_fem_self_tet_contact": "renamed 'enable_fem_self_collision', which leaves distinct FEM entities"
             " colliding whatever its value; set that instead",
             "point_contact_stiffness": "the floor stiffness of a FEM entity follows its material now, bounded by"
-            " 'hydroelastic_stiffness'; delete it",
+            " 'hydroelastic_stiffness'; remove from the config",
             "fem_floor_contact_type": _SAP_ONE_CONTACT_MODEL,
             "rigid_floor_contact_type": _SAP_ONE_CONTACT_MODEL,
             "rigid_rigid_contact_type": _SAP_ONE_CONTACT_MODEL,

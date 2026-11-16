@@ -13,9 +13,11 @@ install a distribution the checkout never ran. ``release.yml`` refuses to publis
 * Any ``override-dependencies`` entry for a published requirement: an override replaces the requirement the wheel
   publishes (``genesis-world==1.5.0`` over ``genesis-world==1.4.6`` runs 1.5.0 in the checkout alone).
 
-An override's or a constraint's version bound on a transitive requirement is not printed. The wheel's users resolve
-that package from the index too, if at another release (the ``trimesh`` override lifts a cap for the checkout's
-lockfile): accepted drift between released versions, not an unreleased build.
+Left alone: a constraint's version bound on any package (it only narrows what the published requirements admit), and
+an override's version bound on a package the wheel does not name (the ``trimesh`` override). Both pick among released
+versions, which the wheel's users resolve from the index too; whether that resolution matches the checkout's is not
+this guard's question, which is only whether the checkout runs an unreleased build. A direct reference is refused even
+on a package the resolution never reaches, which costs nothing to drop.
 """
 
 import tomllib

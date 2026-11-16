@@ -552,6 +552,16 @@ def test_a_commit_and_the_release_it_still_calls_itself_differ_where_commits_are
         describe_provenance_change(commit, release, commit_is_release=False) == "saved 1.4.6 (ccccccc), running 1.4.6"
     )
     assert describe_provenance_change(commit, commit, commit_is_release=False) is None
+    # Otherwise as before: two commits decide, else two versions; an unknown version compares nothing
+    other = {"version": "1.4.6", "commit": "d" * 40}
+    assert (
+        describe_provenance_change(commit, other, commit_is_release=False)
+        == "saved 1.4.6 (ccccccc), running 1.4.6 (ddddddd)"
+    )
+    assert describe_provenance_change(release, {"version": "1.5.0", "commit": None}, commit_is_release=False) == (
+        "saved 1.4.6, running 1.5.0"
+    )
+    assert describe_provenance_change({"version": None, "commit": None}, commit, commit_is_release=False) is None
 
 
 def _installed(monkeypatch, site: Path, direct_url: dict | None = None) -> str:

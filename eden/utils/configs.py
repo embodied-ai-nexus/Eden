@@ -20,6 +20,7 @@ save/load is therefore type-preserving and idempotent (pinned by
 
 import json
 import os
+from contextvars import ContextVar
 from enum import Enum
 from functools import lru_cache
 from types import UnionType
@@ -435,6 +436,7 @@ class EdenConfig(ConfigurableOptions):
             if (change := describe_provenance_change(meta.get(key), current, commit_is_release=key == "eden"))
         }
         saved_cls = cls._saved_config_class(meta, source)
+        tolerating = _TOLERATE_UNTAGGED_SUBCLASS_KEYS.set(True)
         try:
             options = to_options(data, saved_cls)
         except Exception as e:
@@ -443,6 +445,8 @@ class EdenConfig(ConfigurableOptions):
                 e, f"loading {source}", [f"{name} {change}." for name, change in changes.items()]
             )
             raise
+        finally:
+            _TOLERATE_UNTAGGED_SUBCLASS_KEYS.reset(tolerating)
         for name, change in changes.items():
             en.logger.warning(f"{name} differs from the one that saved {source}: {change}.")
         return options
@@ -950,20 +954,28 @@ def _construct_options(options_cls: type[Options], value: dict, *, recorded: boo
     for key, item in value.items():
         field_info = options_cls.model_fields.get(key)
         field_annotation = field_info.annotation if field_info is not None else None
-        try:
-            option_dict[key] = _convert_value(item, field_annotation)
-        except Exception as e:
-            try:
-                e._eden_config_path = (key, *_config_path(e))
-            except AttributeError:  # an exception type that takes no attributes: the load says less, nothing more
-                pass
-            raise
+        option_dict[key] = _convert_at(key, item, field_annotation)
     return _safe_model_construct(options_cls, option_dict, recorded=recorded)
 
 
-def _config_path(exc: BaseException) -> tuple[str, ...]:
-    """The path in the config of the field whose reconstruction raised ``exc`` (empty: the root itself)."""
-    return getattr(exc, "_eden_config_path", ())
+def _convert_at(step: str, value, annotation):
+    """:func:`_convert_value`, recording ``step`` (a field name, ``[3]`` or ``['table']``) in the config path of an
+    exception it raises, so the load can say where the offending value sits (``scene_options.table.surface``).
+    """
+    try:
+        return _convert_value(value, annotation)
+    except Exception as e:
+        try:
+            e._eden_config_path = (step, *getattr(e, "_eden_config_path", ()))
+        except AttributeError:  # an exception type that takes no attributes: the load says less, nothing more
+            pass
+        raise
+
+
+def _config_path(exc: BaseException) -> str:
+    """The path in the config of the value whose reconstruction raised ``exc`` (empty: the root itself)."""
+    steps = getattr(exc, "_eden_config_path", ())
+    return "".join(step if step.startswith("[") else f".{step}" for step in steps).lstrip(".")
 
 
 def _convert_value(value, target_annotation=None):
@@ -983,7 +995,7 @@ def _convert_value(value, target_annotation=None):
     elif isinstance(value, dict):
         nested_annotation = _value_annotation(target_annotation)
         kt = _key_annotation(target_annotation)
-        return {_coerce_dict_key(k, kt): _convert_value(v, nested_annotation) for k, v in value.items()}
+        return {_coerce_dict_key(k, kt): _convert_at(f"[{k!r}]", v, nested_annotation) for k, v in value.items()}
     # Handle lists (may contain nested dynamic configs; NamedTuple rows load via target_annotation)
     elif isinstance(value, (list, tuple)):
         if target_annotation is not None and _is_namedtuple_class(target_annotation):
@@ -992,7 +1004,7 @@ def _convert_value(value, target_annotation=None):
             if len(seq) == len(fields):
                 return target_annotation(*(_convert_value(v, None) for v in seq))
         nested_annotation = _item_annotation(target_annotation)
-        return [_convert_value(item, nested_annotation) for item in value]
+        return [_convert_at(f"[{i}]", item, nested_annotation) for i, item in enumerate(value)]
     # Coerce serialized enum values (dumped as their ``.value``) back to the enum instance. Load
     # reconstructs options via ``model_construct`` (validators skipped — see ``_safe_model_construct``),
     # so declared enum fields would otherwise come back as bare ``str``. Lenient (strict=False): an
@@ -1055,11 +1067,15 @@ def _safe_model_construct(cls: type, data: dict, *, recorded: bool = True):
         upgrade retired, which a save from before it carries even at its default. The physics it set
         are gone, so the load refuses it rather than run something other than what was saved. Do not
         go back to dropping it with a warning;
-      * but when the class is only *inferred* from the field's annotation (``recorded=False``: a save
-        without class tags, or a hand-written override), a key one of its subclasses declares may
-        belong to the subclass that was saved (``gs.surfaces.Default``'s fields under a ``Surface``
-        field), and nothing says which: such keys are dropped with a warning, so a legacy save keeps
-        loading. A key no subclass declares still raises.
+      * when the class is only *inferred* from the field's annotation (``recorded=False``: a save
+        without class tags, or a hand-written override), the error also says so, and how to name the
+        class. One exception: a legacy save (a file load, where the tags may simply predate class
+        tags) drops, with a warning, a key one of the inferred class's subclasses declares, since it
+        may be the saved subclass's (``gs.surfaces.Default``'s fields under a ``Surface`` field) and
+        nothing says which. An override never does: its keys are what the user just typed, and
+        dropping them would leave, say, a bare ``BaseCouplerOptions`` that fails only at scene build.
+        Which subclasses count depends on what is imported, so this tolerance is for legacy files
+        only.
 
       Nothing validates these fields, so a ``FloatArray`` declared on one would load back as a plain
       ``list``.
@@ -1076,16 +1092,29 @@ def _safe_model_construct(cls: type, data: dict, *, recorded: bool = True):
     if cls.model_config.get("extra") == "forbid":
         data = {k: v for k, v in data.items() if k not in cls.model_computed_fields}
         unknown = [key for key in data if key not in cls.model_fields]
-        of_subclasses = set() if recorded else {key for key in unknown if key in _subclass_fields(cls)}
-        if unknown := [key for key in unknown if key not in of_subclasses]:
-            raise ValueError(unknown_fields_message(cls, unknown))
-        if of_subclasses:
+        declaring = {} if recorded else _subclasses_declaring(cls, unknown)
+        tolerated = set(declaring) if _TOLERATE_UNTAGGED_SUBCLASS_KEYS.get() else set()
+        if refused := [key for key in unknown if key not in tolerated]:
+            message = unknown_fields_message(cls, refused)
+            if not recorded:
+                message += f" It carries no class tags, so it was read as {cls.__name__}, the type its field declares."
+                owners = set.intersection(*(set(declaring.get(key, ())) for key in refused))
+                if len(owners) == 1:
+                    (owner,) = owners
+                    message += (
+                        f" {owner.__name__} declares {refused}: to give it that class, add"
+                        f" '_option_module_': '{owner.__module__}', '_option_class_': '{owner.__name__}' next to them."
+                    )
+                else:
+                    message += " To give it a subclass, add '_option_module_' and '_option_class_' naming it."
+            raise ValueError(message)
+        if tolerated:
             en.logger.warning(
-                f"Dropping {sorted(of_subclasses)} when loading a {cls.__name__} saved without its class: a subclass of"
+                f"Dropping {sorted(tolerated)} when loading a {cls.__name__} saved without its class: a subclass of"
                 f" {cls.__name__} declares them, and the file does not say which class was saved. To keep them, add"
                 f" '_option_module_' and '_option_class_' naming that class next to them in the file."
             )
-            data = {k: v for k, v in data.items() if k not in of_subclasses}
+            data = {k: v for k, v in data.items() if k not in tolerated}
     return cls.model_construct(**data)
 
 
@@ -1093,19 +1122,25 @@ def _note_where_loading_raised(exc: BaseException, doing: str, changes: list[str
     """Add to ``exc`` where in the config its value sits (``env_options.fem_options``) and what ``doing`` was, plus the
     Eden / Genesis version ``changes`` since the save: a field Genesis retired fails here, and the change says why.
     """
-    path = ".".join(_config_path(exc))
+    path = _config_path(exc)
     exc.add_note(" ".join([f"Raised {doing}" + (f", at '{path}'." if path else "."), *changes]))
 
 
-def _subclass_fields(cls: type) -> set[str]:
-    """The fields declared by any (transitively) imported subclass of ``cls``."""
-    fields: set[str] = set()
+def _subclasses_declaring(cls: type, keys: list[str]) -> dict[str, set[type]]:
+    """Each of ``keys`` that some (transitively) imported subclass of ``cls`` declares, with those subclasses."""
+    declaring: dict[str, set[type]] = {}
     pending = list(cls.__subclasses__())
     while pending:
         sub = pending.pop()
-        fields |= set(getattr(sub, "model_fields", {}))
+        for key in set(keys) & set(getattr(sub, "model_fields", {})):
+            declaring.setdefault(key, set()).add(sub)
         pending += sub.__subclasses__()
-    return fields
+    return declaring
+
+
+#: Set by :meth:`EdenConfig.load_from_data` alone: a legacy file may hold untagged options of a subclass, an override
+#: may not (see :func:`_safe_model_construct`).
+_TOLERATE_UNTAGGED_SUBCLASS_KEYS: ContextVar[bool] = ContextVar("tolerate_untagged_subclass_keys", default=False)
 
 
 def load_json(path: str):
