@@ -289,7 +289,7 @@ def _apply_config_file(config: Any, path: str, *, task_name: str, modifier_kwarg
     """
     data = read_config_arg(path)
     if not is_full_config(data):
-        return config.with_overrides_from_dict(data)
+        return config.with_overrides_from_dict(data, source="--config")
 
     ignored = explicit_task_mods(task_name, modifier_kwargs)
     if ignored:
@@ -348,7 +348,7 @@ def get_task_config(
     if config_path:
         config = _apply_config_file(config, config_path, task_name=task_name, modifier_kwargs=modifier_kwargs)
     for overrides in config_overrides or ():
-        config = config.with_overrides_from_dict(overrides)
+        config = config.with_overrides_from_dict(overrides, source="--override")
     _apply_run_name(config, run_name)
     return config
 

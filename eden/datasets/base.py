@@ -1442,7 +1442,7 @@ class DatasetBase(ConfigurableMixin[DatasetOptions], FilterMixin):
             ("eden", "Eden", get_eden_provenance()),
             ("genesis", "Genesis", get_package_provenance("genesis-world")),
         ):
-            if change := describe_provenance_change(meta.get(key), current, commit_is_release=key == "eden"):
+            if change := describe_provenance_change(meta.get(key), current):
                 en.logger.warning(
                     f"{name} differs from the one that wrote {data_path} ({change}): the loaded data may be "
                     f"incompatible with this {name}."

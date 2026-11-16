@@ -20,7 +20,6 @@ save/load is therefore type-preserving and idempotent (pinned by
 
 import json
 import os
-from contextvars import ContextVar
 from enum import Enum
 from functools import lru_cache
 from types import UnionType
@@ -433,10 +432,9 @@ class EdenConfig(ConfigurableOptions):
                 ("eden", "Eden", get_eden_provenance()),
                 ("genesis", "Genesis", get_package_provenance("genesis-world")),
             )
-            if (change := describe_provenance_change(meta.get(key), current, commit_is_release=key == "eden"))
+            if (change := describe_provenance_change(meta.get(key), current))
         }
         saved_cls = cls._saved_config_class(meta, source)
-        tolerating = _TOLERATE_UNTAGGED_SUBCLASS_KEYS.set(True)
         try:
             options = to_options(data, saved_cls)
         except Exception as e:
@@ -445,8 +443,6 @@ class EdenConfig(ConfigurableOptions):
                 e, f"loading {source}", [f"{name} {change}." for name, change in changes.items()]
             )
             raise
-        finally:
-            _TOLERATE_UNTAGGED_SUBCLASS_KEYS.reset(tolerating)
         for name, change in changes.items():
             en.logger.warning(f"{name} differs from the one that saved {source}: {change}.")
         return options
@@ -515,14 +511,17 @@ class EdenConfig(ConfigurableOptions):
         EdenConfig
             A new config instance based on this config with overrides applied.
         """
-        return self.with_overrides_from_dict(read_config_file(path))
+        return self.with_overrides_from_dict(read_config_file(path), source=path)
 
-    def with_overrides_from_dict(self, data_dict: dict) -> "EdenConfig":
+    def with_overrides_from_dict(self, data_dict: dict, source: str = "an override") -> "EdenConfig":
+        """Create a new config by merging ``data_dict`` (a partial config) onto this one; ``source`` names where it
+        came from (a file, ``--override``) in the note a rejected value raises with.
+        """
         merged = _deep_merge(self._to_dict(), data_dict)
         try:
             return to_options(merged, self)
         except Exception as e:
-            _note_where_loading_raised(e, f"applying an override to {type(self).__name__}", [])
+            _note_where_loading_raised(e, f"applying {source} to {type(self).__name__}", [])
             raise
 
     def _to_dict(self) -> dict:
@@ -1002,7 +1001,7 @@ def _convert_value(value, target_annotation=None):
             seq = value
             fields = target_annotation._fields
             if len(seq) == len(fields):
-                return target_annotation(*(_convert_value(v, None) for v in seq))
+                return target_annotation(*(_convert_at(f"[{i}]", v, None) for i, v in enumerate(seq)))
         nested_annotation = _item_annotation(target_annotation)
         return [_convert_at(f"[{i}]", item, nested_annotation) for i, item in enumerate(value)]
     # Coerce serialized enum values (dumped as their ``.value``) back to the enum instance. Load
@@ -1067,15 +1066,11 @@ def _safe_model_construct(cls: type, data: dict, *, recorded: bool = True):
         upgrade retired, which a save from before it carries even at its default. The physics it set
         are gone, so the load refuses it rather than run something other than what was saved. Do not
         go back to dropping it with a warning;
-      * when the class is only *inferred* from the field's annotation (``recorded=False``: a save
-        without class tags, or a hand-written override), the error also says so, and how to name the
-        class. One exception: a legacy save (a file load, where the tags may simply predate class
-        tags) drops, with a warning, a key one of the inferred class's subclasses declares, since it
-        may be the saved subclass's (``gs.surfaces.Default``'s fields under a ``Surface`` field) and
-        nothing says which. An override never does: its keys are what the user just typed, and
-        dropping them would leave, say, a bare ``BaseCouplerOptions`` that fails only at scene build.
-        Which subclasses count depends on what is imported, so this tolerance is for legacy files
-        only.
+      * when the class is only *inferred* from the field's annotation (``recorded=False``: a
+        hand-written override, or a hand-edited file, without class tags) and an imported subclass
+        declares the key, the error says so and names the tags to add. Such a key is refused too: it
+        is what the user typed, and dropping it would leave, say, a bare ``BaseCouplerOptions`` that
+        fails only at scene build. (Every save has recorded its classes since Eden 0.1.0.)
 
       Nothing validates these fields, so a ``FloatArray`` declared on one would load back as a plain
       ``list``.
@@ -1091,30 +1086,10 @@ def _safe_model_construct(cls: type, data: dict, *, recorded: bool = True):
         return cls.model_validate(data)
     if cls.model_config.get("extra") == "forbid":
         data = {k: v for k, v in data.items() if k not in cls.model_computed_fields}
-        unknown = [key for key in data if key not in cls.model_fields]
-        declaring = {} if recorded else _subclasses_declaring(cls, unknown)
-        tolerated = set(declaring) if _TOLERATE_UNTAGGED_SUBCLASS_KEYS.get() else set()
-        if refused := [key for key in unknown if key not in tolerated]:
-            message = unknown_fields_message(cls, refused)
-            if not recorded:
-                message += f" It carries no class tags, so it was read as {cls.__name__}, the type its field declares."
-                owners = set.intersection(*(set(declaring.get(key, ())) for key in refused))
-                if len(owners) == 1:
-                    (owner,) = owners
-                    message += (
-                        f" {owner.__name__} declares {refused}: to give it that class, add"
-                        f" '_option_module_': '{owner.__module__}', '_option_class_': '{owner.__name__}' next to them."
-                    )
-                else:
-                    message += " To give it a subclass, add '_option_module_' and '_option_class_' naming it."
-            raise ValueError(message)
-        if tolerated:
-            en.logger.warning(
-                f"Dropping {sorted(tolerated)} when loading a {cls.__name__} saved without its class: a subclass of"
-                f" {cls.__name__} declares them, and the file does not say which class was saved. To keep them, add"
-                f" '_option_module_' and '_option_class_' naming that class next to them in the file."
+        if unknown := [key for key in data if key not in cls.model_fields]:
+            raise ValueError(
+                unknown_fields_message(cls, unknown, context="" if recorded else _subclass_hint(cls, unknown))
             )
-            data = {k: v for k, v in data.items() if k not in tolerated}
     return cls.model_construct(**data)
 
 
@@ -1126,8 +1101,10 @@ def _note_where_loading_raised(exc: BaseException, doing: str, changes: list[str
     exc.add_note(" ".join([f"Raised {doing}" + (f", at '{path}'." if path else "."), *changes]))
 
 
-def _subclasses_declaring(cls: type, keys: list[str]) -> dict[str, set[type]]:
-    """Each of ``keys`` that some (transitively) imported subclass of ``cls`` declares, with those subclasses."""
+def _subclass_hint(cls: type, keys: list[str]) -> str:
+    """For an option read as ``cls`` because it carries no class tags: which imported subclasses declare ``keys``, and
+    the tags that would give it one — or nothing, when no subclass declares any (the tags would not help).
+    """
     declaring: dict[str, set[type]] = {}
     pending = list(cls.__subclasses__())
     while pending:
@@ -1135,12 +1112,26 @@ def _subclasses_declaring(cls: type, keys: list[str]) -> dict[str, set[type]]:
         for key in set(keys) & set(getattr(sub, "model_fields", {})):
             declaring.setdefault(key, set()).add(sub)
         pending += sub.__subclasses__()
-    return declaring
-
-
-#: Set by :meth:`EdenConfig.load_from_data` alone: a legacy file may hold untagged options of a subclass, an override
-#: may not (see :func:`_safe_model_construct`).
-_TOLERATE_UNTAGGED_SUBCLASS_KEYS: ContextVar[bool] = ContextVar("tolerate_untagged_subclass_keys", default=False)
+    if not declaring:
+        return ""
+    read_as = f"It carries no class tags, so it was read as {cls.__name__}, the type its field declares"
+    owners = set.intersection(*(declaring.get(key, set()) for key in keys))
+    if len(owners) == 1:
+        (owner,) = owners
+        return (
+            f"{read_as}, but {owner.__name__} declares {keys}: add '_option_module_': '{owner.__module__}',"
+            f" '_option_class_': '{owner.__name__}' next to them."
+        )
+    if owners and len({c.__module__ for c in owners}) == 1:
+        names = " or ".join(f"'{c.__name__}'" for c in sorted(owners, key=lambda c: c.__name__))
+        return (
+            f"{read_as}, but {len(owners)} subclasses declare all of {keys}: add '_option_module_':"
+            f" '{next(iter(owners)).__module__}' and '_option_class_': {names}, the one meant, next to them."
+        )
+    by_key = "; ".join(f"'{key}' by {', '.join(sorted(c.__name__ for c in declaring[key]))}" for key in declaring)
+    return (
+        f"{read_as}, but subclasses declare {by_key}: add '_option_module_' and '_option_class_' naming the one meant."
+    )
 
 
 def load_json(path: str):

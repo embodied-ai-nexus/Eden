@@ -261,6 +261,7 @@ def test_an_untagged_genesis_option_in_an_override_refuses_a_key_its_field_type_
     with pytest.raises(ValueError, match="'dampng' is not a field of FEMOptions. Did you mean 'damping'?") as typo:
         base.with_overrides_from_dict({"env_options": {"fem_options": {"dampng": 0.1}}})
     assert typo.value.__notes__ == ["Raised applying an override to RoundtripConfig, at 'env_options.fem_options'."]
+    assert "class tags" not in str(typo.value)  # FEMOptions has no subclass: the tags could not help
     sap = {"n_sap_iterations": 50}
     tags = "'_option_module_': 'genesis.options.solvers', '_option_class_': 'SAPCouplerOptions'"
     with pytest.raises(ValueError, match=f"read as BaseCouplerOptions, .* add {tags} next to them"):
@@ -269,23 +270,6 @@ def test_an_untagged_genesis_option_in_an_override_refuses_a_key_its_field_type_
     tagged = {"_option_module_": "genesis.options.solvers", "_option_class_": "SAPCouplerOptions", **sap}
     coupler = base.with_overrides_from_dict({"env_options": {"coupler_options": tagged}}).env_options.coupler_options
     assert isinstance(coupler, gs.options.SAPCouplerOptions) and coupler.n_sap_iterations == 50
-
-
-def test_a_legacy_save_drops_only_the_untagged_keys_a_subclass_of_the_field_type_declares(tmp_path, eden_caplog):
-    """A file saved before class tags existed may hold a subclass under its field's base type, and nothing says which:
-    a key a subclass declares drops with a warning, so the file still loads. Any other key is a mistake, and raises.
-    """
-    config = RoundtripConfig(env_options=EnvOptions(num_envs=1, coupler_options=gs.options.SAPCouplerOptions()))
-    legacy = _saved(tmp_path, config, name="legacy.json")
-    _rewrite(legacy, lambda raw: _without_class_tags(raw["config"]["env_options"]["coupler_options"]))
-
-    coupler = RoundtripConfig.load_from_file(legacy).env_options.coupler_options
-    assert type(coupler) is gs.options.BaseCouplerOptions
-    assert "a subclass of BaseCouplerOptions declares them" in eden_caplog.text
-
-    _rewrite(legacy, lambda raw: raw["config"]["env_options"]["coupler_options"].update(bogus=1))
-    with pytest.raises(ValueError, match="'bogus' is not a field of BaseCouplerOptions"):
-        RoundtripConfig.load_from_file(legacy)
 
 
 class _GroupedConfig(RoundtripConfig):
@@ -298,16 +282,6 @@ def test_a_load_error_names_the_list_index_of_the_offending_value(tmp_path):
     with pytest.raises(ValueError) as error:
         _GroupedConfig.load_from_file(path)
     assert error.value.__notes__[0].startswith(f"Raised loading {path}, at 'fems[1]'.")
-
-
-def test_every_retired_genesis_field_is_one_its_class_no_longer_has():
-    """A note naming a field its class still has, or a class gone, would word a wrong error."""
-    from eden.options._retired_fields import GENESIS_RETIRED_FIELDS
-    from eden.options.materials import SPHLiquidMaterialOptions
-
-    classes = [(get_options_class_from_qualname(name), notes) for name, notes in GENESIS_RETIRED_FIELDS.items()]
-    for cls, notes in [*classes, (SPHLiquidMaterialOptions, SPHLiquidMaterialOptions._retired_fields)]:
-        assert notes and not set(notes) & set(cls.model_fields), cls
 
 
 # ---------------------------------------------------------------------------
@@ -504,16 +478,20 @@ def test_genesis_options_round_trip_to_their_concrete_classes(tmp_path):
         gs.surfaces.Plastic(colour=(1.0, 0.0, 0.0))
 
 
-def test_a_genesis_surface_saved_without_class_metadata_rebuilds_from_the_field_type(tmp_path):
+def test_a_genesis_surface_saved_without_its_class_raises_naming_the_tags_to_add(tmp_path):
+    """Read as its field's declared ``Surface``, a ``Default``'s own fields would drop and the plane render otherwise;
+    the error names the subclasses that declare them and the tags that pick one.
+    """
     path = _saved(
         tmp_path,
         EdenConfig(scene_options=SceneOptions(plane=PlaneOptions(surface=gs.surfaces.Default(double_sided=True)))),
     )
     _rewrite(path, lambda raw: _without_class_tags(raw["config"]["scene_options"]["plane"]["surface"]))
 
-    surface = EdenConfig.load_from_file(path).scene_options.plane.surface
-
-    assert isinstance(surface, gs.surfaces.Surface) and surface.double_sided is True
+    with pytest.raises(ValueError, match="read as Surface.* '_option_module_': 'genesis.options.surfaces'") as error:
+        EdenConfig.load_from_file(path)
+    assert "'BSDF' or 'Default', the one meant" in str(error.value)
+    assert error.value.__notes__[0].startswith(f"Raised loading {path}, at 'scene_options.plane.surface'.")
 
 
 @pytest.mark.requires_genesis

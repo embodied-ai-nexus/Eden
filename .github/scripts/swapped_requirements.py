@@ -15,9 +15,10 @@ install a distribution the checkout never ran. ``release.yml`` refuses to publis
 
 Left alone: a constraint's version bound on any package (it only narrows what the published requirements admit), and
 an override's version bound on a package the wheel does not name (the ``trimesh`` override). Both pick among released
-versions, which the wheel's users resolve from the index too; whether that resolution matches the checkout's is not
-this guard's question, which is only whether the checkout runs an unreleased build. A direct reference is refused even
-on a package the resolution never reaches, which costs nothing to drop.
+versions, which the wheel's users resolve from the index too. The guard's question is whether the checkout runs
+something the wheel's own requirements would not install: an unreleased build anywhere, or another version of a
+requirement the wheel names. A direct reference is refused even on a package the resolution never reaches, which costs
+nothing to drop.
 """
 
 import tomllib

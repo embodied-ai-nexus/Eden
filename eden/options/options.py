@@ -73,7 +73,7 @@ def _is_cached_property(cls: type, key: str) -> bool:
     return isinstance(getattr(cls, key, None), cached_property)
 
 
-def unknown_fields_message(cls: type, fields: list[str]) -> str:
+def unknown_fields_message(cls: type, fields: list[str], *, context: str = "") -> str:
     """The one wording for "``fields`` are not fields of ``cls``" — names the valid fields and, for a
     typo, the closest one, which is the only thing that unsticks the author.
 
@@ -83,7 +83,8 @@ def unknown_fields_message(cls: type, fields: list[str]) -> str:
     retired field (:func:`eden.options._retired_fields.retired_fields`) gets its migration note, worded
     as a retired term parameter's is (:func:`eden.utils.params.invalid_parameters_message`): a config
     saved before it was retired carries it unasked, so the error must say what became of it. Fields
-    retired for one reason share its note, and the valid fields are listed once.
+    retired for one reason share its note, and the valid fields are listed once, last: ``context``
+    (what the caller knows about how the value was read) goes before them.
     """
     retired = retired_fields(cls)
     valid = sorted(f for f in cls.model_fields if f not in OPTION_METADATA_KEYS)
@@ -97,12 +98,8 @@ def unknown_fields_message(cls: type, fields: list[str]) -> str:
         hint = f" Did you mean '{close[0]}'?" if close else ""
         sentences.append(f"'{field}' is not a field of {cls.__name__}.{hint}")
     sentences += [f"Retired {keys} of {cls.__name__}: {note}." for note, keys in retired_by_note.items()]
-    if retired_by_note:
-        one = sum(map(len, retired_by_note.values())) == 1
-        sentences.append(
-            f"A config saved before {'it was' if one else 'they were'} retired still sets {'it' if one else 'them'},"
-            f" so it is refused rather than run without {'it' if one else 'them'}."
-        )
+    if context:
+        sentences.append(context)
     return f"{' '.join(sentences)} Valid fields: {render_params(_field_specs(cls))}."
 
 
@@ -187,6 +184,11 @@ class ConfigurableOptions(Options):
         retired: dict[str, str] = {}
         for base in reversed(cls.__mro__):
             retired.update(base.__dict__.get("_retired_fields") or {})
+        if still := sorted(set(retired) & set(cls.model_fields)):
+            raise TypeError(
+                f"{cls.__name__} declares {still} in _retired_fields but still has them as fields: a retired field is"
+                f" one the class no longer has. Remove the field, or its _retired_fields entry."
+            )
         cls._retired_fields = MappingProxyType(retired)
 
     def __eq__(self, other: Any) -> bool:

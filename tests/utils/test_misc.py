@@ -524,8 +524,12 @@ def test_a_log_line_shows_the_version_and_a_short_commit(provenance, shown):
             "saved 0.1.0 (aaaaaaa), running 0.1.0 (bbbbbbb)",
         ),
         ({"version": "0.1.0", "commit": "a" * 40}, {"version": "0.2.0", "commit": "a" * 40}, None),
-        # A clone and an install: only the versions compare.
-        ({"version": "0.1.0", "commit": "a" * 40}, {"version": "0.1.0", "commit": None}, None),
+        # A clone and an install at one version: a version does not advance between releases, so they may differ.
+        (
+            {"version": "0.1.0", "commit": "a" * 40},
+            {"version": "0.1.0", "commit": None},
+            "saved 0.1.0 (aaaaaaa), running 0.1.0",
+        ),
         (
             {"version": "0.1.0", "commit": None},
             {"version": "0.2.0", "commit": "b" * 40},
@@ -541,27 +545,14 @@ def test_a_saved_record_differs_by_commit_when_both_have_one_else_by_version(sav
     assert describe_provenance_change(saved, current) == change
 
 
-def test_a_commit_and_the_release_it_still_calls_itself_differ_where_commits_are_not_releases():
-    """genesis-world's commit c27c6ca4 reports 1.4.6, as the release does: for it, one version is not one build."""
+def test_a_commit_and_the_release_it_still_calls_itself_differ():
+    """genesis-world's commit c27c6ca4 reports 1.4.6, as the release does: a config saved under the release must not
+    load on the commit as if nothing changed.
+    """
     release, commit = {"version": "1.4.6", "commit": None}, {"version": "1.4.6", "commit": "c" * 40}
-    assert describe_provenance_change(release, commit) is None
-    assert (
-        describe_provenance_change(release, commit, commit_is_release=False) == "saved 1.4.6, running 1.4.6 (ccccccc)"
-    )
-    assert (
-        describe_provenance_change(commit, release, commit_is_release=False) == "saved 1.4.6 (ccccccc), running 1.4.6"
-    )
-    assert describe_provenance_change(commit, commit, commit_is_release=False) is None
-    # Otherwise as before: two commits decide, else two versions; an unknown version compares nothing
-    other = {"version": "1.4.6", "commit": "d" * 40}
-    assert (
-        describe_provenance_change(commit, other, commit_is_release=False)
-        == "saved 1.4.6 (ccccccc), running 1.4.6 (ddddddd)"
-    )
-    assert describe_provenance_change(release, {"version": "1.5.0", "commit": None}, commit_is_release=False) == (
-        "saved 1.4.6, running 1.5.0"
-    )
-    assert describe_provenance_change({"version": None, "commit": None}, commit, commit_is_release=False) is None
+    assert describe_provenance_change(release, commit) == "saved 1.4.6, running 1.4.6 (ccccccc)"
+    assert describe_provenance_change(commit, release) == "saved 1.4.6 (ccccccc), running 1.4.6"
+    assert describe_provenance_change(release, release) is None
 
 
 def _installed(monkeypatch, site: Path, direct_url: dict | None = None) -> str:
