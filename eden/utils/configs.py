@@ -51,6 +51,7 @@ from eden.options import (
     TerminationManagerOptions,
 )
 from eden.options._metadata import OPTION_METADATA_KEYS
+from eden.options._retired_fields import retired_fields
 from eden.options.options import ConfigurableOptions, Options, unknown_fields_message
 from eden.options.splat import NyxSplatOptions, SplatOptions
 from eden.utils.misc import describe_provenance_change, get_eden_provenance, get_package_provenance
@@ -440,9 +441,15 @@ class EdenConfig(ConfigurableOptions):
             options = to_options(data, saved_cls)
         except Exception as e:
             # Where it sits, and the version change that most likely retired it: the warnings below never print.
-            _note_where_loading_raised(
-                e, f"loading {source}", [f"{name} {change}." for name, change in changes.items()]
-            )
+            notes = [f"{name} {change}." for name, change in changes.items()]
+            if getattr(e, "_eden_retired_fields", False):
+                notes.append(
+                    "Removing a retired field runs the config under the current physics, not the saved run's, so a"
+                    " policy trained under it may behave otherwise: to reproduce the run, use the Eden and Genesis that"
+                    " saved it. To run it under the current ones, copy the file, remove the retired fields from the copy"
+                    f" and pass it with --config, keeping {source} as the record of the run."
+                )
+            _note_where_loading_raised(e, f"loading {source}", notes)
             raise
         for name, change in changes.items():
             en.logger.warning(f"{name} differs from the one that saved {source}: {change}.")
@@ -898,9 +905,9 @@ def _option_class_from_annotation(annotation, value=None):
         if len(option_classes) == 1:
             return option_classes[0]
         # Multiple candidates (e.g. `SurfaceOptions | Surface`): a dict with class
-        # metadata is handled before we get here, so this is a legacy metadata-less
-        # dict. Disambiguate by field-key overlap — the class whose declared fields
-        # best cover the dict's keys.
+        # metadata is handled before we get here, so this one carries none (a
+        # hand-written override). Disambiguate by field-key overlap — the class whose
+        # declared fields best cover the dict's keys.
         if len(option_classes) > 1 and isinstance(value, dict):
             keys = set(value) - set(OPTION_METADATA_KEYS)
             return max(option_classes, key=lambda cls: len(keys & set(getattr(cls, "model_fields", {}))))
@@ -1079,20 +1086,38 @@ def _safe_model_construct(cls: type, data: dict, *, recorded: bool = True):
     is_eden = issubclass(cls, ConfigurableOptions)
     # Type-recovery tags are internal metadata, never real fields — drop them for both eden
     # (re-seeded by ``ConfigurableOptions.__init__``) and genesis-native options, so they never
-    # reach ``model_validate``/``model_construct`` nor the unknown-key warning below.
+    # reach ``model_validate``/``model_construct`` nor the unknown-key check below.
     data = {k: v for k, v in data.items() if k not in OPTION_METADATA_KEYS}
     if is_eden:
         # model_validate enforces the class's own extra policy: forbid -> raises loud on an
         # unknown field; allow -> keeps it as a dynamic child. Fail-fast, no silent drop.
-        return cls.model_validate(data)
+        try:
+            return cls.model_validate(data)
+        except ValidationError as e:
+            if set(data) & set(retired_fields(cls)):
+                _mark_retired_fields(e)
+            raise
     if cls.model_config.get("extra") == "forbid":
         # A computed field (``ColorTexture.is_black``) is derived state the dump writes out, not a setting: skipped.
         data = {k: v for k, v in data.items() if k not in cls.model_computed_fields}
         if unknown := [key for key in data if key not in cls.model_fields]:
-            raise ValueError(
+            error = ValueError(
                 unknown_fields_message(cls, unknown, context="" if recorded else _subclass_hint(cls, unknown))
             )
+            if set(unknown) & set(retired_fields(cls)):
+                _mark_retired_fields(error)
+            raise error
     return cls.model_construct(**data)
+
+
+def _mark_retired_fields(exc: BaseException) -> None:
+    """Flag ``exc`` as raised for retired fields, so a file load can add how to replay the file (see
+    :meth:`EdenConfig.load_from_data`).
+    """
+    try:
+        exc._eden_retired_fields = True
+    except AttributeError:  # an exception type that takes no attributes: the load says less, nothing more
+        pass
 
 
 def _note_where_loading_raised(exc: BaseException, doing: str, changes: list[str]) -> None:
@@ -1104,9 +1129,10 @@ def _note_where_loading_raised(exc: BaseException, doing: str, changes: list[str
 
 
 def _subclass_hint(cls: type, keys: list[str]) -> str:
-    """For an option read as ``cls`` because it carries no class tags: which subclasses declare ``keys``, and the tags
-    that would give it one — or nothing, when none does (the tags would not help). Only subclasses its tags can name
-    count: a class defined in a function or a ``__main__`` script cannot be loaded by them.
+    """For an option read as ``cls`` because it carries no class tags: the subclasses that declare all of ``keys``, and
+    the tags that would give it one — or nothing, when none does (the tags would not help). Only subclasses its tags can
+    name count: a class defined in a function or a ``__main__`` script cannot be loaded by them. Genesis options only:
+    an untagged Eden option is validated by pydantic, whose error lists its declared class's fields.
     """
     declaring: dict[str, set[type]] = {}
     pending = list(cls.__subclasses__())
@@ -1119,23 +1145,20 @@ def _subclass_hint(cls: type, keys: list[str]) -> str:
             declaring.setdefault(key, set()).add(sub)
     if not declaring:
         return ""
-    read_as = f"It carries no class tags, so it was read as {cls.__name__}"
     owners = set.intersection(*(declaring.get(key, set()) for key in keys))
+    if not owners:
+        return ""
+    read_as = f"It carries no class tags, so it was read as {cls.__name__}"
     if len(owners) == 1:
         (owner,) = owners
         return (
             f"{read_as}, but {owner.__name__} declares {keys}: add '_option_module_': '{owner.__module__}',"
             f" '_option_class_': '{owner.__name__}' next to them."
         )
-    if owners and len({c.__module__ for c in owners}) == 1:
-        return (
-            f"{read_as}, but {len(owners)} subclasses declare all of {keys}: add '_option_module_':"
-            f" '{next(iter(owners)).__module__}' and '_option_class_': {_some_names(owners)}, the one meant."
-        )
-    by_key = "; ".join(f"'{key}' ({_some_names(classes)})" for key, classes in declaring.items())
+    modules = " or ".join(sorted({f"'{c.__module__}'" for c in owners}))
     return (
-        f"{read_as}, but subclasses declare some of them: {by_key}. Add '_option_module_' and '_option_class_' naming"
-        " the one meant."
+        f"{read_as}, but {len(owners)} subclasses declare all of {keys}: add '_option_module_': {modules} and"
+        f" '_option_class_': {_some_names(owners)}, the one meant."
     )
 
 

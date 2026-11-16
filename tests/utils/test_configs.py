@@ -241,14 +241,20 @@ def test_load_refuses_a_genesis_option_field_the_installed_genesis_lacks(tmp_pat
     (note,) = retired_error.value.__notes__
     assert f"Raised loading {retired}, at 'env_options.fem_options'." in note
     assert "Genesis saved 0.0.1, running " in note  # the upgrade that most likely retired the field
+    # Removing it is no replay: the note offers both real choices, and keeps the run's own file as its record
+    assert "to reproduce the run, use the Eden and Genesis that saved it" in note
+    assert f"pass it with --config, keeping {retired} as the record of the run." in note
     with pytest.raises(ValueError, match="renamed 'enable_fem_self_collision'.*; set that instead") as renamed_error:
         RoundtripConfig.load_from_file(renamed)
     # Fields retired for one reason share its note, and the valid fields are listed once
     message = str(renamed_error.value)
     assert "Retired ['rigid_rigid_contact_type', 'fem_floor_contact_type'] of SAPCouplerOptions" in message
     assert message.count("Valid fields") == 1
-    with pytest.raises(ValueError, match="'dampng' is not a field of FEMOptions. Did you mean 'damping'?"):
+    with pytest.raises(
+        ValueError, match="'dampng' is not a field of FEMOptions. Did you mean 'damping'?"
+    ) as typo_error:
         RoundtripConfig.load_from_file(typo)
+    assert "reproduce the run" not in typo_error.value.__notes__[0]  # a typo retired nothing
     loaded = RoundtripConfig.load_from_file(_saved(tmp_path, config, name="current.json"))
     assert loaded.env_options.fem_options == config.env_options.fem_options
 

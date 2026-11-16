@@ -486,6 +486,12 @@ it, where in the config it sits, and which Eden and Genesis saved the file. A Ge
 (a hand-written override) is read as its field's declared class; when a subclass declares the rejected keys, the
 error names the `_option_module_` / `_option_class_` to add.
 
+A checkpoint whose `config.json` holds a retired field cannot be replayed as trained on the installed Genesis. To
+reproduce the run, use the Eden and Genesis that saved it (the error names both). To run it under the current
+physics, copy `config.json`, remove the retired fields from the copy and pass it with `--config`, which replaces the
+checkpoint's own config and leaves that file as the record of the run. Removing the fields does not make a trained
+policy behave as it did: what they set is gone.
+
 An options class that retires a field declares it in `_retired_fields`, mapped to the migration, as a term retires a
 parameter in `_retired_params`; Genesis classes are noted in `eden/options/_retired_fields.py`.
 

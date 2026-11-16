@@ -185,16 +185,17 @@ class ConfigurableOptions(Options):
         for base in reversed(cls.__mro__):
             retired.update(base.__dict__.get("_retired_fields") or {})
         if still := sorted(set(retired) & set(cls.model_fields)):
-            owner = next(b for b in cls.__mro__ if set(still) & set(b.__dict__.get("_retired_fields") or {}))
+            # Each class stores the merged mapping, so the declaring class is the one nearest the root holding it.
+            owner = next(b for b in reversed(cls.__mro__) if set(still) & set(b.__dict__.get("_retired_fields") or {}))
             raise TypeError(
                 f"{cls.__name__} has {still} as fields, which {owner.__name__} retired (its _retired_fields): a retired"
                 f" name cannot come back below the class that retired it, whose saved configs it would misread. Name"
                 f" the field otherwise, or drop the entry from {owner.__name__}."
             )
-        if retired and cls.model_config.get("extra") == "allow":
+        if retired and (extra := cls.model_config.get("extra")) != "forbid":
             raise TypeError(
-                f"{cls.__name__} keeps unknown keys as dynamic children (extra='allow'), so a retired field there would"
-                f" load as one instead of failing; _retired_fields is for extra='forbid' options."
+                f"{cls.__name__} is extra={extra!r}, so a retired field would load as a dynamic child or be ignored"
+                f" instead of failing: _retired_fields only works on an extra='forbid' class."
             )
         cls._retired_fields = MappingProxyType(retired)
 
