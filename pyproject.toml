@@ -418,7 +418,8 @@ required-environments = [
 # satisfies the requirement above. GitHub's archive of the commit rather than a `git` source: uv clones a git source
 # with every submodule, recursively, which for genesis-world is LuisaRender and its dependencies, none of which the
 # Python package holds.
-# uv applies a source to a checkout only (`uv sync` / `uv run`); a built wheel's metadata keeps
+# uv applies a source wherever it builds Eden from source (`uv sync`, `uv pip install -e .`, a path or git dependency
+# of another project); pip ignores it, and a built wheel's metadata keeps
 # `genesis-world==1.4.6` above, which installs the 1.4.6 release, so .github/workflows/release.yml refuses to publish
 # while this table names genesis-world. Once a genesis-world release holds this commit, pin it above and drop the table.
 [tool.uv.sources]

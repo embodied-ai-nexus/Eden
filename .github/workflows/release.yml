@@ -58,8 +58,8 @@ jobs:
           prerelease=$(uv run --no-project --with packaging python -c "from packaging.version import Version; print(str(Version('$version').is_prerelease).lower())")
           echo "Version $version (pre-release: $prerelease)"
           echo "prerelease=$prerelease" >> "$GITHUB_OUTPUT"
-      # A `[tool.uv.sources]` entry swaps a requirement for another distribution in a checkout alone: the wheel's
-      # metadata keeps the requirement, which installs a release the checkout never ran. Genesis is pinned to an
+      # A `[tool.uv.sources]` entry swaps a requirement for another distribution only where uv builds Eden from
+      # source: the wheel's metadata keeps the requirement, which installs a release the checkout never ran. Genesis is pinned to an
       # unreleased commit that way between its releases (see pyproject.toml), so publishing waits for the release.
       # A source of a development group alone never reaches the wheel, and an index source installs the same release:
       # both are left alone. One a dev group restricts on a published requirement still is not, since the checkout

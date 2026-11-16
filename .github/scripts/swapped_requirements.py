@@ -1,7 +1,7 @@
 """Print the published requirements ``[tool.uv.sources]`` swaps for another source, space-separated (none: nothing).
 
-A source applies to a checkout's ``uv sync`` alone, and the wheel keeps the requirement it swaps: a published wheel would
-install a distribution the checkout never ran. ``release.yml`` refuses to publish while this prints anything. A source of
+A source applies only where uv builds Eden from source, and the wheel keeps the requirement it swaps: a published wheel
+would install a distribution the checkout never ran. ``release.yml`` refuses to publish while this prints anything. A source of
 a development group alone (``[dependency-groups]``) never reaches the wheel, and an ``index`` source installs the same
 release, so neither is printed.
 """
