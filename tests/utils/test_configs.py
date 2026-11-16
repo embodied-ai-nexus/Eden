@@ -218,8 +218,8 @@ def test_load_refuses_a_genesis_option_field_the_installed_genesis_lacks(tmp_pat
         )
     )
 
-    def from_release(raw):  # saved under the 1.4.6 release, which the pinned commit still calls itself
-        raw["_meta"]["genesis"] = {"version": get_package_provenance("genesis-world")["version"], "commit": None}
+    def from_release(raw):  # saved under an older Genesis release
+        raw["_meta"]["genesis"] = {"version": "0.0.1", "commit": None}
         raw["config"]["env_options"]["fem_options"].update(enable_vertex_constraints=False)
 
     retired = _saved(tmp_path, config, name="retired.json")
@@ -240,7 +240,7 @@ def test_load_refuses_a_genesis_option_field_the_installed_genesis_lacks(tmp_pat
         RoundtripConfig.load_from_file(retired)
     (note,) = retired_error.value.__notes__
     assert f"Raised loading {retired}, at 'env_options.fem_options'." in note
-    assert "Genesis saved " in note  # a release and a commit of one version differ
+    assert "Genesis saved 0.0.1, running " in note  # the upgrade that most likely retired the field
     with pytest.raises(ValueError, match="renamed 'enable_fem_self_collision'.*; set that instead") as renamed_error:
         RoundtripConfig.load_from_file(renamed)
     # Fields retired for one reason share its note, and the valid fields are listed once
@@ -253,7 +253,7 @@ def test_load_refuses_a_genesis_option_field_the_installed_genesis_lacks(tmp_pat
     assert loaded.env_options.fem_options == config.env_options.fem_options
 
 
-def test_an_untagged_genesis_option_in_an_override_refuses_a_key_its_field_type_lacks():
+def test_an_untagged_genesis_option_in_an_override_refuses_a_key_its_field_type_lacks(tmp_path):
     """An override's keys are what the user just typed: one the field's declared class lacks raises, saying how to name
     the subclass, rather than leave a bare ``BaseCouplerOptions`` that fails only at scene build.
     """
@@ -266,6 +266,12 @@ def test_an_untagged_genesis_option_in_an_override_refuses_a_key_its_field_type_
     tags = "'_option_module_': 'genesis.options.solvers', '_option_class_': 'SAPCouplerOptions'"
     with pytest.raises(ValueError, match=f"read as BaseCouplerOptions, .* add {tags} next to them"):
         base.with_overrides_from_dict({"env_options": {"coupler_options": sap}})
+
+    partial = tmp_path / "partial.yaml"
+    partial.write_text("env_options:\n  fem_options:\n    dampng: 0.1\n")
+    with pytest.raises(ValueError) as from_file:
+        base.with_overrides_from_file(str(partial))
+    assert from_file.value.__notes__ == [f"Raised applying {partial} to RoundtripConfig, at 'env_options.fem_options'."]
 
     tagged = {"_option_module_": "genesis.options.solvers", "_option_class_": "SAPCouplerOptions", **sap}
     coupler = base.with_overrides_from_dict({"env_options": {"coupler_options": tagged}}).env_options.coupler_options

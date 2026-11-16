@@ -1,4 +1,4 @@
-"""Print the requirements ``pyproject.toml`` swaps for what the published wheel does not install, space-separated
+"""Print the requirements ``pyproject.toml`` swaps for what the published wheel does not install, comma-separated
 (none: nothing).
 
 uv resolves Eden's own project with three settings the wheel's metadata does not carry, so a published wheel would
@@ -61,4 +61,4 @@ def _swaps(source: dict | list) -> bool:
 
 
 if __name__ == "__main__":
-    print(" ".join(swapped_requirements(tomllib.loads(Path("pyproject.toml").read_text()))))
+    print(", ".join(swapped_requirements(tomllib.loads(Path("pyproject.toml").read_text()))))

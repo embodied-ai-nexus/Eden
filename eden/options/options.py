@@ -111,8 +111,8 @@ def _enrich_extra_forbidden(cls: type, exc: ValidationError) -> ValidationError 
     ``RslRlOnPolicyRunnerOptions`` would otherwise reject a typo without teaching the field set).
     When *every* error is an unknown-field rejection, return an equivalent ``ValidationError``
     whose message lists the valid fields — plus a ``did you mean`` when one is close, and a retired
-    field's migration note. Several top-level unknown fields become one error (``loc=()``) telling
-    them all, so the notes and the field list are said once. The rebuilt
+    field's migration note. Several top-level unknown fields become one error, at the first one's
+    location, telling them all, so the notes and the field list are said once. The rebuilt
     error keeps ``type=extra_forbidden`` (via :class:`PydanticCustomError`) so callers and tests
     that key on that type still see it. Returns ``None`` when any error is *not* extra_forbidden,
     so a genuine type error alongside is never masked or reworded.
@@ -132,15 +132,15 @@ def _enrich_extra_forbidden(cls: type, exc: ValidationError) -> ValidationError 
     if not any(len(e["loc"]) == 1 for e in errors):
         return None
     # Every top-level unknown field of cls is told in one error, at the first one's place: an old save carries
-    # several retired fields at once (an SPH liquid's three), whose note and valid-field list are said once.
+    # several retired fields at once (an SPH liquid's three), whose note and valid-field list are said once. Not at
+    # ``loc=()``: a parent validating this class as its field would read ``("child",)`` as an unknown field of its own.
     top = [e for e in errors if len(e["loc"]) == 1]
     fields = [str(e["loc"][0]) for e in top]
     # error_type stays "extra_forbidden"; only the human message changes.
     told = PydanticCustomError("extra_forbidden", unknown_fields_message(cls, fields))
     loc, given = (
-        (top[0]["loc"], top[0].get("input"))
-        if len(top) == 1
-        else ((), {f: e.get("input") for f, e in zip(fields, top)})
+        top[0]["loc"],
+        top[0].get("input") if len(top) == 1 else {f: e.get("input") for f, e in zip(fields, top)},
     )
     line_errors: list[InitErrorDetails] = []
     for e in errors:
@@ -185,9 +185,16 @@ class ConfigurableOptions(Options):
         for base in reversed(cls.__mro__):
             retired.update(base.__dict__.get("_retired_fields") or {})
         if still := sorted(set(retired) & set(cls.model_fields)):
+            owner = next(b for b in cls.__mro__ if set(still) & set(b.__dict__.get("_retired_fields") or {}))
             raise TypeError(
-                f"{cls.__name__} declares {still} in _retired_fields but still has them as fields: a retired field is"
-                f" one the class no longer has. Remove the field, or its _retired_fields entry."
+                f"{cls.__name__} has {still} as fields, which {owner.__name__} retired (its _retired_fields): a retired"
+                f" name cannot come back below the class that retired it, whose saved configs it would misread. Name"
+                f" the field otherwise, or drop the entry from {owner.__name__}."
+            )
+        if retired and cls.model_config.get("extra") == "allow":
+            raise TypeError(
+                f"{cls.__name__} keeps unknown keys as dynamic children (extra='allow'), so a retired field there would"
+                f" load as one instead of failing; _retired_fields is for extra='forbid' options."
             )
         cls._retired_fields = MappingProxyType(retired)
 

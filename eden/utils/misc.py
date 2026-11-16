@@ -614,8 +614,8 @@ def describe_provenance_change(saved: object, current: dict) -> str | None:
     ``None`` when the two match or cannot be compared.
 
     Commits are compared when both records have one, else versions. At one version, a record with a commit and one
-    without differ: a version does not advance between releases (Eden's is static between them, and genesis-world's
-    commit c27c6ca4 still reports 1.4.6), so a commit and an install of that version need not be one build. A
+    without differ: a version does not advance between releases (a commit after one reports that release's version,
+    Eden's and genesis-world's alike), so a commit and an install of that version need not be one build. A
     ``saved`` that is not a record (a file written before these fields existed) cannot be compared.
     """
     if not isinstance(saved, dict):

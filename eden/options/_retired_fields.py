@@ -43,13 +43,10 @@ GENESIS_RETIRED_FIELDS: Mapping[str, Mapping[str, str]] = MappingProxyType(
 
 
 def retired_fields(cls: type) -> Mapping[str, str]:
-    """The retired fields of ``cls`` and their migration notes: an Eden option's own declaration, or the notes of the
-    Genesis classes in its MRO (a subclass inherits its base's, and its own note for a name wins).
+    """The retired fields of ``cls`` and their migration notes: the notes of the Genesis classes in its MRO (a subclass
+    inherits its base's, and its own note for a name wins), under an Eden option's own declaration.
     """
-    declared = getattr(cls, "_retired_fields", None)
-    if declared is not None:
-        return declared
     retired: dict[str, str] = {}
     for base in reversed(cls.__mro__):
         retired.update(GENESIS_RETIRED_FIELDS.get(f"{base.__module__}.{base.__qualname__}", {}))
-    return retired
+    return {**retired, **getattr(cls, "_retired_fields", {})}

@@ -20,6 +20,7 @@ save/load is therefore type-preserving and idempotent (pinned by
 
 import json
 import os
+import sys
 from enum import Enum
 from functools import lru_cache
 from types import UnionType
@@ -1085,6 +1086,7 @@ def _safe_model_construct(cls: type, data: dict, *, recorded: bool = True):
         # unknown field; allow -> keeps it as a dynamic child. Fail-fast, no silent drop.
         return cls.model_validate(data)
     if cls.model_config.get("extra") == "forbid":
+        # A computed field (``ColorTexture.is_black``) is derived state the dump writes out, not a setting: skipped.
         data = {k: v for k, v in data.items() if k not in cls.model_computed_fields}
         if unknown := [key for key in data if key not in cls.model_fields]:
             raise ValueError(
@@ -1102,19 +1104,22 @@ def _note_where_loading_raised(exc: BaseException, doing: str, changes: list[str
 
 
 def _subclass_hint(cls: type, keys: list[str]) -> str:
-    """For an option read as ``cls`` because it carries no class tags: which imported subclasses declare ``keys``, and
-    the tags that would give it one — or nothing, when no subclass declares any (the tags would not help).
+    """For an option read as ``cls`` because it carries no class tags: which subclasses declare ``keys``, and the tags
+    that would give it one — or nothing, when none does (the tags would not help). Only subclasses its tags can name
+    count: a class defined in a function or a ``__main__`` script cannot be loaded by them.
     """
     declaring: dict[str, set[type]] = {}
     pending = list(cls.__subclasses__())
     while pending:
         sub = pending.pop()
+        pending += sub.__subclasses__()
+        if getattr(sys.modules.get(sub.__module__), sub.__qualname__, None) is not sub or sub.__module__ == "__main__":
+            continue
         for key in set(keys) & set(getattr(sub, "model_fields", {})):
             declaring.setdefault(key, set()).add(sub)
-        pending += sub.__subclasses__()
     if not declaring:
         return ""
-    read_as = f"It carries no class tags, so it was read as {cls.__name__}, the type its field declares"
+    read_as = f"It carries no class tags, so it was read as {cls.__name__}"
     owners = set.intersection(*(declaring.get(key, set()) for key in keys))
     if len(owners) == 1:
         (owner,) = owners
@@ -1123,15 +1128,20 @@ def _subclass_hint(cls: type, keys: list[str]) -> str:
             f" '_option_class_': '{owner.__name__}' next to them."
         )
     if owners and len({c.__module__ for c in owners}) == 1:
-        names = " or ".join(f"'{c.__name__}'" for c in sorted(owners, key=lambda c: c.__name__))
         return (
             f"{read_as}, but {len(owners)} subclasses declare all of {keys}: add '_option_module_':"
-            f" '{next(iter(owners)).__module__}' and '_option_class_': {names}, the one meant, next to them."
+            f" '{next(iter(owners)).__module__}' and '_option_class_': {_some_names(owners)}, the one meant."
         )
-    by_key = "; ".join(f"'{key}' by {', '.join(sorted(c.__name__ for c in declaring[key]))}" for key in declaring)
+    by_key = "; ".join(f"'{key}' ({_some_names(classes)})" for key, classes in declaring.items())
     return (
-        f"{read_as}, but subclasses declare {by_key}: add '_option_module_' and '_option_class_' naming the one meant."
+        f"{read_as}, but subclasses declare some of them: {by_key}. Add '_option_module_' and '_option_class_' naming"
+        " the one meant."
     )
+
+
+def _some_names(classes: set[type], shown: int = 5) -> str:
+    names = sorted(f"'{c.__name__}'" for c in classes)
+    return " or ".join(names[:shown]) + (f" or {len(names) - shown} more" if len(names) > shown else "")
 
 
 def load_json(path: str):
