@@ -207,6 +207,51 @@ def test_load_fails_fast_on_a_corrupt_field_or_an_unknown_key(tmp_path):
         EdenConfig(unknown_field="value")
 
 
+def test_load_refuses_a_genesis_option_field_the_installed_genesis_lacks(tmp_path):
+    """A save from before a Genesis bump carries the fields the bump removed, at their defaults too: the physics they
+    set are gone, so the load must not drop them and run something else. A removed field says what became of it.
+    """
+    config = RoundtripConfig(
+        env_options=EnvOptions(
+            num_envs=1, fem_options=gs.options.FEMOptions(), coupler_options=gs.options.SAPCouplerOptions()
+        )
+    )
+    removed = _saved(tmp_path, config, name="removed.json")
+    _rewrite(removed, lambda raw: raw["config"]["env_options"]["fem_options"].update(enable_vertex_constraints=False))
+    renamed = _saved(tmp_path, config, name="renamed.json")
+    _rewrite(
+        renamed,
+        lambda raw: raw["config"]["env_options"]["coupler_options"].update(
+            enable_fem_self_tet_contact=True, rigid_rigid_contact_type="tet", fem_floor_contact_type="tet"
+        ),
+    )
+    typo = _saved(tmp_path, config, name="typo.json")
+    _rewrite(typo, lambda raw: raw["config"]["env_options"]["fem_options"].update(dampng=0.1))
+
+    with pytest.raises(ValueError, match=r"'enable_vertex_constraints' is no longer a field of FEMOptions: .*#3807"):
+        RoundtripConfig.load_from_file(removed)
+    with pytest.raises(ValueError, match="renamed it 'enable_fem_self_collision'") as renamed_error:
+        RoundtripConfig.load_from_file(renamed)
+    # Fields lost for one reason share its sentence, and the valid fields are listed once
+    message = str(renamed_error.value)
+    assert "'rigid_rigid_contact_type' and 'fem_floor_contact_type' are no longer fields" in message
+    assert message.count("Valid fields") == 1
+    with pytest.raises(ValueError, match="'dampng' is not a field of FEMOptions. Did you mean 'damping'?"):
+        RoundtripConfig.load_from_file(typo)
+    loaded = RoundtripConfig.load_from_file(_saved(tmp_path, config, name="current.json"))
+    assert loaded.env_options.fem_options == config.env_options.fem_options
+
+
+def test_every_removed_field_is_one_its_class_no_longer_has():
+    """An entry of the table naming a field its class still has, or a class gone, would word a wrong error."""
+    from eden.options import materials
+    from eden.options._removed_fields import REMOVED_FIELDS
+
+    for cls_name, field in REMOVED_FIELDS:
+        cls = getattr(gs.options, cls_name, None) or getattr(materials, cls_name)
+        assert field not in cls.model_fields, (cls_name, field)
+
+
 # ---------------------------------------------------------------------------
 # Which class a load reconstructs
 # ---------------------------------------------------------------------------

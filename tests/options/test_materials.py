@@ -77,6 +77,17 @@ def test_material_forwards_every_set_field_to_genesis(options_cls, genesis_cls):
     assert {name: getattr(material, name) for name in forwarded} == forwarded
 
 
+@pytest.mark.parametrize(
+    ("field", "became"), [("stiffness", "nothing replaces it"), ("gamma", "replaced this unitless cohesion")]
+)
+def test_an_sph_liquid_field_genesis_removed_says_what_became_of_it(field, became):
+    """A config saved before genesis-world#3755/#3778 sets them, at their defaults too: it must not load as a typo."""
+    with pytest.raises(
+        ValidationError, match=f"'{field}' is no longer a field of SPHLiquidMaterialOptions: .*{became}"
+    ):
+        SPHLiquidMaterialOptions(**{field: 1.0})
+
+
 @pytest.mark.parametrize("field", ["friction_torsional", "friction_rolling"])
 def test_a_negative_rigid_friction_axis_is_rejected_at_construction(field):
     """Genesis would reject it only at build; the field constraint moves that to the config."""

@@ -477,8 +477,14 @@ as `__main__`), the load raises `ImportError` naming it, rather than falling bac
 the installed Eden or Genesis differs from the one that saved the file, the load logs a warning.
 
 Loading validates every Eden options object, so an unknown or stale field, or a term parameter that no
-longer exists, raises at load and names the class and the field. Embedded Genesis options are not
-validated: an unknown key on one is dropped with a warning.
+longer exists, raises at load and names the class and the field. Embedded Genesis options (`fem_options`,
+`coupler_options`, a surface) are not validated, but a key the class the file records no longer has raises
+too: a config saved before a Genesis upgrade carries every field its options had then, at their defaults
+too, so one the upgrade removed (`FEMOptions.enable_vertex_constraints`, `SPHOptions.pressure_solver`, the
+SAP coupler's contact types) stops the load rather than run physics other than the saved ones. The error
+says what became of the field; drop it from the file to run the config under the installed Genesis.
+A Genesis option saved without its class (an old save) is rebuilt as its field's declared class, whose
+missing keys are dropped with a warning instead.
 
 !!! note "The subclass rule is not task identity"
     `load_from_file`'s "this class or a subclass" is right for a library loader, but several tasks

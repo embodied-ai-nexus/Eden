@@ -50,7 +50,7 @@ from eden.options import (
     TerminationManagerOptions,
 )
 from eden.options._metadata import OPTION_METADATA_KEYS
-from eden.options.options import ConfigurableOptions, Options
+from eden.options.options import ConfigurableOptions, Options, unknown_fields_message
 from eden.options.splat import NyxSplatOptions, SplatOptions
 from eden.utils.misc import describe_provenance_change, get_eden_provenance, get_package_provenance
 
@@ -979,7 +979,7 @@ def to_options(config: dict, base_options: Options | type[Options]):
     Eden options (config root classes included) are rebuilt with validation, so an unknown key on
     an ``extra="forbid"`` class raises, while ``extra="allow"`` classes (ManagerOptions,
     SceneOptions, etc.) keep unknown keys as their dynamic term/entity children. Genesis-native
-    options skip validation, and an ``extra="forbid"`` one drops unknown keys with a warning — see
+    options skip validation, but an unknown key on an ``extra="forbid"`` one raises too — see
     :func:`_safe_model_construct`.
 
     Parameters
@@ -1024,12 +1024,22 @@ def _safe_model_construct(cls: type, data: dict):
       builder-``__init__`` subclasses, so nothing here needs non-persisted construction args.
     - **genesis-native Options** stay on ``model_construct`` (validation skipped): they are
       ``strict=True`` and their fixed-size vector fields would reject the JSON list form. Since
-      ``model_construct`` can't validate, unknown/legacy keys on a ``forbid`` genesis option are
-      dropped with a warning — a genesis (third-party) schema change must not hard-fail a load.
-      Nothing validates these fields, so a ``FloatArray`` declared on one would load back as a
-      plain ``list``.
+      ``model_construct`` can't validate, the keys of a ``forbid`` genesis option are checked here:
+
+      * a computed field (``ColorTexture.is_black``) is derived state the dump writes out: skipped;
+      * a key the class the file *records* lacks is a field a Genesis bump removed, which a save from
+        before the bump carries even at its default. The physics it set are gone, so the load refuses
+        it, worded as an eden option's unknown field is, rather than run something other than what
+        was saved. Do not go back to dropping it with a warning;
+      * a key the class *inferred* from the field's annotation lacks (a save without class tags) may
+        belong to the subclass that was saved (``gs.surfaces.Default`` under a ``Surface`` field), so
+        it is dropped with a warning: a legacy save keeps loading.
+
+      Nothing validates these fields, so a ``FloatArray`` declared on one would load back as a plain
+      ``list``.
     """
     is_eden = issubclass(cls, ConfigurableOptions)
+    recorded = all(key in data for key in OPTION_METADATA_KEYS)
     # Type-recovery tags are internal metadata, never real fields — drop them for both eden
     # (re-seeded by ``ConfigurableOptions.__init__``) and genesis-native options, so they never
     # reach ``model_validate``/``model_construct`` nor the unknown-key warning below.
@@ -1039,11 +1049,15 @@ def _safe_model_construct(cls: type, data: dict):
         # unknown field; allow -> keeps it as a dynamic child. Fail-fast, no silent drop.
         return cls.model_validate(data)
     if cls.model_config.get("extra") == "forbid":
-        known_fields = set(cls.model_fields.keys())
-        dropped = {k for k in data if k not in known_fields}
-        if dropped:
-            en.logger.warning(f"Dropping unknown keys when loading {cls.__name__}: {dropped}")
-        data = {k: v for k, v in data.items() if k in known_fields}
+        data = {k: v for k, v in data.items() if k not in cls.model_computed_fields}
+        if unknown := [key for key in data if key not in cls.model_fields]:
+            if recorded:
+                raise ValueError(unknown_fields_message(cls, unknown))
+            en.logger.warning(
+                f"Dropping {unknown} when loading a {cls.__name__} saved without its class: they may be fields of the"
+                f" subclass that was saved. Save the config again to record it."
+            )
+            data = {k: v for k, v in data.items() if k in cls.model_fields}
     return cls.model_construct(**data)
 
 

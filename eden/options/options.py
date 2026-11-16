@@ -45,6 +45,7 @@ from pydantic import BaseModel, PrivateAttr, ValidationError
 from pydantic_core import InitErrorDetails, PydanticCustomError
 
 from eden.options._metadata import OPTION_METADATA_KEYS, getattribute_with_extra, option_metadata
+from eden.options._removed_fields import REMOVED_FIELDS
 from eden.utils.params import ParamInfo, render_annotation, render_params
 
 T = TypeVar("T", bound=Options)
@@ -71,17 +72,52 @@ def _is_cached_property(cls: type, key: str) -> bool:
     return isinstance(getattr(cls, key, None), cached_property)
 
 
-def _unknown_field_message(cls: type, field: str) -> str:
-    """The one wording for "``field`` is not a field of ``cls``" — names the valid fields and the
-    closest one, which is the only thing that unsticks the author.
+def unknown_fields_message(cls: type, fields: list[str]) -> str:
+    """The one wording for "``fields`` are not fields of ``cls``" — names the valid fields and, for a
+    typo, the closest one, which is the only thing that unsticks the author.
 
-    Shared by construction (:func:`_enrich_extra_forbidden`) and ``model_copy(update=...)``
-    (:meth:`ConfigurableOptions._validate_copy_update`) so the same typo reads the same either way.
+    Shared by construction (:func:`_enrich_extra_forbidden`), ``model_copy(update=...)``
+    (:meth:`ConfigurableOptions._validate_copy_update`) and the config loader's Genesis options
+    (``eden.utils.configs._safe_model_construct``) so the same typo reads the same either way. A field
+    the class has lost (:data:`eden.options._removed_fields.REMOVED_FIELDS`) is told apart from a
+    typo: the message says what became of it, since a saved config carries it unasked. Fields lost
+    for one reason share its sentence, and the valid fields are listed once, however many fields are
+    rejected (an old SAP coupler config carries six).
     """
+    removed: dict[str, list[str]] = {}
+    sentences = []
     valid = sorted(f for f in cls.model_fields if f not in OPTION_METADATA_KEYS)
-    close = difflib.get_close_matches(field, valid, n=1)
-    hint = f" Did you mean '{close[0]}'?" if close else ""
-    return f"'{field}' is not a field of {cls.__name__}.{hint} Valid fields: {render_params(_field_specs(cls))}."
+    for field in fields:
+        if (reason := REMOVED_FIELDS.get((cls.__name__, field))) is not None:
+            removed.setdefault(reason, []).append(field)
+            continue
+        close = difflib.get_close_matches(field, valid, n=1)
+        hint = f" Did you mean '{close[0]}'?" if close else ""
+        sentences.append(f"'{field}' is not a field of {cls.__name__}.{hint}")
+    dropped = []
+    for reason, lost in removed.items():
+        names = _quoted_list(lost)
+        verb = "is no longer a field" if len(lost) == 1 else "are no longer fields"
+        sentences.insert(len(dropped), f"{names} {verb} of {cls.__name__}: {reason}.")
+        dropped += lost
+    if dropped:
+        change = "that change" if len(removed) == 1 else "those changes"
+        sentences.insert(
+            len(removed),
+            f"A config saved before {change} configures physics the installed Genesis no longer has; drop"
+            f" {_quoted_list(dropped)} to run it under the current physics.",
+        )
+    return f"{' '.join(sentences)} Valid fields: {render_params(_field_specs(cls))}."
+
+
+def unknown_field_message(cls: type, field: str) -> str:
+    """:func:`unknown_fields_message` for one field."""
+    return unknown_fields_message(cls, [field])
+
+
+def _quoted_list(names: list[str]) -> str:
+    quoted = [f"'{name}'" for name in names]
+    return quoted[0] if len(quoted) == 1 else f"{', '.join(quoted[:-1])} and {quoted[-1]}"
 
 
 def _enrich_extra_forbidden(cls: type, exc: ValidationError) -> ValidationError | None:
@@ -114,7 +150,7 @@ def _enrich_extra_forbidden(cls: type, exc: ValidationError) -> ValidationError 
     for e in errors:
         loc = e["loc"]
         if len(loc) == 1:
-            message = _unknown_field_message(cls, str(loc[0]))
+            message = unknown_field_message(cls, str(loc[0]))
         else:
             # Nested: reuse the message pydantic already rendered (the nested class's own enriched
             # text, or its native "Extra inputs are not permitted") — attributing it to cls here
@@ -402,7 +438,7 @@ class ConfigurableOptions(Options):
             return
         unknown = [key for key in update if key not in type(self).model_fields]
         if unknown:
-            raise ValueError(" ".join(_unknown_field_message(type(self), key) for key in unknown))
+            raise ValueError(unknown_fields_message(type(self), unknown))
 
     def updated(self, **updates: Any) -> Self:
         """Return a deep copy with the given fields replaced — the way to override inherited options.
