@@ -170,13 +170,26 @@ def test_the_release_refuses_a_source_that_swaps_a_published_requirement_alone()
         "dependency-groups": {"dev": ["bar"]},
         "tool": {"uv": {"sources": {"genesis-world": {"url": "u"}, "foo": {"git": "g"}, "bar": {"path": "p"}}}},
     }
-    assert module.swapped_requirements(pyproject) == ["foo", "genesis-world"]
+    assert module.swapped_requirements(pyproject) == ["foo ([tool.uv.sources])", "genesis-world ([tool.uv.sources])"]
     # An index source installs the same release from another index (torch from a CUDA index)
     pyproject["tool"]["uv"]["sources"] = {"foo": [{"index": "cu128", "marker": "sys_platform == 'linux'"}]}
     assert module.swapped_requirements(pyproject) == []
     assert module.swapped_requirements({"project": {"dependencies": ["a"]}}) == []
+    # A direct reference in an override or a constraint, published or transitive (`quadrants` comes with Genesis);
+    # a version bound there resolves from the index, as the wheel does
+    pyproject["tool"]["uv"]["override-dependencies"] = [
+        "trimesh[easy]>=5,<6",
+        "Genesis-World @ https://example.com/g.tgz",
+    ]
+    pyproject["tool"]["uv"]["constraint-dependencies"] = ["quadrants @ git+https://example.com/q", "numpy<3"]
+    assert module.swapped_requirements(pyproject) == [
+        "Genesis-World ([tool.uv] override-dependencies)",
+        "quadrants ([tool.uv] constraint-dependencies)",
+    ]
     # Today's pin: the release waits for a genesis-world release holding the commit
-    assert module.swapped_requirements(_load_pyproject()) == (["genesis-world"] if _genesis_source() else [])
+    assert module.swapped_requirements(_load_pyproject()) == (
+        ["genesis-world ([tool.uv.sources])"] if _genesis_source() else []
+    )
 
 
 def _genesis_source() -> str | None:
