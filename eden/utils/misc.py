@@ -609,16 +609,23 @@ def format_provenance(provenance: dict) -> str:
     return version or (commit[:7] if commit else "unknown")
 
 
-def describe_provenance_change(saved: object, current: dict) -> str | None:
+def describe_provenance_change(saved: object, current: dict, *, commit_is_release: bool = True) -> str | None:
     """How ``current`` differs from the ``saved`` record, as ``saved 0.1.0 (c246ebd), running 0.1.0 (3f2a1b2)``, or
     ``None`` when the two match or cannot be compared.
 
     Commits are compared when both records have one, else versions: a file saved in a clone and read from a wheel of
     the same release matches. A ``saved`` that is not a record (a file written before these fields existed) cannot be
     compared.
+
+    ``commit_is_release=False`` drops that last allowance, for a package pinned to unreleased commits that keep the
+    last release's version (genesis-world between its releases: commit c27c6ca4 still reports 1.4.6): a record with a
+    commit and one without then differ at one version, since only one of them can be that release.
     """
     if not isinstance(saved, dict):
         return None
+    if not commit_is_release and saved.get("version") and saved.get("version") == current.get("version"):
+        if bool(saved.get("commit")) != bool(current.get("commit")):
+            return f"saved {format_provenance(saved)}, running {format_provenance(current)}"
     for key in ("commit", "version"):
         if saved.get(key) and current.get(key):
             if saved[key] == current[key]:

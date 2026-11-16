@@ -186,6 +186,10 @@ def test_the_release_refuses_a_source_that_swaps_a_published_requirement_alone()
         "Genesis-World ([tool.uv] override-dependencies)",
         "quadrants ([tool.uv] constraint-dependencies)",
     ]
+    # An override replaces the requirement the wheel publishes, at any version; a constraint only narrows it
+    pyproject["tool"]["uv"]["override-dependencies"] = ["genesis-world==1.5.0", "trimesh<6"]
+    pyproject["tool"]["uv"]["constraint-dependencies"] = ["foo<2"]
+    assert module.swapped_requirements(pyproject) == ["genesis-world ([tool.uv] override-dependencies)"]
     # Today's pin: the release waits for a genesis-world release holding the commit
     assert module.swapped_requirements(_load_pyproject()) == (
         ["genesis-world ([tool.uv.sources])"] if _genesis_source() else []

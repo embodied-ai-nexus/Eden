@@ -541,6 +541,19 @@ def test_a_saved_record_differs_by_commit_when_both_have_one_else_by_version(sav
     assert describe_provenance_change(saved, current) == change
 
 
+def test_a_commit_and_the_release_it_still_calls_itself_differ_where_commits_are_not_releases():
+    """genesis-world's commit c27c6ca4 reports 1.4.6, as the release does: for it, one version is not one build."""
+    release, commit = {"version": "1.4.6", "commit": None}, {"version": "1.4.6", "commit": "c" * 40}
+    assert describe_provenance_change(release, commit) is None
+    assert (
+        describe_provenance_change(release, commit, commit_is_release=False) == "saved 1.4.6, running 1.4.6 (ccccccc)"
+    )
+    assert (
+        describe_provenance_change(commit, release, commit_is_release=False) == "saved 1.4.6 (ccccccc), running 1.4.6"
+    )
+    assert describe_provenance_change(commit, commit, commit_is_release=False) is None
+
+
 def _installed(monkeypatch, site: Path, direct_url: dict | None = None) -> str:
     """Install a distribution ``eden-provenance-probe 1.2.3`` into ``site`` (on ``sys.path``), with ``direct_url``
     as its PEP 610 record.

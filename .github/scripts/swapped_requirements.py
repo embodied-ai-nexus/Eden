@@ -1,8 +1,8 @@
-"""Print the requirements ``pyproject.toml`` swaps for an unreleased source, space-separated (none: nothing).
+"""Print the requirements ``pyproject.toml`` swaps for what the published wheel does not install, space-separated
+(none: nothing).
 
-Two settings make uv install a distribution the published wheel does not name, and both apply only where uv builds Eden
-from source, while the wheel keeps the requirement it swaps: a published wheel would install a distribution the
-checkout never ran. ``release.yml`` refuses to publish while this prints anything.
+uv resolves Eden's own project with three settings the wheel's metadata does not carry, so a published wheel would
+install a distribution the checkout never ran. ``release.yml`` refuses to publish while this prints anything:
 
 * A ``[tool.uv.sources]`` entry for a published requirement that names a URL, a git repository or a path. A source of a
   development group alone (``[dependency-groups]``) never reaches the wheel, and an ``index`` source installs the same
@@ -10,6 +10,12 @@ checkout never ran. ``release.yml`` refuses to publish while this prints anythin
 * A direct reference (``name @ url``) in ``[tool.uv]``'s ``override-dependencies`` or ``constraint-dependencies``,
   whatever the package: either one replaces a transitive requirement too (Genesis' own dependencies), which the wheel's
   users resolve from the index.
+* Any ``override-dependencies`` entry for a published requirement: an override replaces the requirement the wheel
+  publishes (``genesis-world==1.5.0`` over ``genesis-world==1.4.6`` runs 1.5.0 in the checkout alone).
+
+An override's or a constraint's version bound on a transitive requirement is not printed. The wheel's users resolve
+that package from the index too, if at another release (the ``trimesh`` override lifts a cap for the checkout's
+lockfile): accepted drift between released versions, not an unreleased build.
 """
 
 import tomllib
@@ -35,7 +41,11 @@ def swapped_requirements(pyproject: dict) -> list[str]:
         if canonicalize_name(name) in names and _swaps(source)
     ]
     for setting in _RESOLUTION_SETTINGS:
-        swapped += [f"{req.name} ([tool.uv] {setting})" for req in map(Requirement, uv.get(setting, ())) if req.url]
+        swapped += [
+            f"{req.name} ([tool.uv] {setting})"
+            for req in map(Requirement, uv.get(setting, ()))
+            if req.url or (setting == "override-dependencies" and canonicalize_name(req.name) in names)
+        ]
     return sorted(swapped)
 
 

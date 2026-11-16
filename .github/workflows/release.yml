@@ -58,18 +58,17 @@ jobs:
           prerelease=$(uv run --no-project --with packaging python -c "from packaging.version import Version; print(str(Version('$version').is_prerelease).lower())")
           echo "Version $version (pre-release: $prerelease)"
           echo "prerelease=$prerelease" >> "$GITHUB_OUTPUT"
-      # A `[tool.uv.sources]` entry, or a direct reference in `[tool.uv]`'s override-dependencies or
-      # constraint-dependencies, swaps a requirement for another distribution only where uv builds Eden from source:
-      # the wheel's metadata keeps the requirement, which installs a release the checkout never ran. Genesis is pinned
-      # to an unreleased commit that way between its releases (see pyproject.toml), so publishing waits for the
-      # release. A source of a development group alone never reaches the wheel, and an index source installs the same
-      # release: both are left alone. One a dev group restricts on a published requirement still is not, since the
-      # checkout would then run a distribution the wheel does not install.
+      # `[tool.uv.sources]`, and `[tool.uv]`'s override-dependencies / constraint-dependencies, change what uv
+      # installs for Eden's own project, while the wheel's metadata keeps the published requirement: a wheel published
+      # then installs a release the checkout never ran. Genesis is pinned to an unreleased commit that way between its
+      # releases (see pyproject.toml), so publishing waits for the release. The script's docstring lists what it
+      # refuses (a swapping source of a published requirement, any direct reference in those settings, any override of
+      # a published requirement) and what it leaves alone.
       - name: No requirement is swapped for an unreleased source
         run: |
           swapped=$(uv run --no-project --with packaging python .github/scripts/swapped_requirements.py)
           if [ -n "$swapped" ]; then
-            echo "::error::pyproject.toml makes uv install these from an unreleased source, which the published wheel would not carry: $swapped. Pin a released version of each in [project] and drop the source entry or the direct reference (name @ url)."
+            echo "::error::pyproject.toml makes uv install these from an unreleased source, which the published wheel would not carry: $swapped. Pin a released version of each in [project] and drop its source entry, override or direct reference (name @ url)."
             exit 1
           fi
       # A fresh checkout, so no stale build/ or *.egg-info can leak into the distributions.

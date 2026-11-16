@@ -478,13 +478,16 @@ the installed Eden or Genesis differs from the one that saved the file, the load
 
 Loading validates every Eden options object, so an unknown or stale field, or a term parameter that no
 longer exists, raises at load and names the class and the field. Embedded Genesis options (`fem_options`,
-`coupler_options`, a surface) are not validated, but a key the class the file records no longer has raises
-too: a config saved before a Genesis upgrade carries every field its options had then, at their defaults
-too, so one the upgrade removed (`FEMOptions.enable_vertex_constraints`, `SPHOptions.pressure_solver`, the
-SAP coupler's contact types) stops the load rather than run physics other than the saved ones. The error
-says what became of the field; drop it from the file to run the config under the installed Genesis.
-A Genesis option saved without its class (an old save) is rebuilt as its field's declared class, whose
-missing keys are dropped with a warning instead.
+`coupler_options`, a surface) are not validated, but an unknown key on one raises too. A config saved before a
+Genesis upgrade carries every field its options had then, at their defaults too, so a field the upgrade retired
+(`FEMOptions.enable_vertex_constraints`, `SPHOptions.pressure_solver`, the SAP coupler's contact types) stops the
+load rather than run physics other than the saved ones. The error says what became of the field and how to migrate
+it, where in the config it sits, and which Eden and Genesis saved the file. A Genesis option saved without its
+class (an old save, or a hand-written override) is rebuilt as its field's declared class: a key only a subclass of
+that class declares is dropped with a warning, since nothing says which subclass was saved.
+
+An options class that retires a field declares it in `_retired_fields`, mapped to the migration, as a term retires a
+parameter in `_retired_params`; Genesis classes are noted in `eden/options/_retired_fields.py`.
 
 !!! note "The subclass rule is not task identity"
     `load_from_file`'s "this class or a subclass" is right for a library loader, but several tasks

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
+from types import MappingProxyType
 from typing import ClassVar, Literal, TypeAlias
 
 import genesis as gs
@@ -310,6 +312,18 @@ class SPHLiquidMaterialOptions(MaterialOptions):
     sampler: str = "regular"
 
     _genesis_material_cls: ClassVar[type] = gs.materials.SPH.Liquid
+    _retired_fields: ClassVar[Mapping[str, str]] = MappingProxyType(
+        {
+            # genesis-world#3778
+            "stiffness": "Genesis solves SPH with DFSPH alone now, and these set the equation of state of the WCSPH"
+            " solver it removed; delete them",
+            "exponent": "Genesis solves SPH with DFSPH alone now, and these set the equation of state of the WCSPH"
+            " solver it removed; delete them",
+            # genesis-world#3755
+            "gamma": "Genesis replaced this unitless cohesion with 'surface_tension', in N/m (default 0.0728, water),"
+            " which a gamma value does not convert to; delete it",
+        }
+    )
 
 
 class PBDLiquidMaterialOptions(MaterialOptions):

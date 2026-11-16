@@ -426,15 +426,25 @@ class EdenConfig(ConfigurableOptions):
             # class tags, so it resolves the saved class the same way.
             meta = {key: data.pop(key, None) for key in (*OPTION_METADATA_KEYS, "eden_version", "genesis_version")}
 
-        options = to_options(data, cls._saved_config_class(meta, source))
-
-        for key, name, current in (
-            ("eden", "Eden", get_eden_provenance()),
-            ("genesis", "Genesis", get_package_provenance("genesis-world")),
-        ):
-            if change := describe_provenance_change(meta.get(key), current):
-                en.logger.warning(f"{name} differs from the one that saved {source}: {change}.")
-
+        changes = {
+            name: change
+            for key, name, current in (
+                ("eden", "Eden", get_eden_provenance()),
+                ("genesis", "Genesis", get_package_provenance("genesis-world")),
+            )
+            if (change := describe_provenance_change(meta.get(key), current, commit_is_release=key == "eden"))
+        }
+        saved_cls = cls._saved_config_class(meta, source)
+        try:
+            options = to_options(data, saved_cls)
+        except Exception as e:
+            # Where it sits, and the version change that most likely retired it: the warnings below never print.
+            _note_where_loading_raised(
+                e, f"loading {source}", [f"{name} {change}." for name, change in changes.items()]
+            )
+            raise
+        for name, change in changes.items():
+            en.logger.warning(f"{name} differs from the one that saved {source}: {change}.")
         return options
 
     @classmethod
@@ -505,7 +515,11 @@ class EdenConfig(ConfigurableOptions):
 
     def with_overrides_from_dict(self, data_dict: dict) -> "EdenConfig":
         merged = _deep_merge(self._to_dict(), data_dict)
-        return to_options(merged, self)
+        try:
+            return to_options(merged, self)
+        except Exception as e:
+            _note_where_loading_raised(e, f"applying an override to {type(self).__name__}", [])
+            raise
 
     def _to_dict(self) -> dict:
         """Export config to a dict with option metadata (same shape as saved JSON/YAML)."""
@@ -925,13 +939,31 @@ def _coerce_dict_key(key, key_type):
     return key
 
 
-def _construct_options(options_cls: type[Options], value: dict):
+def _construct_options(options_cls: type[Options], value: dict, *, recorded: bool):
+    """Rebuild ``options_cls`` from its saved ``value``; ``recorded`` tells whether the save names the class (its
+    type-recovery tags) or the loader inferred it from the field's annotation (see :func:`_safe_model_construct`).
+
+    An exception raised for a field carries the field's path in the config (:func:`_config_path`), so the load can
+    say where the offending value sits (``env_options.fem_options``).
+    """
     option_dict = {}
     for key, item in value.items():
         field_info = options_cls.model_fields.get(key)
         field_annotation = field_info.annotation if field_info is not None else None
-        option_dict[key] = _convert_value(item, field_annotation)
-    return _safe_model_construct(options_cls, option_dict)
+        try:
+            option_dict[key] = _convert_value(item, field_annotation)
+        except Exception as e:
+            try:
+                e._eden_config_path = (key, *_config_path(e))
+            except AttributeError:  # an exception type that takes no attributes: the load says less, nothing more
+                pass
+            raise
+    return _safe_model_construct(options_cls, option_dict, recorded=recorded)
+
+
+def _config_path(exc: BaseException) -> tuple[str, ...]:
+    """The path in the config of the field whose reconstruction raised ``exc`` (empty: the root itself)."""
+    return getattr(exc, "_eden_config_path", ())
 
 
 def _convert_value(value, target_annotation=None):
@@ -941,11 +973,11 @@ def _convert_value(value, target_annotation=None):
         option_module = value.get("_option_module_", None)
         option_class = value.get("_option_class_", None)
         ResolvedClass = get_options_class_from_qualname(f"{option_module}.{option_class}")
-        return _construct_options(ResolvedClass, value)
+        return _construct_options(ResolvedClass, value, recorded=True)
 
     target_options_cls = _option_class_from_annotation(target_annotation, value)
     if isinstance(value, dict) and target_options_cls is not None:
-        return _construct_options(target_options_cls, value)
+        return _construct_options(target_options_cls, value, recorded=False)
 
     # Handle dicts (may contain dynamic configs)
     elif isinstance(value, dict):
@@ -992,18 +1024,10 @@ def to_options(config: dict, base_options: Options | type[Options]):
         a task config's ``__init__`` can be expensive and its result is discarded here.
     """
     options_cls = base_options if isinstance(base_options, type) else type(base_options)
-
-    # Convert all config attributes
-    res = {}
-    for key, value in config.items():
-        field_info = options_cls.model_fields.get(key)
-        field_annotation = field_info.annotation if field_info is not None else None
-        res[key] = _convert_value(value, field_annotation)
-
-    return _safe_model_construct(options_cls, res)
+    return _construct_options(options_cls, config, recorded=True)
 
 
-def _safe_model_construct(cls: type, data: dict):
+def _safe_model_construct(cls: type, data: dict, *, recorded: bool = True):
     """Build ``cls`` from an already type-recovered ``data`` dict, validating eden options on load.
 
     ``_convert_value`` has already reconstructed nested Options instances and enums; this turns
@@ -1027,19 +1051,20 @@ def _safe_model_construct(cls: type, data: dict):
       ``model_construct`` can't validate, the keys of a ``forbid`` genesis option are checked here:
 
       * a computed field (``ColorTexture.is_black``) is derived state the dump writes out: skipped;
-      * a key the class the file *records* lacks is a field a Genesis bump removed, which a save from
-        before the bump carries even at its default. The physics it set are gone, so the load refuses
-        it, worded as an eden option's unknown field is, rather than run something other than what
-        was saved. Do not go back to dropping it with a warning;
-      * a key the class *inferred* from the field's annotation lacks (a save without class tags) may
-        belong to the subclass that was saved (``gs.surfaces.Default`` under a ``Surface`` field), so
-        it is dropped with a warning: a legacy save keeps loading.
+      * an unknown key raises, worded as an eden option's unknown field is: mostly a field a Genesis
+        upgrade retired, which a save from before it carries even at its default. The physics it set
+        are gone, so the load refuses it rather than run something other than what was saved. Do not
+        go back to dropping it with a warning;
+      * but when the class is only *inferred* from the field's annotation (``recorded=False``: a save
+        without class tags, or a hand-written override), a key one of its subclasses declares may
+        belong to the subclass that was saved (``gs.surfaces.Default``'s fields under a ``Surface``
+        field), and nothing says which: such keys are dropped with a warning, so a legacy save keeps
+        loading. A key no subclass declares still raises.
 
       Nothing validates these fields, so a ``FloatArray`` declared on one would load back as a plain
       ``list``.
     """
     is_eden = issubclass(cls, ConfigurableOptions)
-    recorded = all(key in data for key in OPTION_METADATA_KEYS)
     # Type-recovery tags are internal metadata, never real fields — drop them for both eden
     # (re-seeded by ``ConfigurableOptions.__init__``) and genesis-native options, so they never
     # reach ``model_validate``/``model_construct`` nor the unknown-key warning below.
@@ -1050,15 +1075,37 @@ def _safe_model_construct(cls: type, data: dict):
         return cls.model_validate(data)
     if cls.model_config.get("extra") == "forbid":
         data = {k: v for k, v in data.items() if k not in cls.model_computed_fields}
-        if unknown := [key for key in data if key not in cls.model_fields]:
-            if recorded:
-                raise ValueError(unknown_fields_message(cls, unknown))
+        unknown = [key for key in data if key not in cls.model_fields]
+        of_subclasses = set() if recorded else {key for key in unknown if key in _subclass_fields(cls)}
+        if unknown := [key for key in unknown if key not in of_subclasses]:
+            raise ValueError(unknown_fields_message(cls, unknown))
+        if of_subclasses:
             en.logger.warning(
-                f"Dropping {unknown} when loading a {cls.__name__} saved without its class: they may be fields of the"
-                f" subclass that was saved. Save the config again to record it."
+                f"Dropping {sorted(of_subclasses)} when loading a {cls.__name__} saved without its class: a subclass of"
+                f" {cls.__name__} declares them, and the file does not say which class was saved. To keep them, add"
+                f" '_option_module_' and '_option_class_' naming that class next to them in the file."
             )
-            data = {k: v for k, v in data.items() if k in cls.model_fields}
+            data = {k: v for k, v in data.items() if k not in of_subclasses}
     return cls.model_construct(**data)
+
+
+def _note_where_loading_raised(exc: BaseException, doing: str, changes: list[str]) -> None:
+    """Add to ``exc`` where in the config its value sits (``env_options.fem_options``) and what ``doing`` was, plus the
+    Eden / Genesis version ``changes`` since the save: a field Genesis retired fails here, and the change says why.
+    """
+    path = ".".join(_config_path(exc))
+    exc.add_note(" ".join([f"Raised {doing}" + (f", at '{path}'." if path else "."), *changes]))
+
+
+def _subclass_fields(cls: type) -> set[str]:
+    """The fields declared by any (transitively) imported subclass of ``cls``."""
+    fields: set[str] = set()
+    pending = list(cls.__subclasses__())
+    while pending:
+        sub = pending.pop()
+        fields |= set(getattr(sub, "model_fields", {}))
+        pending += sub.__subclasses__()
+    return fields
 
 
 def load_json(path: str):

@@ -208,16 +208,22 @@ def test_load_fails_fast_on_a_corrupt_field_or_an_unknown_key(tmp_path):
 
 
 def test_load_refuses_a_genesis_option_field_the_installed_genesis_lacks(tmp_path):
-    """A save from before a Genesis bump carries the fields the bump removed, at their defaults too: the physics they
-    set are gone, so the load must not drop them and run something else. A removed field says what became of it.
+    """A save from before a Genesis upgrade carries the fields it retired, at their defaults too: the physics they set
+    are gone, so the load must not drop them and run something else. A retired field says what became of it, and the
+    error says where it sits and which Genesis saved the file.
     """
     config = RoundtripConfig(
         env_options=EnvOptions(
             num_envs=1, fem_options=gs.options.FEMOptions(), coupler_options=gs.options.SAPCouplerOptions()
         )
     )
-    removed = _saved(tmp_path, config, name="removed.json")
-    _rewrite(removed, lambda raw: raw["config"]["env_options"]["fem_options"].update(enable_vertex_constraints=False))
+
+    def from_release(raw):  # saved under the 1.4.6 release, which the pinned commit still calls itself
+        raw["_meta"]["genesis"] = {"version": get_package_provenance("genesis-world")["version"], "commit": None}
+        raw["config"]["env_options"]["fem_options"].update(enable_vertex_constraints=False)
+
+    retired = _saved(tmp_path, config, name="retired.json")
+    _rewrite(retired, from_release)
     renamed = _saved(tmp_path, config, name="renamed.json")
     _rewrite(
         renamed,
@@ -228,13 +234,18 @@ def test_load_refuses_a_genesis_option_field_the_installed_genesis_lacks(tmp_pat
     typo = _saved(tmp_path, config, name="typo.json")
     _rewrite(typo, lambda raw: raw["config"]["env_options"]["fem_options"].update(dampng=0.1))
 
-    with pytest.raises(ValueError, match=r"'enable_vertex_constraints' is no longer a field of FEMOptions: .*#3807"):
-        RoundtripConfig.load_from_file(removed)
-    with pytest.raises(ValueError, match="renamed it 'enable_fem_self_collision'") as renamed_error:
+    with pytest.raises(ValueError, match=r"Retired \['enable_vertex_constraints'\] of FEMOptions: .*always available"):
+        RoundtripConfig.load_from_file(retired)
+    with pytest.raises(ValueError) as retired_error:
+        RoundtripConfig.load_from_file(retired)
+    (note,) = retired_error.value.__notes__
+    assert f"Raised loading {retired}, at 'env_options.fem_options'." in note
+    assert "Genesis saved " in note  # a release and a commit of one version differ
+    with pytest.raises(ValueError, match="renamed 'enable_fem_self_collision'.*; set that instead") as renamed_error:
         RoundtripConfig.load_from_file(renamed)
-    # Fields lost for one reason share its sentence, and the valid fields are listed once
+    # Fields retired for one reason share its note, and the valid fields are listed once
     message = str(renamed_error.value)
-    assert "'rigid_rigid_contact_type' and 'fem_floor_contact_type' are no longer fields" in message
+    assert "Retired ['rigid_rigid_contact_type', 'fem_floor_contact_type'] of SAPCouplerOptions" in message
     assert message.count("Valid fields") == 1
     with pytest.raises(ValueError, match="'dampng' is not a field of FEMOptions. Did you mean 'damping'?"):
         RoundtripConfig.load_from_file(typo)
@@ -242,14 +253,29 @@ def test_load_refuses_a_genesis_option_field_the_installed_genesis_lacks(tmp_pat
     assert loaded.env_options.fem_options == config.env_options.fem_options
 
 
-def test_every_removed_field_is_one_its_class_no_longer_has():
-    """An entry of the table naming a field its class still has, or a class gone, would word a wrong error."""
-    from eden.options import materials
-    from eden.options._removed_fields import REMOVED_FIELDS
+def test_an_untagged_genesis_option_drops_only_what_a_subclass_of_its_field_type_declares(tmp_path, eden_caplog):
+    """Without class tags the loader infers the class from the field, which may be a base of the saved one: a key a
+    subclass declares may be that subclass's, so it drops with a warning. Any other key is a mistake, and raises.
+    """
+    base = RoundtripConfig(env_options=EnvOptions(num_envs=1))
+    typo = {"env_options": {"fem_options": {"dampng": 0.1}}}  # hand-written: FEMOptions has no subclass
+    with pytest.raises(ValueError, match="'dampng' is not a field of FEMOptions") as typo_error:
+        base.with_overrides_from_dict(typo)
+    assert "Raised applying an override to RoundtripConfig, at 'env_options.fem_options'." in typo_error.value.__notes__
+    coupler = {"env_options": {"coupler_options": {"n_sap_iterations": 50}}}  # a SAPCouplerOptions field
+    loaded = base.with_overrides_from_dict(coupler)
+    assert type(loaded.env_options.coupler_options) is gs.options.BaseCouplerOptions
+    assert "a subclass of BaseCouplerOptions declares them" in eden_caplog.text
 
-    for cls_name, field in REMOVED_FIELDS:
-        cls = getattr(gs.options, cls_name, None) or getattr(materials, cls_name)
-        assert field not in cls.model_fields, (cls_name, field)
+
+def test_every_retired_genesis_field_is_one_its_class_no_longer_has():
+    """A note naming a field its class still has, or a class gone, would word a wrong error."""
+    from eden.options._retired_fields import GENESIS_RETIRED_FIELDS
+    from eden.options.materials import SPHLiquidMaterialOptions
+
+    classes = [(get_options_class_from_qualname(name), notes) for name, notes in GENESIS_RETIRED_FIELDS.items()]
+    for cls, notes in [*classes, (SPHLiquidMaterialOptions, SPHLiquidMaterialOptions._retired_fields)]:
+        assert notes and not set(notes) & set(cls.model_fields), cls
 
 
 # ---------------------------------------------------------------------------
