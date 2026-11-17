@@ -6063,8 +6063,23 @@ called it on. If the saved class cannot be imported (it was renamed, moved, or d
 as <code>__main__</code>), the load raises <code>ImportError</code> naming it, rather than falling back to a base class. When
 the installed Eden or Genesis differs from the one that saved the file, the load logs a warning.</p>
 <p>Loading validates every Eden options object, so an unknown or stale field, or a term parameter that no
-longer exists, raises at load and names the class and the field. Embedded Genesis options are not
-validated: an unknown key on one is dropped with a warning.</p>
+longer exists, raises at load and names the class and the field. Embedded Genesis options (<code>fem_options</code>,
+<code>coupler_options</code>, a surface) are not validated, but an unknown key on one raises too. A config saved before a
+Genesis upgrade carries every field its options had then, at their defaults too, so a field the upgrade retired
+(<code>FEMOptions.enable_vertex_constraints</code>, <code>SPHOptions.pressure_solver</code>, the SAP coupler's contact types) stops the
+load rather than run physics other than the saved ones. The error says what became of the field and how to migrate
+it, where in the config it sits, and how the saving Eden and Genesis differ from the installed ones. A Genesis option without class tags
+(a hand-written override) is read as the class its field calls for; when a subclass declares the rejected keys, the
+error names the <code>_option_module_</code> / <code>_option_class_</code> to add.</p>
+<p>A checkpoint whose <code>config.json</code> holds a retired field cannot be replayed as trained on the installed Genesis. To
+reproduce the run, use the Eden and Genesis that saved it (the <code>_meta</code> of <code>config.json</code> records both; the error
+names those that differ from the installed ones). To run it under the current physics, copy <code>config.json</code>, remove
+the retired fields from the copy and pass it with <code>--config</code> and the <code>--task</code> it was saved from: a full <code>--config</code>
+replaces the checkpoint's own config, leaving that file as the record of the run, but it is built as a fresh run, so
+training-only settings such as CUDA graphs are not reset for the replay. Removing the fields does not make a trained
+policy behave as it did: what they set is gone.</p>
+<p>An options class that retires a field declares it in <code>_retired_fields</code>, mapped to the migration, as a term retires a
+parameter in <code>_retired_params</code>; Genesis classes are noted in <code>eden/options/_retired_fields.py</code>.</p>
 <div class="admonition note">
 <p class="admonition-title">The subclass rule is not task identity</p>
 <p><code>load_from_file</code>'s "this class or a subclass" is right for a library loader, but several tasks

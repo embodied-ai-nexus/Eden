@@ -5296,20 +5296,20 @@ seams are the ones any hosted solver meets:</p>
 <td>the options class (<code>MochiOptions</code>) lives in Eden; <code>install_mochi_solver</code> copies the unset values from <code>scene.options.sim</code></td>
 </tr>
 <tr>
-<td><code>Scene.add_entity</code> picks a surface's defaults from a closed <code>isinstance</code> chain on the material, and <code>Simulator._add_entity</code> gives a material to the solver declaring its most derived class</td>
-<td>the scene's <code>add_entity</code> is bound to route Mochi materials to <code>add_mochi_entity</code>, which sets the defaults and calls the solver's <code>add_entity</code></td>
+<td><code>Simulator.add_entity</code> hands an entity spec to the solver its class maps to (<code>Simulator._solvers_by_spec_cls</code>, looked up along the MRO), filled at construction</td>
+<td>the Mochi specs (<code>MochiRigidSpec</code>, <code>MochiSoftSpec</code> in <code>eden/engine/solvers/mochi/specs.py</code>) are mapped to the solver on that scene's simulator</td>
 </tr>
 <tr>
-<td>the rasterizer draws the solvers it names, and the visualizer refreshes their visual geoms</td>
-<td>those methods are bound on the scene's rasterizer context and visualizer</td>
+<td><code>Scene.add_entity</code> resolves a material to the spec of a Genesis solver (<code>MochiRigid</code> to <code>gs.entities.Rigid</code>) and picks a surface's defaults from a closed <code>isinstance</code> chain on the spec</td>
+<td>the scene's <code>add_entity</code> is bound to route Mochi materials and specs to <code>add_mochi_entity</code>, which sets the defaults and calls <code>Simulator.add_entity</code></td>
 </tr>
 <tr>
-<td><code>Simulator.destroy</code> frees the arrays of the solvers it can list</td>
-<td>the scene's <code>sim.destroy</code> is bound to free the solver's arrays after it</td>
+<td>the rasterizer draws the solvers it names; Genesis places visual geoms in its own forward kinematics</td>
+<td><code>on_fem</code> / <code>update_fem</code> / <code>_rigid_solvers</code> are bound on the scene's rasterizer context, and the solver places its visual geoms itself at the end of each scene step (the pipelined step's kinematics place them at every substep)</td>
 </tr>
 <tr>
-<td><code>Simulator.reset</code> restores a solver only while it holds kinematic entities</td>
-<td>the scene's <code>sim.reset</code> is bound to restore a solver of deformable bodies alone</td>
+<td><code>Simulator.get_state</code> / <code>reset</code> / <code>destroy</code> take the solvers whose declared data holds their whole state (<code>is_checkpointable</code>), whose arrays <code>destroy</code> frees</td>
+<td>the solver is not checkpointable: the scene's <code>sim.get_state</code> / <code>sim.reset</code> are bound to save and restore its state alongside, and <code>MochiSolver.destroy</code> frees its own arrays</td>
 </tr>
 <tr>
 <td>the scene serializer names a material class by its bare <code>__name__</code></td>
@@ -5350,7 +5350,7 @@ Genesis reads them off <code>__orig_bases__</code>, so the parameterization is t
 </span><span id="__span-1-4"><a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>    <span class="nd">@classmethod</span>
 </span><span id="__span-1-5"><a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">_update_raw_data</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">ctx</span><span class="p">,</span> <span class="n">meta</span><span class="p">,</span> <span class="n">raw_data_T</span><span class="p">):</span> <span class="o">...</span>   <span class="c1"># per step, batched over all instances</span>
 </span></code></pre></div>
-<p>Five things to know before you write one:</p>
+<p>Six things to know before you write one:</p>
 <ul>
 <li><strong><code>_get_return_format()</code> runs during <code>__init__</code>, not <code>build()</code>.</strong> The read cache is sized from it, so anything the
   shape depends on has to be resolvable at construction. Eden creates entities before sensors, so resolving names
@@ -5359,7 +5359,7 @@ Genesis reads them off <code>__orig_bases__</code>, so the parameterization is t
   state goes in the shared <em>metadata</em> (grown one column per sensor in <code>build()</code>) and not on <code>self</code>.</li>
 <li><strong><code>entity_idx</code> is not final at construction.</strong> Eden injects it in <code>eden.entities.sensor.Sensor.pre_build</code>, from
   <code>SensorOptions.attach_entity_name</code>. A <code>model_post_init</code> validator that requires <code>entity_idx &gt;= 0</code> would reject every
-  declarative config. Validate it in the options' <code>validate_scene(scene)</code>, which <code>scene.add_sensor</code> calls after
+  declarative config. Validate it in the options' <code>_validate(sim)</code>, which <code>scene.add_sensor</code> calls after
   Eden's injection and before constructing the sensor, and name <code>attach_entity_name</code> in the error: that is the knob
   the caller set. Genesis' <code>RigidEntitySensorOptionsMixin</code> already does this for a sensor bound to a whole entity.</li>
 <li><strong>A link-attached sensor must use Genesis' attachment mixins.</strong> Subclass <code>KinematicSensorMixin</code> (or
@@ -5367,7 +5367,9 @@ Genesis reads them off <code>__orig_bases__</code>, so the parameterization is t
   <code>Sensor.get_pos()</code> / <code>get_quat()</code> / <code>set_pos_offset()</code> read the <code>offsets_pos</code> / <code>offsets_quat</code> those mixins
   maintain, so a sensor that resolves its own link breaks all three, and gets <code>pos_offset</code> wrong unless it rotates it
   into the link's frame. Conversely, an options base brings fields with it: if the sensor has no use for an inherited
-  one (<code>ActuationAudio</code> ignores <code>link_idx_local</code>), refuse a non-default value in <code>validate_scene</code> rather than drop it.</li>
+  one (<code>ActuationAudio</code> ignores <code>link_idx_local</code>), refuse a non-default value in <code>_validate</code> rather than drop it.</li>
+<li><strong>A <code>build()</code> override calls <code>super().build()</code> first.</strong> The base build marks the sensor built, which its guarded
+  accessors read.</li>
 <li><strong>Use a <code>SharedSensorContext</code> for anything scene-level</strong>, as the next section explains.</li>
 </ul>
 <h3 id="sharedsensorcontext-the-seam-that-avoids-a-fork"><code>SharedSensorContext</code>: the seam that avoids a fork<a class="headerlink" href="#sharedsensorcontext-the-seam-that-avoids-a-fork" title="Permanent link">&para;</a></h3>

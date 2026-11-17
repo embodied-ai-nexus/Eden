@@ -5230,11 +5230,22 @@ already happened to.</p>
 </div>
 <p>With plain pip in a clone, <code>pip install -e ".[vis]"</code> works for most extras, but pip ignores the
 <code>[tool.uv]</code> settings in <code>pyproject.toml</code>, so the <code>soma-retargeter</code> extra cannot be installed that way.</p>
+<div class="admonition note">
+<p class="admonition-title"><code>main</code> runs on an unreleased Genesis commit</p>
+<p>Between Genesis releases, <code>main</code> may pin <code>genesis-world</code> to a commit of its <code>main</code> branch, through
+<code>[tool.uv.sources]</code> in <code>pyproject.toml</code>. uv installs that commit wherever it builds Eden from source: <code>uv sync</code>
+in the clone, <code>uv pip install -e .</code>, and another project that depends on Eden by path or git. pip ignores the
+table (as does uv given <code>--no-sources</code>) and installs the release the requirement names, on which <code>import eden</code>
+raises with the command to run. Then install the commit yourself:</p>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>pip<span class="w"> </span>install<span class="w"> </span><span class="s2">"genesis-world @ https://github.com/Genesis-Embodied-AI/genesis-world/archive/c27c6ca4e79183225d0fe2d25baa61db63ff127f.tar.gz"</span>
+</span></code></pre></div>
+<p>A release of Eden on PyPI always names a released Genesis, so <code>pip install eden-world</code> needs nothing more.</p>
+</div>
 <h3 id="running-eden">Running <code>eden</code><a class="headerlink" href="#running-eden" title="Permanent link">&para;</a></h3>
 <p>Inside an activated virtual environment, <code>eden</code> is on your <code>PATH</code>. Without activating it, prefix every command with
 <code>uv run</code> (in a clone) or call the module directly:</p>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>uv<span class="w"> </span>run<span class="w"> </span>eden<span class="w"> </span>list<span class="w">          </span><span class="c1"># in a clone, without activating .venv</span>
-</span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>python<span class="w"> </span>-m<span class="w"> </span>eden<span class="w"> </span>list<span class="w">       </span><span class="c1"># any environment where Eden is installed</span>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>uv<span class="w"> </span>run<span class="w"> </span>eden<span class="w"> </span>list<span class="w">          </span><span class="c1"># in a clone, without activating .venv</span>
+</span><span id="__span-6-2"><a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>python<span class="w"> </span>-m<span class="w"> </span>eden<span class="w"> </span>list<span class="w">       </span><span class="c1"># any environment where Eden is installed</span>
 </span></code></pre></div>
 <p>The rest of these docs write commands as <code>eden &lt;command&gt;</code>.</p>
 <h2 id="optional-extras">Optional extras<a class="headerlink" href="#optional-extras" title="Permanent link">&para;</a></h2>
@@ -5393,7 +5404,7 @@ cache. Everything else is an extra. Each row gives the packages it adds, read fr
 <p><strong><code>onnx</code> and <code>onnx-gpu</code> exclude each other.</strong> Their runtime wheels, <code>onnxruntime</code> and <code>onnxruntime-gpu</code>, both own
 the <code>onnxruntime/</code> directory, so whichever is installed last provides it. Pick one. <code>uv sync --all-extras --all-groups</code>
 installs both, and the CPU wheel usually ends up on top; to use the GPU wheel, reinstall it last:</p>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>uv<span class="w"> </span>sync<span class="w"> </span>--inexact<span class="w"> </span>--extra<span class="w"> </span>onnx-gpu<span class="w"> </span>--reinstall-package<span class="w"> </span>onnxruntime-gpu
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>uv<span class="w"> </span>sync<span class="w"> </span>--inexact<span class="w"> </span>--extra<span class="w"> </span>onnx-gpu<span class="w"> </span>--reinstall-package<span class="w"> </span>onnxruntime-gpu
 </span></code></pre></div>
 <p>Do not uninstall either wheel to fix this: removing one deletes files the other needs. If the GPU runtime falls
 back to the CPU, a policy still runs, only slower, and Eden warns once.</p>
@@ -5454,8 +5465,8 @@ host. Set <code>WUJI_TELEMETRY_DISABLE=1</code> in your environment to turn it o
 <h2 id="gpu-and-cuda">GPU and CUDA<a class="headerlink" href="#gpu-and-cuda" title="Permanent link">&para;</a></h2>
 <p>Eden installs PyTorch from PyPI, whose Linux wheels bundle their own CUDA libraries. What your machine needs is an
 NVIDIA driver new enough for the CUDA version that torch was built for. Compare the two:</p>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>nvidia-smi<span class="w">                                               </span><span class="c1"># top right: the newest CUDA the driver supports</span>
-</span><span id="__span-7-2"><a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>python<span class="w"> </span>-c<span class="w"> </span><span class="s2">"import torch; print(torch.version.cuda, torch.cuda.is_available())"</span>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-8-1"><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>nvidia-smi<span class="w">                                               </span><span class="c1"># top right: the newest CUDA the driver supports</span>
+</span><span id="__span-8-2"><a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>python<span class="w"> </span>-c<span class="w"> </span><span class="s2">"import torch; print(torch.version.cuda, torch.cuda.is_available())"</span>
 </span></code></pre></div>
 <p>The driver's version must be at least torch's, and the second command should print <code>True</code>.</p>
 <p>When a script or command asks for the GPU (<code>gs.gpu</code>, the default of every <code>eden</code> command), Genesis tries CUDA,
@@ -5465,16 +5476,16 @@ NVIDIA GPU, torch cannot see the GPU; see <a href="../troubleshooting/#torchcuda
 <p>The first run of a task compiles Genesis' kernels, which takes a while; the compiled kernels are cached under
 <code>~/.cache/quadrants/</code> and later runs start much faster.</p>
 <h2 id="check-the-install">Check the install<a class="headerlink" href="#check-the-install" title="Permanent link">&para;</a></h2>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-8-1"><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>python<span class="w"> </span>-c<span class="w"> </span><span class="s2">"import eden; print(eden.__version__, eden.__file__)"</span>
-</span><span id="__span-8-2"><a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>eden<span class="w"> </span>--help
-</span><span id="__span-8-3"><a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a>eden<span class="w"> </span>list
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-9-1"><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>python<span class="w"> </span>-c<span class="w"> </span><span class="s2">"import eden; print(eden.__version__, eden.__file__)"</span>
+</span><span id="__span-9-2"><a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>eden<span class="w"> </span>--help
+</span><span id="__span-9-3"><a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a>eden<span class="w"> </span>list
 </span></code></pre></div>
 <p>The first line prints the installed version (for example <code>0.1.0</code>) and where <code>eden</code> is imported from: a path
 inside your clone for a source install. <code>eden list</code> prints a table of every registered task. Neither command
 builds a scene, so both finish in a few seconds.</p>
 <p>To check that simulation works too, build a task and step it twice:</p>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-9-1"><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>eden<span class="w"> </span>smoke<span class="w"> </span>--task<span class="w"> </span>reacher<span class="w">             </span><span class="c1"># GPU</span>
-</span><span id="__span-9-2"><a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>eden<span class="w"> </span>smoke<span class="w"> </span>--task<span class="w"> </span>reacher<span class="w"> </span>--cpu<span class="w">       </span><span class="c1"># no GPU</span>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-10-1"><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>eden<span class="w"> </span>smoke<span class="w"> </span>--task<span class="w"> </span>reacher<span class="w">             </span><span class="c1"># GPU</span>
+</span><span id="__span-10-2"><a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>eden<span class="w"> </span>smoke<span class="w"> </span>--task<span class="w"> </span>reacher<span class="w"> </span>--cpu<span class="w">       </span><span class="c1"># no GPU</span>
 </span></code></pre></div>
 <p>It ends with <code>✅ smoke OK: built 'reacher' with 2 env(s) and ran 2 step(s).</code> The first time, it also downloads the
 robot's assets (<a href="../assets/">Assets</a> explains where they go).</p>

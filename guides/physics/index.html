@@ -5951,17 +5951,26 @@ solver-error handling below.</p>
 <p>The scripts in <code>examples/recipes/mochi/</code> cover each body type, articulated grasps, cloth and rods; the
 <a href="../../tasks/mochi/">Mochi tasks</a> are trainable examples.</p>
 <h2 id="solver-errors-and-recovery">Solver errors and recovery<a class="headerlink" href="#solver-errors-and-recovery" title="Permanent link">&para;</a></h2>
-<p>A physics solver latches an error flag per environment. Eden splits them in two:</p>
+<p>A physics solver, and the SAP coupler, latch an error flag per environment. Eden splits them in two, by the class of
+the error code (<code>_RECOVERABLE_ERRORS</code> in <code>eden/envs/base.py</code>):</p>
 <ul>
-<li><strong>A corrupt state</strong> (a NaN contact force, acceleration or force in the rigid solver, a diverged Mochi solve) is
-  recovered: the termination manager truncates the affected envs, the reward and metric managers drop what their
+<li><strong>A corrupt state</strong> (a NaN contact force, acceleration or force in the rigid solver, a diverged Mochi solve, a NaN
+  FEM vertex or MPM particle velocity, an SAP solve stopped at its iteration cap) is recovered: the termination manager truncates the affected envs, the reward and metric managers drop what their
   terms read of them, and the reset clears the flag before Genesis' error check would raise for the whole scene.
   <code>env.get_solver_error_envs_mask()</code> returns these envs, <code>(num_envs,)</code> bool.</li>
-<li><strong>A misconfiguration</strong> (contact capacity overflow, an unsupported collision pair, a NaN gradient under
-  <code>requires_grad</code>) is reset and dropped the same way, but the env keeps its flag across the reset, and the next
-  control step raises it (on CUDA, the one after) with Genesis' message naming the option to change.</li>
+<li><strong>A misconfiguration</strong> (a contact capacity overflow of any solver or of the SAP coupler, an unsupported collision
+  pair, a NaN gradient under <code>requires_grad</code>) is reset and dropped the same way, but the env keeps its flag across
+  the reset, and the next control step raises it (on CUDA, the one after) with Genesis' message naming the option to
+  change. So is every error of a class Eden does not list: a new kind of error raises rather than being reset away.</li>
 </ul>
-<p>So a training run survives an occasional exploding env, but not a scene that is too small for its contacts.</p>
+<p>A corrupt state that ends 10 episodes of an env in a row is raised like a misconfiguration, with a note naming the
+envs: the env's initial state causes it (a time step too long for an FEM material, an SAP iteration cap too low), and
+every episode of that env would otherwise end on it. The chance is per env: an env whose episodes the error ends at
+random with a chance p raises with a chance of about p^10 per episode, 1e-10 at p = 0.1 but 1e-3 at p = 0.5. An env
+whose own startup state makes the error likely (a mass or a friction randomized once) thus stops the run.</p>
+<p>So a training run survives an occasional exploding env, but not a scene that is too small for its contacts. Any
+other recovered error is silent beyond <code>Episode_Termination/solver_error</code>: a rate that does not fall (an SAP solve that
+keeps hitting its cap in some episodes, say) is the hint to raise the option the error names.</p>
 <h2 id="throughput-switches">Throughput switches<a class="headerlink" href="#throughput-switches" title="Permanent link">&para;</a></h2>
 <p>These <code>EnvOptions</code> fields change speed, not physics:</p>
 <ul>

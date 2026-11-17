@@ -1031,6 +1031,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#what-the-scene-reset-restores" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What the scene reset restores
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#solver-errors" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -5208,6 +5219,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#what-the-scene-reset-restores" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What the scene reset restores
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#solver-errors" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -5938,9 +5960,18 @@ next state (the FlashSAC learner of <code>flashdexretarget</code> refuses to run
 HIMPPO), and evaluation recording that needs the terminal frame. It is off by default.</p>
 <p>To change what counts as the terminal observation, override <code>RLEnvBase._compute_final_observations()</code>,
 for example to skip a group whose terms are unsafe to evaluate on the post-physics state.</p>
+<h3 id="what-the-scene-reset-restores">What the scene reset restores<a class="headerlink" href="#what-the-scene-reset-restores" title="Permanent link">&para;</a></h3>
+<p>Phase 13 restores each reset environment to the scene state taken in <code>post_build_setup()</code> (<code>env.reset_state</code>):
+the state every solver declares (Genesis' <code>DataKind.STATE</code>: coordinates, velocities, control targets and modes)
+as it stood then, startup events included. What Genesis holds as the model rather than the state (masses,
+friction ratios, gains, set by setters or INTERVAL events) is not reset: an INTERVAL friction randomization
+carries over a reset. RESET events re-randomize what they set, so randomize per episode with RESET mode.
+A Mochi scene's reset restores the MochiSolver's own state instead (coordinates, velocities, link poses, the
+integration history and the deformable vertices), which holds no control target or mode: those keep their last
+values until the next action sets them.</p>
 <h3 id="solver-errors">Solver errors<a class="headerlink" href="#solver-errors" title="Permanent link">&para;</a></h3>
-<p>A physics solver that leaves an environment's state corrupt (a NaN contact, force or acceleration, or a
-diverged Mochi solve) does not stop the run:</p>
+<p>A physics solver or coupler that leaves an environment's state corrupt (a NaN contact, force or acceleration, a
+diverged Mochi solve, a NaN FEM or MPM state, an SAP solve at its iteration cap) does not stop the run:</p>
 <ul>
 <li>phases 6 and 9 drop what the metric and reward terms read from those environments, so no NaN reaches
   the learner;</li>
@@ -5953,11 +5984,13 @@ step check the flags: an environment flagged during any of the <code>decimation<
 the check that would raise for the whole scene. An environment that nothing resets (a plain <code>EnvBase</code>)
 raises at the next control step.</p>
 <p>A <strong>misconfiguration</strong> of the scene is never reset away. An environment flagged with a contact capacity
-overflow, an unsupported collision pair or, under <code>requires_grad</code>, a NaN gradient is truncated and its
-values dropped like any other, but it keeps the flag across the reset. The flag is handed back to the
+overflow (of any solver, or of the SAP coupler), an unsupported collision pair, under <code>requires_grad</code> a NaN
+gradient, or an error of a class <code>_RECOVERABLE_ERRORS</code> does not list is truncated and its values dropped
+like any other, but it keeps the flag across the reset. The flag is handed back to the
 solver right before the first <code>scene.step()</code> of the next control step, which then raises with a message
 naming the option to change (on CUDA, the step after that, since its check does not wait for the
-device).</p>
+device). So is a corrupt state that ends 10 episodes of an environment in a row, which the environment's initial
+state causes (a time step too long for an FEM material, say); a note on the error names those environments.</p>
 <h3 id="replaying-the-graded-phase-from-a-cuda-graph">Replaying the graded phase from a CUDA graph<a class="headerlink" href="#replaying-the-graded-phase-from-a-cuda-graph" title="Permanent link">&para;</a></h3>
 <p>Phases 6–9 read the post-physics state and write only the managers' own buffers, in hundreds of small
 kernels. When a step is limited by the host, launching them is the cost, and
