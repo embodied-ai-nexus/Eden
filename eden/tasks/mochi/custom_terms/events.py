@@ -15,11 +15,12 @@ from eden.utils.string import term_subject
 class PinSoftBodyVertices(EventTerm):
     """Pin vertices of a Mochi soft body where they stand (a Dirichlet condition).
 
-    Fire it at RESET. Mochi keeps a pin, and the position it holds the vertex to, outside the state a reset
-    restores, and writing a pinned vertex's position moves that hold too — so a pin made once would keep
-    holding wherever the vertex was last written, not where the reset puts it. Re-pinning on every reset holds
-    the vertices where the restored state has them. A rod is clamped by pinning its first two nodes (the second
-    fixes the twist).
+    Fire it at STARTUP or RESET. A pin, and the position it holds the vertex to, are part of the state a reset
+    restores, which the env takes at the end of its build, after the STARTUP events: a pin made at STARTUP holds
+    through every reset, and one made later, from code run after ``env.build()``, lasts until its env next
+    resets. Writing a pinned vertex's position moves the hold with it, so a RESET event that places the body
+    carries a STARTUP pin along. At RESET, the pin holds the vertices where the reset events before it left them.
+    A rod is clamped by pinning its first two nodes (the second fixes the twist).
 
     Parameters
     ----------

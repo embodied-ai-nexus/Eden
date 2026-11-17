@@ -151,8 +151,9 @@ arms and couples SuperDex (the sponge) or VBD (the towel, the cable's capsules) 
   so the tasks train under the default fp32. Mochi's 1e9 default needs `eden.init(precision="64")`.
 - **A Mochi scene is all-Mochi.** Every entity, the bench plane included, takes a `Mochi*MaterialOptions`. See
   [Physics](../guides/physics.md).
-- **Pins survive resets.** Mochi keeps a pin, and where it holds the vertex, outside the state a reset restores. So
-  the cable's weld is re-pinned at every reset (`PinSoftBodyVertices`), and the latches release their pins.
+- **A reset restores the pins of the build.** A pin, and where it holds the vertex, are part of the state a reset
+  restores, taken at the end of the env's build. The cable's weld is pinned at every reset (`PinSoftBodyVertices`),
+  and a reset releases whatever a latch held.
 - **A diverged env is reset alone.** An env whose implicit solve fails is truncated and reset
   (`Episode_Termination/solver_error`) while the others go on (`EnvBase.get_solver_error_envs_mask`); its reward is
   zeroed for that step.

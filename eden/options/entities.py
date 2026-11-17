@@ -976,8 +976,10 @@ class RodOptions(PrimitiveOptions):
 
     The morph is the centerline; the material must be a
     :class:`~eden.options.materials.MochiRodMaterialOptions`, which derives the rod's stiffness from
-    ``radius`` unless given explicitly. Clamp a rod after build by fixing its first two nodes
-    (``env.entities[name].set_vertices_fixed([0, 1])``). ``default_root_pos`` / ``default_root_quat``
+    ``radius`` unless given explicitly. Clamp a rod by fixing its first two nodes from a STARTUP event
+    (``PinSoftBodyVertices`` in ``eden.tasks.mochi.custom_terms``): a pin is part of the state an env reset
+    restores, which the env takes after the STARTUP events, so a pin made after ``env.build()`` lasts until
+    the env's next reset. ``default_root_pos`` / ``default_root_quat``
     place the whole polyline; ``is_fixed_base`` has no meaning for a rod and is rejected.
 
     Parameters

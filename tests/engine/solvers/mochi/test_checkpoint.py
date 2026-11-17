@@ -239,3 +239,22 @@ def test_a_simulator_checkpoint_restores_the_model_its_setters_changed(tmp_path)
     for _ in range(N_STEPS):
         scene.step()
     _assert_same_state(_state_arrays(scene), expected)
+
+
+def test_a_reset_undoes_a_pin_made_after_its_state_was_taken(tmp_path):
+    """A pin is part of the state, so a reset to a state taken before it releases the vertex, as it would release a
+    control target set since.
+    """
+    scene, _, cube, _ = _scene(tmp_path, use_sleeping=False)
+    state = scene.get_state()
+    start = cube.get_state().pos[:, 0, 2].clone()
+    cube.set_vertices_fixed(np.array([0]))
+    for _ in range(N_STEPS):
+        scene.step()
+    held = cube.get_state().pos[:, 0, 2].clone()
+    torch.testing.assert_close(held, start, rtol=0.0, atol=1e-12)
+
+    scene.reset(state)
+    for _ in range(N_STEPS):
+        scene.step()
+    assert (cube.get_state().pos[:, 0, 2] < held - 0.01).all()
