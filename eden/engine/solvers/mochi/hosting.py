@@ -7,10 +7,10 @@ a time and never on a class, so a scene without a Mochi entity runs exactly the 
 
 * :func:`install_mochi_solver` builds the solver, appends it to the simulator's solvers and maps the Mochi entity specs
   (:mod:`~eden.engine.solvers.mochi.specs`) to it in the simulator's dispatch. From then on the scene takes Mochi
-  materials and specs in ``scene.add_entity``, holds the solver as ``scene.mochi_solver``, draws its bodies with the
-  rasterizer, saves and restores its state with the scene's, and frees its arrays with the scene
-  (``MochiSolver.destroy``). It refuses ``scene.export``, which the fork allows: ``gs.Scene.load`` rebuilds a scene
-  on stock Genesis, without the solver;
+  materials and specs in ``scene.add_entity``, holds the solver as ``scene.mochi_solver`` and draws its bodies with the
+  rasterizer. The simulator saves, restores and frees the solver's arrays as it does a stock solver's (see
+  ``MochiSolver.data``). It refuses ``scene.export``, ``scene.save_checkpoint``, a trajectory recording and a
+  pickle: Genesis rebuilds a scene from any of them on stock Genesis, without the solver;
 * :func:`create_mochi_scene` is ``gs.Scene(..., mochi_options=...)`` of the fork: a new scene, installed;
 * :func:`add_mochi_entity` is what ``scene.add_entity`` does for a Mochi material or spec;
 * :func:`find_mochi_solver` returns the solver of a scene, or None.
@@ -44,8 +44,17 @@ from eden.engine.solvers.mochi.options import MochiOptions
 require_members(
     __name__,
     {
-        Scene: ("add_entity", "export", "is_built", "sim", "visualizer"),
-        Simulator: ("add_entity", "get_state", "reset", "solvers"),
+        Scene: (
+            "__reduce__",
+            "add_entity",
+            "export",
+            "is_built",
+            "save_checkpoint",
+            "sim",
+            "start_recording",
+            "visualizer",
+        ),
+        Simulator: ("add_entity", "solvers"),
         Visualizer: ("batch_renderer", "context", "raytracer"),
         RasterizerContext: (
             "_rigid_solvers",
@@ -77,7 +86,7 @@ def find_mochi_solver(scene: Scene) -> MochiSolver | None:
 
 
 def install_mochi_solver(scene: Scene, options: MochiOptions | None = None) -> MochiSolver:
-    """Build a MochiSolver for ``scene`` and register it with its simulator, its visualizer and its reset.
+    """Build a MochiSolver for ``scene`` and register it with its simulator and its visualizer.
 
     Call it once per scene, before the scene is built and before any Mochi entity is added.
 
@@ -118,9 +127,8 @@ def install_mochi_solver(scene: Scene, options: MochiOptions | None = None) -> M
     # The name a scene of the fork holds the solver under, which the code written for the fork reads.
     scene.mochi_solver = solver
     _bind_add_entity(scene)
-    _bind_state(sim, solver)
     _bind_rasterizer(scene, solver)
-    _bind_export(scene)
+    _bind_scene_files(scene)
     return solver
 
 
@@ -230,55 +238,31 @@ def _bind_add_entity(scene: Scene) -> None:
     scene.add_entity = add_entity_with_mochi
 
 
-def _bind_state(sim: Simulator, solver: MochiSolver) -> None:
-    """Save and restore the state of the MochiSolver with the scene's.
+def _bind_scene_files(scene: Scene) -> None:
+    """Refuse to write ``scene`` to a file or a pickle, which Genesis would rebuild without its MochiSolver.
 
-    ``Simulator.get_state`` and ``Simulator.reset`` take the solvers whose whole state their declared data holds
-    (``is_checkpointable``), which the MochiSolver's does not: it holds the deformable vertices, the integration history
-    and the contact state besides (see ``MochiSolver.data``). The state of the scene holds the solver's under its class
-    name, as it holds every other solver's.
+    ``gs.Scene.load``, ``gs.Scene.load_checkpoint``, ``load_trajectory`` and unpickling create the scene from its
+    description on stock Genesis, so every Mochi rigid body would load back as a RigidSolver body. The state itself is
+    checkpointable: ``scene.get_state()`` / ``scene.reset(state)`` and the simulator's ``__getstate__`` /
+    ``__setstate__`` restore it within the process.
     """
-    get_state, reset = sim.get_state, sim.reset
-    key = type(solver).__name__
 
-    def get_state_with_mochi():
-        state = get_state()
-        if solver.is_active:
-            state.solvers[key] = solver.get_state()
-        return state
-
-    def reset_with_mochi(state, envs_idx=None):
-        # Before the upstream reset, which restarts the sensors on the restored state
-        if solver.is_active:
-            # Mochi's kernels take their sizes from the state's arrays, so another scene's state writes past this one's
-            if state.scene is not sim.scene:
-                gs.raise_exception(
-                    "This state was taken from another scene: reset a scene only to a state its own "
-                    "`scene.get_state()` returned. Rebuild the other scene's bodies in this one to replay it here."
-                )
-            if key not in state.solvers:
-                gs.raise_exception(
-                    "This state holds no state of the MochiSolver: take it with `scene.get_state()` of this scene, "
-                    "after its build."
-                )
-            solver.set_state(state.solvers[key], envs_idx)
-        reset(state, envs_idx)
-
-    sim.get_state = get_state_with_mochi
-    sim.reset = reset_with_mochi
-
-
-def _bind_export(scene: Scene) -> None:
-    """Refuse to export ``scene``, which ``gs.Scene.load`` would rebuild without its MochiSolver."""
-
-    def export(self, path):
+    def refuse(action):
         gs.raise_exception(
-            f"Cannot export {path!s}: this scene hosts Eden's MochiSolver, and `gs.Scene.load` rebuilds a scene on "
-            "stock Genesis, which has no MochiSolver, so every Mochi rigid body would load back as a RigidSolver body. "
-            "Rebuild the scene from the code or the Eden config that made it instead."
+            f"Cannot {action}: this scene hosts Eden's MochiSolver, and Genesis rebuilds a scene from a file or a "
+            "pickle on stock Genesis, which has no MochiSolver, so every Mochi rigid body would load back as a "
+            "RigidSolver body. Rebuild the scene from the code or the Eden config that made it instead; within this "
+            "process, `state = scene.get_state()` and `scene.reset(state)` save and restore it."
         )
 
-    scene.export = types.MethodType(export, scene)
+    scene.export = types.MethodType(lambda self, path: refuse(f"export {path!s}"), scene)
+    scene.save_checkpoint = types.MethodType(lambda self, path: refuse(f"save a checkpoint to {path!s}"), scene)
+    scene.start_recording = types.MethodType(
+        lambda self, rec_options: refuse(f"record a trajectory to {getattr(rec_options, 'filename', rec_options)!s}"),
+        scene,
+    )
+    # `pickle` looks `__reduce__` up on the instance once the class defines its own, as Scene does
+    scene.__reduce__ = types.MethodType(lambda self: refuse("pickle it"), scene)
 
 
 def _bind_rasterizer(scene: Scene, solver: MochiSolver) -> None:

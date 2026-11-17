@@ -10,6 +10,7 @@ configuration, as frozen dataclasses of quadrants tensors with the batch dimensi
 
 import dataclasses
 from enum import IntEnum
+from typing import ClassVar
 
 import genesis as gs
 import numpy as np
@@ -24,7 +25,7 @@ from genesis.engine.solvers.rigid.data import (
     VertsInfo,
     VertsState,
 )
-from genesis.utils.data import ENVS, Data, Config, field
+from genesis.utils.data import ENVS, Config, Data, DataKind, field
 
 
 # Genesis declares its own solver data as `genesis.utils.data.Data` structs and dropped the allocators below in
@@ -156,9 +157,10 @@ class MochiCollisionData(Data):
 
 @dataclasses.dataclass(eq=True, kw_only=False, frozen=True)
 class MochiLinksInfo:
+    kind: ClassVar[DataKind] = DataKind.CONSTANT
     # Whether the link carries the 6 degrees of freedom of a free root and enters the Newton system.
     is_dynamic: qd.Tensor
-    has_gravity: qd.Tensor
+    has_gravity: qd.Tensor = field(kind=DataKind.INFO)
     mass: qd.Tensor
     # Inertia about the center of mass in the inertial frame, and its second moment 0.5 tr(I) 1 - I, which weights
     # the rotation merit.
@@ -193,7 +195,8 @@ def get_mochi_links_info(solver):
 
 @dataclasses.dataclass(eq=True, kw_only=False, frozen=True)
 class MochiGeomsInfo:
-    collider_type: qd.Tensor
+    kind: ClassVar[DataKind] = DataKind.INFO
+    collider_type: qd.Tensor = field(kind=DataKind.CONSTANT)
     penalty_coefficient: qd.Tensor
     penalty_smoothing_half_distance: qd.Tensor
     penalty_threshold: qd.Tensor
@@ -221,6 +224,7 @@ def get_mochi_geoms_info(solver):
 
 @dataclasses.dataclass(eq=True, kw_only=False, frozen=True)
 class MochiSamplesInfo:
+    kind: ClassVar[DataKind] = DataKind.CONSTANT
     # Contact sample points (surface quadrature points of the collision triangles) in the link frame, with their
     # quadrature area weight and outward normal.
     pos: qd.Tensor
@@ -259,11 +263,12 @@ def get_mochi_samples_info(solver):
 
 @dataclasses.dataclass(eq=True, kw_only=False, frozen=True)
 class MochiInfo:
+    kind: ClassVar[DataKind] = DataKind.CONSTANT
     links: MochiLinksInfo
     geoms: MochiGeomsInfo
     samples: MochiSamplesInfo
     # Whether contact between two links is enabled (layer and entity filters folded in).
-    links_pair_enabled: qd.Tensor
+    links_pair_enabled: qd.Tensor = field(kind=DataKind.INFO)
     # Total mass of the entity owning each degree of freedom, scaling its convergence weight.
     dofs_entity_mass: qd.Tensor
     # Runtime constants
@@ -272,7 +277,7 @@ class MochiInfo:
     joint_limit_damping: qd.Tensor
     equality_stiffness: qd.Tensor
     equality_damping: qd.Tensor
-    gravity: qd.Tensor
+    gravity: qd.Tensor = field(kind=DataKind.INFO)
     broadphase_margin: qd.Tensor
     newton_abs_tol: qd.Tensor
     newton_rel_tol: qd.Tensor
@@ -327,12 +332,23 @@ def _scalar(dtype, value):
     return data
 
 
+def _state_shape(is_used, *shape):
+    """The shape of an array of kind STATE, or the 0-d placeholder of a feature the scene does not use.
+
+    A reset of some environments writes every array of the state back along its last axis, one copy each, and skips
+    the 0-d placeholders, which the kernels of a feature switched off never index. The vertex arrays stay whole in a
+    scene without deformable bodies: the kernels read the number of environments off them.
+    """
+    return shape if is_used else ()
+
+
 @dataclasses.dataclass(eq=True, kw_only=False, frozen=True)
 class MochiIslandState:
+    kind: ClassVar[DataKind] = DataKind.SCRATCH
     # Island nodes are the rigid entities (all links of an articulation move together) followed by the deformable
     # entities. Build-time maps from links and degrees of freedom to nodes (-1 for links without dofs).
-    links_node: qd.Tensor
-    dofs_node: qd.Tensor
+    links_node: qd.Tensor = field(kind=DataKind.CONSTANT)
+    dofs_node: qd.Tensor = field(kind=DataKind.CONSTANT)
     # Per-environment union-find forest over the nodes, compact island index of every node and island count.
     nodes_parent: qd.Tensor
     nodes_island: qd.Tensor
@@ -352,8 +368,8 @@ class MochiIslandState:
     # Sleeping (allocated only when enabled): consecutive steps at rest of every node, whether it sleeps, whether it
     # moved too fast or is actuated this step, and whether an island holds an awake node (scratch of the island-wise
     # decisions, indexed by island).
-    nodes_rest_steps: qd.Tensor
-    nodes_is_asleep: qd.Tensor
+    nodes_rest_steps: qd.Tensor = field(kind=DataKind.STATE)
+    nodes_is_asleep: qd.Tensor = field(kind=DataKind.STATE)
     nodes_is_restless: qd.Tensor
     islands_is_awake: qd.Tensor
 
@@ -362,7 +378,7 @@ def get_mochi_island_state(solver, links_node, dofs_node):
     _B = solver.n_envs_
     n_nodes_ = max(1, len(solver._entities) + len(solver._soft_entities))
     n_dofs_ = solver.n_dofs_total_
-    n_sleep_nodes_, _B_sleep = (n_nodes_, _B) if solver._options.use_sleeping else (1, 1)
+    use_sleeping = solver._options.use_sleeping
     state = MochiIslandState(
         links_node=V(dtype=gs.qd_int, shape=(solver.n_links_,)),
         dofs_node=V(dtype=gs.qd_int, shape=(n_dofs_,)),
@@ -377,10 +393,10 @@ def get_mochi_island_state(solver, links_node, dofs_node):
         uses_dense=V(dtype=gs.qd_bool, shape=(_B,)),
         nodes_res_w_sq=V(dtype=gs.qd_float, shape=(n_nodes_, _B)),
         nodes_res_norm0_w=V(dtype=gs.qd_float, shape=(n_nodes_, _B)),
-        nodes_rest_steps=V(dtype=gs.qd_int, shape=(n_sleep_nodes_, _B_sleep)),
-        nodes_is_asleep=V(dtype=gs.qd_bool, shape=(n_sleep_nodes_, _B_sleep)),
-        nodes_is_restless=V(dtype=gs.qd_bool, shape=(n_sleep_nodes_, _B_sleep)),
-        islands_is_awake=V(dtype=gs.qd_bool, shape=(n_sleep_nodes_, _B_sleep)),
+        nodes_rest_steps=V(dtype=gs.qd_int, shape=_state_shape(use_sleeping, n_nodes_, _B)),
+        nodes_is_asleep=V(dtype=gs.qd_bool, shape=_state_shape(use_sleeping, n_nodes_, _B)),
+        nodes_is_restless=V(dtype=gs.qd_bool, shape=(n_nodes_, _B) if use_sleeping else (1, 1)),
+        islands_is_awake=V(dtype=gs.qd_bool, shape=(n_nodes_, _B) if use_sleeping else (1, 1)),
     )
     if len(links_node) > 0:
         state.links_node.from_numpy(np.asarray(links_node, dtype=gs.np_int))
@@ -394,20 +410,21 @@ def get_mochi_island_state(solver, links_node, dofs_node):
 
 @dataclasses.dataclass(eq=True, kw_only=False, frozen=True)
 class MochiState:
+    kind: ClassVar[DataKind] = DataKind.SCRATCH
     # Multistep history of the generalized coordinates and velocities, and of the finite-difference link velocities
     # (translational, angular, and the symmetric rotation-derivative correction): slot 0 is the previous step, slot 1
     # the one before.
-    qpos_prev: qd.Tensor
-    dofs_vel_prev: qd.Tensor
-    links_vel_prev: qd.Tensor
-    links_ang_prev: qd.Tensor
-    links_vsym_prev: qd.Tensor
+    qpos_prev: qd.Tensor = field(kind=DataKind.STATE)
+    dofs_vel_prev: qd.Tensor = field(kind=DataKind.STATE)
+    links_vel_prev: qd.Tensor = field(kind=DataKind.STATE)
+    links_ang_prev: qd.Tensor = field(kind=DataKind.STATE)
+    links_vsym_prev: qd.Tensor = field(kind=DataKind.STATE)
     # Finite-difference velocity of every link at the end of the last step. Together with the angular velocity, the
     # symmetric part of the rotation derivative reproduces the rotation increment of that step exactly, which the
     # rotation merit of the next step extrapolates from.
-    links_vel: qd.Tensor
-    links_ang: qd.Tensor
-    links_vsym: qd.Tensor
+    links_vel: qd.Tensor = field(kind=DataKind.STATE)
+    links_ang: qd.Tensor = field(kind=DataKind.STATE)
+    links_vsym: qd.Tensor = field(kind=DataKind.STATE)
     # Step-start extrapolation and stage-start reference of the current solve (identical for single-stage schemes).
     qpos_step_start: qd.Tensor
     qpos_stage_start: qd.Tensor
@@ -423,7 +440,7 @@ class MochiState:
     qpos_ls_ref: qd.Tensor
     # Number of valid previous steps (multistep schemes fall back to backward Euler while it is short) and the stage
     # time step of the current solve.
-    n_hist: qd.Tensor
+    n_hist: qd.Tensor = field(kind=DataKind.STATE)
     dt_stage: qd.Tensor
     # Newton system. Link-space accumulators (residual 6-vector, diagonal 6x6 block per link, off-diagonal 6x6 block
     # per contact pair) are projected onto the degrees of freedom through the link Jacobians; joint-space terms add
@@ -438,12 +455,12 @@ class MochiState:
     H_dense: qd.Tensor
     # Per-environment Newton and line search control.
     is_active: qd.Tensor
-    status: qd.Tensor
-    n_iter: qd.Tensor
-    n_pcg_iter: qd.Tensor
+    status: qd.Tensor = field(kind=DataKind.DERIVED)
+    n_iter: qd.Tensor = field(kind=DataKind.DERIVED)
+    n_pcg_iter: qd.Tensor = field(kind=DataKind.DERIVED)
     # every environment index in order, and the batch size: the identity environment list of the step functions
-    all_envs: qd.Tensor
-    n_envs_all: qd.Tensor
+    all_envs: qd.Tensor = field(kind=DataKind.CONSTANT)
+    n_envs_all: qd.Tensor = field(kind=DataKind.CONSTANT)
     # control of the graph step kernel: kind of the current round and the environment-list gates of its phases
     graph_is_first: qd.Tensor
     graph_round_is_s: qd.Tensor
@@ -482,8 +499,9 @@ class MochiState:
     pcg_zTz: qd.Tensor
     pcg_zTz0: qd.Tensor
     pcg_is_active: qd.Tensor
-    # Whether the node of every link sleeps (allocated only when sleeping is enabled, see MochiIslandState).
-    links_is_asleep: qd.Tensor
+    # Whether the node of every link sleeps (allocated only when sleeping is enabled, see MochiIslandState). A step
+    # copies it from the nodes before reading it, but a contact query between two steps reads it as it stands.
+    links_is_asleep: qd.Tensor = field(kind=DataKind.STATE)
 
 
 def get_mochi_state(solver, max_pairs, has_dense):
@@ -562,12 +580,13 @@ def get_mochi_state(solver, max_pairs, has_dense):
         pcg_zTz=V(dtype=gs.qd_float, shape=(_B,)),
         pcg_zTz0=V(dtype=gs.qd_float, shape=(_B,)),
         pcg_is_active=V(dtype=gs.qd_bool, shape=(_B,)),
-        links_is_asleep=V(dtype=gs.qd_bool, shape=(n_links_, _B) if solver._options.use_sleeping else (1, 1)),
+        links_is_asleep=V(dtype=gs.qd_bool, shape=_state_shape(solver._options.use_sleeping, n_links_, _B)),
     )
 
 
 @dataclasses.dataclass(eq=True, kw_only=False, frozen=True)
 class MochiContactState:
+    kind: ClassVar[DataKind] = DataKind.SCRATCH
     # Candidate (colliding link, collider geom) pairs of the current step and their per-pair accumulators: total
     # force, torque about the collider link origin, and the three 3x3 sums the rigid-rigid Hessian blocks are built
     # from (see kernel_pairs_to_blocks).
@@ -615,6 +634,8 @@ class MochiHitReadback:
     pass, per contact kind), allocated at the first readback: the solver itself only keeps the fields its linear
     solve needs.
     """
+
+    kind: ClassVar[DataKind] = DataKind.SCRATCH
 
     # rigid samples on rigid colliders
     n_hits_total: qd.Tensor
@@ -681,6 +702,7 @@ def get_mochi_hit_readback(solver, max_hits, max_soft_hits, max_sc_hits, max_pc_
 
 @dataclasses.dataclass(eq=True, kw_only=False, frozen=True)
 class MochiSoftInfo:
+    kind: ClassVar[DataKind] = DataKind.CONSTANT
     # Vertices: rest position, row-sum lumped mass (convergence weights), owning entity and point-cloud collider weight
     # (nodal area of shell vertices, zero elsewhere).
     verts_rest: qd.Tensor
@@ -787,13 +809,13 @@ class MochiSoftInfo:
     # whether the samples of the entity can hit the tetrahedra / the collider spheres of some entity at all
     entities_queries_tets: qd.Tensor
     entities_queries_spheres: qd.Tensor
-    entities_penalty_coefficient: qd.Tensor
-    entities_penalty_smoothing_half_distance: qd.Tensor
-    entities_penalty_threshold: qd.Tensor
-    entities_friction: qd.Tensor
-    entities_friction_falloff_vel: qd.Tensor
-    entities_viscous_friction: qd.Tensor
-    entities_normal_viscous_damping: qd.Tensor
+    entities_penalty_coefficient: qd.Tensor = field(kind=DataKind.INFO)
+    entities_penalty_smoothing_half_distance: qd.Tensor = field(kind=DataKind.INFO)
+    entities_penalty_threshold: qd.Tensor = field(kind=DataKind.INFO)
+    entities_friction: qd.Tensor = field(kind=DataKind.INFO)
+    entities_friction_falloff_vel: qd.Tensor = field(kind=DataKind.INFO)
+    entities_viscous_friction: qd.Tensor = field(kind=DataKind.INFO)
+    entities_normal_viscous_damping: qd.Tensor = field(kind=DataKind.INFO)
     entities_max_alignment_normals: qd.Tensor
     entities_vert_start: qd.Tensor
     entities_vert_end: qd.Tensor
@@ -809,8 +831,8 @@ class MochiSoftInfo:
     sdf_values: qd.Tensor
     # Whether contact between a deformable entity and a rigid link, or between two deformable entities, is enabled
     # (layer and entity filters).
-    entities_links_pair_enabled: qd.Tensor
-    entities_pair_enabled: qd.Tensor
+    entities_links_pair_enabled: qd.Tensor = field(kind=DataKind.INFO)
+    entities_pair_enabled: qd.Tensor = field(kind=DataKind.INFO)
     # Offset of the first deformable degree of freedom in the Newton system (after the rigid degrees of freedom), and
     # of the first rod twist degree of freedom (after the vertex degrees of freedom).
     dof_start: qd.Tensor
@@ -958,22 +980,23 @@ def get_mochi_soft_info(solver):
 
 @dataclasses.dataclass(eq=True, kw_only=False, frozen=True)
 class MochiSoftState:
+    kind: ClassVar[DataKind] = DataKind.SCRATCH
     # Vertex positions (the unknowns) and finite-difference velocities, with their multistep history and the
     # step-start / stage-start references and line search reference of the current solve.
-    verts_pos: qd.Tensor
-    verts_vel: qd.Tensor
-    verts_pos_prev: qd.Tensor
-    verts_vel_prev: qd.Tensor
+    verts_pos: qd.Tensor = field(kind=DataKind.STATE)
+    verts_vel: qd.Tensor = field(kind=DataKind.STATE)
+    verts_pos_prev: qd.Tensor = field(kind=DataKind.STATE)
+    verts_vel_prev: qd.Tensor = field(kind=DataKind.STATE)
     verts_pos_stage_start: qd.Tensor
     verts_vel_stage_start: qd.Tensor
     verts_pos_ls_ref: qd.Tensor
     # Dirichlet flags: fixed vertices keep their position.
-    verts_is_fixed: qd.Tensor
+    verts_is_fixed: qd.Tensor = field(kind=DataKind.STATE)
     # Prescribed end-of-step position of the fixed vertices (Dirichlet targets).
-    verts_target: qd.Tensor
+    verts_target: qd.Tensor = field(kind=DataKind.STATE)
     # Diagonal 3x3 Hessian block of every vertex (block-Jacobi preconditioner) and net contact force for readback.
     verts_H_diag: qd.Tensor
-    verts_contact_force: qd.Tensor
+    verts_contact_force: qd.Tensor = field(kind=DataKind.DERIVED)
     # Stage-start deformation gradient of every tetrahedron (stiffness damping).
     elems_F_stage_start: qd.Tensor
     # Values of the deformable Hessian CSR (see MochiSoftInfo.csr_start), assembled once per Newton iteration.
@@ -985,13 +1008,13 @@ class MochiSoftState:
     # (recentered to zero at every step start) with its finite-difference rate and history, stage-start axial strain
     # and stencil measures, and the Hessian blocks (3x3 axial per segment, 11x11 per stencil over
     # [x0, theta0, x1, theta1, x2]).
-    rod_elems_axis: qd.Tensor
+    rod_elems_axis: qd.Tensor = field(kind=DataKind.STATE)
     rod_elems_axis_stage_start: qd.Tensor
     rod_elems_axis_ls_ref: qd.Tensor
-    rod_elems_twist: qd.Tensor
-    rod_elems_twist_vel: qd.Tensor
-    rod_elems_twist_prev: qd.Tensor
-    rod_elems_twist_vel_prev: qd.Tensor
+    rod_elems_twist: qd.Tensor = field(kind=DataKind.STATE)
+    rod_elems_twist_vel: qd.Tensor = field(kind=DataKind.STATE)
+    rod_elems_twist_prev: qd.Tensor = field(kind=DataKind.STATE)
+    rod_elems_twist_vel_prev: qd.Tensor = field(kind=DataKind.STATE)
     rod_elems_twist_step_start: qd.Tensor
     rod_elems_twist_vel_stage_start: qd.Tensor
     rod_elems_twist_ls_ref: qd.Tensor
@@ -1060,7 +1083,7 @@ class MochiSoftState:
     # Attachment violation at the stage start, the reference of the penalty damping.
     att_c_start: qd.Tensor
     # Whether every deformable entity sleeps (allocated only when sleeping is enabled, see MochiIslandState).
-    entities_is_asleep: qd.Tensor
+    entities_is_asleep: qd.Tensor = field(kind=DataKind.STATE)
 
 
 def get_mochi_soft_state(solver, max_soft_pairs, max_soft_hits, max_sc_hits, max_pc_hits):
@@ -1068,6 +1091,7 @@ def get_mochi_soft_state(solver, max_soft_pairs, max_soft_hits, max_sc_hits, max
     n_sv_, n_el_, n_se_ = solver.n_soft_verts_, solver.n_soft_elems_, solver.n_soft_entities_
     n_sh_ = solver.n_shell_elems_
     n_re_, n_rs_ = solver.n_rod_elems_, solver.n_rod_stencils_
+    has_rods = solver.n_rod_elems > 0
     return MochiSoftState(
         verts_pos=V(dtype=gs.qd_vec3, shape=(n_sv_, _B)),
         verts_vel=V(dtype=gs.qd_vec3, shape=(n_sv_, _B)),
@@ -1075,7 +1099,7 @@ def get_mochi_soft_state(solver, max_soft_pairs, max_soft_hits, max_sc_hits, max
         verts_vel_prev=V(dtype=gs.qd_vec3, shape=(N_HISTORY, n_sv_, _B)),
         verts_pos_stage_start=V(dtype=gs.qd_vec3, shape=(n_sv_, _B)),
         att_c_start=V(dtype=gs.qd_vec3, shape=(solver.n_attachments_, _B)),
-        entities_is_asleep=V(dtype=gs.qd_bool, shape=(n_se_, _B) if solver._options.use_sleeping else (1, 1)),
+        entities_is_asleep=V(dtype=gs.qd_bool, shape=_state_shape(solver._options.use_sleeping, n_se_, _B)),
         verts_vel_stage_start=V(dtype=gs.qd_vec3, shape=(n_sv_, _B)),
         verts_pos_ls_ref=V(dtype=gs.qd_vec3, shape=(n_sv_, _B)),
         verts_is_fixed=V(dtype=gs.qd_bool, shape=(n_sv_, _B)),
@@ -1086,13 +1110,13 @@ def get_mochi_soft_state(solver, max_soft_pairs, max_soft_hits, max_sc_hits, max
         csr_values=V(dtype=gs.qd_float, shape=(solver.n_csr_, _B)),
         shell_elems_eps_stage_start=V_MAT(n=2, m=2, dtype=gs.qd_float, shape=(n_sh_, _B)),
         shell_elems_s_stage_start=V_MAT(n=2, m=2, dtype=gs.qd_float, shape=(n_sh_, _B)),
-        rod_elems_axis=V(dtype=gs.qd_vec3, shape=(n_re_, _B)),
+        rod_elems_axis=V(dtype=gs.qd_vec3, shape=_state_shape(has_rods, n_re_, _B)),
         rod_elems_axis_stage_start=V(dtype=gs.qd_vec3, shape=(n_re_, _B)),
         rod_elems_axis_ls_ref=V(dtype=gs.qd_vec3, shape=(n_re_, _B)),
-        rod_elems_twist=V(dtype=gs.qd_float, shape=(n_re_, _B)),
-        rod_elems_twist_vel=V(dtype=gs.qd_float, shape=(n_re_, _B)),
-        rod_elems_twist_prev=V(dtype=gs.qd_float, shape=(N_HISTORY, n_re_, _B)),
-        rod_elems_twist_vel_prev=V(dtype=gs.qd_float, shape=(N_HISTORY, n_re_, _B)),
+        rod_elems_twist=V(dtype=gs.qd_float, shape=_state_shape(has_rods, n_re_, _B)),
+        rod_elems_twist_vel=V(dtype=gs.qd_float, shape=_state_shape(has_rods, n_re_, _B)),
+        rod_elems_twist_prev=V(dtype=gs.qd_float, shape=_state_shape(has_rods, N_HISTORY, n_re_, _B)),
+        rod_elems_twist_vel_prev=V(dtype=gs.qd_float, shape=_state_shape(has_rods, N_HISTORY, n_re_, _B)),
         rod_elems_twist_step_start=V(dtype=gs.qd_float, shape=(n_re_, _B)),
         rod_elems_twist_vel_stage_start=V(dtype=gs.qd_float, shape=(n_re_, _B)),
         rod_elems_twist_ls_ref=V(dtype=gs.qd_float, shape=(n_re_, _B)),
