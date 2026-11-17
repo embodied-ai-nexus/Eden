@@ -18,7 +18,7 @@ from eden.tasks.parser import (
     get_task_config,
     get_task_config_from_args,
 )
-from eden.tasks.registry import TaskMod
+from eden.tasks.registry import TaskMod, cli_fields, literal_choices, unwrap_optional
 
 
 class _LabelMod(TaskMod):
@@ -248,3 +248,57 @@ def test_a_rejected_partial_config_names_its_file(tmp_path):
     assert error.value.__notes__ == [
         f"Raised applying --config {partial} to ReacherConfig, at 'env_options.fem_options'."
     ]
+
+
+# ── Every task mod choice through the CLI funnel ────────────────────────────
+
+
+def _mod_choices(task: str) -> list[tuple[str, object]]:
+    """Each value a task's ``Literal`` / ``bool`` mod flags accept other than the registered one, as ``(flag, value)``."""
+    out = []
+    for mod in TASK_REGISTRY.get_modifiers(task):
+        for field, annotation, _default, _help in cli_fields(type(mod)):
+            annotation, _ = unwrap_optional(annotation)
+            values = (True, False) if annotation is bool else literal_choices(annotation)
+            if values is None:
+                continue
+            out += [(mod.flag_for(field), v) for v in values if v != getattr(mod, field)]
+    return out
+
+
+_NEEDS_DATA = {
+    "flashdexretarget": "needs --motion; tests/tasks/flashdexretarget/test_config.py overrides its FlashSAC runner",
+}
+
+
+def test_every_needs_data_skip_names_a_registered_task():
+    stale = _NEEDS_DATA.keys() - set(TASK_REGISTRY.list_tasks())
+    assert not stale, f"_NEEDS_DATA skips {sorted(stale)}, which no longer name a registered task"
+
+
+@pytest.mark.parametrize(
+    "task",
+    [
+        pytest.param(t, marks=pytest.mark.skip(reason=_NEEDS_DATA[t])) if t in _NEEDS_DATA else t
+        for t in TASK_REGISTRY.list_tasks()
+    ],
+)
+def test_every_mod_choice_takes_an_override_and_a_run_name(task):
+    """A mod may only assign what the config's field annotations admit, and every runner options class takes a run_name.
+
+    The override re-validates the config, so a mod that assigns a class outside a field's annotation fails here.
+    """
+    for flag, value in [(None, None), *_mod_choices(task)]:
+        where = f"--task {task}" + ("" if flag is None else f" --{flag} {value}")
+        try:
+            cfg = get_task_config(
+                task,
+                run_name="probe run",
+                modifier_kwargs={} if flag is None else {flag: value},
+                config_overrides=[{}],
+            )
+        except Exception as e:
+            e.add_note(f"while building {where}")
+            raise
+        if getattr(cfg, "runner_options", None) is not None:
+            assert cfg.runner_options.run_name == "probe-run", where
