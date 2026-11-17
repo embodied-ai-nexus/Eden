@@ -47,7 +47,16 @@ require_members(
         Scene: ("add_entity", "export", "is_built", "sim", "visualizer"),
         Simulator: ("add_entity", "get_state", "reset", "solvers"),
         Visualizer: ("batch_renderer", "context", "raytracer"),
-        RasterizerContext: ("_rigid_solvers", "add_node", "create_node_seg", "on_fem", "update_fem"),
+        RasterizerContext: (
+            "_rigid_solvers",
+            "add_node",
+            "build",
+            "create_node_seg",
+            "on_fem",
+            "update_fem",
+            "update_link_frame",
+            "update_rigid",
+        ),
     },
 )
 
@@ -241,6 +250,12 @@ def _bind_state(sim: Simulator, solver: MochiSolver) -> None:
     def reset_with_mochi(state, envs_idx=None):
         # Before the upstream reset, which restarts the sensors on the restored state
         if solver.is_active:
+            # Mochi's kernels take their sizes from the state's arrays, so another scene's state writes past this one's
+            if state.scene is not sim.scene:
+                gs.raise_exception(
+                    "This state was taken from another scene: reset a scene only to a state its own "
+                    "`scene.get_state()` returned. Rebuild the other scene's bodies in this one to replay it here."
+                )
             if key not in state.solvers:
                 gs.raise_exception(
                     "This state holds no state of the MochiSolver: take it with `scene.get_state()` of this scene, "
@@ -272,6 +287,10 @@ def _bind_rasterizer(scene: Scene, solver: MochiSolver) -> None:
     The rasterizer draws the rigid-like bodies of the solvers ``_rigid_solvers`` yields, and the deformable ones of the
     FEMSolver; each gains the MochiSolver here, on this scene's instances. The visual geoms it draws are placed by the
     solver itself (``MochiSolver._update_vgeoms``): Genesis' visualizer no longer refreshes them.
+
+    A setter between two steps syncs the rasterizer with the nodes of the solvers it changed alone
+    (``RasterizerContext._updates_solvers``, filled at the build), so the update of the rigid-like and the deformable
+    nodes also runs for the MochiSolver.
     """
     context = scene.visualizer.context
     rigid_solvers = context._rigid_solvers
@@ -328,6 +347,17 @@ def _bind_rasterizer(scene: Scene, solver: MochiSolver) -> None:
                     if normal_data is not None:
                         self.jit.update_buffer(node, "normal", normal_data)
 
+    build = context.build
+
+    def build_with_mochi(self, *args, **kwargs):
+        build(*args, **kwargs)
+        drawing_mochi = (self.update_link_frame, self.update_rigid, self.update_fem)
+        self._updates_solvers = tuple(
+            (update, (*update_solvers, solver) if update in drawing_mochi else update_solvers)
+            for update, update_solvers in self._updates_solvers
+        )
+
     context._rigid_solvers = types.MethodType(_rigid_solvers, context)
+    context.build = types.MethodType(build_with_mochi, context)
     context.on_fem = types.MethodType(on_fem_with_mochi, context)
     context.update_fem = types.MethodType(update_fem_with_mochi, context)

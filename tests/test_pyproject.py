@@ -190,6 +190,18 @@ def test_the_release_refuses_what_the_checkout_installs_and_the_wheel_would_not(
     pyproject["tool"]["uv"]["override-dependencies"] = ["genesis-world==1.5.0", "trimesh<6"]
     pyproject["tool"]["uv"]["constraint-dependencies"] = ["foo<2"]
     assert module.swapped_requirements(pyproject) == ["genesis-world ([tool.uv] override-dependencies)"]
+    # A direct reference to a published requirement in a group: `uv sync` installs the `dev` group by default. One to
+    # a package the wheel does not name is left alone (the `*-git` groups), and so is an included group's entry
+    del pyproject["tool"]["uv"]["override-dependencies"]
+    pyproject["dependency-groups"] = {
+        "dev": ["pytest", {"include-group": "x-git"}, "genesis-world @ https://example.com/g.tgz"],
+        "x-git": ["televuer @ git+https://example.com/t"],
+    }
+    pyproject["tool"]["uv"]["dev-dependencies"] = ["foo @ file:///foo"]
+    assert module.swapped_requirements(pyproject) == [
+        "foo ([tool.uv] dev-dependencies)",
+        "genesis-world (group 'dev')",
+    ]
     # Today's pin: the release waits for a genesis-world release holding the commit
     assert module.swapped_requirements(_load_pyproject()) == (
         ["genesis-world ([tool.uv.sources])"] if _genesis_source() else []
@@ -198,7 +210,13 @@ def test_the_release_refuses_what_the_checkout_installs_and_the_wheel_would_not(
 
 def _genesis_source() -> str | None:
     source = _load_pyproject().get("tool", {}).get("uv", {}).get("sources", {}).get("genesis-world")
-    return None if source is None else source["url"]
+    if source is None:
+        return None
+    assert isinstance(source, dict) and "url" in source, (
+        f"The genesis-world source in pyproject.toml is {source!r}; these tests and "
+        "eden.utils.distribution.GENESIS_SOURCE expect one archive `url`. Update both for the new shape."
+    )
+    return source["url"]
 
 
 def test_each_unpublished_requirement_is_the_pin_its_extras_git_group_installs():

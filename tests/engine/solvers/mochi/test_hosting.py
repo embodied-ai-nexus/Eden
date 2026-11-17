@@ -174,6 +174,31 @@ def test_the_rasterizer_draws_the_rigid_and_the_deformable_bodies():
     assert np.argwhere(red).mean(axis=0)[0] > np.argwhere(red_start).mean(axis=0)[0]
 
 
+def test_a_frame_drawn_after_a_setter_shows_the_body_where_the_setter_put_it():
+    """A setter between two steps syncs the rasterizer with the nodes of the solver it changed alone, as the
+    interactive viewer does on every change of a body's geometry; the camera's next frame draws from those nodes.
+    """
+    scene = _scene()
+    scene.add_entity(gs.morphs.Plane(), material=mochi_materials.Rigid())
+    ball = scene.add_entity(
+        gs.morphs.Sphere(radius=0.15, pos=(0.0, 0.0, 0.3)),
+        material=mochi_materials.Rigid(),
+        surface=gs.surfaces.Default(color=(1.0, 0.0, 0.0)),
+    )
+    camera = scene.add_camera(res=(160, 120), pos=(1.5, -1.5, 1.0), lookat=(0.0, 0.0, 0.2), GUI=False)
+    scene.build()
+    scene.step()
+
+    def n_red() -> int:
+        rgb = np.asarray(camera.render()[0])
+        return int(((rgb[..., 0] > 150) & (rgb[..., 1] < 80) & (rgb[..., 2] < 80)).sum())
+
+    assert n_red() > 50
+    ball.set_pos(torch.tensor([50.0, 0.0, 0.3], dtype=gs.tc_float, device=gs.device))
+    scene.visualizer.sync(frozenset((scene.mochi_solver,)))
+    assert n_red() == 0
+
+
 def test_a_reset_restores_a_scene_of_deformable_bodies_alone():
     """``Simulator.reset`` skips a solver whose ``data`` leaves state out (``is_checkpointable``), as the MochiSolver's
     does; the installed reset restores it, deformable vertices included.
@@ -214,6 +239,13 @@ def test_a_saved_state_restores_the_mochi_bodies_of_the_environments_it_is_given
     state.solvers.pop(type(scene.mochi_solver).__name__)
     with pytest.raises(gs.GenesisException, match="holds no state of the MochiSolver"):
         scene.reset(state)
+
+    other = _scene()
+    other.add_entity(gs.morphs.Box(size=(0.2, 0.2, 0.2), pos=(0.0, 0.0, 0.5)), material=mochi_materials.Rigid())
+    other.add_entity(gs.morphs.Sphere(radius=0.1, pos=(0.5, 0.0, 0.5)), material=mochi_materials.Rigid())
+    other.build(n_envs=2)
+    with pytest.raises(gs.GenesisException, match="taken from another scene"):
+        scene.reset(other.get_state())
 
 
 @pytest.mark.parametrize("step_kernel", ["monolith", "pipeline", "graph"])

@@ -37,6 +37,10 @@ from eden.utils.mesh import (
     sample_polygon_grid,
 )
 
+#: How far ``RigidEntity.place_on_to`` inflates every geom and link box before its broad-phase query, in meters: an
+#: object resting this close to the support (``place_on_to`` leaves one 1 mm above it) still holds its place.
+PLACEMENT_MARGIN = 0.01
+
 
 @qd.kernel
 def _kernel_broad_phase(
@@ -54,8 +58,11 @@ def _kernel_broad_phase(
 
     ``func_broad_phase`` is a ``@qd.func`` since https://github.com/Genesis-Embodied-AI/Genesis/pull/3433, so it can
     only be called from inside a kernel, and Genesis' own kernel around it (``kernel_detection``) runs the narrow phase
-    too. The broad phase reads the inflated geom boxes :meth:`SupportSurfaceMixin._kernel_update_aabbs` writes, which
-    ``RigidEntity.place_on_to`` puts back afterwards. The argument list mirrors the ``func_broad_phase`` call in Genesis' ``func_detection``.
+    too. The broad phase pairs the links whose boxes overlap, which it computes from their boxes in the link frame
+    (``links_init_aabb_*``), then the geoms of those links whose world boxes (``dyn_state.geoms.aabb_*``) and, for two
+    convex geoms, rest-pose boxes moved with them (``geoms_init_AABB``) overlap. ``RigidEntity.place_on_to`` inflates
+    all three by ``PLACEMENT_MARGIN`` and puts them back afterwards. The argument list mirrors the ``func_broad_phase``
+    call in Genesis' ``func_detection``.
     """
     func_broad_phase(
         dyn_state,
@@ -511,7 +518,9 @@ class SupportSurfaceMixin:
         geoms_aabb_min: qd.Tensor,
         geoms_aabb_max: qd.Tensor,
     ):
-        """Recompute every geom's world AABB from its init AABB, inflated by 0.01 m per side, before the broad phase."""
+        """Recompute every geom's world AABB from its rest-pose box, which ``RigidEntity.place_on_to`` inflated by
+        ``PLACEMENT_MARGIN`` per side, before the broad phase.
+        """
         qd.loop_config(serialize=self.solver.sim.para_level < gs.PARA_LEVEL.PARTIAL)
         for i_g, i_b in qd.ndrange(self.solver.n_geoms, self.solver.n_envs_):
             pos = geoms_pos[i_g, i_b]
@@ -528,8 +537,8 @@ class SupportSurfaceMixin:
                 lower = qd.min(lower, corner_pos)
                 upper = qd.max(upper, corner_pos)
 
-            geoms_aabb_min[i_g, i_b] = lower - 0.01
-            geoms_aabb_max[i_g, i_b] = upper + 0.01
+            geoms_aabb_min[i_g, i_b] = lower
+            geoms_aabb_max[i_g, i_b] = upper
 
     @qd.kernel
     def _kernel_filter_detection(
@@ -547,7 +556,8 @@ class SupportSurfaceMixin:
     ):
         qd.loop_config(serialize=self.solver.sim.para_level < gs.PARA_LEVEL.ALL)
         for i_b in range(self.solver.n_envs_):
-            for i_pair in range(n_broad_pairs[i_b]):
+            # The count goes on past the capacity, which `place_on_to` raises for once this is done
+            for i_pair in range(qd.min(n_broad_pairs[i_b], broad_collision_pairs.shape[0])):
                 i_ga = broad_collision_pairs[i_pair, i_b][0]
                 i_gb = broad_collision_pairs[i_pair, i_b][1]
 

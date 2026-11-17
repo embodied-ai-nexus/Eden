@@ -10,7 +10,7 @@ frame of the initial configuration, with no error anywhere.
 The two things the bridge needs are already shaped like what the plugin reads:
 
 * ``MochiSolver`` derives from ``KinematicSolver``, so it carries the same ``n_vgeoms`` / ``vgeoms``
-  / ``dyn_state.vgeoms.pos|quat`` the plugin reads off the rigid solver, kept current at every substep.
+  / ``dyn_state.vgeoms.pos|quat`` the plugin reads off the rigid solver, current at the end of every step.
   It only has to be handed that solver instead.
 * ``MochiSolver.get_soft_state_render()`` returns render-vertex positions in the same
   ``(n_vverts, B)`` layout as ``FEMSolver.get_state_render()``, so the deformable bodies fit the

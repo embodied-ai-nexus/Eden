@@ -1711,6 +1711,69 @@ def test_a_solver_error_no_reset_clears_raises_at_the_next_control_step():
         env.step()
 
 
+_K = 10  # eden.envs.base._ERRORED_EPISODES_TO_RAISE
+
+
+@pytest.mark.parametrize(
+    ("flagged_control_steps", "sound_reset_at", "raises"),
+    [
+        (range(_K), None, True),
+        (range(1, 2 * _K, 2), None, True),
+        ([*range(_K - 1), *range(_K, 2 * _K - 1)], _K - 1, False),
+    ],
+    ids=["every-episode-at-its-first-step", "every-episode-at-its-second-step", "one-episode-ending-otherwise"],
+)
+def test_a_recoverable_error_ending_every_episode_of_an_env_raises(
+    decimated_box_env, flagged_control_steps, sound_reset_at, raises
+):
+    """A NaN state the env's own initial state causes (a time step too long for a material) ends every episode, at
+    whatever step it diverges, and would never raise. Env 1 is flagged at the first sim step of the given control
+    steps: once its episodes ended on the error 10 times in a row, the error check raises it, with a note naming the
+    env. An episode ending otherwise (here a reset of env 1 before the given control step) restarts the count, and the
+    resets of the other envs in between (env 2's, at every control step) leave it alone.
+    """
+    from genesis.utils.misc import qd_to_torch
+
+    from eden.envs.base import _ERRORED_EPISODES_TO_RAISE
+
+    assert _ERRORED_EPISODES_TO_RAISE == _K
+    env = decimated_box_env
+    solver = env.rigid_solver
+    flagged, calls = set(flagged_control_steps), []
+
+    def corrupt_env_1() -> None:
+        calls.append(None)
+        control_step, sim_step = divmod(len(calls) - 1, _DECIMATION)
+        if sim_step == 0 and control_step in flagged:
+            errno = qd_to_torch(solver._errno).clone()
+            errno[1] = int(RigidErrorCode.INVALID_CONTACT_NAN)
+            solver._errno.from_torch(errno)
+
+    env.reset()
+    env.register_substep_callback(corrupt_env_1, before=True)
+    env_1, env_2 = (torch.tensor([i], device=env.device) for i in (1, 2))
+    try:
+        for control_step in range(max(flagged) + 1):
+            env.reset(env_1 if control_step == sound_reset_at else env_2)
+            env.step()
+            assert env.termination_manager.solver_errors[1].item() == (control_step in flagged)
+        # On CUDA the check does not wait for the device, so it raises a control step later
+        n_checks = 1 if gs.backend == gs.cpu else 2
+        if raises:
+            with pytest.raises(gs.GenesisException, match="not finite") as error:
+                for _ in range(n_checks):
+                    env.step()
+            assert f"Raised for env(s) 1, whose last {_K} episodes in a row all ended on this error" in "".join(
+                error.value.__notes__
+            )
+        else:
+            for _ in range(n_checks):
+                env.step()
+    finally:
+        env._pre_substep_callbacks.remove(corrupt_env_1)
+        solver.clear_errno()
+
+
 @pytest.mark.parametrize(
     ("code", "message"),
     [

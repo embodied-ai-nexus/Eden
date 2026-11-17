@@ -444,6 +444,9 @@ class EdenConfig(ConfigurableOptions):
             # Where it sits, and the version change that most likely retired it: the warnings below never print.
             notes = [f"{name} {change}." for name, change in changes.items()]
             if getattr(e, "_eden_retired_fields", False):
+                if len(retired := _retired_fields_in(data)) > 1:
+                    # The load stops at the first option it fails on; the copy needs every one removed at once
+                    notes.append(f"Retired fields across {source}: {'; '.join(retired)}.")
                 notes.append(
                     "Removing a retired field runs the config under the current physics, not the saved run's, so a"
                     " policy trained under the saved config may behave otherwise: to reproduce the run, use the Eden and"
@@ -1125,6 +1128,28 @@ def _safe_model_construct(cls: type, data: dict, *, recorded: bool = True):
                 _mark_retired_fields(error)
             raise error
     return cls.model_construct(**data)
+
+
+def _retired_fields_in(data: Any, path: str = "") -> list[str]:
+    """``"<path> (<field>, ...)"`` for each option of the saved ``data`` that holds fields its recorded class retired,
+    in file order. An option without a recorded class (a hand-written file) is not listed. Never raises: it adds to a
+    message about another error.
+    """
+    found = []
+    if isinstance(data, dict):
+        if _is_dynamic_config(data):
+            try:
+                cls = get_options_class_from_qualname(f"{data['_option_module_']}.{data['_option_class_']}")
+                if keys := [key for key in data if key in retired_fields(cls)]:
+                    found.append(f"{path or '<root>'} ({', '.join(map(str, keys))})")
+            except Exception:
+                pass
+        for key, value in data.items():
+            found += _retired_fields_in(value, f"{path}.{key}" if path else str(key))
+    elif isinstance(data, list):
+        for i, value in enumerate(data):
+            found += _retired_fields_in(value, f"{path}[{i}]")
+    return found
 
 
 def _mark_retired_fields(exc: BaseException) -> None:

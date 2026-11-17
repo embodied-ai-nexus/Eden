@@ -245,6 +245,15 @@ def test_load_refuses_a_genesis_option_field_the_installed_genesis_lacks(tmp_pat
     # Removing it is no replay: the note offers both real choices, and keeps the run's own file as its record
     assert "to reproduce the run, use the Eden and Genesis that saved it" in note
     assert f"pass it with --config and the --task it was saved from, keeping {retired} as the record" in note
+    assert "Retired fields across" not in note  # one option holds them all, and the error names it
+    # The load stops at the first option it fails on, and the note lists every one, so the copy is fixed in one pass
+    _rewrite(retired, lambda raw: raw["config"]["env_options"]["coupler_options"].update(point_contact_stiffness=1e8))
+    with pytest.raises(ValueError) as both_error:
+        RoundtripConfig.load_from_file(retired)
+    assert (
+        f"Retired fields across {retired}: env_options.coupler_options (point_contact_stiffness); "
+        "env_options.fem_options (enable_vertex_constraints)." in both_error.value.__notes__[0]
+    )
     with pytest.raises(ValueError, match="renamed 'enable_fem_self_collision'.*; set that instead") as renamed_error:
         RoundtripConfig.load_from_file(renamed)
     # Fields retired for one reason share its note, and the valid fields are listed once

@@ -331,7 +331,8 @@ gradient, or an error of a class `_RECOVERABLE_ERRORS` does not list is truncate
 like any other, but it keeps the flag across the reset. The flag is handed back to the
 solver right before the first `scene.step()` of the next control step, which then raises with a message
 naming the option to change (on CUDA, the step after that, since its check does not wait for the
-device).
+device). So is a corrupt state that ends 10 episodes of an environment in a row, which the environment's initial
+state causes (a time step too long for an FEM material, say); a note on the error names those environments.
 
 ### Replaying the graded phase from a CUDA graph
 

@@ -22,6 +22,8 @@ explicit under every integrator.
 
 from __future__ import annotations
 
+import itertools
+import math
 import weakref
 from dataclasses import dataclass, field
 from functools import cached_property
@@ -38,7 +40,7 @@ import eden as en
 from eden.utils.contacts import aggregate_grouped_contacts, resolve_local_link_idx
 from eden.entities.base import Entity
 from eden.entities.dofs_default_mixin import DofDefaultsMixin
-from eden.entities.support_mixin import SupportSurfaceMixin, _kernel_broad_phase
+from eden.entities.support_mixin import PLACEMENT_MARGIN, SupportSurfaceMixin, _kernel_broad_phase
 from eden.options.actuators import ActuatorSpecOptions
 from eden.options.entities import RESOLVED_DOF_TENSOR_FIELD_NAMES, RIGID_CONSTRAINT_FIELD_NAMES
 from eden.utils.misc import (
@@ -3827,12 +3829,34 @@ class RigidEntity(Entity, SupportSurfaceMixin, DofDefaultsMixin):
         )
         # NOTE: force to update collision state
         entity.solver.collider.clear()
-        # The query inflates the live geom boxes, which the solver refits only as it places a movable geom: the boxes of
-        # the world-fixed geoms would stay inflated for every later step, so they are put back once it is done.
-        geoms_state = self.solver.dyn_state.geoms
-        aabb_min, aabb_max = qd_to_torch(geoms_state.aabb_min, copy=True), qd_to_torch(geoms_state.aabb_max, copy=True)
+        # The query inflates every box the broad phase reads (see `_kernel_broad_phase`): the rest-pose boxes of the
+        # geoms and of the links, which nothing refits, and the live geom boxes, which the solver refits only as it
+        # places a movable geom. They are put back once it is done, with the error flags the query may set.
+        geoms_state, rigid_info = self.solver.dyn_state.geoms, self.solver.rigid_info
+        collider_info = self.solver.collider.collider_info
+        saved = [
+            (array, qd_to_torch(array, copy=True))
+            for array in (
+                rigid_info.geoms_init_AABB,
+                collider_info.links_init_aabb_min,
+                collider_info.links_init_aabb_max,
+                geoms_state.aabb_min,
+                geoms_state.aabb_max,
+                self.solver._errno,
+            )
+        ]
         try:
             # NOTE: update slightly bigger AABBs
+            corners, links_min, links_max = (values for _, values in saved[:3])
+            lower, upper = corners.amin(dim=1) - PLACEMENT_MARGIN, corners.amax(dim=1) + PLACEMENT_MARGIN
+            # Corner 0 is the lower one and corner 7 the upper one, which the oriented-box test reads
+            is_upper = torch.tensor(list(itertools.product((False, True), repeat=3)), device=corners.device)
+            qd_from_torch(rigid_info.geoms_init_AABB, torch.where(is_upper, upper[:, None], lower[:, None]))
+            # A geom box inflated in its own frame reaches up to sqrt(3) margins further in its link's
+            qd_from_torch(collider_info.links_init_aabb_min, links_min - math.sqrt(3.0) * PLACEMENT_MARGIN)
+            qd_from_torch(collider_info.links_init_aabb_max, links_max + math.sqrt(3.0) * PLACEMENT_MARGIN)
+            if gs.backend == gs.metal:  # a torch write must land before the next kernel reads it (see `qd_from_torch`)
+                torch.mps.synchronize()
             entity._kernel_update_aabbs(
                 self.solver.dyn_state.geoms.pos,
                 self.solver.dyn_state.geoms.quat,
@@ -3842,6 +3866,16 @@ class RigidEntity(Entity, SupportSurfaceMixin, DofDefaultsMixin):
             )
             # NOTE: use broad phase to check the occupied space on the support surface
             self._run_broad_phase()
+            n_broad_pairs = qd_to_torch(self.solver.collider.collider_state.n_broad_pairs)[envs_idx]
+            capacity = self.solver.collider.collider_state.broad_collision_pairs.shape[0]
+            if (n_broad_pairs > capacity).any():
+                raise RuntimeError(
+                    f"Cannot place '{self.name}' on '{entity.name}': the broad phase found "
+                    f"{int(n_broad_pairs.max())} candidate geom pairs within {PLACEMENT_MARGIN} m of each other in an "
+                    f"env, over its capacity of {capacity}, so the free space on the support is unknown. Raise "
+                    "EnvOptions.multiplier_collision_broad_phase (or max_collision_pairs): the capacity is their "
+                    "product, capped at the number of geom pairs that can collide."
+                )
             tensor = torch.zeros(
                 (self._env.num_envs, self.solver.n_entities, 2, 3),
                 dtype=gs.tc_float,
@@ -3868,8 +3902,8 @@ class RigidEntity(Entity, SupportSurfaceMixin, DofDefaultsMixin):
                 self.solver.dyn_state.geoms.aabb_max,
             )
         finally:
-            qd_from_torch(geoms_state.aabb_min, aabb_min)
-            qd_from_torch(geoms_state.aabb_max, aabb_max)
+            for array, values in saved:
+                qd_from_torch(array, values)
             if gs.backend == gs.metal:  # a torch write must land before the next kernel reads it (see `qd_from_torch`)
                 torch.mps.synchronize()
         AABBs = tensor[:, (valid_mask == 1).any(dim=0)]
