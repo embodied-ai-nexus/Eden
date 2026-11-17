@@ -15,7 +15,6 @@ threads), and on the GPU when the environments are small enough to be worth one 
 """
 
 import genesis as gs
-import genesis.utils.geom as gu
 import quadrants as qd
 from genesis.engine.solvers.rigid.data import DynInfo, DynState, RigidInfo
 from genesis.utils.sdf import SDFInfo
@@ -98,27 +97,18 @@ from eden.engine.solvers.mochi.soft import (
 @qd.func
 def func_update_kinematics_env(
     i_b,
-    geoms_init_AABB: qd.Tensor,
     dyn_state: DynState,
     dyn_info: DynInfo,
     rigid_info: RigidInfo,
     rigid_config: qd.template(),
     with_velocity: qd.template(),
 ):
-    """Link poses, motion subspaces, geom poses and bounds of one environment (joint-space velocities on request)."""
+    """Link poses, motion subspaces, geom poses and bounds of one environment (joint-space velocities on request).
+
+    Genesis fits the bounding box of every geom it moves as it places it (genesis-world#3773), and a fixed geom does
+    not move within a step, so no refit follows.
+    """
     func_forward_kinematics_env(i_b, dyn_state, dyn_info, rigid_info, rigid_config, with_velocity)
-    n_geoms = dyn_state.geoms.pos.shape[0]
-    for i_g in range(n_geoms):
-        g_pos = dyn_state.geoms.pos[i_g, i_b]
-        g_quat = dyn_state.geoms.quat[i_g, i_b]
-        lower = gu.qd_vec3(qd.math.inf)
-        upper = gu.qd_vec3(-qd.math.inf)
-        for i_corner in qd.static(range(8)):
-            corner_pos = gu.qd_transform_by_trans_quat(geoms_init_AABB[i_g, i_corner], g_pos, g_quat)
-            lower = qd.min(lower, corner_pos)
-            upper = qd.max(upper, corner_pos)
-        dyn_state.geoms.aabb_min[i_g, i_b] = lower
-        dyn_state.geoms.aabb_max[i_g, i_b] = upper
 
 
 @qd.func
@@ -597,7 +587,6 @@ def kernel_step_monolith(
     dyn_info: DynInfo,
     rigid_info: RigidInfo,
     sdf_info: SDFInfo,
-    geoms_init_AABB: qd.Tensor,
     mochi_info: MochiInfo,
     mochi_state: MochiState,
     contact_state: MochiContactState,
@@ -671,7 +660,7 @@ def kernel_step_monolith(
                     rigid_config,
                     mochi_config,
                 )
-        func_update_kinematics_env(i_b, geoms_init_AABB, dyn_state, dyn_info, rigid_info, rigid_config, False)
+        func_update_kinematics_env(i_b, dyn_state, dyn_info, rigid_info, rigid_config, False)
         func_store_stage_start_poses(
             i_b,
             True,
@@ -865,7 +854,7 @@ def kernel_step_monolith(
                             soft_state,
                             rigid_config,
                         )
-                func_update_kinematics_env(i_b, geoms_init_AABB, dyn_state, dyn_info, rigid_info, rigid_config, False)
+                func_update_kinematics_env(i_b, dyn_state, dyn_info, rigid_info, rigid_config, False)
             func_assemble(
                 i_b,
                 True,
@@ -1095,4 +1084,4 @@ def kernel_step_monolith(
                 rigid_config,
                 mochi_config.has_soft,
             )
-        func_update_kinematics_env(i_b, geoms_init_AABB, dyn_state, dyn_info, rigid_info, rigid_config, True)
+        func_update_kinematics_env(i_b, dyn_state, dyn_info, rigid_info, rigid_config, True)

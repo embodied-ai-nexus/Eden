@@ -202,7 +202,6 @@ def kernel_step_graph(
     dyn_info: DynInfo,
     rigid_info: RigidInfo,
     sdf_info: SDFInfo,
-    geoms_init_AABB: qd.Tensor,
     mochi_info: MochiInfo,
     mochi_state: MochiState,
     contact_state: MochiContactState,
@@ -272,7 +271,6 @@ def kernel_step_graph(
     func_update_kinematics(
         mochi_state.all_envs,
         mochi_state.n_envs_all,
-        geoms_init_AABB,
         dyn_state,
         dyn_info,
         rigid_info,
@@ -450,7 +448,6 @@ def kernel_step_graph(
             func_update_kinematics(
                 mochi_state.all_envs,
                 mochi_state.gate_ls,
-                geoms_init_AABB,
                 dyn_state,
                 dyn_info,
                 rigid_info,
@@ -713,7 +710,6 @@ def kernel_step_graph(
     func_update_kinematics(
         mochi_state.all_envs,
         mochi_state.n_envs_all,
-        geoms_init_AABB,
         dyn_state,
         dyn_info,
         rigid_info,

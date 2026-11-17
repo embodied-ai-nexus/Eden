@@ -127,7 +127,6 @@ def kernel_update_kinematics(
 def func_update_kinematics(
     envs: qd.Tensor,
     n_envs: qd.Tensor,
-    geoms_init_AABB: qd.Tensor,
     dyn_state: DynState,
     dyn_info: DynInfo,
     rigid_info: RigidInfo,
@@ -135,26 +134,16 @@ def func_update_kinematics(
     with_velocity: qd.template(),
 ):
     """Link poses, motion subspaces, geom poses and bounds of the environments of a list (joint-space velocities on
-    request); one thread per environment for the kinematic chain, one per geom for the bounds.
+    request), one thread per environment.
+
+    Genesis fits the bounding box of every geom it moves as it places it (genesis-world#3773), and a fixed geom does
+    not move within a step, so no refit follows (:func:`func_update_geom_aabbs` refits every geom after a pose is set
+    from outside the step).
     """
     qd.loop_config(serialize=qd.static(rigid_config.para_level < gs.PARA_LEVEL.ALL))
     for i_slot in range(n_envs[None]):
         i_b = envs[i_slot]
         func_forward_kinematics_env(i_b, dyn_state, dyn_info, rigid_info, rigid_config, with_velocity)
-    n_geoms = dyn_state.geoms.pos.shape[0]
-    qd.loop_config(serialize=qd.static(rigid_config.para_level < gs.PARA_LEVEL.PARTIAL))
-    for i_g, i_slot in qd.ndrange(n_geoms, n_envs[None]):
-        i_b = envs[i_slot]
-        g_pos = dyn_state.geoms.pos[i_g, i_b]
-        g_quat = dyn_state.geoms.quat[i_g, i_b]
-        lower = gu.qd_vec3(qd.math.inf)
-        upper = gu.qd_vec3(-qd.math.inf)
-        for i_corner in qd.static(range(8)):
-            corner_pos = gu.qd_transform_by_trans_quat(geoms_init_AABB[i_g, i_corner], g_pos, g_quat)
-            lower = qd.min(lower, corner_pos)
-            upper = qd.max(upper, corner_pos)
-        dyn_state.geoms.aabb_min[i_g, i_b] = lower
-        dyn_state.geoms.aabb_max[i_g, i_b] = upper
 
 
 @qd.kernel(fastcache=True)
