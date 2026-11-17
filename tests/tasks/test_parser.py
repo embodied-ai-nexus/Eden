@@ -15,6 +15,7 @@ from eden.tasks.parser import (
     _add_mod_field_to_parser,
     _collect_modifier_kwargs,
     get_task_argparser,
+    get_task_config,
     get_task_config_from_args,
 )
 from eden.tasks.registry import TaskMod
@@ -234,8 +235,16 @@ def test_a_registry_that_cannot_name_the_owner_degrades_the_hint_not_the_identit
 
 def test_a_rejected_override_names_which_one():
     """Several ``--override``s apply in turn: the note says which one the rejected value came from."""
-    from eden.tasks.parser import get_task_config
-
     with pytest.raises(ValueError) as error:
         get_task_config("reacher", config_overrides=[{}, {"env_options": {"fem_options": {"dampng": 1.0}}}])
     assert error.value.__notes__ == ["Raised applying --override #2 to ReacherConfig, at 'env_options.fem_options'."]
+
+
+def test_a_rejected_partial_config_names_its_file(tmp_path):
+    partial = tmp_path / "partial.yaml"
+    partial.write_text("env_options:\n  fem_options:\n    dampng: 1.0\n")
+    with pytest.raises(ValueError) as error:
+        get_task_config("reacher", config_path=str(partial))
+    assert error.value.__notes__ == [
+        f"Raised applying --config {partial} to ReacherConfig, at 'env_options.fem_options'."
+    ]

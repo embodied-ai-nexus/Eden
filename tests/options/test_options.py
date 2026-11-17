@@ -336,7 +336,7 @@ def test_a_shallow_copy_recomputes_the_keys_it_enumerates():
 
 
 def test_an_eden_option_cannot_retire_a_field_it_still_has():
-    with pytest.raises(TypeError, match=r"Stale has \['mu'\] as fields, which Stale retired"):
+    with pytest.raises(TypeError, match=r"Stale has \['mu'\] as fields, which were retired \('mu' by Stale"):
 
         class Stale(SPHLiquidMaterialOptions):
             _retired_fields = {"mu": "renamed"}
@@ -346,7 +346,10 @@ def test_a_subclass_cannot_bring_back_a_field_its_base_retired_and_is_told_which
     class Tinted(SPHLiquidMaterialOptions):
         pass
 
-    with pytest.raises(TypeError, match=r"Reuse has \['gamma'\] as fields, which SPHLiquidMaterialOptions retired"):
+    with pytest.raises(
+        TypeError,
+        match=r"retired \('gamma' by SPHLiquidMaterialOptions, .* drop the entry from SPHLiquidMaterialOptions",
+    ):
 
         class Reuse(Tinted):
             gamma: float = 0.0

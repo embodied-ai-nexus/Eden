@@ -154,7 +154,7 @@ def test_the_genesis_source_init_names_is_the_one_a_checkout_installs():
     assert {url for _, url in written} <= {GENESIS_SOURCE}, sorted(written)
 
 
-def test_the_release_refuses_a_source_that_swaps_a_published_requirement_alone():
+def test_the_release_refuses_what_the_checkout_installs_and_the_wheel_would_not():
     """`.github/scripts/swapped_requirements.py`, which `release.yml` runs before building: a source of a requirement
     the wheel publishes would leave the wheel installing what the checkout never ran.
     """

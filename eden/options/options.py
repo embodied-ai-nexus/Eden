@@ -73,7 +73,7 @@ def _is_cached_property(cls: type, key: str) -> bool:
     return isinstance(getattr(cls, key, None), cached_property)
 
 
-def unknown_fields_message(cls: type, fields: list[str], *, context: str = "") -> str:
+def unknown_fields_message(cls: type, fields: list[Any], *, context: str = "") -> str:
     """The one wording for "``fields`` are not fields of ``cls``" — names the valid fields and, for a
     typo, the closest one, which is the only thing that unsticks the author.
 
@@ -150,8 +150,8 @@ def _enrich_extra_forbidden(cls: type, exc: ValidationError) -> ValidationError 
         elif len(e["loc"]) > 1:
             # Nested: reuse the message pydantic already rendered (the nested class's own enriched
             # text, or its native "Extra inputs are not permitted") — attributing it to cls here
-            # would name the wrong class. Safe as a template: extra_forbidden messages carry no
-            # ``{}`` (field names are identifiers; field lists render with ``[]``).
+            # would name the wrong class. Safe as a template whatever the keys hold: a
+            # PydanticCustomError given no context leaves ``{...}`` in its message as written.
             nested = PydanticCustomError("extra_forbidden", e["msg"])
             line_errors.append(InitErrorDetails(type=nested, loc=e["loc"], input=e.get("input")))
     return ValidationError.from_exception_data(cls.__name__, line_errors)
@@ -186,12 +186,18 @@ class ConfigurableOptions(Options):
         for base in reversed(cls.__mro__):
             retired.update(base.__dict__.get("_retired_fields") or {})
         if still := sorted(set(retired) & set(cls.model_fields)):
-            # Each class stores the merged mapping, so the declaring class is the one nearest the root holding it.
-            owner = next(b for b in reversed(cls.__mro__) if set(still) & set(b.__dict__.get("_retired_fields") or {}))
+            # Each class stores the merged mapping, so a name's declaring class is the one nearest the root holding it.
+            owners = {
+                name: next(
+                    b for b in reversed(cls.__mro__) if name in (b.__dict__.get("_retired_fields") or {})
+                ).__name__
+                for name in still
+            }
+            by = "; ".join(f"'{name}' by {owner}" for name, owner in owners.items())
             raise TypeError(
-                f"{cls.__name__} has {still} as fields, which {owner.__name__} retired (its _retired_fields): a retired"
-                f" name cannot come back below the class that retired it, whose saved configs it would misread. Name"
-                f" the field otherwise, or drop the entry from {owner.__name__}."
+                f"{cls.__name__} has {still} as fields, which were retired ({by}, in _retired_fields): a retired name"
+                f" cannot come back below the class that retired it, whose saved configs it would misread. Name the"
+                f" field otherwise, or drop the entry from {' and '.join(sorted(set(owners.values())))}."
             )
         if retired and (extra := cls.model_config.get("extra")) != "forbid":
             raise TypeError(

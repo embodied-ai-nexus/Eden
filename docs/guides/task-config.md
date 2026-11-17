@@ -482,8 +482,8 @@ longer exists, raises at load and names the class and the field. Embedded Genesi
 Genesis upgrade carries every field its options had then, at their defaults too, so a field the upgrade retired
 (`FEMOptions.enable_vertex_constraints`, `SPHOptions.pressure_solver`, the SAP coupler's contact types) stops the
 load rather than run physics other than the saved ones. The error says what became of the field and how to migrate
-it, where in the config it sits, and which Eden and Genesis saved the file. A Genesis option without class tags
-(a hand-written override) is read as its field's declared class; when a subclass declares the rejected keys, the
+it, where in the config it sits, and how the saving Eden and Genesis differ from the installed ones. A Genesis option without class tags
+(a hand-written override) is read as the class its field calls for; when a subclass declares the rejected keys, the
 error names the `_option_module_` / `_option_class_` to add.
 
 A checkpoint whose `config.json` holds a retired field cannot be replayed as trained on the installed Genesis. To

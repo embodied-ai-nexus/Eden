@@ -18,13 +18,14 @@ save/load is therefore type-preserving and idempotent (pinned by
 ``tests/utils/test_configs.py::test_every_task_config_round_trips_to_a_fixed_point``).
 """
 
+import difflib
 import json
 import os
 import sys
 from enum import Enum
 from functools import lru_cache
 from types import UnionType
-from typing import Union, get_args, get_origin
+from typing import Any, Union, get_args, get_origin
 
 import numpy as np
 import torch
@@ -445,9 +446,10 @@ class EdenConfig(ConfigurableOptions):
             if getattr(e, "_eden_retired_fields", False):
                 notes.append(
                     "Removing a retired field runs the config under the current physics, not the saved run's, so a"
-                    " policy trained under it may behave otherwise: to reproduce the run, use the Eden and Genesis that"
-                    " saved it. To run it under the current ones, copy the file, remove the retired fields from the copy"
-                    f" and pass it with --config, keeping {source} as the record of the run."
+                    " policy trained under the saved config may behave otherwise: to reproduce the run, use the Eden and"
+                    " Genesis that saved it. To run it under the current ones, copy the file, remove the retired fields"
+                    f" from the copy and pass it with --config and the --task it was saved from, keeping {source} as the"
+                    " record of the run (see docs/guides/task-config.md)."
                 )
             _note_where_loading_raised(e, f"loading {source}", notes)
             raise
@@ -522,8 +524,21 @@ class EdenConfig(ConfigurableOptions):
         return self.with_overrides_from_dict(read_config_file(path), source=path)
 
     def with_overrides_from_dict(self, data_dict: dict, source: str = "an override") -> "EdenConfig":
-        """Create a new config by merging ``data_dict`` (a partial config) onto this one; ``source`` names where it
-        came from (a file, ``--override``) in the note a rejected value raises with.
+        """Create a new config by merging a partial config onto this one.
+
+        The current config is not modified.
+
+        Parameters
+        ----------
+        data_dict: dict
+            The partial config, in the saved layout.
+        source: str
+            Where it came from (a file, ``--override #2``), named in the note a rejected value raises with.
+
+        Returns
+        -------
+        EdenConfig
+            A new config instance based on this config with overrides applied.
         """
         merged = _deep_merge(self._to_dict(), data_dict)
         try:
@@ -1130,47 +1145,68 @@ def _note_where_loading_raised(exc: BaseException, doing: str, changes: list[str
     exc.add_note(" ".join([f"Raised {doing}" + (f", at '{path}'." if path else "."), *changes]))
 
 
-def _subclass_hint(cls: type, keys: list[str]) -> str:
-    """For an option read as ``cls`` because it carries no class tags: the subclasses that declare all of ``keys``, and
-    the tags that would give it one — or nothing, when none does (the tags would not help). Only subclasses its tags can
-    name count: a class defined in a function or a ``__main__`` script cannot be loaded by them. Genesis options only:
-    an untagged Eden option is validated by pydantic, whose error lists its declared class's fields.
+def _subclass_hint(cls: type, keys: list[Any]) -> str:
+    """For an option read as ``cls`` because it carries no class tags, what its subclasses make of the rejected
+    ``keys``: the tags that pick the subclass declaring them all, or else, key by key, a subclass that retired it (with
+    its note), declares it, or declares a close match. Nothing when no subclass says anything of them. Only subclasses
+    its tags can name count: a class defined in a function or a ``__main__`` script cannot be loaded by them. Genesis
+    options only: an untagged Eden option is validated by pydantic, whose error lists its declared class's fields.
     """
-    declaring: dict[str, set[type]] = {}
-    pending = list(cls.__subclasses__())
+    keys = [str(key) for key in keys]
+    subclasses, pending = [], list(cls.__subclasses__())
     while pending:
         sub = pending.pop()
         pending += sub.__subclasses__()
-        if getattr(sys.modules.get(sub.__module__), sub.__qualname__, None) is not sub or sub.__module__ == "__main__":
-            continue
-        for key in set(keys) & set(getattr(sub, "model_fields", {})):
-            declaring.setdefault(key, set()).add(sub)
-    if not declaring:
-        return ""
-    owners = set.intersection(*(declaring.get(key, set()) for key in keys))
-    if not owners:
-        return ""
+        if sub.__module__ != "__main__" and getattr(sys.modules.get(sub.__module__), sub.__qualname__, None) is sub:
+            subclasses.append(sub)
+    declaring = {key: {sub for sub in subclasses if key in getattr(sub, "model_fields", {})} for key in keys}
     read_as = f"It carries no class tags, so it was read as {cls.__name__}"
+    them = f"'{keys[0]}'" if len(keys) == 1 else f"all of {keys}"
+    owners = set.intersection(*declaring.values()) if declaring else set()
     if len(owners) == 1:
         (owner,) = owners
         return (
-            f"{read_as}, but {owner.__name__} declares {keys}: add '_option_module_': '{owner.__module__}',"
-            f" '_option_class_': '{owner.__name__}' next to them."
+            f"{read_as}, but {owner.__name__} declares {them}: add '_option_module_': '{owner.__module__}',"
+            f" '_option_class_': '{owner.__name__}' next to {'it' if len(keys) == 1 else 'them'}."
         )
-    if len({c.__module__ for c in owners}) == 1:
+    if owners and len({c.__module__ for c in owners}) == 1:
         return (
-            f"{read_as}, but {len(owners)} subclasses declare all of {keys}: add '_option_module_':"
+            f"{read_as}, but {len(owners)} subclasses declare {them}: add '_option_module_':"
             f" '{next(iter(owners)).__module__}' and '_option_class_': {_some_names(owners)}, the one meant."
         )
+    if owners:
+        return (
+            f"{read_as}, but {len(owners)} subclasses declare {them}: add the '_option_module_' and '_option_class_' of"
+            f" the one meant, among {_some_names(owners, qualified=True)}."
+        )
+    told = []
+    for key in keys:
+        retiring = {sub for sub in subclasses if key in retired_fields(sub)}
+        if retiring:
+            note = retired_fields(next(iter(retiring)))[key]
+            told.append(f"{_some_names(retiring)} retired '{key}': {note}")
+        elif declaring[key]:
+            told.append(f"{_some_names(declaring[key])} declares '{key}'")
+        elif close := difflib.get_close_matches(key, sorted({f for sub in subclasses for f in sub.model_fields}), n=1):
+            near = {sub for sub in subclasses if close[0] in sub.model_fields}
+            told.append(f"'{key}' may be '{close[0]}' of {_some_names(near)}")
+    if not told:
+        return ""
     return (
-        f"{read_as}, but {len(owners)} subclasses declare all of {keys}: add the '_option_module_' and '_option_class_'"
-        f" of the one meant, among {_some_names(owners, qualified=True)}."
+        f"{read_as}. Of its subclasses, {'; '.join(told)}. To read it as one, add '_option_module_' and"
+        " '_option_class_' naming it."
     )
 
 
-def _some_names(classes: set[type], shown: int = 5, *, qualified: bool = False) -> str:
+#: How many candidate classes a hint names before "or N more".
+_NAMES_SHOWN = 5
+
+
+def _some_names(classes: set[type], *, qualified: bool = False) -> str:
+    """``classes`` as ``'A' or 'B'`` (``'module.A'`` when ``qualified``), sorted, the first few then "or N more"."""
     names = sorted(f"'{c.__module__}.{c.__name__}'" if qualified else f"'{c.__name__}'" for c in classes)
-    return " or ".join(names[:shown]) + (f" or {len(names) - shown} more" if len(names) > shown else "")
+    shown = names[:_NAMES_SHOWN]
+    return " or ".join(shown) + (f" or {len(names) - len(shown)} more" if len(names) > len(shown) else "")
 
 
 def load_json(path: str):

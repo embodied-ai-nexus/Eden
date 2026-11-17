@@ -8,8 +8,8 @@ install a distribution the checkout never ran. ``release.yml`` refuses to publis
   development group alone (``[dependency-groups]``) never reaches the wheel, and an ``index`` source installs the same
   release, so neither is printed.
 * A direct reference (``name @ url``) in ``[tool.uv]``'s ``override-dependencies`` or ``constraint-dependencies``,
-  whatever the package: either one replaces a transitive requirement too (Genesis' own dependencies), which the wheel's
-  users resolve from the index.
+  whatever the package: either one points a transitive requirement too (Genesis' own dependencies) at that URL, which
+  the wheel's users resolve from the index instead.
 * Any ``override-dependencies`` entry for a published requirement: an override replaces the requirement the wheel
   publishes (``genesis-world==1.5.0`` over ``genesis-world==1.4.6`` runs 1.5.0 in the checkout alone).
 

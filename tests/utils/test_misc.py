@@ -541,7 +541,7 @@ def test_a_log_line_shows_the_version_and_a_short_commit(provenance, shown):
         ("c246ebd90d66c2c6f2e2e95f53ffa322a2176f33", {"version": "0.2.0", "commit": None}, None),
     ],
 )
-def test_a_saved_record_differs_by_commit_when_both_have_one_else_by_version(saved, current, change):
+def test_a_saved_record_differs_by_commit_else_by_version_and_a_lone_commit_differs(saved, current, change):
     assert describe_provenance_change(saved, current) == change
 
 
