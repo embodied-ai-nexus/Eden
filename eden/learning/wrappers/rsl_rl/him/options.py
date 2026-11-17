@@ -42,6 +42,10 @@ class HIMPPOAlgorithmOptions(RslRlPpoAlgorithmOptions):
     target_skip_dim: int
         Leading entries of the next critic observation the SwAV target encoder leaves out (OpenHomie
         drops the three velocity commands a frame starts with).
+    target_dim: int
+        Width of the trailing privileged regression target in the critic observation group (default ``3``
+        for base linear velocity; set to another positive integer to regress custom privileged latents
+        such as payload wrench or musculoskeletal fatigue states).
     """
 
     class_name: str = "eden.learning.wrappers.rsl_rl.him.ppo:HIMPPO"
@@ -50,6 +54,7 @@ class HIMPPOAlgorithmOptions(RslRlPpoAlgorithmOptions):
     use_flip: bool = True
     symmetry_scale: float = 1.0
     target_skip_dim: int = 3
+    target_dim: int = 3
 
     @model_validator(mode="after")
     def _check_supported(self) -> HIMPPOAlgorithmOptions:
@@ -64,6 +69,8 @@ class HIMPPOAlgorithmOptions(RslRlPpoAlgorithmOptions):
                 f"data_augmentation_func must be a 'module:function' import path, got {self.data_augmentation_func!r} "
                 f"(e.g. 'eden.tasks.homie.symmetry:mirror_observations_and_actions')."
             )
+        if self.target_dim < 1:
+            raise ValueError(f"target_dim must be >= 1, got {self.target_dim!r}.")
         return self
 
     def adapt_runner_dict(self, runner_dict: dict, major: int) -> dict:
@@ -89,5 +96,6 @@ class HIMPPOAlgorithmOptions(RslRlPpoAlgorithmOptions):
             module = "eden.learning.wrappers.rsl_rl.him"
             runner_dict["policy"]["class_name"] = f"{module}.actor_critic:HIMActorCritic.from_rsl_rl_v3"
             runner_dict["policy"]["target_skip_dim"] = self.target_skip_dim
+            runner_dict["policy"]["target_dim"] = self.target_dim
             runner_dict["algorithm"]["class_name"] = f"{module}.ppo:HIMPPO.from_rsl_rl_v3"
         return runner_dict

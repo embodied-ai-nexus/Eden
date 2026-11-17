@@ -50,6 +50,9 @@ class RslRlAmpPpoAlgorithmOptions(RslRlPpoAlgorithmOptions):
     amp_warm_start : bool
         Allow loading a checkpoint without AMP state (one trained as plain PPO): its actor-critic loads and the
         discriminator starts fresh. Off, such a checkpoint is refused rather than resumed under a changed reward.
+    amp_qpos_slice : tuple[int, int | None] | None
+        Optional ``(start, stop)`` column slice applied when ``amp_motion_file`` is a single-clip ``qpos`` ``.npz``
+        archive (e.g. ``(7, None)`` to strip a 7-DOF floating base).
     """
 
     class_name: str = _AMP_PPO_CLASS_NAME
@@ -64,6 +67,7 @@ class RslRlAmpPpoAlgorithmOptions(RslRlPpoAlgorithmOptions):
     amp_trunk_weight_decay: float = 1e-3
     amp_head_weight_decay: float = 1e-1
     amp_warm_start: bool = False
+    amp_qpos_slice: tuple[int, int | None] | None = None
 
     def for_inference(self) -> RslRlPpoAlgorithmOptions:
         """Stock PPO with the same PPO fields — what replays an AMP checkpoint (the AMP state only shapes training)."""
@@ -74,4 +78,4 @@ class RslRlAmpPpoAlgorithmOptions(RslRlPpoAlgorithmOptions):
         """Load the expert clips (``eden train`` calls this before building the env), so a bad file fails first."""
         from eden.learning.wrappers.rsl_rl.amp_ppo.amp import AmpMotionSampler
 
-        AmpMotionSampler(self.amp_motion_file, self.amp_num_frames, "cpu")
+        AmpMotionSampler(self.amp_motion_file, self.amp_num_frames, "cpu", qpos_slice=self.amp_qpos_slice)

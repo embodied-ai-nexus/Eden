@@ -190,6 +190,7 @@ class HIMPPO:
             activation=actor_cfg["activation"],
             init_noise_std=init_std,
             target_skip_dim=cfg["algorithm"]["target_skip_dim"],
+            target_dim=cfg["algorithm"].get("target_dim", 3),
         )
         return cls._build(actor_critic, cfg["algorithm"], device, env, env.num_envs, cfg["num_steps_per_env"])
 
