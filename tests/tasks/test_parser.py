@@ -230,3 +230,12 @@ def test_a_registry_that_cannot_name_the_owner_degrades_the_hint_not_the_identit
 
     with pytest.raises(ValueError, match=r"was saved from.*No registered task builds it"):
         _config_from_argv(["--task", "reacher", "--config", str(saved)])
+
+
+def test_a_rejected_override_names_which_one():
+    """Several ``--override``s apply in turn: the note says which one the rejected value came from."""
+    from eden.tasks.parser import get_task_config
+
+    with pytest.raises(ValueError) as error:
+        get_task_config("reacher", config_overrides=[{}, {"env_options": {"fem_options": {"dampng": 1.0}}}])
+    assert error.value.__notes__ == ["Raised applying --override #2 to ReacherConfig, at 'env_options.fem_options'."]

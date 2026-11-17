@@ -1,5 +1,8 @@
 """``eden.options._retired_fields``: the notes on fields Genesis options retired."""
 
+from collections.abc import Mapping
+from typing import ClassVar
+
 import genesis as gs
 import pytest
 
@@ -23,7 +26,10 @@ def test_a_genesis_subclass_inherits_the_notes_of_its_base():
     assert retired_fields(Tuned) == GENESIS_RETIRED_FIELDS["genesis.options.solvers.SAPCouplerOptions"]
 
 
-def test_an_eden_subclass_of_a_noted_genesis_class_keeps_its_notes_under_its_own():
-    from eden.options.materials import SPHLiquidMaterialOptions
+def test_a_subclass_declaring_its_own_notes_keeps_its_genesis_bases_notes_under_them():
+    class Tuned(gs.options.SAPCouplerOptions):
+        _retired_fields: ClassVar[Mapping[str, str]] = {"stiffness_scale": "gone; remove from the config"}
 
-    assert retired_fields(SPHLiquidMaterialOptions) == SPHLiquidMaterialOptions._retired_fields
+    notes = retired_fields(Tuned)
+    assert notes["stiffness_scale"] == "gone; remove from the config"
+    assert notes["point_contact_stiffness"].startswith("the floor stiffness of a FEM entity")

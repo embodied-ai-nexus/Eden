@@ -961,7 +961,7 @@ def _construct_options(options_cls: type[Options], value: dict, *, recorded: boo
     for key, item in value.items():
         field_info = options_cls.model_fields.get(key)
         field_annotation = field_info.annotation if field_info is not None else None
-        option_dict[key] = _convert_at(key, item, field_annotation)
+        option_dict[key] = _convert_at(str(key), item, field_annotation)
     return _safe_model_construct(options_cls, option_dict, recorded=recorded)
 
 
@@ -982,7 +982,7 @@ def _convert_at(step: str, value, annotation):
 def _config_path(exc: BaseException) -> str:
     """The path in the config of the value whose reconstruction raised ``exc`` (empty: the root itself)."""
     steps = getattr(exc, "_eden_config_path", ())
-    return "".join(step if step.startswith("[") else f".{step}" for step in steps).lstrip(".")
+    return "".join(step if str(step).startswith("[") else f".{step}" for step in steps).lstrip(".")
 
 
 def _convert_value(value, target_annotation=None):
@@ -1094,7 +1094,9 @@ def _safe_model_construct(cls: type, data: dict, *, recorded: bool = True):
         try:
             return cls.model_validate(data)
         except ValidationError as e:
-            if set(data) & set(retired_fields(cls)):
+            # Only when the error tells them as retired: with any other error, pydantic's own message stands
+            # (``_enrich_extra_forbidden``), and advice about retired fields would point at nothing it names.
+            if set(data) & set(retired_fields(cls)) and all(err["type"] == "extra_forbidden" for err in e.errors()):
                 _mark_retired_fields(e)
             raise
     if cls.model_config.get("extra") == "forbid":
@@ -1155,15 +1157,19 @@ def _subclass_hint(cls: type, keys: list[str]) -> str:
             f"{read_as}, but {owner.__name__} declares {keys}: add '_option_module_': '{owner.__module__}',"
             f" '_option_class_': '{owner.__name__}' next to them."
         )
-    modules = " or ".join(sorted({f"'{c.__module__}'" for c in owners}))
+    if len({c.__module__ for c in owners}) == 1:
+        return (
+            f"{read_as}, but {len(owners)} subclasses declare all of {keys}: add '_option_module_':"
+            f" '{next(iter(owners)).__module__}' and '_option_class_': {_some_names(owners)}, the one meant."
+        )
     return (
-        f"{read_as}, but {len(owners)} subclasses declare all of {keys}: add '_option_module_': {modules} and"
-        f" '_option_class_': {_some_names(owners)}, the one meant."
+        f"{read_as}, but {len(owners)} subclasses declare all of {keys}: add the '_option_module_' and '_option_class_'"
+        f" of the one meant, among {_some_names(owners, qualified=True)}."
     )
 
 
-def _some_names(classes: set[type], shown: int = 5) -> str:
-    names = sorted(f"'{c.__name__}'" for c in classes)
+def _some_names(classes: set[type], shown: int = 5, *, qualified: bool = False) -> str:
+    names = sorted(f"'{c.__module__}.{c.__name__}'" if qualified else f"'{c.__name__}'" for c in classes)
     return " or ".join(names[:shown]) + (f" or {len(names) - shown} more" if len(names) > shown else "")
 
 

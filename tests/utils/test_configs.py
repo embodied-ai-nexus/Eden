@@ -33,6 +33,7 @@ from eden.options import (
 )
 from eden.options.camera import CameraOptions, CamerasOptions
 from eden.options.managers.actions import ActionTermOptions
+from eden.options.materials import SPHLiquidMaterialOptions
 from eden.options.managers.commands import CommandManagerOptions, CommandTermOptions
 from eden.options.managers.events import EventManagerOptions, EventTermOptions
 from eden.options.managers.metrics import MetricManagerOptions, MetricTermOptions
@@ -282,6 +283,39 @@ def test_an_untagged_genesis_option_in_an_override_refuses_a_key_its_field_type_
     tagged = {"_option_module_": "genesis.options.solvers", "_option_class_": "SAPCouplerOptions", **sap}
     coupler = base.with_overrides_from_dict({"env_options": {"coupler_options": tagged}}).env_options.coupler_options
     assert isinstance(coupler, gs.options.SAPCouplerOptions) and coupler.n_sap_iterations == 50
+
+
+def test_an_old_sph_liquid_in_a_saved_config_fails_with_the_replay_choices(tmp_path):
+    """The Eden-option path (validated by pydantic) flags retired fields as the Genesis path does, but only when its
+    error tells them as retired: next to another error, pydantic's own message stands and the advice would point at
+    nothing it names.
+    """
+    config = RoundtripConfig(
+        scene_options=SceneOptions(water=BoxOptions(size=(0.1, 0.1, 0.1), material=SPHLiquidMaterialOptions()))
+    )
+    old = _saved(tmp_path, config, name="old.json")
+    _rewrite(old, lambda raw: raw["config"]["scene_options"]["water"]["material"].update(stiffness=5e4, gamma=0.01))
+    with pytest.raises(ValidationError, match=r"Retired \['stiffness'\] of SPHLiquidMaterialOptions") as error:
+        RoundtripConfig.load_from_file(old)
+    (note,) = error.value.__notes__
+    assert f"Raised loading {old}, at 'scene_options.water.material'." in note and "reproduce the run" in note
+
+    mixed = _saved(tmp_path, config, name="mixed.json")
+    _rewrite(mixed, lambda raw: raw["config"]["scene_options"]["water"]["material"].update(stiffness=5e4, rho="x"))
+    with pytest.raises(ValidationError) as mixed_error:
+        RoundtripConfig.load_from_file(mixed)
+    assert "reproduce the run" not in mixed_error.value.__notes__[0]
+
+
+@pytest.mark.parametrize("key", [1, True, None])
+def test_a_non_string_override_key_is_told_not_crashed_on(key):
+    """Inline YAML keys a mapping by ``1``, ``on`` or ``null``: building the message must not raise in its place."""
+    base = RoundtripConfig(env_options=EnvOptions(num_envs=1))
+    with pytest.raises(ValueError, match=f"'{key}' is not a field of FEMOptions"):
+        base.with_overrides_from_dict({"env_options": {"fem_options": {key: 2}}})
+    with pytest.raises(Exception) as error:
+        base.with_overrides_from_dict({key: {"_option_module_": "no_such_module", "_option_class_": "Nope"}})
+    assert error.value.__notes__ == [f"Raised applying an override to RoundtripConfig, at '{key}'."]
 
 
 class _GroupedConfig(RoundtripConfig):

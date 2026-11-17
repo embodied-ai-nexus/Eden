@@ -87,6 +87,7 @@ def unknown_fields_message(cls: type, fields: list[str], *, context: str = "") -
     (what the caller knows about how the value was read) goes before them.
     """
     retired = retired_fields(cls)
+    fields = [str(field) for field in fields]  # an inline YAML override can key a mapping by 1, on or null
     valid = sorted(f for f in cls.model_fields if f not in OPTION_METADATA_KEYS)
     sentences = []
     retired_by_note: dict[str, list[str]] = {}

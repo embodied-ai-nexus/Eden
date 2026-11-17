@@ -68,7 +68,7 @@ jobs:
         run: |
           swapped=$(uv run --no-project --with packaging python .github/scripts/swapped_requirements.py)
           if [ -n "$swapped" ]; then
-            echo "::error::pyproject.toml makes uv install these from an unreleased source, which the published wheel would not carry: $swapped. Pin a released version of each in [project] and drop its source entry, override or direct reference (name @ url)."
+            echo "::error::pyproject.toml makes uv install these otherwise than the published wheel would: $swapped. Pin a released version of each in [project] and drop its source entry, override or direct reference (name @ url)."
             exit 1
           fi
       # A fresh checkout, so no stale build/ or *.egg-info can leak into the distributions.
