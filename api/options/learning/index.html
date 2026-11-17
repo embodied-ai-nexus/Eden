@@ -5785,6 +5785,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#eden.options.learning.rl_games.rl.RlGamesPpoRunnerOptions.run_name" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;run_name
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#eden.options.learning.rl_games.rl.RlGamesPpoRunnerOptions.device" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -10097,6 +10108,17 @@
     <span class="md-ellipsis">
       
         <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;experiment_name
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#eden.options.learning.rl_games.rl.RlGamesPpoRunnerOptions.run_name" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;run_name
       
     </span>
   </a>
@@ -18227,6 +18249,31 @@ central-value critic, and each agent's observation is its own group.</p>
 
 
 
+<h5 id="eden.options.learning.rl_games.rl.RlGamesPpoRunnerOptions.run_name" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-attribute"></code>            <span class="doc doc-object-name doc-attribute-name">run_name</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#eden.options.learning.rl_games.rl.RlGamesPpoRunnerOptions.run_name" class="headerlink" title="Permanent link">&para;</a></h5>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="n">run_name</span><span class="p">:</span> <span class="n"><a class="autorefs autorefs-external" href="https://docs.python.org/3/builtins/stdtypes.html#str">str</a></span> <span class="o">=</span> <span class="s1">''</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>The run name, as on the rsl_rl runner options. rl_games never reads it.</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
 <h5 id="eden.options.learning.rl_games.rl.RlGamesPpoRunnerOptions.device" class="doc doc-heading">
 <code class="doc-symbol doc-symbol-heading doc-symbol-attribute"></code>            <span class="doc doc-object-name doc-attribute-name">device</span>
 
@@ -18932,9 +18979,7 @@ which re-checks because a field assigned after construction skips the validator.
 
             <details class="mkdocstrings-source">
               <summary>Source code in <code>eden/options/learning/rl_games/rl.py</code></summary>
-              <div class="language-python highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#eden.options.learning.rl_games.rl.check_agents_options--source--__codelineno-0-199">199</a></span>
-<span class="normal"><a href="#eden.options.learning.rl_games.rl.check_agents_options--source--__codelineno-0-200">200</a></span>
-<span class="normal"><a href="#eden.options.learning.rl_games.rl.check_agents_options--source--__codelineno-0-201">201</a></span>
+              <div class="language-python highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#eden.options.learning.rl_games.rl.check_agents_options--source--__codelineno-0-201">201</a></span>
 <span class="normal"><a href="#eden.options.learning.rl_games.rl.check_agents_options--source--__codelineno-0-202">202</a></span>
 <span class="normal"><a href="#eden.options.learning.rl_games.rl.check_agents_options--source--__codelineno-0-203">203</a></span>
 <span class="normal"><a href="#eden.options.learning.rl_games.rl.check_agents_options--source--__codelineno-0-204">204</a></span>
@@ -18955,30 +19000,32 @@ which re-checks because a field assigned after construction skips the validator.
 <span class="normal"><a href="#eden.options.learning.rl_games.rl.check_agents_options--source--__codelineno-0-219">219</a></span>
 <span class="normal"><a href="#eden.options.learning.rl_games.rl.check_agents_options--source--__codelineno-0-220">220</a></span>
 <span class="normal"><a href="#eden.options.learning.rl_games.rl.check_agents_options--source--__codelineno-0-221">221</a></span>
-<span class="normal"><a href="#eden.options.learning.rl_games.rl.check_agents_options--source--__codelineno-0-222">222</a></span></pre></div></td><td class="code"><div><pre><span></span><code><span id="eden.options.learning.rl_games.rl.check_agents_options--source--__span-0-199"><a id="eden.options.learning.rl_games.rl.check_agents_options--source--__codelineno-0-199" name="eden.options.learning.rl_games.rl.check_agents_options--source--__codelineno-0-199"></a><span class="k">def</span><span class="w"> </span><span class="nf">check_agents_options</span><span class="p">(</span><span class="n">agents</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">],</span> <span class="n">obs_groups</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]])</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
-</span><span id="eden.options.learning.rl_games.rl.check_agents_options--source--__span-0-200"><a id="eden.options.learning.rl_games.rl.check_agents_options--source--__codelineno-0-200" name="eden.options.learning.rl_games.rl.check_agents_options--source--__codelineno-0-200"></a><span class="w">    </span><span class="sd">"""Raise ``ValueError`` if ``agents`` repeats a name or is set together with ``obs_groups``.</span>
-</span><span id="eden.options.learning.rl_games.rl.check_agents_options--source--__span-0-201"><a id="eden.options.learning.rl_games.rl.check_agents_options--source--__codelineno-0-201" name="eden.options.learning.rl_games.rl.check_agents_options--source--__codelineno-0-201"></a>
-</span><span id="eden.options.learning.rl_games.rl.check_agents_options--source--__span-0-202"><a id="eden.options.learning.rl_games.rl.check_agents_options--source--__codelineno-0-202" name="eden.options.learning.rl_games.rl.check_agents_options--source--__codelineno-0-202"></a><span class="sd">    Shared by the options validator and :class:`~eden.envs.wrappers.rl_games_env.RlGamesVecEnvWrapper`,</span>
-</span><span id="eden.options.learning.rl_games.rl.check_agents_options--source--__span-0-203"><a id="eden.options.learning.rl_games.rl.check_agents_options--source--__codelineno-0-203" name="eden.options.learning.rl_games.rl.check_agents_options--source--__codelineno-0-203"></a><span class="sd">    which re-checks because a field assigned after construction skips the validator.</span>
-</span><span id="eden.options.learning.rl_games.rl.check_agents_options--source--__span-0-204"><a id="eden.options.learning.rl_games.rl.check_agents_options--source--__codelineno-0-204" name="eden.options.learning.rl_games.rl.check_agents_options--source--__codelineno-0-204"></a><span class="sd">    """</span>
-</span><span id="eden.options.learning.rl_games.rl.check_agents_options--source--__span-0-205"><a id="eden.options.learning.rl_games.rl.check_agents_options--source--__codelineno-0-205" name="eden.options.learning.rl_games.rl.check_agents_options--source--__codelineno-0-205"></a>    <span class="k">if</span> <span class="ow">not</span> <span class="n">agents</span><span class="p">:</span>
-</span><span id="eden.options.learning.rl_games.rl.check_agents_options--source--__span-0-206"><a id="eden.options.learning.rl_games.rl.check_agents_options--source--__codelineno-0-206" name="eden.options.learning.rl_games.rl.check_agents_options--source--__codelineno-0-206"></a>        <span class="k">return</span>
-</span><span id="eden.options.learning.rl_games.rl.check_agents_options--source--__span-0-207"><a id="eden.options.learning.rl_games.rl.check_agents_options--source--__codelineno-0-207" name="eden.options.learning.rl_games.rl.check_agents_options--source--__codelineno-0-207"></a>    <span class="k">if</span> <span class="n">obs_groups</span><span class="p">:</span>
-</span><span id="eden.options.learning.rl_games.rl.check_agents_options--source--__span-0-208"><a id="eden.options.learning.rl_games.rl.check_agents_options--source--__codelineno-0-208" name="eden.options.learning.rl_games.rl.check_agents_options--source--__codelineno-0-208"></a>        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
-</span><span id="eden.options.learning.rl_games.rl.check_agents_options--source--__span-0-209"><a id="eden.options.learning.rl_games.rl.check_agents_options--source--__codelineno-0-209" name="eden.options.learning.rl_games.rl.check_agents_options--source--__codelineno-0-209"></a>            <span class="sa">f</span><span class="s2">"RlGamesPpoRunnerOptions sets both `agents=</span><span class="si">{</span><span class="n">agents</span><span class="si">!r}</span><span class="s2">` and `obs_groups=</span><span class="si">{</span><span class="n">obs_groups</span><span class="si">!r}</span><span class="s2">`; "</span>
-</span><span id="eden.options.learning.rl_games.rl.check_agents_options--source--__span-0-210"><a id="eden.options.learning.rl_games.rl.check_agents_options--source--__codelineno-0-210" name="eden.options.learning.rl_games.rl.check_agents_options--source--__codelineno-0-210"></a>            <span class="s2">"they are mutually exclusive.</span><span class="se">\n</span><span class="s2">"</span>
-</span><span id="eden.options.learning.rl_games.rl.check_agents_options--source--__span-0-211"><a id="eden.options.learning.rl_games.rl.check_agents_options--source--__codelineno-0-211" name="eden.options.learning.rl_games.rl.check_agents_options--source--__codelineno-0-211"></a>            <span class="s2">"In multi-agent mode each agent's observation is the observation group named after it, "</span>
-</span><span id="eden.options.learning.rl_games.rl.check_agents_options--source--__span-0-212"><a id="eden.options.learning.rl_games.rl.check_agents_options--source--__codelineno-0-212" name="eden.options.learning.rl_games.rl.check_agents_options--source--__codelineno-0-212"></a>            <span class="s2">"and there is no central-value critic to give `obs_groups['critic']` to.</span><span class="se">\n</span><span class="s2">"</span>
-</span><span id="eden.options.learning.rl_games.rl.check_agents_options--source--__span-0-213"><a id="eden.options.learning.rl_games.rl.check_agents_options--source--__codelineno-0-213" name="eden.options.learning.rl_games.rl.check_agents_options--source--__codelineno-0-213"></a>            <span class="s2">"Fix: drop `obs_groups` (set it to `</span><span class="si">{}</span><span class="s2">`) to train the agents, or drop `agents` (set it to `[]`) "</span>
-</span><span id="eden.options.learning.rl_games.rl.check_agents_options--source--__span-0-214"><a id="eden.options.learning.rl_games.rl.check_agents_options--source--__codelineno-0-214" name="eden.options.learning.rl_games.rl.check_agents_options--source--__codelineno-0-214"></a>            <span class="s2">"for a single-agent run."</span>
-</span><span id="eden.options.learning.rl_games.rl.check_agents_options--source--__span-0-215"><a id="eden.options.learning.rl_games.rl.check_agents_options--source--__codelineno-0-215" name="eden.options.learning.rl_games.rl.check_agents_options--source--__codelineno-0-215"></a>        <span class="p">)</span>
-</span><span id="eden.options.learning.rl_games.rl.check_agents_options--source--__span-0-216"><a id="eden.options.learning.rl_games.rl.check_agents_options--source--__codelineno-0-216" name="eden.options.learning.rl_games.rl.check_agents_options--source--__codelineno-0-216"></a>    <span class="n">repeated</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">({</span><span class="n">name</span> <span class="k">for</span> <span class="n">name</span> <span class="ow">in</span> <span class="n">agents</span> <span class="k">if</span> <span class="n">agents</span><span class="o">.</span><span class="n">count</span><span class="p">(</span><span class="n">name</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">})</span>
-</span><span id="eden.options.learning.rl_games.rl.check_agents_options--source--__span-0-217"><a id="eden.options.learning.rl_games.rl.check_agents_options--source--__codelineno-0-217" name="eden.options.learning.rl_games.rl.check_agents_options--source--__codelineno-0-217"></a>    <span class="k">if</span> <span class="n">repeated</span><span class="p">:</span>
-</span><span id="eden.options.learning.rl_games.rl.check_agents_options--source--__span-0-218"><a id="eden.options.learning.rl_games.rl.check_agents_options--source--__codelineno-0-218" name="eden.options.learning.rl_games.rl.check_agents_options--source--__codelineno-0-218"></a>        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
-</span><span id="eden.options.learning.rl_games.rl.check_agents_options--source--__span-0-219"><a id="eden.options.learning.rl_games.rl.check_agents_options--source--__codelineno-0-219" name="eden.options.learning.rl_games.rl.check_agents_options--source--__codelineno-0-219"></a>            <span class="sa">f</span><span class="s2">"RlGamesPpoRunnerOptions.agents names </span><span class="si">{</span><span class="n">repeated</span><span class="si">!r}</span><span class="s2"> more than once: </span><span class="si">{</span><span class="n">agents</span><span class="si">!r}</span><span class="s2">.</span><span class="se">\n</span><span class="s2">"</span>
-</span><span id="eden.options.learning.rl_games.rl.check_agents_options--source--__span-0-220"><a id="eden.options.learning.rl_games.rl.check_agents_options--source--__codelineno-0-220" name="eden.options.learning.rl_games.rl.check_agents_options--source--__codelineno-0-220"></a>            <span class="s2">"Each agent owns one observation group, one reward group and one action term.</span><span class="se">\n</span><span class="s2">"</span>
-</span><span id="eden.options.learning.rl_games.rl.check_agents_options--source--__span-0-221"><a id="eden.options.learning.rl_games.rl.check_agents_options--source--__codelineno-0-221" name="eden.options.learning.rl_games.rl.check_agents_options--source--__codelineno-0-221"></a>            <span class="s2">"Fix: list every agent exactly once, in the action manager's term order."</span>
-</span><span id="eden.options.learning.rl_games.rl.check_agents_options--source--__span-0-222"><a id="eden.options.learning.rl_games.rl.check_agents_options--source--__codelineno-0-222" name="eden.options.learning.rl_games.rl.check_agents_options--source--__codelineno-0-222"></a>        <span class="p">)</span>
+<span class="normal"><a href="#eden.options.learning.rl_games.rl.check_agents_options--source--__codelineno-0-222">222</a></span>
+<span class="normal"><a href="#eden.options.learning.rl_games.rl.check_agents_options--source--__codelineno-0-223">223</a></span>
+<span class="normal"><a href="#eden.options.learning.rl_games.rl.check_agents_options--source--__codelineno-0-224">224</a></span></pre></div></td><td class="code"><div><pre><span></span><code><span id="eden.options.learning.rl_games.rl.check_agents_options--source--__span-0-201"><a id="eden.options.learning.rl_games.rl.check_agents_options--source--__codelineno-0-201" name="eden.options.learning.rl_games.rl.check_agents_options--source--__codelineno-0-201"></a><span class="k">def</span><span class="w"> </span><span class="nf">check_agents_options</span><span class="p">(</span><span class="n">agents</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">],</span> <span class="n">obs_groups</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]])</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+</span><span id="eden.options.learning.rl_games.rl.check_agents_options--source--__span-0-202"><a id="eden.options.learning.rl_games.rl.check_agents_options--source--__codelineno-0-202" name="eden.options.learning.rl_games.rl.check_agents_options--source--__codelineno-0-202"></a><span class="w">    </span><span class="sd">"""Raise ``ValueError`` if ``agents`` repeats a name or is set together with ``obs_groups``.</span>
+</span><span id="eden.options.learning.rl_games.rl.check_agents_options--source--__span-0-203"><a id="eden.options.learning.rl_games.rl.check_agents_options--source--__codelineno-0-203" name="eden.options.learning.rl_games.rl.check_agents_options--source--__codelineno-0-203"></a>
+</span><span id="eden.options.learning.rl_games.rl.check_agents_options--source--__span-0-204"><a id="eden.options.learning.rl_games.rl.check_agents_options--source--__codelineno-0-204" name="eden.options.learning.rl_games.rl.check_agents_options--source--__codelineno-0-204"></a><span class="sd">    Shared by the options validator and :class:`~eden.envs.wrappers.rl_games_env.RlGamesVecEnvWrapper`,</span>
+</span><span id="eden.options.learning.rl_games.rl.check_agents_options--source--__span-0-205"><a id="eden.options.learning.rl_games.rl.check_agents_options--source--__codelineno-0-205" name="eden.options.learning.rl_games.rl.check_agents_options--source--__codelineno-0-205"></a><span class="sd">    which re-checks because a field assigned after construction skips the validator.</span>
+</span><span id="eden.options.learning.rl_games.rl.check_agents_options--source--__span-0-206"><a id="eden.options.learning.rl_games.rl.check_agents_options--source--__codelineno-0-206" name="eden.options.learning.rl_games.rl.check_agents_options--source--__codelineno-0-206"></a><span class="sd">    """</span>
+</span><span id="eden.options.learning.rl_games.rl.check_agents_options--source--__span-0-207"><a id="eden.options.learning.rl_games.rl.check_agents_options--source--__codelineno-0-207" name="eden.options.learning.rl_games.rl.check_agents_options--source--__codelineno-0-207"></a>    <span class="k">if</span> <span class="ow">not</span> <span class="n">agents</span><span class="p">:</span>
+</span><span id="eden.options.learning.rl_games.rl.check_agents_options--source--__span-0-208"><a id="eden.options.learning.rl_games.rl.check_agents_options--source--__codelineno-0-208" name="eden.options.learning.rl_games.rl.check_agents_options--source--__codelineno-0-208"></a>        <span class="k">return</span>
+</span><span id="eden.options.learning.rl_games.rl.check_agents_options--source--__span-0-209"><a id="eden.options.learning.rl_games.rl.check_agents_options--source--__codelineno-0-209" name="eden.options.learning.rl_games.rl.check_agents_options--source--__codelineno-0-209"></a>    <span class="k">if</span> <span class="n">obs_groups</span><span class="p">:</span>
+</span><span id="eden.options.learning.rl_games.rl.check_agents_options--source--__span-0-210"><a id="eden.options.learning.rl_games.rl.check_agents_options--source--__codelineno-0-210" name="eden.options.learning.rl_games.rl.check_agents_options--source--__codelineno-0-210"></a>        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+</span><span id="eden.options.learning.rl_games.rl.check_agents_options--source--__span-0-211"><a id="eden.options.learning.rl_games.rl.check_agents_options--source--__codelineno-0-211" name="eden.options.learning.rl_games.rl.check_agents_options--source--__codelineno-0-211"></a>            <span class="sa">f</span><span class="s2">"RlGamesPpoRunnerOptions sets both `agents=</span><span class="si">{</span><span class="n">agents</span><span class="si">!r}</span><span class="s2">` and `obs_groups=</span><span class="si">{</span><span class="n">obs_groups</span><span class="si">!r}</span><span class="s2">`; "</span>
+</span><span id="eden.options.learning.rl_games.rl.check_agents_options--source--__span-0-212"><a id="eden.options.learning.rl_games.rl.check_agents_options--source--__codelineno-0-212" name="eden.options.learning.rl_games.rl.check_agents_options--source--__codelineno-0-212"></a>            <span class="s2">"they are mutually exclusive.</span><span class="se">\n</span><span class="s2">"</span>
+</span><span id="eden.options.learning.rl_games.rl.check_agents_options--source--__span-0-213"><a id="eden.options.learning.rl_games.rl.check_agents_options--source--__codelineno-0-213" name="eden.options.learning.rl_games.rl.check_agents_options--source--__codelineno-0-213"></a>            <span class="s2">"In multi-agent mode each agent's observation is the observation group named after it, "</span>
+</span><span id="eden.options.learning.rl_games.rl.check_agents_options--source--__span-0-214"><a id="eden.options.learning.rl_games.rl.check_agents_options--source--__codelineno-0-214" name="eden.options.learning.rl_games.rl.check_agents_options--source--__codelineno-0-214"></a>            <span class="s2">"and there is no central-value critic to give `obs_groups['critic']` to.</span><span class="se">\n</span><span class="s2">"</span>
+</span><span id="eden.options.learning.rl_games.rl.check_agents_options--source--__span-0-215"><a id="eden.options.learning.rl_games.rl.check_agents_options--source--__codelineno-0-215" name="eden.options.learning.rl_games.rl.check_agents_options--source--__codelineno-0-215"></a>            <span class="s2">"Fix: drop `obs_groups` (set it to `</span><span class="si">{}</span><span class="s2">`) to train the agents, or drop `agents` (set it to `[]`) "</span>
+</span><span id="eden.options.learning.rl_games.rl.check_agents_options--source--__span-0-216"><a id="eden.options.learning.rl_games.rl.check_agents_options--source--__codelineno-0-216" name="eden.options.learning.rl_games.rl.check_agents_options--source--__codelineno-0-216"></a>            <span class="s2">"for a single-agent run."</span>
+</span><span id="eden.options.learning.rl_games.rl.check_agents_options--source--__span-0-217"><a id="eden.options.learning.rl_games.rl.check_agents_options--source--__codelineno-0-217" name="eden.options.learning.rl_games.rl.check_agents_options--source--__codelineno-0-217"></a>        <span class="p">)</span>
+</span><span id="eden.options.learning.rl_games.rl.check_agents_options--source--__span-0-218"><a id="eden.options.learning.rl_games.rl.check_agents_options--source--__codelineno-0-218" name="eden.options.learning.rl_games.rl.check_agents_options--source--__codelineno-0-218"></a>    <span class="n">repeated</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">({</span><span class="n">name</span> <span class="k">for</span> <span class="n">name</span> <span class="ow">in</span> <span class="n">agents</span> <span class="k">if</span> <span class="n">agents</span><span class="o">.</span><span class="n">count</span><span class="p">(</span><span class="n">name</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">})</span>
+</span><span id="eden.options.learning.rl_games.rl.check_agents_options--source--__span-0-219"><a id="eden.options.learning.rl_games.rl.check_agents_options--source--__codelineno-0-219" name="eden.options.learning.rl_games.rl.check_agents_options--source--__codelineno-0-219"></a>    <span class="k">if</span> <span class="n">repeated</span><span class="p">:</span>
+</span><span id="eden.options.learning.rl_games.rl.check_agents_options--source--__span-0-220"><a id="eden.options.learning.rl_games.rl.check_agents_options--source--__codelineno-0-220" name="eden.options.learning.rl_games.rl.check_agents_options--source--__codelineno-0-220"></a>        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+</span><span id="eden.options.learning.rl_games.rl.check_agents_options--source--__span-0-221"><a id="eden.options.learning.rl_games.rl.check_agents_options--source--__codelineno-0-221" name="eden.options.learning.rl_games.rl.check_agents_options--source--__codelineno-0-221"></a>            <span class="sa">f</span><span class="s2">"RlGamesPpoRunnerOptions.agents names </span><span class="si">{</span><span class="n">repeated</span><span class="si">!r}</span><span class="s2"> more than once: </span><span class="si">{</span><span class="n">agents</span><span class="si">!r}</span><span class="s2">.</span><span class="se">\n</span><span class="s2">"</span>
+</span><span id="eden.options.learning.rl_games.rl.check_agents_options--source--__span-0-222"><a id="eden.options.learning.rl_games.rl.check_agents_options--source--__codelineno-0-222" name="eden.options.learning.rl_games.rl.check_agents_options--source--__codelineno-0-222"></a>            <span class="s2">"Each agent owns one observation group, one reward group and one action term.</span><span class="se">\n</span><span class="s2">"</span>
+</span><span id="eden.options.learning.rl_games.rl.check_agents_options--source--__span-0-223"><a id="eden.options.learning.rl_games.rl.check_agents_options--source--__codelineno-0-223" name="eden.options.learning.rl_games.rl.check_agents_options--source--__codelineno-0-223"></a>            <span class="s2">"Fix: list every agent exactly once, in the action manager's term order."</span>
+</span><span id="eden.options.learning.rl_games.rl.check_agents_options--source--__span-0-224"><a id="eden.options.learning.rl_games.rl.check_agents_options--source--__codelineno-0-224" name="eden.options.learning.rl_games.rl.check_agents_options--source--__codelineno-0-224"></a>        <span class="p">)</span>
 </span></code></pre></div></td></tr></table></div>
             </details>
     </div>
