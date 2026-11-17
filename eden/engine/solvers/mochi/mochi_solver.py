@@ -2546,30 +2546,39 @@ class MochiSolver(GravityMixin, TimeBasedMixin, KinematicSolver):
     # `_set_kinematic_state` is.
     @mutates(StateChange.GEOMETRY, links="links_idx")
     def set_base_links_pos(self, pos, links_idx=None, envs_idx=None, *, relative=False, skip_forward=False):
-        targeted_links_idx = self._targeted_links_idx(links_idx)
-        self._check_pose_shared_by_envs(targeted_links_idx, pos, 3, envs_idx, "position", "set_pos")
-        moves_fixed_link = bool(self._links_is_fixed[targeted_links_idx].any())
-        super().set_base_links_pos(
-            pos, links_idx, envs_idx, relative=relative, skip_forward=skip_forward or moves_fixed_link
+        self._set_base_links_pose(
+            super().set_base_links_pos, pos, links_idx, envs_idx, relative, skip_forward, "position", "set_pos"
         )
-        if moves_fixed_link:
-            self._place_geoms_of_fixed_links(envs_idx, skip_forward)
 
     @mutates(StateChange.GEOMETRY, links="links_idx")
     def set_base_links_quat(self, quat, links_idx=None, envs_idx=None, *, relative=False, skip_forward=False):
-        targeted_links_idx = self._targeted_links_idx(links_idx)
-        self._check_pose_shared_by_envs(targeted_links_idx, quat, 4, envs_idx, "orientation", "set_quat")
-        moves_fixed_link = bool(self._links_is_fixed[targeted_links_idx].any())
-        super().set_base_links_quat(
-            quat, links_idx, envs_idx, relative=relative, skip_forward=skip_forward or moves_fixed_link
+        self._set_base_links_pose(
+            super().set_base_links_quat, quat, links_idx, envs_idx, relative, skip_forward, "orientation", "set_quat"
         )
-        if moves_fixed_link:
-            self._place_geoms_of_fixed_links(envs_idx, skip_forward)
+
+    def _set_base_links_pose(self, set_pose, value, links_idx, envs_idx, relative, skip_forward, quantity, setter):
+        """Set the position or orientation of base links with the parent setter `set_pose`, and place the geoms of the
+        fixed links it moves.
+
+        Genesis' forward kinematics places no collision geom, and this solver's step places only those of movable
+        links, so the geoms of a fixed link moved by `set_pos` or `set_quat` would otherwise go on colliding where it
+        was. They are placed even under `skip_forward`, after a forward kinematics of their own: the step's pass would
+        carry the link's fixed descendants to their new pose and leave their geoms behind.
+        """
+        targeted_links_idx = self._targeted_links_idx(links_idx)
+        self._check_pose_shared_by_envs(targeted_links_idx, value, envs_idx, quantity, setter)
+        set_pose(value, links_idx, envs_idx, relative=relative, skip_forward=skip_forward)
+        if self._links_is_fixed[targeted_links_idx].any():
+            envs_idx = self._sim.sanitize_envs_idx(envs_idx)
+            if skip_forward:
+                kernel_forward_kinematics(envs_idx, self.dyn_state, self.dyn_info, self.rigid_info, self.rigid_config)
+            kernel_update_geoms(envs_idx, self.dyn_state, self.dyn_info, self.rigid_info, self.rigid_config, True)
 
     def _targeted_links_idx(self, links_idx):
         """The links a base-pose setter targets (its base links when None), as a numpy array.
 
-        An int in range, the index an entity's `set_pos` passes, is looked up on the host, without a device sync.
+        An int in range, the index an entity's `set_pos` passes, is read as it is rather than through `sanitize_index`,
+        which would copy it to the device and back.
         """
         if links_idx is None:
             return self._base_links_idx_host
@@ -2577,54 +2586,46 @@ class MochiSolver(GravityMixin, TimeBasedMixin, KinematicSolver):
             return np.array([links_idx])
         return tensor_to_array(sanitize_index(links_idx, -1, self.n_links, 0, "links_idx"))
 
-    def _check_pose_shared_by_envs(self, targeted_links_idx, value, value_size, envs_idx, quantity, setter):
+    def _check_pose_shared_by_envs(self, targeted_links_idx, value, envs_idx, quantity, setter):
         """Raise when a fixed link with geoms and shared vertices would take a pose of its own in some environments.
 
         Such a link has one pose in every environment, and the rigid solver refuses a write that would break that. The
         MochiSolver refuses it too, though its contact reads the geoms of each environment and would follow, so that
-        a scene accepts the same writes on both.
+        a scene accepts the same writes on both. As there, the rule is per link: a fixed base link without geoms, such
+        as the world body an MJCF file is loaded under, takes a pose per environment even when its descendants carry
+        geoms.
         """
         has_shared_pose = self._links_has_shared_pose[targeted_links_idx]
         if not has_shared_pose.any():
             return
+        value_size = 3 if quantity == "position" else 4
+        value, _, envs_idx = self._sanitize_io_variables(
+            value, targeted_links_idx, self.n_links, "links_idx", envs_idx, (value_size,), skip_allocation=True
+        )
+        is_all_envs = torch.equal(torch.sort(envs_idx).values, self._envs_idx)
+        if self.n_envs == 0:
+            value = value[None]
+        value = value[:, torch.as_tensor(np.flatnonzero(has_shared_pose), device=value.device)]
+        if is_all_envs and bool((torch.diff(value, dim=0).abs() < gs.EPS).all()):
+            return
+
         names = sorted({f"'{self.links[i_l].entity.name}'" for i_l in targeted_links_idx[has_shared_pose]})
         what = f"the fixed {'entity' if len(names) == 1 else 'entities'} {', '.join(names)}"
         why = (
             "which was built without `batch_fixed_verts=True` and so has one pose in every environment. Fix: build it "
             "with `batch_fixed_verts=True` in its morph to pose it per environment"
         )
-        value, _, envs_idx = self._sanitize_io_variables(
-            value, targeted_links_idx, self.n_links, "links_idx", envs_idx, (value_size,), skip_allocation=True
+        if not is_all_envs:
+            envs = tensor_to_array(envs_idx).tolist()
+            shown = ", ".join(map(str, envs[:8])) + (", ..." if len(envs) > 8 else "")
+            gs.raise_exception(
+                f"`{setter}` was called on {len(envs)} of the {self.n_envs} environments (envs_idx [{shown}]) for "
+                f"{what}, {why}, or call it with `envs_idx=None`."
+            )
+        gs.raise_exception(
+            f"`{setter}` was given a different {quantity} in different environments for {what}, {why}, or pass one "
+            f"{quantity} for every environment."
         )
-        if not torch.equal(torch.sort(envs_idx).values, self._envs_idx):
-            gs.raise_exception(
-                f"`{setter}` was called on {len(envs_idx)} of the {self.n_envs} environments for {what}, {why}, or "
-                "call it with `envs_idx=None`."
-            )
-        if self.n_envs == 0:
-            value = value[None]
-        value = value[:, torch.as_tensor(np.flatnonzero(has_shared_pose), device=value.device)]
-        if not bool((torch.diff(value, dim=0).abs() < gs.EPS).all()):
-            gs.raise_exception(
-                f"`{setter}` was given a different {quantity} in different environments for {what}, {why}, or pass "
-                f"one {quantity} for every environment."
-            )
-
-    def _place_geoms_of_fixed_links(self, envs_idx, skip_forward):
-        """Bring the forward kinematics of the environments a base-pose setter moved a fixed link in up to date, and
-        place every geom there, the fixed ones included.
-
-        Genesis' forward kinematics places no collision geom, and this solver's step places only those of movable
-        links, so the geoms of a fixed link moved by `set_pos` or `set_quat` would otherwise go on colliding where it
-        was. This runs even under `skip_forward`, which defers only the step's own pass: that pass would carry the
-        link's fixed descendants to their new pose and leave their geoms behind.
-        """
-        envs_idx = self._sim.sanitize_envs_idx(envs_idx)
-        kernel_forward_kinematics(envs_idx, self.dyn_state, self.dyn_info, self.rigid_info, self.rigid_config)
-        kernel_update_geoms(envs_idx, self.dyn_state, self.dyn_info, self.rigid_info, self.rigid_config, True)
-        if not skip_forward:
-            self._is_forward_pos_updated = True
-            self._is_forward_vel_updated = True
 
     # A checkpoint or a trajectory frame is refused: the arrays of the kinematic tree leave out the deformable vertices,
     # the integration history and the contact state of the solver, so a scene restored from them would silently resume
