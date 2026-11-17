@@ -10,7 +10,7 @@ import sys
 import genesis as gs
 import numpy as np
 import pytest
-from genesis.utils.misc import tensor_to_array
+from genesis.utils.misc import qd_to_torch, tensor_to_array
 
 from eden.engine.solvers.mochi import MochiOptions, create_mochi_scene
 from eden.engine.solvers.mochi import materials as mochi_materials
@@ -295,12 +295,18 @@ def test_state_reset_restores_trajectory(show_viewer):
         assert_allclose(box.get_pos(), trajectory[i_step], tol=1e-9)
 
 
+def _is_inside_geom(solver, geom, points, env_idx):
+    distances, _, _ = solver.get_collider_distances(geom.idx, points, envs_idx=[env_idx])
+    return tensor_to_array(distances < 0.0)
+
+
 @pytest.mark.precision("64")
 def test_moving_a_fixed_body_moves_its_collision_geom(show_viewer):
     scene = _mochi_scene(show_viewer, 1.0 / 60.0, n_newton_iterations=8)
     scene.add_entity(gs.morphs.Plane(), material=mochi_materials.Rigid())
     table = scene.add_entity(
-        gs.morphs.Box(size=(0.4, 0.4, 0.2), pos=(0.0, 0.0, 0.1), fixed=True), material=mochi_materials.Rigid()
+        gs.morphs.Box(size=(0.4, 0.4, 0.2), pos=(0.0, 0.0, 0.1), fixed=True, batch_fixed_verts=True),
+        material=mochi_materials.Rigid(),
     )
     ball = scene.add_entity(gs.morphs.Sphere(radius=0.05, pos=(0.0, 0.0, 0.3)), material=mochi_materials.Rigid())
     scene.build(n_envs=2)
@@ -311,14 +317,15 @@ def test_moving_a_fixed_body_moves_its_collision_geom(show_viewer):
     assert_allclose(ball.get_pos()[:, 2], 0.25, atol=2e-3)
 
     def is_inside_table(points, env_idx):
-        distances, _, _ = solver.get_collider_distances(table.geoms[0].idx, points, envs_idx=[env_idx])
-        return tensor_to_array(distances < 0.0)
+        return _is_inside_geom(solver, table.geoms[0], points, env_idx)
 
-    # The table moved away in environment 0 alone collides at its new place there at once, and the ball drops onto
-    # the ground. Environment 1 keeps the table and the ball resting on it.
+    # The table moved away in environment 0 alone collides at its new place there at once, its box with it, and the
+    # ball drops onto the ground. Environment 1 keeps the table and the ball resting on it.
     table.set_pos(np.array([[5.0, 0.0, 0.1]]), envs_idx=[0])
     assert_array_equal(is_inside_table([[5.0, 0.0, 0.1], [0.0, 0.0, 0.1]], 0), [True, False])
     assert_array_equal(is_inside_table([[5.0, 0.0, 0.1], [0.0, 0.0, 0.1]], 1), [False, True])
+    aabb_min = qd_to_torch(solver.dyn_state.geoms.aabb_min)[table.geoms[0].idx]
+    assert_allclose(aabb_min[:, 0], [4.8, -0.2], tol=1e-9)
     for _ in range(30):
         scene.step()
     ball_z = tensor_to_array(ball.get_pos()[:, 2])
@@ -332,9 +339,75 @@ def test_moving_a_fixed_body_moves_its_collision_geom(show_viewer):
     table.set_quat(np.array([[np.sqrt(0.5), np.sqrt(0.5), 0.0, 0.0]]), envs_idx=[0])
     assert_array_equal(is_inside_table([[0.0, 5.0, 0.28]], 0), [True])
 
-    # Restoring the state taken before the moves puts the geom back where that state has the table.
+    # Restoring the state taken before the moves puts the geom back where that state has the table, in every
+    # environment.
     scene.reset(state)
-    assert_array_equal(is_inside_table([[0.0, 0.0, 0.1], [0.0, 5.0, 0.1]], 0), [True, False])
+    for env_idx in range(2):
+        assert_array_equal(is_inside_table([[0.0, 0.0, 0.1], [0.0, 5.0, 0.1]], env_idx), [True, False])
+
+
+@pytest.mark.precision("64")
+def test_fixed_body_with_shared_vertices_takes_one_pose_in_every_env(show_viewer):
+    scene = _mochi_scene(show_viewer, 1.0 / 60.0)
+    table = scene.add_entity(
+        gs.morphs.Box(size=(0.4, 0.4, 0.2), pos=(0.0, 0.0, 0.1), fixed=True, batch_fixed_verts=False),
+        material=mochi_materials.Rigid(),
+    )
+    scene.build(n_envs=2)
+    solver = scene.mochi_solver
+
+    # A pose of its own in some environments is refused before anything moves, as the rigid solver refuses it.
+    with pytest.raises(gs.GenesisException, match="batch_fixed_verts=True"):
+        table.set_pos(np.array([[5.0, 0.0, 0.1]]), envs_idx=[0])
+    with pytest.raises(gs.GenesisException, match="batch_fixed_verts=True"):
+        table.set_quat(np.array([[np.sqrt(0.5), np.sqrt(0.5), 0.0, 0.0], [1.0, 0.0, 0.0, 0.0]]))
+    assert_allclose(table.get_pos(), [[0.0, 0.0, 0.1]] * 2, tol=1e-12)
+
+    # One pose for every environment moves the geom in each, also through the solver with a slice of links.
+    table.set_pos(np.array([5.0, 0.0, 0.1]))
+    for env_idx in range(2):
+        assert_array_equal(
+            _is_inside_geom(solver, table.geoms[0], [[5.0, 0.0, 0.1], [0.0, 0.0, 0.1]], env_idx), [True, False]
+        )
+    solver.set_base_links_pos(np.array([[0.0, 5.0, 0.1]]), slice(table.base_link_idx, table.base_link_idx + 1))
+    for env_idx in range(2):
+        assert_array_equal(
+            _is_inside_geom(solver, table.geoms[0], [[0.0, 5.0, 0.1], [5.0, 0.0, 0.1]], env_idx), [True, False]
+        )
+
+
+_FIXED_BASE_WITH_CHILD_MJCF = """
+<mujoco>
+  <worldbody>
+    <body name="base" pos="0 0 0.1">
+      <geom type="box" size="0.2 0.2 0.1"/>
+      <body name="top" pos="0 0 0.15">
+        <geom type="box" size="0.05 0.05 0.05"/>
+      </body>
+    </body>
+  </worldbody>
+</mujoco>
+"""
+
+
+@pytest.mark.precision("64")
+def test_moving_a_fixed_body_moves_the_geoms_of_its_fixed_descendants(tmp_path, show_viewer):
+    path = tmp_path / "fixed_base_with_child.xml"
+    path.write_text(_FIXED_BASE_WITH_CHILD_MJCF)
+    scene = _mochi_scene(show_viewer, 1.0 / 60.0)
+    stand = scene.add_entity(gs.morphs.MJCF(file=str(path)), material=mochi_materials.Rigid())
+    scene.build(n_envs=1)
+    solver = scene.mochi_solver
+    top = stand.get_link("top")
+    assert top.is_fixed and top.geoms
+
+    # The forward kinematics the move defers would carry the child link to its new pose, but not its geom. The base
+    # link is MJCF's world body, at the origin.
+    stand.set_pos(np.array([5.0, 0.0, 0.0]), skip_forward=True)
+    assert_array_equal(_is_inside_geom(solver, top.geoms[0], [[5.0, 0.0, 0.25], [0.0, 0.0, 0.25]], 0), [True, False])
+    scene.step()
+    assert_allclose(top.get_pos(), [[5.0, 0.0, 0.25]], tol=1e-9)
+    assert_array_equal(_is_inside_geom(solver, top.geoms[0], [[5.0, 0.0, 0.25], [0.0, 0.0, 0.25]], 0), [True, False])
 
 
 def _normal_damping_for_restitution(restitution, impact_speed):
