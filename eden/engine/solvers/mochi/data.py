@@ -14,7 +14,7 @@ from enum import IntEnum
 import genesis as gs
 import numpy as np
 import quadrants as qd
-from genesis.utils.array_class import (
+from genesis.engine.solvers.rigid.data import (
     FIXED_VERTS,
     FREE_VERTS,
     EdgesInfo,
@@ -24,7 +24,7 @@ from genesis.utils.array_class import (
     VertsInfo,
     VertsState,
 )
-from genesis.utils.data import ENVS, Data, StaticConfig, field
+from genesis.utils.data import ENVS, Data, Config, field
 
 
 # Genesis declares its own solver data as `genesis.utils.data.Data` structs and dropped the allocators below in
@@ -96,7 +96,7 @@ REDUCE_BLOCK = REDUCE_LANES * REDUCE_CHUNKS
 ROD_BAND = 10
 
 
-class MochiStaticConfig(StaticConfig):
+class MochiConfig(Config):
     backend: int
     para_level: int
     integrator: int
@@ -303,7 +303,7 @@ def get_mochi_info(solver):
         joint_limit_damping=_scalar(gs.qd_float, options.joint_limit_damping),
         equality_stiffness=_scalar(gs.qd_float, options.equality_stiffness),
         equality_damping=_scalar(gs.qd_float, options.equality_damping),
-        gravity=V(dtype=gs.qd_vec3, shape=(solver._B,)),
+        gravity=V(dtype=gs.qd_vec3, shape=(solver.n_envs_,)),
         broadphase_margin=_scalar(gs.qd_float, options.broadphase_margin),
         newton_abs_tol=_scalar(gs.qd_float, options.newton_abs_tol),
         newton_rel_tol=_scalar(gs.qd_float, options.newton_rel_tol),
@@ -359,7 +359,7 @@ class MochiIslandState:
 
 
 def get_mochi_island_state(solver, links_node, dofs_node):
-    _B = solver._B
+    _B = solver.n_envs_
     n_nodes_ = max(1, len(solver._entities) + len(solver._soft_entities))
     n_dofs_ = solver.n_dofs_total_
     n_sleep_nodes_, _B_sleep = (n_nodes_, _B) if solver._options.use_sleeping else (1, 1)
@@ -487,7 +487,7 @@ class MochiState:
 
 
 def get_mochi_state(solver, max_pairs, has_dense):
-    _B = solver._B
+    _B = solver.n_envs_
     n_qs_, n_links_, n_geoms_ = solver.n_qs_, solver.n_links_, solver.n_geoms_
     # Rigid degrees of freedom of the kinematic tree, then 3 per vertex of the deformable bodies.
     n_dofs_rigid_, n_dofs_ = solver.n_dofs_, solver.n_dofs_total_
@@ -589,7 +589,7 @@ class MochiContactState:
 
 
 def get_mochi_contact_state(solver, max_pairs):
-    _B = solver._B
+    _B = solver.n_envs_
     n_links_ = solver.n_links_
     return MochiContactState(
         n_pairs=V(dtype=gs.qd_int, shape=(_B,)),
@@ -647,7 +647,7 @@ class MochiHitReadback:
 
 
 def get_mochi_hit_readback(solver, max_hits, max_soft_hits, max_sc_hits, max_pc_hits):
-    _B = solver._B
+    _B = solver.n_envs_
     return MochiHitReadback(
         n_hits_total=V(dtype=gs.qd_int, shape=(_B,)),
         hit_link_a=V(dtype=gs.qd_int, shape=(max_hits, _B)),
@@ -1064,7 +1064,7 @@ class MochiSoftState:
 
 
 def get_mochi_soft_state(solver, max_soft_pairs, max_soft_hits, max_sc_hits, max_pc_hits):
-    _B = solver._B
+    _B = solver.n_envs_
     n_sv_, n_el_, n_se_ = solver.n_soft_verts_, solver.n_soft_elems_, solver.n_soft_entities_
     n_sh_ = solver.n_shell_elems_
     n_re_, n_rs_ = solver.n_rod_elems_, solver.n_rod_stencils_

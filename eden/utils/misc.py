@@ -1,6 +1,7 @@
 """Miscellaneous helpers (env-index sanitization, entity resolution, hashing, snake_case, key loading, paths)."""
 
 import datetime
+import functools
 import glob
 import hashlib
 import os
@@ -22,6 +23,36 @@ import torch
 # pattern as eden.utils.configs. `import eden` does not import this module at all.
 import eden as en
 from eden.utils.distribution import direct_url_record, editable_checkout, get_eden_version
+
+
+def _guard_built_state(method, is_built: bool):
+    @functools.wraps(method)
+    def wrapper(self, *args, **kwargs):
+        if self.is_built is not is_built:
+            import genesis as gs
+
+            owner = f"{type(self).__name__}.{method.__name__}"
+            if is_built:
+                gs.raise_exception(f"{owner} needs a built scene: call `build()` on the environment first.")
+            gs.raise_exception(f"{owner} runs only before the scene is built, and it already is.")
+        return method(self, *args, **kwargs)
+
+    return wrapper
+
+
+def assert_built(method):
+    """Refuse a call until ``self.is_built``: Eden's environments and entities read it off their Genesis scene.
+
+    ``gs.assert_built`` is not a drop-in: it reads the ``_is_built`` a Genesis component owns through
+    ``genesis.utils.misc.BuildableMixin``, and refuses at class creation a class without that mixin, while an Eden env
+    or entity is built when its scene is. Raises ``GenesisException``, as that guard does.
+    """
+    return _guard_built_state(method, is_built=True)
+
+
+def assert_unbuilt(method):
+    """Refuse a call once ``self.is_built`` (see :func:`assert_built`)."""
+    return _guard_built_state(method, is_built=False)
 
 
 def resolve_named_entity(entities: dict, name: str, *, hint: str | None = None):
@@ -470,9 +501,10 @@ def get_package_provenance(package_name: str) -> dict[str, str | None]:
     unknown (both are, when the package is not installed).
 
     ``version`` is the distribution's (``1.4.0``). ``commit`` is the git commit it was installed from: the one a
-    ``git+`` install recorded (PEP 610's ``direct_url.json``), or the ``HEAD`` of the checkout an editable install
-    points at; an install from an index has none. Two fields, not one holding either, so whoever reads a saved record
-    never has to tell a commit from a version by its shape. :func:`get_eden_provenance` is the same record for Eden.
+    ``git+`` install recorded (PEP 610's ``direct_url.json``), the one a GitHub commit archive it was installed from
+    names, or the ``HEAD`` of the checkout an editable install points at; an install from an index has none. Two
+    fields, not one holding either, so whoever reads a saved record never has to tell a commit from a version by its
+    shape. :func:`get_eden_provenance` is the same record for Eden.
     """
     try:
         dist = metadata.distribution(package_name)
@@ -481,10 +513,19 @@ def get_package_provenance(package_name: str) -> dict[str, str | None]:
     return {"version": dist.version or None, "commit": _installed_commit(dist)}
 
 
+# GitHub's archive of one commit, ``https://github.com/<owner>/<repo>/archive/<commit>.tar.gz`` (or ``.zip``): the
+# source a uv checkout pins a dependency to between its releases (pyproject.toml's ``[tool.uv.sources]``). A branch or
+# a tag names no fixed commit, so only a full commit hash counts.
+_GITHUB_COMMIT_ARCHIVE = re.compile(r"^https://github\.com/[^/]+/[^/]+/archive/([0-9a-f]{40})\.(?:tar\.gz|zip)$")
+
+
 def _installed_commit(dist: metadata.Distribution) -> str | None:
     """The commit ``dist`` was installed from, read from its ``direct_url.json``; ``None`` when it records none."""
-    if commit := direct_url_record(dist).get("vcs_info", {}).get("commit_id"):
+    record = direct_url_record(dist)
+    if commit := record.get("vcs_info", {}).get("commit_id"):
         return str(commit)
+    if "archive_info" in record and (match := _GITHUB_COMMIT_ARCHIVE.match(str(record.get("url", "")))):
+        return match.group(1)
     checkout = editable_checkout(dist)
     if checkout is None:
         return None
@@ -572,12 +613,16 @@ def describe_provenance_change(saved: object, current: dict) -> str | None:
     """How ``current`` differs from the ``saved`` record, as ``saved 0.1.0 (c246ebd), running 0.1.0 (3f2a1b2)``, or
     ``None`` when the two match or cannot be compared.
 
-    Commits are compared when both records have one, else versions: a file saved in a clone and read from a wheel of
-    the same release matches. A ``saved`` that is not a record (a file written before these fields existed) cannot be
-    compared.
+    Commits are compared when both records have one, else versions. At one version, a record with a commit and one
+    without differ: a version does not advance between releases (a commit after one reports that release's version,
+    Eden's and genesis-world's alike), so a commit and an install of that version need not be one build. A
+    ``saved`` that is not a record (a file written before these fields existed) cannot be compared.
     """
     if not isinstance(saved, dict):
         return None
+    if saved.get("version") and saved.get("version") == current.get("version"):
+        if bool(saved.get("commit")) != bool(current.get("commit")):
+            return f"saved {format_provenance(saved)}, running {format_provenance(current)}"
     for key in ("commit", "version"):
         if saved.get(key) and current.get(key):
             if saved[key] == current[key]:

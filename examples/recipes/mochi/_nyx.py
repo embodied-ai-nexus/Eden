@@ -10,11 +10,10 @@ frame of the initial configuration, with no error anywhere.
 The two things the bridge needs are already shaped like what the plugin reads:
 
 * ``MochiSolver`` derives from ``KinematicSolver``, so it carries the same ``n_vgeoms`` / ``vgeoms``
-  / ``dyn_state.vgeoms.pos|quat`` the plugin reads off the rigid solver. It only has to be handed
-  that solver instead — plus ``update_vgeoms()`` before each read, which the rigid path gets for
-  free from the visualizer and an offscreen Nyx render never runs.
-* ``MochiSolver.get_soft_state_render(f)`` returns render-vertex positions in the same
-  ``(n_vverts, B)`` layout as ``FEMSolver.get_state_render(f)``, so the deformable bodies fit the
+  / ``dyn_state.vgeoms.pos|quat`` the plugin reads off the rigid solver, current at the end of every step.
+  It only has to be handed that solver instead.
+* ``MochiSolver.get_soft_state_render()`` returns render-vertex positions in the same
+  ``(n_vverts, B)`` layout as ``FEMSolver.get_state_render()``, so the deformable bodies fit the
   plugin's FEM slot behind a small adapter. It returns no UVs or faces — those live on the visual
   geoms — so the one-off upload of those is rebuilt here.
 
@@ -85,8 +84,9 @@ class _MochiSoftSolver:
     def _sim(self):
         return self._mochi._sim
 
-    def get_state_render(self, f):
-        return self._mochi.get_soft_state_render(f)
+    def get_state_render(self, f=None):
+        # The plugin still passes the substep, which Genesis' FEM solver ignores since genesis-world#3760
+        return self._mochi.get_soft_state_render()
 
 
 class _MochiScene:
@@ -260,9 +260,6 @@ def install():
     nyx_renderer.NyxPyRenderer._upload_static_deformable_data = _for_mochi_scene(
         nyx_renderer.NyxPyRenderer._upload_static_deformable_data, _upload_static_deformable_data
     )
-    nyx_renderer.NyxPyRenderer._update_geometry_tensors = _refresh_mochi_vgeoms(
-        nyx_renderer.NyxPyRenderer._update_geometry_tensors
-    )
     nyx_renderer._eden_mochi_bridge = True
 
 
@@ -353,18 +350,6 @@ def _for_mochi_scene(stock, mochi):
     def wrapper(self, *args, **kwargs):
         method = mochi if isinstance(self._scene, _MochiScene) else stock
         return method(self, *args, **kwargs)
-
-    return wrapper
-
-
-def _refresh_mochi_vgeoms(update_geometry_tensors):
-    def wrapper(self, *args, **kwargs):
-        if isinstance(self._scene, _MochiScene):
-            # The visual geoms follow the links, and only the visualizer refreshes them — an
-            # offscreen Nyx render never runs it, so without this every frame would repeat the
-            # pose the scene was built at.
-            self._scene.mochi_solver.update_vgeoms()
-        return update_geometry_tensors(self, *args, **kwargs)
 
     return wrapper
 

@@ -27,6 +27,7 @@ import eden as en
 from eden.entities.base import Entity
 from eden.entities.rigid import RigidEntity
 from eden.utils.assets import get_asset_path
+from eden.utils.misc import assert_unbuilt
 
 if TYPE_CHECKING:
     from genesis.engine.entities.rigid_entity import RigidLink
@@ -440,7 +441,7 @@ class MochiSoftEntity(Entity):
 
     # ---- pre-build-only ------------------------------------------------------------------------
 
-    @gs.assert_unbuilt
+    @assert_unbuilt
     def attach_to_link(
         self, entity: MochiRigidEntity, link_name: str, verts_idx, stiffness: float = 1e6, damping: float = 0.0
     ) -> None:
@@ -467,7 +468,7 @@ class MochiSoftEntity(Entity):
         self._require_added("attach_to_link")
         self._entity.attach_to_link(entity.get_link(link_name), verts_idx, stiffness=stiffness, damping=damping)
 
-    @gs.assert_unbuilt
+    @assert_unbuilt
     def set_rest_positions(self, positions) -> None:
         """Move the body's rest geometry before the scene is built (pre-build only).
 
@@ -502,7 +503,7 @@ class MochiSoftEntity(Entity):
         self._entity.init_positions = positions
         self._rest_positions_moved = True
 
-    @gs.assert_unbuilt
+    @assert_unbuilt
     def set_visual_mesh(self, file: str, pos=(0.0, 0.0, 0.0), euler=(0.0, 0.0, 0.0), scale: float = 1.0) -> None:
         """Skin a detailed render mesh onto the simulation tetrahedra (solids only, pre-build only).
 
@@ -535,7 +536,7 @@ class MochiSoftEntity(Entity):
             )
         self._entity.set_visual_mesh(file=get_asset_path(file), pos=pos, euler=euler, scale=scale)
 
-    @gs.assert_unbuilt
+    @assert_unbuilt
     def set_contact_skin(self, file: str, pos=(0.0, 0.0, 0.0), euler=(0.0, 0.0, 0.0), scale: float = 1.0) -> None:
         """Carry this solid's contact samples on a detailed triangle surface (solids only, pre-build only).
 

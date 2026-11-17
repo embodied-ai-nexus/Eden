@@ -28,7 +28,10 @@ import numpy as np
 import torch
 from genesis.options.renderers import BatchRenderer, Rasterizer, RendererOptions
 from genesis.repr_base import RBC
-from genesis.utils.array_class import ErrorCode
+from genesis.engine.couplers.sap_coupler import SAPErrorCode
+from genesis.engine.solvers.fem_solver import FEMErrorCode
+from genesis.engine.solvers.mpm_solver import MPMErrorCode
+from genesis.engine.solvers.rigid.data import RigidErrorCode
 from genesis.utils.misc import qd_from_torch, qd_to_torch
 from genesis.typing import Vec2FType
 
@@ -64,6 +67,9 @@ from eden.options._metadata import OPTION_METADATA_KEYS
 from eden.types import VecEnvReset, VecEnvStep
 from eden.utils.configs import EdenConfig, EdenMimicConfig, EdenRLConfig
 from eden.utils.misc import (
+    assert_built,
+    assert_unbuilt,
+    env_indices,
     invert_segmentation_idx_dict,
     resolve_named_entity,
     sanitize_envs_idx,
@@ -107,29 +113,53 @@ TConfig = TypeVar("TConfig", bound=EdenConfig)
 _R = TypeVar("_R")
 
 
-#: The solver errors that leave an env's state corrupt but its scene sound, which a reset of the env recovers:
-#: a NaN contact, force or acceleration and a diverged implicit solve. Every other error a solver registers is a
-#: misconfiguration of the scene, which a reset must not hide: a contact capacity overflow, an unsupported collision
-#: pair, or a NaN gradient under ``requires_grad`` (a rollout too stiff to differentiate, which the message says how to
-#: shorten).
-_RECOVERABLE_SOLVER_ERRORS = (
-    ErrorCode.INVALID_CONTACT_NAN
-    | ErrorCode.INVALID_FORCE_NAN
-    | ErrorCode.INVALID_ACC_NAN
-    | MochiErrorCode.MOCHI_DIVERGED
-)
+#: Per class of Genesis error codes, the errors that leave an env's state corrupt but its scene sound, which a reset of
+#: the env recovers: a NaN state, or a solve left unconverged. One that ends ``_ERRORED_EPISODES_TO_RAISE`` episodes of
+#: an env in a row is a misconfiguration after all (a time step too long for a material, an iteration cap too low), kept
+#: across the env's reset and raised (see ``EnvBase._keep_recurring_errors``). Every other error a solver or coupler
+#: registers is a misconfiguration of the scene, which a reset must not hide: a capacity overflow, an unsupported
+#: collision pair, or a NaN gradient under ``requires_grad`` (``BackwardErrorCode``: a rollout too stiff to
+#: differentiate, which the message says how to shorten). So is every error of a class missing here: kept across the reset and raised, never hidden.
+#: Each system numbers its errors from the same low bits in its own ``errno``, and a solver's holds two classes (its
+#: own and ``BackwardErrorCode``), so each registered code is sorted by its own class, never by its system's.
+_RECOVERABLE_ERRORS: dict[type, int] = {
+    RigidErrorCode: RigidErrorCode.INVALID_CONTACT_NAN
+    | RigidErrorCode.INVALID_FORCE_NAN
+    | RigidErrorCode.INVALID_ACC_NAN,
+    MochiErrorCode: MochiErrorCode.MOCHI_DIVERGED,
+    FEMErrorCode: FEMErrorCode.INVALID_VERTEX_NAN,
+    MPMErrorCode: MPMErrorCode.INVALID_VELOCITY_NAN,
+    SAPErrorCode: SAPErrorCode.INVALID_SOLVE,
+}
 
 
-def _misconfiguration_errors(solver) -> int:
-    """The bits of the errors ``solver`` registered that are a misconfiguration of the scene, not a corrupt state.
+#: How many episodes of an env in a row a recoverable error must end before it raises: the env's initial state causes it
+#: then, not a rare one. The chance is per env: one whose episodes the error ends at random with a chance p raises with a
+#: chance of about p**10 per episode, 1e-10 at p = 0.1 and 1e-3 at p = 0.5. An env whose own startup state makes the
+#: error likely (a mass or a friction randomized once) thus stops the run, where a reset would lose it alone.
+_ERRORED_EPISODES_TO_RAISE = 10
+
+
+def _recoverable_errors(system) -> int:
+    """The bits of the errors ``system`` registered that a reset of the env recovers (see ``_RECOVERABLE_ERRORS``)."""
+    recoverable = 0
+    for code in _solver_errno_attribute(system, "_error_reports"):
+        recoverable |= int(code) & int(_RECOVERABLE_ERRORS.get(type(code), 0))
+    return recoverable
+
+
+def _misconfiguration_errors(system) -> int:
+    """The bits of the errors ``system`` (a solver or the coupler) registered that are a misconfiguration of the scene,
+    not a corrupt state (see ``_RECOVERABLE_ERRORS``).
 
     Only a registered error has a message the check raises; a bit no kernel registered would be carried past every
     reset without ever raising, so it is left to the reset like a corrupt state.
     """
-    registered = 0
-    for code in _solver_errno_attribute(solver, "_error_messages"):
-        registered |= int(code)
-    return registered & ~_RECOVERABLE_SOLVER_ERRORS
+    misconfigured = 0
+    for code in _solver_errno_attribute(system, "_error_reports"):
+        if not int(code) & int(_RECOVERABLE_ERRORS.get(type(code), 0)):
+            misconfigured |= int(code)
+    return misconfigured
 
 
 def _latched_errors(solver) -> torch.Tensor:
@@ -516,9 +546,14 @@ class EnvBase(DrawDebugMixin, RBC, Generic[TConfig]):
         self.scene = gs.Scene(**scene_kwargs)
         # Genesis ships no MochiSolver: Eden hosts one, installed on the scene's first Mochi entity.
         self._mochi_solver: MochiSolver | None = None
-        # The misconfiguration flags of the envs a reset or a setter cleared, per solver, which the next control step
-        # raises (see `get_solver_error_envs_mask`), and whether any were kept since. Allocated on the first use.
-        self._misconfigurations: list[tuple[Any, int, torch.Tensor]] | None = None
+        # The systems whose error flags Eden reads (see `_error_systems`), the misconfiguration flags of the envs a
+        # reset or a setter cleared, per system, which the next control step raises (see `get_solver_error_envs_mask`),
+        # and whether any were kept since. Allocated on the first use.
+        self._misconfigurations: list[tuple[Any, int, int, torch.Tensor]] | None = None
+        # Per env, how many episodes in a row ended on a recoverable error (see `_keep_recurring_errors`), allocated on
+        # first use
+        self._errored_episodes: torch.Tensor | None = None
+        self._errno_systems: list[Any] | None = None
         self._has_kept_misconfigurations = False
 
         # gs-madrona bakes the light count at scene.build(), so BatchRenderer
@@ -715,21 +750,21 @@ class EnvBase(DrawDebugMixin, RBC, Generic[TConfig]):
 
         return env
 
-    @gs.assert_unbuilt
+    @assert_unbuilt
     def _setup_cameras(self):
         for camera_name in self.cameras_options.keys():
             camera_options: CameraOptions = getattr(self.cameras_options, camera_name)
             camera = Camera(env=self, options=camera_options, key=camera_name)
             self.cameras[camera_name] = camera
 
-    @gs.assert_unbuilt
+    @assert_unbuilt
     def _setup_sensors(self):
         for sensor_name in self.sensors_options.keys():
             sensor_options: SensorOptions = getattr(self.sensors_options, sensor_name)
             sensor = Sensor(env=self, options=sensor_options)
             self.sensors[sensor_name] = sensor
 
-    @gs.assert_unbuilt
+    @assert_unbuilt
     def register_pre_build_hook(self, hook: Callable[[], None]) -> None:
         self._pre_build_hooks.append(hook)
 
@@ -783,25 +818,84 @@ class EnvBase(DrawDebugMixin, RBC, Generic[TConfig]):
         """
         (self._pre_substep_callbacks if before else self._substep_callbacks).append(callback)
 
-    def _kept_misconfigurations(self) -> list[tuple[Any, int, torch.Tensor]]:
-        """``(solver, misconfiguration codes, flags kept across a reset)`` of each solver whose errors Eden reads.
+    @assert_built
+    def _error_systems(self) -> list[Any]:
+        """The solvers and the coupler of the scene that registered errors: those whose flags Eden reads.
 
-        Allocated once, after the build: every solver registers its errors as it builds (``Solver.register_errors``;
-        the NaN gradient of ``requires_grad`` in ``Solver.build``), so the codes read then are all there will be.
+        Every active system of the simulator carries per-env error flags (``ErrnoMixin``), the coupler included, but
+        only one that registered an error ever raises one. Listed once the scene is built: every system registers its
+        errors as it builds (``ErrnoMixin.register_errors``; the NaN gradient of ``requires_grad`` in ``Solver.build``),
+        so the ones read then are all there will be.
+        """
+        if self._errno_systems is None:
+            systems = _solver_errno_attribute(self.scene.sim, "_active_systems")
+            self._errno_systems = [system for system in systems if _solver_errno_attribute(system, "_error_reports")]
+        return self._errno_systems
+
+    def _kept_misconfigurations(self) -> list[tuple[Any, int, int, torch.Tensor]]:
+        """``(system, misconfiguration codes, recoverable codes, flags kept across a reset)`` of each system whose
+        errors Eden reads (see ``_error_systems``). Allocated once, after the build.
         """
         if self._misconfigurations is None:
-            solvers = [solver for solver in (self.rigid_solver, self._mochi_solver) if solver is not None]
             self._misconfigurations = [
-                (solver, _misconfiguration_errors(solver), torch.zeros_like(_latched_errors(solver)))
-                for solver in solvers
+                (
+                    system,
+                    _misconfiguration_errors(system),
+                    _recoverable_errors(system),
+                    torch.zeros_like(_latched_errors(system)),
+                )
+                for system in self._error_systems()
             ]
         return self._misconfigurations
 
     def _keep_misconfigurations(self) -> None:
         """Keep the misconfiguration flags the solvers latched, before a reset or a setter clears them."""
-        for solver, codes, kept in self._kept_misconfigurations():
+        for solver, codes, _, kept in self._kept_misconfigurations():
             kept.bitwise_or_(_latched_errors(solver) & codes)
         self._has_kept_misconfigurations = True
+
+    def _note_recurring_errors(self, exc: BaseException) -> None:
+        """Say on ``exc``, an error check's raise, which envs it raised for because their episodes kept ending on a
+        recoverable error (see ``_keep_recurring_errors``): Genesis' own message reads as a one-off, or a bug to report.
+        """
+        if self._errored_episodes is None:
+            return
+        envs = (self._errored_episodes >= _ERRORED_EPISODES_TO_RAISE).nonzero().flatten().tolist()
+        if envs:
+            shown = ", ".join(map(str, envs[:8])) + (f" and {len(envs) - 8} more" if len(envs) > 8 else "")
+            exc.add_note(
+                f"Raised for env(s) {shown}, whose last {_ERRORED_EPISODES_TO_RAISE} episodes in a row all ended on "
+                "this error. A reset recovers it when a rare state causes it; here each env's own initial state does. "
+                "Make the step stable for that state (a shorter EnvOptions.sim_dt or more sim_substeps, more solver "
+                "iterations, other material parameters, or the env's randomized ranges) rather than catching the "
+                "error, which would leave the env ending every episode on it."
+            )
+
+    def _keep_recurring_errors(self, envs_idx: torch.Tensor) -> None:
+        """Keep, like a misconfiguration, the recoverable errors of the envs about to be reset whose episodes ended on
+        one ``_ERRORED_EPISODES_TO_RAISE`` times in a row: the next control step raises them.
+
+        A reset recovers a NaN state or an unconverged solve that a rare state caused. One that the env's initial state
+        causes (a time step too long for a material, an SAP iteration cap too low) ends every episode, at whatever
+        step it diverges, and would otherwise never raise. An episode ending any other way restarts the count.
+        ``envs_idx`` holds the ids or the bool mask of the envs reset. Sync-free: called before the reset clears their
+        flags.
+        """
+        if self._errored_episodes is None:
+            self._errored_episodes = torch.zeros((self.num_envs,), dtype=torch.int32, device=self.device)
+        if envs_idx.dtype == torch.bool:
+            resetting = envs_idx
+        else:
+            resetting = torch.zeros((self.num_envs,), dtype=torch.bool, device=self.device)
+            resetting.index_fill_(0, envs_idx.long(), True)
+        errored = torch.zeros_like(resetting)
+        for solver, _, recoverable, _ in self._kept_misconfigurations():
+            errored |= (_latched_errors(solver) & recoverable) != 0
+        count = torch.where(errored, self._errored_episodes + 1, 0)
+        torch.where(resetting, count, self._errored_episodes, out=self._errored_episodes)
+        recurs = resetting & (self._errored_episodes >= _ERRORED_EPISODES_TO_RAISE)
+        for solver, _, recoverable, kept in self._kept_misconfigurations():
+            kept.bitwise_or_(torch.where(recurs, _latched_errors(solver) & recoverable, 0))
 
     def _raise_kept_misconfigurations(self, sim) -> None:
         """Hand the solvers back the misconfiguration flags a reset or a setter cleared, which the ``scene.step()``
@@ -815,7 +909,7 @@ class EnvBase(DrawDebugMixin, RBC, Generic[TConfig]):
         """
         if not self._has_kept_misconfigurations:
             return
-        for solver, _, kept in self._kept_misconfigurations():
+        for solver, _, _, kept in self._kept_misconfigurations():
             _latched_errors(solver).bitwise_or_(kept)
             kept.zero_()
         sim._has_errno_flags = True  # read on CPU only: the check finds nothing to raise if no flag was kept
@@ -838,13 +932,17 @@ class EnvBase(DrawDebugMixin, RBC, Generic[TConfig]):
             if i == 0:  # after anything that could call a setter, right before the step that checks the flags
                 self._raise_kept_misconfigurations(sim)
             with nullcontext() if i == 0 else _errno_check_deferred(sim):
-                self._scene_step_with_sensor_gating(is_last_substep=(i == self.env_options.decimation - 1))
+                try:
+                    self._scene_step_with_sensor_gating(is_last_substep=(i == self.env_options.decimation - 1))
+                except gs.GenesisException as e:
+                    self._note_recurring_errors(e)
+                    raise
             if self._substep_callbacks or self._pre_substep_callbacks:
                 self._keep_misconfigurations()  # before a callback's setter clears them (see register_substep_callback)
             for callback in self._substep_callbacks:
                 callback()
 
-    @gs.assert_unbuilt
+    @assert_unbuilt
     def build(
         self,
         env_spacing: Vec2FType | None = None,
@@ -877,7 +975,7 @@ class EnvBase(DrawDebugMixin, RBC, Generic[TConfig]):
         self.post_build_setup()
         self._verify_build()
 
-    @gs.assert_unbuilt
+    @assert_unbuilt
     def pre_build_setup(self):
         for entity in self.entities.values():
             entity.pre_build()
@@ -891,7 +989,7 @@ class EnvBase(DrawDebugMixin, RBC, Generic[TConfig]):
         for hook in self._pre_build_hooks:
             hook()
 
-    @gs.assert_built
+    @assert_built
     def post_build_setup(self):
         for entity in self.entities.values():
             entity.post_build()
@@ -912,7 +1010,7 @@ class EnvBase(DrawDebugMixin, RBC, Generic[TConfig]):
         # NOTE: save the post setup state for reset
         self.reset_state = self.scene.get_state()
 
-    @gs.assert_built
+    @assert_built
     def _verify_build(self):
         if self.rigid_solver.n_equalities > 0:
             if self.env_options.sim_dt / self.env_options.sim_substeps > 0.004:
@@ -1006,7 +1104,7 @@ class EnvBase(DrawDebugMixin, RBC, Generic[TConfig]):
             "recorder_manager": lambda: RecorderManager(self, self.recorder_options),
         }
 
-    @gs.assert_built
+    @assert_built
     def _load_managers(self):
         """Construct every manager in :meth:`_manager_order`, then fire the STARTUP events.
 
@@ -1044,7 +1142,7 @@ class EnvBase(DrawDebugMixin, RBC, Generic[TConfig]):
         if _STARTUP in self.event_manager.available_modes:
             self.event_manager.compute(mode=_STARTUP)
 
-    @gs.assert_built
+    @assert_built
     def summary(self) -> str:
         """Return a human-readable summary of the environment and its managers."""
         msg = "Environment Summary:\n"
@@ -1152,21 +1250,26 @@ class EnvBase(DrawDebugMixin, RBC, Generic[TConfig]):
         return self._mochi_solver
 
     def get_solver_error_envs_mask(self) -> torch.Tensor:
-        """Envs a physics solver flagged since their last reset, ``(num_envs,)`` bool.
+        """Envs a physics solver or the coupler flagged since their last reset, ``(num_envs,)`` bool.
 
-        The rigid solver's errors (a NaN contact force) and, in a Mochi scene, the Mochi solver's (a diverged
-        implicit solve). The termination manager truncates these envs, and the reward and metric managers drop what
+        Every system of the scene that registers errors: the rigid solver's (a NaN contact force), in a Mochi scene the
+        Mochi solver's (a diverged implicit solve), and those of the soft-body solvers and the SAP coupler. The
+        termination manager truncates these envs, and the reward and metric managers drop what
         their terms read of them, so no value of the corrupt state reaches the learner; the reset clears the flag
         before the next error check would raise for the whole scene.
 
         A misconfiguration of the scene (a contact capacity overflow, an unsupported collision pair, a NaN gradient
-        under ``requires_grad``; see ``_RECOVERABLE_SOLVER_ERRORS``) is reset and dropped the same way, but the env
+        under ``requires_grad``; see ``_RECOVERABLE_ERRORS``) is reset and dropped the same way, but the env
         keeps its flag across the reset, and the next control step raises it with the message that names the option to
-        change (on CUDA, whose check does not wait for the device, the one after).
+        change (on CUDA, whose check does not wait for the device, the one after). So does a corrupt state that ends
+        ``_ERRORED_EPISODES_TO_RAISE`` episodes of an env in a row (``_keep_recurring_errors``).
         """
-        mask = self.rigid_solver.get_error_envs_mask()
-        if self._mochi_solver is not None:
-            mask = mask | self._mochi_solver.get_error_envs_mask()
+        systems = self._error_systems()
+        if not systems:
+            return torch.zeros((self.num_envs,), dtype=torch.bool, device=self.device)
+        mask = systems[0].get_error_envs_mask()
+        for system in systems[1:]:
+            mask = mask | system.get_error_envs_mask()
         return mask
 
     @property
@@ -1620,9 +1723,14 @@ class EnvBase(DrawDebugMixin, RBC, Generic[TConfig]):
         _reset_envs_idx = None if self._has_ipc_coupler else _scene_envs_idx
         # The reset clears every error flag of the reset envs, and so may a setter the RESET events or the managers
         # call on them (the MochiSolver's do). Those of a misconfiguration are kept here meanwhile, for the next
-        # control step to raise (see `_raise_kept_misconfigurations`).
+        # control step to raise (see `_raise_kept_misconfigurations`), with any recoverable error that recurred at once.
+        self._keep_recurring_errors(_scene_envs_idx)
         self._keep_misconfigurations()
-        self.scene.reset(state=self.reset_state, envs_idx=_reset_envs_idx)
+        # Handed ids, not a mask: the solvers' `set_state` turns a mask into ids itself, a sync per reset, while the
+        # auto-reset took them once for every consumer (`sharing_env_indices`).
+        self.scene.reset(
+            state=self.reset_state, envs_idx=None if _reset_envs_idx is None else env_indices(_reset_envs_idx)
+        )
         for solver in (self.rigid_solver, self._mochi_solver):
             if solver is not None:
                 _zero_applied_control_force(solver, _reset_envs_idx)
@@ -1945,7 +2053,7 @@ class RLEnvBase(EnvBase[EdenRLConfig]):
             "curriculum_manager": lambda: CurriculumManager(self, self.curriculum_options),
         }
 
-    @gs.assert_built
+    @assert_built
     def summary(self) -> str:
         """Return a human-readable summary, including RL managers (reward, termination, etc.)."""
         msg = super().summary()
@@ -2079,7 +2187,7 @@ class RLEnvBase(EnvBase[EdenRLConfig]):
             extras,
         )
 
-    @gs.assert_built
+    @assert_built
     def post_build_setup(self):
         super().post_build_setup()
         if self.env_options.cuda_graph_options is not None:
@@ -2250,7 +2358,7 @@ class MimicRLEnvBase(RLEnvBase, EnvBase[EdenMimicConfig]):
 
         self.motion_options = motion_options or MotionManagerOptions()
 
-    @gs.assert_built
+    @assert_built
     def _load_managers(self):
         from eden.managers.motion_manager import MotionManager
 
@@ -2260,7 +2368,7 @@ class MimicRLEnvBase(RLEnvBase, EnvBase[EdenMimicConfig]):
 
         super()._load_managers()
 
-    @gs.assert_built
+    @assert_built
     def summary(self) -> str:
         """Return a human-readable summary, including the motion manager."""
         msg = super().summary()

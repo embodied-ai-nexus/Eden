@@ -262,7 +262,7 @@ class AudioContext(SharedSensorContext):
         K = self._audio_substeps
         # Whole blocks only, so a block never wraps around the end of the ring.
         n_blocks = -(-max(self._hist_len, K) // K)
-        B = self._sim._B
+        B = self._sim.n_envs_
         self._src_hist = torch.zeros((B, col, n_blocks * K), dtype=gs.tc_float, device=gs.device)
         self._src_offset = torch.zeros((B, col, 3), dtype=gs.tc_float, device=gs.device)
         src_link = torch.cat(links, dim=0).to(gs.tc_int)

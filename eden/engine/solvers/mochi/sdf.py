@@ -2,12 +2,12 @@
 
 import genesis as gs
 import quadrants as qd
-from genesis.utils import array_class
+from genesis.utils.sdf import SDFInfo
 from genesis.utils.sdf import sdf_func_ravel_cell_idx
 
 
 @qd.func
-def sdf_func_true_sdf_and_grad(geom_idx, pos_sdf, sdf_info: array_class.SDFInfo):
+def sdf_func_true_sdf_and_grad(geom_idx, pos_sdf, sdf_info: SDFInfo):
     """
     Trilinear value interpolant at an in-grid point and its analytic gradient in the mesh frame, from one read of the
     eight cell corners.

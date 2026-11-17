@@ -179,7 +179,7 @@ class SpatialAudioSensor(KinematicSensorMixin, SimpleSensor[SpatialAudio, AudioC
             sm.age = torch.arange(K - 1, -1, -1, device=gs.device, dtype=gs.tc_float).view(1, 1, 1, K)
 
         # The delay line must span this listener's longest delay plus the block it renders.
-        dt_sub = self._manager._sim.dt / K
+        dt_sub = self._manager.sim.dt / K
         delay_samples = int(self._options.max_delay / dt_sub) + 2
         context.require_history(K + delay_samples)
 
@@ -310,7 +310,7 @@ class SpatialAudioSensor(KinematicSensorMixin, SimpleSensor[SpatialAudio, AudioC
         context : RasterizerContext
             The viewer context to draw into.
         """
-        env_idx = context.rendered_envs_idx[0] if self._manager._sim.n_envs > 0 else None
+        env_idx = context.rendered_envs_idx[0] if self._manager.sim.n_envs > 0 else None
         pos = self._listener_positions(self._shared_metadata)[0 if env_idx is None else env_idx, self._idx]
         amp = float(self.read(env_idx).reshape(-1).abs().max())
 

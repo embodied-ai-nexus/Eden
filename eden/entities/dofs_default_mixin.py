@@ -25,7 +25,7 @@ from dataclasses import dataclass
 import genesis as gs
 import torch
 
-from eden.utils.misc import sanitize_envs_idx
+from eden.utils.misc import assert_built, sanitize_envs_idx
 from eden.utils.string import key_selects
 
 
@@ -120,7 +120,7 @@ class DofDefaultsMixin:
         """The number of environments the getters broadcast a single stored row over."""
         raise NotImplementedError
 
-    @gs.assert_built
+    @assert_built
     def find_named_dofs(self, dofs_name: str | Sequence[str] | None = None) -> DofSelection:
         """Resolve names to a :class:`DofSelection`: the selected DOFs' columns *and* local indices.
 
@@ -200,7 +200,7 @@ class DofDefaultsMixin:
             "narrow the overlapping pattern."
         )
 
-    @gs.assert_built
+    @assert_built
     def _get_default_dofs(
         self, field_name: str, dofs_name: str | Sequence[str] | DofSelection | None, envs_idx
     ) -> torch.Tensor:

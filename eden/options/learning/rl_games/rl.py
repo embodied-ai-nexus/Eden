@@ -132,6 +132,8 @@ class RlGamesPpoRunnerOptions(ConfigurableOptions):
 
     seed: Seed = 7100
     experiment_name: str = ""
+    run_name: str = ""
+    """The run name, as on the rsl_rl runner options. rl_games never reads it."""
     # "auto" resolves to ``str(gs.device)`` at runner construction time. See
     # ``eden.utils.torch.resolve_device``. ``DeviceStr`` rejects typos at
     # config load.

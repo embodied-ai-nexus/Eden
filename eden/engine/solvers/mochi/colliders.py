@@ -9,7 +9,8 @@
 import genesis as gs
 import genesis.utils.geom as gu
 import quadrants as qd
-from genesis.utils import array_class
+from genesis.engine.solvers.rigid.data import GeomsInfo
+from genesis.utils.sdf import SDFInfo
 from genesis.utils.sdf import sdf_func_is_outside_sdf_grid, sdf_func_true_sdf
 
 from eden.engine.solvers.mochi.data import COLLIDER_TYPE, MochiGeomsInfo
@@ -26,9 +27,9 @@ GRID_LIPSCHITZ = 1.7320508075688772
 def query_collider(
     i_g,
     pos_geom,
-    geoms_info: array_class.GeomsInfo,
+    geoms_info: GeomsInfo,
     mochi_geoms_info: MochiGeomsInfo,
-    sdf_info: array_class.SDFInfo,
+    sdf_info: SDFInfo,
     mochi_config: qd.template(),
 ):
     """Signed distance of a point (geom frame) to the collider geom and the gradient of the distance field.
@@ -100,9 +101,9 @@ def query_collider_lower_bound(
     i_g,
     center_geom,
     radius,
-    geoms_info: array_class.GeomsInfo,
+    geoms_info: GeomsInfo,
     mochi_geoms_info: MochiGeomsInfo,
-    sdf_info: array_class.SDFInfo,
+    sdf_info: SDFInfo,
     mochi_config: qd.template(),
 ):
     """Lower bound of the signed distance to the collider over a sphere (geom frame), used to prune whole nodes of a

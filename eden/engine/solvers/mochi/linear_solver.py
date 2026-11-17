@@ -11,7 +11,7 @@ factorization of the condensed matrix, or a Jacobi-preconditioned conjugate grad
 
 import genesis as gs
 import quadrants as qd
-from genesis.utils import array_class
+from genesis.engine.solvers.rigid.data import DynInfo, DynState
 
 from eden.engine.solvers.mochi.articulated import (
     func_jacobian_column_dot,
@@ -50,8 +50,8 @@ def func_add_projected_block(
     i_b,
     block,
     H_dense: qd.Tensor,
-    dyn_state: array_class.DynState,
-    dyn_info: array_class.DynInfo,
+    dyn_state: DynState,
+    dyn_info: DynInfo,
     rigid_config: qd.template(),
     is_symmetric_pair: qd.template(),
     is_self_block: qd.template(),
@@ -93,8 +93,8 @@ def func_condense_dense(
     per_env: qd.template(),
     envs: qd.Tensor,
     n_envs: qd.Tensor,
-    dyn_state: array_class.DynState,
-    dyn_info: array_class.DynInfo,
+    dyn_state: DynState,
+    dyn_info: DynInfo,
     mochi_info: MochiInfo,
     mochi_state: MochiState,
     contact_state: MochiContactState,
@@ -206,8 +206,8 @@ def func_condense_dense(
 
 @qd.kernel
 def kernel_condense_dense(
-    dyn_state: array_class.DynState,
-    dyn_info: array_class.DynInfo,
+    dyn_state: DynState,
+    dyn_info: DynInfo,
     mochi_info: MochiInfo,
     mochi_state: MochiState,
     contact_state: MochiContactState,
@@ -243,8 +243,8 @@ def func_matvec(
     n_envs: qd.Tensor,
     src: qd.Tensor,
     dst: qd.Tensor,
-    dyn_state: array_class.DynState,
-    dyn_info: array_class.DynInfo,
+    dyn_state: DynState,
+    dyn_info: DynInfo,
     mochi_info: MochiInfo,
     mochi_state: MochiState,
     contact_state: MochiContactState,
@@ -389,8 +389,8 @@ def func_pcg_init(
     per_env: qd.template(),
     envs: qd.Tensor,
     n_envs: qd.Tensor,
-    dyn_state: array_class.DynState,
-    dyn_info: array_class.DynInfo,
+    dyn_state: DynState,
+    dyn_info: DynInfo,
     mochi_info: MochiInfo,
     mochi_state: MochiState,
     soft_info: MochiSoftInfo,
@@ -491,8 +491,8 @@ def func_pcg_init(
 
 @qd.kernel
 def kernel_pcg_init(
-    dyn_state: array_class.DynState,
-    dyn_info: array_class.DynInfo,
+    dyn_state: DynState,
+    dyn_info: DynInfo,
     mochi_info: MochiInfo,
     mochi_state: MochiState,
     soft_info: MochiSoftInfo,
@@ -524,8 +524,8 @@ def func_pcg_iter(
     per_env: qd.template(),
     envs: qd.Tensor,
     n_envs: qd.Tensor,
-    dyn_state: array_class.DynState,
-    dyn_info: array_class.DynInfo,
+    dyn_state: DynState,
+    dyn_info: DynInfo,
     mochi_info: MochiInfo,
     mochi_state: MochiState,
     contact_state: MochiContactState,
@@ -751,8 +751,8 @@ def func_pcg_iter(
 
 @qd.kernel
 def kernel_pcg_iter(
-    dyn_state: array_class.DynState,
-    dyn_info: array_class.DynInfo,
+    dyn_state: DynState,
+    dyn_info: DynInfo,
     mochi_info: MochiInfo,
     mochi_state: MochiState,
     contact_state: MochiContactState,

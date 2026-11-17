@@ -2,14 +2,15 @@
 
 from __future__ import annotations
 
-import genesis as gs
 import numpy as np
+
+from eden.utils.misc import assert_built
 
 
 class DrawDebugMixin:
     """Mixin providing debug drawing pass-throughs to the Genesis scene."""
 
-    @gs.assert_built
+    @assert_built
     def draw_debug_line(self, start, end, radius=0.002, color=(1.0, 0.0, 0.0, 0.5)):
         """
         Draws a line in the scene for visualization.
@@ -32,7 +33,7 @@ class DrawDebugMixin:
         """
         return self.scene.draw_debug_line(start, end, radius, color)
 
-    @gs.assert_built
+    @assert_built
     def draw_debug_arrow(self, pos, vec=(0, 0, 1), radius=0.01, color=(1.0, 0.0, 0.0, 0.5)):
         """
         Draws an arrow in the scene for visualization.
@@ -55,7 +56,7 @@ class DrawDebugMixin:
         """
         return self.scene.draw_debug_arrow(pos, vec, radius, color)
 
-    @gs.assert_built
+    @assert_built
     def draw_debug_frame(self, T, axis_length=1.0, origin_size=0.015, axis_radius=0.01):
         """
         Draws a 3-axis coordinate frame in the scene for visualization.
@@ -78,7 +79,7 @@ class DrawDebugMixin:
         """
         return self.scene.draw_debug_frame(T, axis_length, origin_size, axis_radius)
 
-    @gs.assert_built
+    @assert_built
     def draw_debug_frames(self, Ts, axis_length=1.0, origin_size=0.015, axis_radius=0.01):
         """
         Draws 3-axis coordinate frames in the scene for visualization.
@@ -101,7 +102,7 @@ class DrawDebugMixin:
         """
         return self.scene.draw_debug_frames(Ts, axis_length, origin_size, axis_radius)
 
-    @gs.assert_built
+    @assert_built
     def draw_debug_mesh(self, mesh, pos=np.zeros(3), T=None):
         """
         Draws a mesh in the scene for visualization.
@@ -123,7 +124,7 @@ class DrawDebugMixin:
         """
         return self.scene.draw_debug_mesh(mesh, pos, T)
 
-    @gs.assert_built
+    @assert_built
     def draw_debug_sphere(self, pos, radius=0.01, color=(1.0, 0.0, 0.0, 0.5)):
         """
         Draws a sphere in the scene for visualization.
@@ -144,7 +145,7 @@ class DrawDebugMixin:
         """
         return self.scene.draw_debug_sphere(pos, radius, color)
 
-    @gs.assert_built
+    @assert_built
     def draw_debug_spheres(self, poss, radius=0.01, color=(1.0, 0.0, 0.0, 0.5)):
         """
         Draws multiple spheres in the scene for visualization.
@@ -165,7 +166,7 @@ class DrawDebugMixin:
         """
         return self.scene.draw_debug_spheres(poss, radius, color)
 
-    @gs.assert_built
+    @assert_built
     def draw_debug_box(
         self,
         bounds,
@@ -194,7 +195,7 @@ class DrawDebugMixin:
         """
         return self.scene.draw_debug_box(bounds, color, wireframe=wireframe, wireframe_radius=wireframe_radius)
 
-    @gs.assert_built
+    @assert_built
     def draw_debug_points(self, poss, colors=(1.0, 0.0, 0.0, 0.5)):
         """
         Draws points in the scene for visualization.
@@ -213,7 +214,7 @@ class DrawDebugMixin:
         """
         return self.scene.draw_debug_points(poss, colors)
 
-    @gs.assert_built
+    @assert_built
     def draw_debug_path(self, qposs, entity, link_idx=-1, density=0.3, frame_scaling=1.0):
         """
         Draws a planned joint trajectory in the scene for visualization.

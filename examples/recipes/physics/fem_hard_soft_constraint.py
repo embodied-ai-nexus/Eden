@@ -18,9 +18,9 @@ cubes are pinned by a single vertex each, contrasting the two constraint modes:
 - **hard** (kinematic): the stiff cube's vertex 0 is driven exactly along a circular
   path, dragging the elastic body with it.
 
-Vertex constraints require ``FEMOptions(enable_vertex_constraints=True)``, passed via
-``EnvOptions.fem_options``. The initial constraint is set through Eden's wrapped
-``FEMEntity.set_vertex_constraints``; per-step target updates use the Genesis entity's
+Vertex constraints are always available (up to ``FEMOptions.max_vertex_constraints`` per
+environment, 64 by default, set through ``EnvOptions.fem_options``). The initial constraint
+is set through Eden's wrapped ``FEMEntity.set_vertex_constraints``; per-step target updates use the Genesis entity's
 ``update_constraint_targets`` (not yet mirrored on the Eden wrapper — see
 examples/recipes/physics/README.md "Known gaps").
 
@@ -62,10 +62,7 @@ def main():
             num_envs=1,
             sim_dt=dt,
             sim_substeps=substeps,
-            fem_options=gs.options.FEMOptions(
-                use_implicit_solver=args.solver == "implicit",
-                enable_vertex_constraints=True,
-            ),
+            fem_options=gs.options.FEMOptions(use_implicit_solver=args.solver == "implicit"),
         ),
         scene_options=SceneOptions(
             plane=PlaneOptions(),

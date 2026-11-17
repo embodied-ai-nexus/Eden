@@ -52,12 +52,14 @@ from eden.engine._surface import require_members
 from eden.engine.sensors.audio import AudioContext, AudioSource
 
 if TYPE_CHECKING:
-    from genesis.engine.scene import Scene
+    from genesis.engine.simulator import Simulator
     from genesis.engine.sensors.sensor_manager import SensorManager
 
 require_members(
     __name__,
     {
+        # `_validate` is the hook `scene.add_sensor` runs, overridden here: a rename would leave the override dead
+        RigidEntitySensorOptionsMixin: ("_validate",),
         SimpleSensor: ("_update_raw_data", "_get_return_format", "_get_cache_dtype", "build"),
         RigidSolver: ("get_dofs_position", "get_dofs_limit"),
         RigidJoint: ("n_dofs", "dof_start", "link"),
@@ -165,7 +167,7 @@ class PianoAudio(RigidEntitySensorOptionsMixin["PianoAudioSensor"], SimpleSensor
     def model_post_init(self, context: Any) -> None:
         """Reject thresholds that could never work, before anything is built.
 
-        ``entity_idx`` is not checked here: Eden injects it during env build, so :meth:`validate_scene` does that.
+        ``entity_idx`` is not checked here: Eden injects it during env build, so :meth:`_validate` does that.
 
         Parameters
         ----------
@@ -189,13 +191,13 @@ class PianoAudio(RigidEntitySensorOptionsMixin["PianoAudioSensor"], SimpleSensor
                     "ignored: `key_notes` gives each key its own note. Drop lowest_midi_note."
                 )
 
-    def validate_scene(self, scene: "Scene"):
+    def _validate(self, sim: "Simulator"):
         """Require a real rigid entity, and refuse the link attachment this sensor would ignore.
 
         Parameters
         ----------
-        scene : Scene
-            The scene the sensor is being added to.
+        sim : Simulator
+            The simulator of the scene the sensor is being added to.
         """
         if self.entity_idx < 0:
             gs.raise_exception(
@@ -203,7 +205,7 @@ class PianoAudio(RigidEntitySensorOptionsMixin["PianoAudioSensor"], SimpleSensor
                 "`attach_entity_name` on the enclosing eden SensorOptions (or entity_idx directly when adding the "
                 "sensor through Genesis)."
             )
-        super().validate_scene(scene)
+        super()._validate(sim)
         ignored = {name: getattr(self, name) for name in ("link_idx_local", "euler_offset")}
         set_anyway = {name: value for name, value in ignored.items() if any(v != 0 for v in np.atleast_1d(value))}
         if set_anyway:
@@ -242,7 +244,7 @@ class PianoVoice(AudioSource):
         """
         self._solver = solver
         sim = solver._sim
-        B = sim._B
+        B = sim.n_envs_
         K = options.audio_substeps
         n_keys = len(dof_idx)
         n_partials = options.n_partials
@@ -512,8 +514,8 @@ class PianoAudioSensor(SimpleSensor[PianoAudio, AudioContext, PianoAudioMetadata
         tuple[list[int], list[int], int]
             The DOF index of each key, the MIDI note it plays, and the index of the entity's base link.
         """
-        # `PianoAudio.validate_scene` has already established that entity_idx names a rigid entity.
-        entity = self._manager._sim.entities[self._options.entity_idx]
+        # `PianoAudio._validate` has already established that entity_idx names a rigid entity.
+        entity = self._manager.sim.entities[self._options.entity_idx]
         hinges = [joint for joint in entity.joints if joint.n_dofs == 1]
         if not hinges:
             gs.raise_exception(
@@ -552,7 +554,7 @@ class PianoAudioSensor(SimpleSensor[PianoAudio, AudioContext, PianoAudioMetadata
         super().build()
 
         dof_idx, notes, base_link = self._resolve_keys()
-        self._voice = PianoVoice(self._options, self._manager._sim.rigid_solver, dof_idx, notes, base_link)
+        self._voice = PianoVoice(self._options, self._manager.sim.rigid_solver, dof_idx, notes, base_link)
         self._shared_context.register(self._voice, type(self._options).__name__)
 
         sm = self._shared_metadata

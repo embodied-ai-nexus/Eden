@@ -15,7 +15,7 @@ import genesis as gs
 import genesis.utils.geom as gu
 import numpy as np
 import quadrants as qd
-from genesis.utils import array_class
+from genesis.engine.solvers.rigid.data import DynInfo, DynState, RigidInfo
 
 from eden.engine.solvers.mochi.data import V, V_MAT, MochiInfo, MochiState
 from eden.engine.solvers.mochi.lie import skew
@@ -70,7 +70,7 @@ def get_mochi_equalities_info(solver, equalities):
 
 
 def get_mochi_equalities_state(solver, n_equalities):
-    _B = solver._B
+    _B = solver.n_envs_
     n_eq_ = max(1, n_equalities)
     return MochiEqualitiesState(
         c_stage_start=V(dtype=gs.qd_vec6, shape=(n_eq_, _B)),
@@ -113,8 +113,8 @@ def func_joint_coupling(
     i_eq,
     i_b,
     qpos: qd.Tensor,
-    dyn_info: array_class.DynInfo,
-    rigid_info: array_class.RigidInfo,
+    dyn_info: DynInfo,
+    rigid_info: RigidInfo,
     eq_info: MochiEqualitiesInfo,
     rigid_config: qd.template(),
 ):
@@ -149,8 +149,8 @@ def func_equalities_stage_start(
     per_env: qd.template(),
     envs: qd.Tensor,
     n_envs: qd.Tensor,
-    dyn_info: array_class.DynInfo,
-    rigid_info: array_class.RigidInfo,
+    dyn_info: DynInfo,
+    rigid_info: RigidInfo,
     mochi_info: MochiInfo,
     mochi_state: MochiState,
     eq_info: MochiEqualitiesInfo,
@@ -187,8 +187,8 @@ def func_equalities_stage_start(
 
 @qd.kernel
 def kernel_equalities_stage_start(
-    dyn_info: array_class.DynInfo,
-    rigid_info: array_class.RigidInfo,
+    dyn_info: DynInfo,
+    rigid_info: RigidInfo,
     mochi_info: MochiInfo,
     mochi_state: MochiState,
     eq_info: MochiEqualitiesInfo,
@@ -216,9 +216,9 @@ def func_assemble_equalities(
     per_env: qd.template(),
     envs: qd.Tensor,
     n_envs: qd.Tensor,
-    dyn_state: array_class.DynState,
-    dyn_info: array_class.DynInfo,
-    rigid_info: array_class.RigidInfo,
+    dyn_state: DynState,
+    dyn_info: DynInfo,
+    rigid_info: RigidInfo,
     mochi_info: MochiInfo,
     mochi_state: MochiState,
     eq_info: MochiEqualitiesInfo,
@@ -333,9 +333,9 @@ def func_assemble_equalities(
 
 @qd.kernel
 def kernel_assemble_equalities(
-    dyn_state: array_class.DynState,
-    dyn_info: array_class.DynInfo,
-    rigid_info: array_class.RigidInfo,
+    dyn_state: DynState,
+    dyn_info: DynInfo,
+    rigid_info: RigidInfo,
     mochi_info: MochiInfo,
     mochi_state: MochiState,
     eq_info: MochiEqualitiesInfo,

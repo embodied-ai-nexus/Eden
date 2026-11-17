@@ -396,17 +396,27 @@ The scripts in `examples/recipes/mochi/` cover each body type, articulated grasp
 
 ## Solver errors and recovery
 
-A physics solver latches an error flag per environment. Eden splits them in two:
+A physics solver, and the SAP coupler, latch an error flag per environment. Eden splits them in two, by the class of
+the error code (`_RECOVERABLE_ERRORS` in `eden/envs/base.py`):
 
-- **A corrupt state** (a NaN contact force, acceleration or force in the rigid solver, a diverged Mochi solve) is
-  recovered: the termination manager truncates the affected envs, the reward and metric managers drop what their
+- **A corrupt state** (a NaN contact force, acceleration or force in the rigid solver, a diverged Mochi solve, a NaN
+  FEM vertex or MPM particle velocity, an SAP solve stopped at its iteration cap) is recovered: the termination manager truncates the affected envs, the reward and metric managers drop what their
   terms read of them, and the reset clears the flag before Genesis' error check would raise for the whole scene.
   `env.get_solver_error_envs_mask()` returns these envs, `(num_envs,)` bool.
-- **A misconfiguration** (contact capacity overflow, an unsupported collision pair, a NaN gradient under
-  `requires_grad`) is reset and dropped the same way, but the env keeps its flag across the reset, and the next
-  control step raises it (on CUDA, the one after) with Genesis' message naming the option to change.
+- **A misconfiguration** (a contact capacity overflow of any solver or of the SAP coupler, an unsupported collision
+  pair, a NaN gradient under `requires_grad`) is reset and dropped the same way, but the env keeps its flag across
+  the reset, and the next control step raises it (on CUDA, the one after) with Genesis' message naming the option to
+  change. So is every error of a class Eden does not list: a new kind of error raises rather than being reset away.
 
-So a training run survives an occasional exploding env, but not a scene that is too small for its contacts.
+A corrupt state that ends 10 episodes of an env in a row is raised like a misconfiguration, with a note naming the
+envs: the env's initial state causes it (a time step too long for an FEM material, an SAP iteration cap too low), and
+every episode of that env would otherwise end on it. The chance is per env: an env whose episodes the error ends at
+random with a chance p raises with a chance of about p^10 per episode, 1e-10 at p = 0.1 but 1e-3 at p = 0.5. An env
+whose own startup state makes the error likely (a mass or a friction randomized once) thus stops the run.
+
+So a training run survives an occasional exploding env, but not a scene that is too small for its contacts. Any
+other recovered error is silent beyond `Episode_Termination/solver_error`: a rate that does not fall (an SAP solve that
+keeps hitting its cap in some episodes, say) is the hint to raise the option the error names.
 
 ## Throughput switches
 

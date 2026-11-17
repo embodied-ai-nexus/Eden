@@ -19,7 +19,7 @@ import genesis as gs
 import pytest
 import torch
 from torch.overrides import TorchFunctionMode
-from genesis.utils.array_class import ErrorCode
+from genesis.engine.solvers.rigid.data import RigidErrorCode
 from torch.utils._device import _device_constructors
 
 import eden
@@ -1460,7 +1460,7 @@ def test_an_optional_manager_with_no_terms_is_none_and_the_others_always_exist(p
     ids=["missing-factory", "unordered-factory"],
 )
 def test_a_factory_map_that_disagrees_with_the_order_raises_before_building_anything(edit, message):
-    """``_load_managers.__wrapped__`` skips the ``@gs.assert_built`` guard, which is about the scene, not the order."""
+    """``_load_managers.__wrapped__`` skips the ``@assert_built`` guard, which is about the scene, not the order."""
 
     class Edited(RLEnvBase):
         def _manager_factories(self):
@@ -1655,7 +1655,7 @@ def decimated_box_env():
     )
 
 
-def _corrupt_env_1_in_sim_step(env, sim_step: int, code: int = ErrorCode.INVALID_CONTACT_NAN):
+def _corrupt_env_1_in_sim_step(env, sim_step: int, code: int = RigidErrorCode.INVALID_CONTACT_NAN):
     """Register a callback writing, in the given sim step, the flags a rigid kernel sets in env 1's errno (by default
     those of a NaN contact force).
     """
@@ -1711,12 +1711,81 @@ def test_a_solver_error_no_reset_clears_raises_at_the_next_control_step():
         env.step()
 
 
+_K = 10  # eden.envs.base._ERRORED_EPISODES_TO_RAISE
+
+
+@pytest.mark.parametrize(
+    ("flagged_control_steps", "sound_reset_at", "raises"),
+    [
+        (range(_K), None, True),
+        (range(1, 2 * _K, 2), None, True),
+        ([*range(_K - 1), *range(_K, 2 * _K - 1)], _K - 1, False),
+    ],
+    ids=["every-episode-at-its-first-step", "every-episode-at-its-second-step", "one-episode-ending-otherwise"],
+)
+def test_a_recoverable_error_ending_every_episode_of_an_env_raises(
+    decimated_box_env, flagged_control_steps, sound_reset_at, raises
+):
+    """A NaN state the env's own initial state causes (a time step too long for a material) ends every episode, at
+    whatever step it diverges, and would never raise. Env 1 is flagged at the first sim step of the given control
+    steps: once its episodes ended on the error 10 times in a row, the error check raises it, with a note naming the
+    env. An episode ending otherwise (here a reset of env 1 before the given control step) restarts the count, and the
+    resets of the other envs in between (env 2's, at every control step) leave it alone.
+    """
+    from genesis.utils.misc import qd_to_torch
+
+    from eden.envs.base import _ERRORED_EPISODES_TO_RAISE
+
+    assert _ERRORED_EPISODES_TO_RAISE == _K
+    env = decimated_box_env
+    solver = env.rigid_solver
+    flagged, calls = set(flagged_control_steps), []
+
+    def corrupt_env_1() -> None:
+        calls.append(None)
+        control_step, sim_step = divmod(len(calls) - 1, _DECIMATION)
+        if sim_step == 0 and control_step in flagged:
+            errno = qd_to_torch(solver._errno).clone()
+            errno[1] = int(RigidErrorCode.INVALID_CONTACT_NAN)
+            solver._errno.from_torch(errno)
+
+    env.reset()
+    env.register_substep_callback(corrupt_env_1, before=True)
+    env_1, env_2 = (torch.tensor([i], device=env.device) for i in (1, 2))
+    try:
+        for control_step in range(max(flagged) + 1):
+            env.reset(env_1 if control_step == sound_reset_at else env_2)
+            env.step()
+            assert env.termination_manager.solver_errors[1].item() == (control_step in flagged)
+        # On CUDA the check does not wait for the device, so it raises a control step later
+        n_checks = 1 if gs.backend == gs.cpu else 2
+        if raises:
+            with pytest.raises(gs.GenesisException, match="not finite") as error:
+                for _ in range(n_checks):
+                    env.step()
+            assert f"Raised for env(s) 1, whose last {_K} episodes in a row all ended on this error" in "".join(
+                error.value.__notes__
+            )
+        else:
+            for _ in range(n_checks):
+                env.step()
+    finally:
+        env._pre_substep_callbacks.remove(corrupt_env_1)
+        solver.clear_errno()
+
+
 @pytest.mark.parametrize(
     ("code", "message"),
     [
-        (ErrorCode.OVERFLOW_CONTACTS, "Exceeding max number of post-pruning contact points"),
-        (ErrorCode.OVERFLOW_CONTACTS | ErrorCode.INVALID_CONTACT_NAN, "Exceeding max number of post-pruning contact"),
-        (ErrorCode.UNSUPPORTED_COLLISION_PAIR, "Collision between a non-convex geom and a terrain is not supported"),
+        (RigidErrorCode.OVERFLOW_CONTACTS, "Exceeding max number of post-pruning contact points"),
+        (
+            RigidErrorCode.OVERFLOW_CONTACTS | RigidErrorCode.INVALID_CONTACT_NAN,
+            "Exceeding max number of post-pruning contact",
+        ),
+        (
+            RigidErrorCode.UNSUPPORTED_COLLISION_PAIR,
+            "Collision between a non-convex geom and a terrain is not supported",
+        ),
     ],
     ids=["overflow", "overflow-and-nan", "unsupported-pair"],
 )
@@ -1754,7 +1823,7 @@ def test_a_misconfiguration_a_substep_callback_clears_raises_at_the_next_control
             scene_options=SceneOptions(box=BoxOptions(size=(0.1, 0.1, 0.1), default_root_pos=(0.0, 0.0, 0.5))),
         )
     )
-    _corrupt_env_1_in_sim_step(env, 0, ErrorCode.OVERFLOW_CONTACTS)
+    _corrupt_env_1_in_sim_step(env, 0, RigidErrorCode.OVERFLOW_CONTACTS)
     env_1 = torch.tensor([1], device=env.device)
     calls = []
 
@@ -1770,11 +1839,76 @@ def test_a_misconfiguration_a_substep_callback_clears_raises_at_the_next_control
         env.step()
 
 
+def test_every_class_of_error_codes_of_genesis_and_eden_is_sorted_deliberately():
+    """A Genesis bump that adds an error code, or a class of them, changes what a reset may clear: an unknown class keeps
+    every error (it raises), a new code of a known class is a misconfiguration. Either is a decision of the bump.
+    """
+    from genesis.engine.solvers.base_solver import BackwardErrorCode, ErrorCode
+
+    from eden.envs.base import _RECOVERABLE_ERRORS
+
+    known = {
+        cls for cls in ErrorCode.__subclasses__() if cls.__module__.startswith(("genesis.", "eden."))
+    }  # not the classes the tests define
+    assert known == set(_RECOVERABLE_ERRORS)
+    members = {cls.__name__: sorted(code.name for code in cls) for cls in (*_RECOVERABLE_ERRORS, BackwardErrorCode)}
+    assert members == {
+        "RigidErrorCode": [
+            "INVALID_ACC_NAN",
+            "INVALID_CONTACT_NAN",
+            "INVALID_FORCE_NAN",
+            "OVERFLOW_CANDIDATE_CONTACTS",
+            "OVERFLOW_COLLISION_PAIRS",
+            "OVERFLOW_CONTACTS",
+            "UNSUPPORTED_COLLISION_PAIR",
+        ],
+        "MochiErrorCode": ["MOCHI_DIVERGED", "OVERFLOW_MOCHI_CONTACTS", "OVERFLOW_MOCHI_CONTACT_PAIRS"],
+        "FEMErrorCode": ["INVALID_VERTEX_NAN"],
+        "MPMErrorCode": ["INVALID_VELOCITY_NAN"],
+        "SAPErrorCode": ["INVALID_SOLVE", "OVERFLOW_CANDIDATE_CONTACTS", "OVERFLOW_CONTACTS", "OVERFLOW_QUERY_RESULTS"],
+        "BackwardErrorCode": ["INVALID_GRAD_NAN"],
+    }
+
+
+def test_the_errors_eden_reads_are_those_of_the_systems_that_register_any(decimated_box_env):
+    """The coupler of a rigid scene (the legacy one) registers no error; the rigid solver does."""
+    assert decimated_box_env._error_systems() == [decimated_box_env.rigid_solver]
+
+
+def test_each_class_of_error_codes_sorts_its_own_errors_and_an_unknown_class_is_never_reset_away():
+    """Every solver and the coupler number their errors from the same low bits in their own errno, so what a reset may
+    clear is decided per class of codes; a class Eden does not know keeps every error, which then raises.
+    """
+    from enum import auto
+
+    from genesis.engine.couplers.sap_coupler import SAPErrorCode
+    from genesis.engine.solvers.base_solver import BackwardErrorCode, ErrorCode
+
+    from eden.engine.solvers.mochi.error_codes import MochiErrorCode
+    from eden.envs.base import _misconfiguration_errors
+
+    class UnknownErrorCode(ErrorCode):
+        INVALID_STATE_NAN = auto()
+
+    def system(*codes):
+        return type("System", (), {"_error_reports": dict.fromkeys(codes, str)})()
+
+    rigid = system(
+        RigidErrorCode.OVERFLOW_CONTACTS, RigidErrorCode.INVALID_FORCE_NAN, BackwardErrorCode.INVALID_GRAD_NAN
+    )
+    assert _misconfiguration_errors(rigid) == RigidErrorCode.OVERFLOW_CONTACTS | BackwardErrorCode.INVALID_GRAD_NAN
+    mochi = system(MochiErrorCode.OVERFLOW_MOCHI_CONTACTS, MochiErrorCode.MOCHI_DIVERGED)
+    assert _misconfiguration_errors(mochi) == MochiErrorCode.OVERFLOW_MOCHI_CONTACTS
+    sap = system(SAPErrorCode.OVERFLOW_CONTACTS, SAPErrorCode.INVALID_SOLVE)
+    assert _misconfiguration_errors(sap) == SAPErrorCode.OVERFLOW_CONTACTS
+    assert _misconfiguration_errors(system(UnknownErrorCode.INVALID_STATE_NAN)) == UnknownErrorCode.INVALID_STATE_NAN
+
+
 def test_a_flag_no_solver_registered_is_reset_like_a_corrupt_state(decimated_box_env):
     """A bit without a message never raises, so carrying it past the reset would reset its env at every control step."""
     env = decimated_box_env
     unregistered = 1 << 20
-    assert not any(int(code) & unregistered for code in env.rigid_solver._error_messages)
+    assert not any(int(code) & unregistered for code in env.rigid_solver._error_reports)
     corrupt_env_1 = _corrupt_env_1_in_sim_step(env, 0, unregistered)
     try:
         env.reset()

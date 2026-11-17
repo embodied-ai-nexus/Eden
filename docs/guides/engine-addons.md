@@ -56,10 +56,10 @@ seams are the ones any hosted solver meets:
 | Upstream assumes | Hosted as |
 |---|---|
 | `SceneOptions` declares every solver's options and fills their unset `dt` / `gravity` from `SimOptions` | the options class (`MochiOptions`) lives in Eden; `install_mochi_solver` copies the unset values from `scene.options.sim` |
-| `Scene.add_entity` picks a surface's defaults from a closed `isinstance` chain on the material, and `Simulator._add_entity` gives a material to the solver declaring its most derived class | the scene's `add_entity` is bound to route Mochi materials to `add_mochi_entity`, which sets the defaults and calls the solver's `add_entity` |
-| the rasterizer draws the solvers it names, and the visualizer refreshes their visual geoms | those methods are bound on the scene's rasterizer context and visualizer |
-| `Simulator.destroy` frees the arrays of the solvers it can list | the scene's `sim.destroy` is bound to free the solver's arrays after it |
-| `Simulator.reset` restores a solver only while it holds kinematic entities | the scene's `sim.reset` is bound to restore a solver of deformable bodies alone |
+| `Simulator.add_entity` hands an entity spec to the solver its class maps to (`Simulator._solvers_by_spec_cls`, looked up along the MRO), filled at construction | the Mochi specs (`MochiRigidSpec`, `MochiSoftSpec` in `eden/engine/solvers/mochi/specs.py`) are mapped to the solver on that scene's simulator |
+| `Scene.add_entity` resolves a material to the spec of a Genesis solver (`MochiRigid` to `gs.entities.Rigid`) and picks a surface's defaults from a closed `isinstance` chain on the spec | the scene's `add_entity` is bound to route Mochi materials and specs to `add_mochi_entity`, which sets the defaults and calls `Simulator.add_entity` |
+| the rasterizer draws the solvers it names; Genesis places visual geoms in its own forward kinematics | `on_fem` / `update_fem` / `_rigid_solvers` are bound on the scene's rasterizer context, and the solver places its visual geoms itself at the end of each scene step (the pipelined step's kinematics place them at every substep) |
+| `Simulator.get_state` / `reset` / `destroy` take the solvers whose declared data holds their whole state (`is_checkpointable`), whose arrays `destroy` frees | the solver is not checkpointable: the scene's `sim.get_state` / `sim.reset` are bound to save and restore its state alongside, and `MochiSolver.destroy` frees its own arrays |
 | the scene serializer names a material class by its bare `__name__` | a material extending an upstream one takes a name of its own (`MochiRigid`, not `Rigid`), or every rigid scene of the process would load back with it; `scene.export` is bound to raise, since `gs.Scene.load` rebuilds a scene without the hosted solver |
 
 The ray tracer and the batch renderer have no such seam (their per-solver code is inline), so
@@ -103,7 +103,7 @@ class MySensor(SimpleSensor[MyOptions, MyContext, MyMetadata]):
     def _update_raw_data(cls, ctx, meta, raw_data_T): ...   # per step, batched over all instances
 ```
 
-Five things to know before you write one:
+Six things to know before you write one:
 
 - **`_get_return_format()` runs during `__init__`, not `build()`.** The read cache is sized from it, so anything the
   shape depends on has to be resolvable at construction. Eden creates entities before sensors, so resolving names
@@ -112,7 +112,7 @@ Five things to know before you write one:
   state goes in the shared *metadata* (grown one column per sensor in `build()`) and not on `self`.
 - **`entity_idx` is not final at construction.** Eden injects it in `eden.entities.sensor.Sensor.pre_build`, from
   `SensorOptions.attach_entity_name`. A `model_post_init` validator that requires `entity_idx >= 0` would reject every
-  declarative config. Validate it in the options' `validate_scene(scene)`, which `scene.add_sensor` calls after
+  declarative config. Validate it in the options' `_validate(sim)`, which `scene.add_sensor` calls after
   Eden's injection and before constructing the sensor, and name `attach_entity_name` in the error: that is the knob
   the caller set. Genesis' `RigidEntitySensorOptionsMixin` already does this for a sensor bound to a whole entity.
 - **A link-attached sensor must use Genesis' attachment mixins.** Subclass `KinematicSensorMixin` (or
@@ -120,7 +120,9 @@ Five things to know before you write one:
   `Sensor.get_pos()` / `get_quat()` / `set_pos_offset()` read the `offsets_pos` / `offsets_quat` those mixins
   maintain, so a sensor that resolves its own link breaks all three, and gets `pos_offset` wrong unless it rotates it
   into the link's frame. Conversely, an options base brings fields with it: if the sensor has no use for an inherited
-  one (`ActuationAudio` ignores `link_idx_local`), refuse a non-default value in `validate_scene` rather than drop it.
+  one (`ActuationAudio` ignores `link_idx_local`), refuse a non-default value in `_validate` rather than drop it.
+- **A `build()` override calls `super().build()` first.** The base build marks the sensor built, which its guarded
+  accessors read.
 - **Use a `SharedSensorContext` for anything scene-level**, as the next section explains.
 
 ### `SharedSensorContext`: the seam that avoids a fork

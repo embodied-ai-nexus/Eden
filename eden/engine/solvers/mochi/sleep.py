@@ -16,7 +16,7 @@ a contact setting changed on it must reach every body.
 
 import genesis as gs
 import quadrants as qd
-from genesis.utils import array_class
+from genesis.engine.solvers.rigid.data import DynInfo, DynState
 
 from eden.engine.solvers.mochi.data import (
     SOLVE_STATUS,
@@ -84,8 +84,8 @@ def func_update_sleep(
     envs: qd.Tensor,
     n_envs: qd.Tensor,
     n_rigid_entities: int,
-    dyn_state: array_class.DynState,
-    dyn_info: array_class.DynInfo,
+    dyn_state: DynState,
+    dyn_info: DynInfo,
     mochi_info: MochiInfo,
     mochi_state: MochiState,
     soft_info: MochiSoftInfo,
@@ -180,8 +180,8 @@ def func_update_sleep(
 @qd.kernel
 def kernel_update_sleep(
     n_rigid_entities: int,
-    dyn_state: array_class.DynState,
-    dyn_info: array_class.DynInfo,
+    dyn_state: DynState,
+    dyn_info: DynInfo,
     mochi_info: MochiInfo,
     mochi_state: MochiState,
     soft_info: MochiSoftInfo,

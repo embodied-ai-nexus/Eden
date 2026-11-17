@@ -11,8 +11,8 @@ class MochiSoftEntityState:
         self._entity = entity
         self._s_global = s_global
         args = {"dtype": gs.tc_float, "device": gs.device}
-        self.pos = torch.zeros((entity.sim._B, entity.n_vertices, 3), **args)
-        self.vel = torch.zeros((entity.sim._B, entity.n_vertices, 3), **args)
+        self.pos = torch.zeros((entity.solver.n_envs_, entity.n_vertices, 3), **args)
+        self.vel = torch.zeros((entity.solver.n_envs_, entity.n_vertices, 3), **args)
 
     @property
     def entity(self):
@@ -30,10 +30,10 @@ class MochiSolverState:
     """
 
     def __init__(self, solver, s_global):
-        self.scene = solver.scene
+        self.scene = solver.sim.scene
         self._s_global = s_global
 
-        _B = solver._B
+        _B = solver.n_envs_
         args = {"dtype": gs.tc_float, "device": gs.device}
         self.qpos = torch.zeros((_B, solver.n_qs), **args)
         self.dofs_vel = torch.zeros((_B, solver.n_dofs), **args)

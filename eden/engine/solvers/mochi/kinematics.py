@@ -16,10 +16,10 @@ from genesis.engine.solvers.rigid.abd.forward_kinematics import (
     func_COM_root,
     func_forward_kinematics_root,
     func_forward_velocity_root,
-    func_update_geom_aabbs,
     func_update_geoms_root,
 )
-from genesis.utils import array_class
+from genesis.engine.solvers.rigid.data import DynInfo, DynState, RigidInfo
+from genesis.utils.data import eoa
 
 
 @qd.func
@@ -44,9 +44,9 @@ def func_joint_q_end(q_start, joint_type):
 @qd.func
 def func_forward_kinematics_env(
     i_b: int,
-    dyn_state: array_class.DynState,
-    dyn_info: array_class.DynInfo,
-    rigid_info: array_class.RigidInfo,
+    dyn_state: DynState,
+    dyn_info: DynInfo,
+    rigid_info: RigidInfo,
     rigid_config: qd.template(),
     with_velocity: qd.template(),
 ):
@@ -67,11 +67,42 @@ def func_forward_kinematics_env(
         )
 
 
+@qd.func
+def func_update_geom_aabbs(
+    geoms_init_AABB: qd.Tensor, dyn_state: DynState, dyn_info: DynInfo, rigid_config: qd.template()
+):
+    """Fit the world-frame axis-aligned bounding box (AABB) of every geom in every environment.
+
+    A geom of a heterogeneous variant that the environment does not carry gets an empty box, which overlaps nothing and
+    drops out of any union of boxes. Genesis fits each box as it places its geom since
+    https://github.com/Genesis-Embodied-AI/genesis-world/pull/3773, which `func_update_geoms_root` does for the movable
+    geoms alone; this refits every geom at once, as Genesis' own `func_update_geom_aabbs` did until then.
+    """
+    qd.loop_config(serialize=qd.static(rigid_config.para_level < gs.PARA_LEVEL.PARTIAL))
+    for i_g, i_b in qd.ndrange(*dyn_state.geoms.pos.shape, axes=qd.static(eoa(dyn_state.geoms.aabb_min))):
+        i_l = dyn_info.geoms.link_idx[i_g]
+        I_l = [i_l, i_b] if qd.static(rigid_config.batch_links_info) else i_l
+        is_carried = dyn_info.links.geom_start[I_l] <= i_g < dyn_info.links.geom_end[I_l]
+
+        lower = gu.qd_vec3(qd.math.inf)
+        upper = gu.qd_vec3(-qd.math.inf)
+        if is_carried:
+            g_pos = dyn_state.geoms.pos[i_g, i_b]
+            g_quat = dyn_state.geoms.quat[i_g, i_b]
+            for i_corner in qd.static(range(8)):
+                corner_pos = gu.qd_transform_by_trans_quat(geoms_init_AABB[i_g, i_corner], g_pos, g_quat)
+                lower = qd.min(lower, corner_pos)
+                upper = qd.max(upper, corner_pos)
+
+        dyn_state.geoms.aabb_min[i_g, i_b] = lower
+        dyn_state.geoms.aabb_max[i_g, i_b] = upper
+
+
 @qd.kernel(fastcache=True)
 def kernel_update_geom_aabbs(
-    geoms_init_AABB: array_class.GeomsInitAABB,
-    dyn_state: array_class.DynState,
-    dyn_info: array_class.DynInfo,
+    geoms_init_AABB: qd.Tensor,
+    dyn_state: DynState,
+    dyn_info: DynInfo,
     rigid_config: qd.template(),
 ):
     func_update_geom_aabbs(geoms_init_AABB, dyn_state, dyn_info, rigid_config)
@@ -80,10 +111,10 @@ def kernel_update_geom_aabbs(
 @qd.kernel
 def kernel_update_kinematics(
     envs_idx: qd.types.ndarray(),
-    geoms_init_AABB: array_class.GeomsInitAABB,
-    dyn_state: array_class.DynState,
-    dyn_info: array_class.DynInfo,
-    rigid_info: array_class.RigidInfo,
+    geoms_init_AABB: qd.Tensor,
+    dyn_state: DynState,
+    dyn_info: DynInfo,
+    rigid_info: RigidInfo,
     rigid_config: qd.template(),
 ):
     for i_b_ in range(envs_idx.shape[0]):
@@ -96,42 +127,31 @@ def kernel_update_kinematics(
 def func_update_kinematics(
     envs: qd.Tensor,
     n_envs: qd.Tensor,
-    geoms_init_AABB: array_class.GeomsInitAABB,
-    dyn_state: array_class.DynState,
-    dyn_info: array_class.DynInfo,
-    rigid_info: array_class.RigidInfo,
+    dyn_state: DynState,
+    dyn_info: DynInfo,
+    rigid_info: RigidInfo,
     rigid_config: qd.template(),
     with_velocity: qd.template(),
 ):
     """Link poses, motion subspaces, geom poses and bounds of the environments of a list (joint-space velocities on
-    request); one thread per environment for the kinematic chain, one per geom for the bounds.
+    request), one thread per environment.
+
+    Genesis fits the bounding box of every geom it moves as it places it (genesis-world#3773), and a fixed geom does
+    not move within a step, so no refit follows (:func:`func_update_geom_aabbs` refits every geom after a pose is set
+    from outside the step).
     """
     qd.loop_config(serialize=qd.static(rigid_config.para_level < gs.PARA_LEVEL.ALL))
     for i_slot in range(n_envs[None]):
         i_b = envs[i_slot]
         func_forward_kinematics_env(i_b, dyn_state, dyn_info, rigid_info, rigid_config, with_velocity)
-    n_geoms = dyn_state.geoms.pos.shape[0]
-    qd.loop_config(serialize=qd.static(rigid_config.para_level < gs.PARA_LEVEL.PARTIAL))
-    for i_g, i_slot in qd.ndrange(n_geoms, n_envs[None]):
-        i_b = envs[i_slot]
-        g_pos = dyn_state.geoms.pos[i_g, i_b]
-        g_quat = dyn_state.geoms.quat[i_g, i_b]
-        lower = gu.qd_vec3(qd.math.inf)
-        upper = gu.qd_vec3(-qd.math.inf)
-        for i_corner in qd.static(range(8)):
-            corner_pos = gu.qd_transform_by_trans_quat(geoms_init_AABB[i_g, i_corner], g_pos, g_quat)
-            lower = qd.min(lower, corner_pos)
-            upper = qd.max(upper, corner_pos)
-        dyn_state.geoms.aabb_min[i_g, i_b] = lower
-        dyn_state.geoms.aabb_max[i_g, i_b] = upper
 
 
 @qd.kernel(fastcache=True)
 def kernel_update_geoms(
     envs_idx: qd.types.ndarray(),
-    dyn_state: array_class.DynState,
-    dyn_info: array_class.DynInfo,
-    rigid_info: array_class.RigidInfo,
+    dyn_state: DynState,
+    dyn_info: DynInfo,
+    rigid_info: RigidInfo,
     rigid_config: qd.template(),
     force_update_all_geoms: qd.template(),
 ):
@@ -146,3 +166,92 @@ def kernel_update_geoms(
         i_b = qd.cast(envs_idx[i_b_], qd.i32)
         i_l_root = rigid_info.roots_link_idx[i_r]
         func_update_geoms_root(i_l_root, i_b, dyn_state, dyn_info, rigid_info, rigid_config, force_update_all_geoms)
+
+
+# The kinematic state of the tree, which the KinematicSolver read and wrote through these kernels before Genesis moved
+# its state onto checkpoints of its data structs (https://github.com/Genesis-Embodied-AI/genesis-world/pull/3756). The
+# MochiSolver holds state outside those structs (see `MochiSolver.data`), so it keeps reading and writing its own.
+@qd.kernel(fastcache=True)
+def kernel_get_kinematic_state(
+    qpos: qd.types.ndarray(),
+    vel: qd.types.ndarray(),
+    links_pos: qd.types.ndarray(),
+    links_quat: qd.types.ndarray(),
+    dyn_state: DynState,
+    rigid_info: RigidInfo,
+    rigid_config: qd.template(),
+):
+    n_qs = qpos.shape[1]
+    n_dofs = vel.shape[1]
+    n_links = links_pos.shape[1]
+    _B = qpos.shape[0]
+
+    qd.loop_config(serialize=rigid_config.para_level < gs.PARA_LEVEL.PARTIAL)
+    for i_q, i_b in qd.ndrange(n_qs, _B, axes=qd.static(eoa(rigid_info.qpos))):
+        qpos[i_b, i_q] = rigid_info.qpos[i_q, i_b]
+
+    qd.loop_config(serialize=rigid_config.para_level < gs.PARA_LEVEL.PARTIAL)
+    for i_d, i_b in qd.ndrange(n_dofs, _B, axes=qd.static(eoa(dyn_state.dofs.vel))):
+        vel[i_b, i_d] = dyn_state.dofs.vel[i_d, i_b]
+
+    qd.loop_config(serialize=rigid_config.para_level < gs.PARA_LEVEL.PARTIAL)
+    for i_l, i_b in qd.ndrange(n_links, _B, axes=qd.static(eoa(dyn_state.links.pos))):
+        for j in qd.static(range(3)):
+            links_pos[i_b, i_l, j] = dyn_state.links.pos[i_l, i_b][j]
+        for j in qd.static(range(4)):
+            links_quat[i_b, i_l, j] = dyn_state.links.quat[i_l, i_b][j]
+
+
+@qd.kernel(fastcache=True)
+def kernel_set_kinematic_state(
+    envs_idx: qd.types.ndarray(),
+    qpos: qd.types.ndarray(),
+    dofs_vel: qd.types.ndarray(),
+    links_pos: qd.types.ndarray(),
+    links_quat: qd.types.ndarray(),
+    dyn_state: DynState,
+    rigid_info: RigidInfo,
+    rigid_config: qd.template(),
+):
+    n_qs = qpos.shape[1]
+    n_dofs = dofs_vel.shape[1]
+    n_links = links_pos.shape[1]
+    _B = envs_idx.shape[0]
+
+    qd.loop_config(serialize=rigid_config.para_level < gs.PARA_LEVEL.PARTIAL)
+    for i_q, i_b_ in qd.ndrange(n_qs, _B, axes=qd.static(eoa(rigid_info.qpos))):
+        rigid_info.qpos[i_q, envs_idx[i_b_]] = qpos[envs_idx[i_b_], i_q]
+
+    qd.loop_config(serialize=rigid_config.para_level < gs.PARA_LEVEL.PARTIAL)
+    for i_d, i_b_ in qd.ndrange(n_dofs, _B, axes=qd.static(eoa(dyn_state.dofs.vel))):
+        dyn_state.dofs.vel[i_d, envs_idx[i_b_]] = dofs_vel[envs_idx[i_b_], i_d]
+
+    qd.loop_config(serialize=rigid_config.para_level < gs.PARA_LEVEL.PARTIAL)
+    for i_l, i_b_ in qd.ndrange(n_links, _B, axes=qd.static(eoa(dyn_state.links.pos))):
+        for j in qd.static(range(3)):
+            dyn_state.links.pos[i_l, envs_idx[i_b_]][j] = links_pos[envs_idx[i_b_], i_l, j]
+        for j in qd.static(range(4)):
+            dyn_state.links.quat[i_l, envs_idx[i_b_]][j] = links_quat[envs_idx[i_b_], i_l, j]
+
+
+@qd.kernel(fastcache=True)
+def kernel_update_vgeoms(dyn_state: DynState, dyn_info: DynInfo, rigid_config: qd.template()):
+    """Place every visual geom on its link, which the rasterizer draws.
+
+    Genesis places the visual geoms within its forward kinematics since
+    https://github.com/Genesis-Embodied-AI/genesis-world/pull/3831, and its visualizer no longer asks a solver to
+    refresh them before drawing. The single-kernel steps of the MochiSolver run their own kinematics, which place the
+    geoms alone, so the solver places the visual geoms after them (see `MochiSolver._update_vgeoms`).
+    """
+    qd.loop_config(serialize=qd.static(rigid_config.para_level < gs.PARA_LEVEL.PARTIAL))
+    for i_g, i_b in qd.ndrange(*dyn_state.vgeoms.pos.shape, axes=qd.static(eoa(dyn_state.vgeoms.pos))):
+        i_l = dyn_info.vgeoms.link_idx[i_g]
+        I_l = [i_l, i_b] if qd.static(rigid_config.batch_links_info) else i_l
+        # The visual geoms of a heterogeneous variant the environment does not carry stay where they are
+        if dyn_info.links.vgeom_start[I_l] <= i_g < dyn_info.links.vgeom_end[I_l]:
+            dyn_state.vgeoms.pos[i_g, i_b], dyn_state.vgeoms.quat[i_g, i_b] = gu.qd_transform_pos_quat_by_trans_quat(
+                dyn_info.vgeoms.pos[i_g],
+                dyn_info.vgeoms.quat[i_g],
+                dyn_state.links.pos[i_l, i_b],
+                dyn_state.links.quat[i_l, i_b],
+            )

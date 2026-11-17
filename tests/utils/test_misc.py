@@ -524,8 +524,12 @@ def test_a_log_line_shows_the_version_and_a_short_commit(provenance, shown):
             "saved 0.1.0 (aaaaaaa), running 0.1.0 (bbbbbbb)",
         ),
         ({"version": "0.1.0", "commit": "a" * 40}, {"version": "0.2.0", "commit": "a" * 40}, None),
-        # A clone and an install: only the versions compare.
-        ({"version": "0.1.0", "commit": "a" * 40}, {"version": "0.1.0", "commit": None}, None),
+        # A clone and an install at one version: a version does not advance between releases, so they may differ.
+        (
+            {"version": "0.1.0", "commit": "a" * 40},
+            {"version": "0.1.0", "commit": None},
+            "saved 0.1.0 (aaaaaaa), running 0.1.0",
+        ),
         (
             {"version": "0.1.0", "commit": None},
             {"version": "0.2.0", "commit": "b" * 40},
@@ -537,8 +541,18 @@ def test_a_log_line_shows_the_version_and_a_short_commit(provenance, shown):
         ("c246ebd90d66c2c6f2e2e95f53ffa322a2176f33", {"version": "0.2.0", "commit": None}, None),
     ],
 )
-def test_a_saved_record_differs_by_commit_when_both_have_one_else_by_version(saved, current, change):
+def test_a_saved_record_differs_by_commit_else_by_version_and_a_lone_commit_differs(saved, current, change):
     assert describe_provenance_change(saved, current) == change
+
+
+def test_a_commit_and_the_release_it_still_calls_itself_differ():
+    """genesis-world's commit c27c6ca4 reports 1.4.6, as the release does: a config saved under the release must not
+    load on the commit as if nothing changed.
+    """
+    release, commit = {"version": "1.4.6", "commit": None}, {"version": "1.4.6", "commit": "c" * 40}
+    assert describe_provenance_change(release, commit) == "saved 1.4.6, running 1.4.6 (ccccccc)"
+    assert describe_provenance_change(commit, release) == "saved 1.4.6 (ccccccc), running 1.4.6"
+    assert describe_provenance_change(release, release) is None
 
 
 def _installed(monkeypatch, site: Path, direct_url: dict | None = None) -> str:
@@ -563,6 +577,27 @@ def test_a_git_install_records_the_commit_it_was_installed_from(tmp_path, monkey
     url = {"url": "https://github.com/x/y", "vcs_info": {"vcs": "git", "commit_id": _SHA, "requested_revision": "main"}}
     name = _installed(monkeypatch, tmp_path, url)
     assert get_package_provenance(name) == {"version": "1.2.3", "commit": _SHA}
+
+
+@pytest.mark.parametrize(
+    ("url", "commit"),
+    [
+        (f"https://github.com/x/y/archive/{_SHA}.tar.gz", _SHA),
+        (f"https://github.com/x/y/archive/{_SHA}.zip", _SHA),
+        # A branch or a tag names no fixed commit, and a short hash is ambiguous
+        ("https://github.com/x/y/archive/refs/heads/main.tar.gz", None),
+        ("https://github.com/x/y/archive/v1.4.6.tar.gz", None),
+        (f"https://github.com/x/y/archive/{_SHA[:7]}.tar.gz", None),
+        (f"https://example.com/x/y/archive/{_SHA}.tar.gz", None),
+    ],
+    ids=["tar", "zip", "branch", "tag", "short", "not-github"],
+)
+def test_an_install_from_a_github_commit_archive_records_that_commit(tmp_path, monkeypatch, url, commit):
+    """How a uv checkout pins Genesis between its releases (pyproject.toml's ``[tool.uv.sources]``): the version alone
+    would read as the release the commit came after.
+    """
+    name = _installed(monkeypatch, tmp_path, {"url": url, "archive_info": {}})
+    assert get_package_provenance(name) == {"version": "1.2.3", "commit": commit}
 
 
 def test_an_editable_install_records_its_checkouts_head_or_none_outside_a_repository(tmp_path, monkeypatch):

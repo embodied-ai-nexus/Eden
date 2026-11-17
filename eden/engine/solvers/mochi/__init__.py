@@ -11,7 +11,8 @@ physics library (Apache-2.0; the derived modules say so in their headers). The m
 copied with their imports made absolute and pointed here. What the fork added to Genesis itself lives in this package
 instead, or in :mod:`~eden.engine.solvers.mochi.hosting`:
 
-- ``MochiOptions`` (:mod:`.options`), the ``Rod`` morph (:mod:`.morphs`), the solver and entity states
+- ``MochiOptions`` (:mod:`.options`), the entity specs ``MochiRigidSpec`` and ``MochiSoftSpec`` (:mod:`.specs`), the
+  ``Rod`` morph (:mod:`.morphs`), the solver and entity states
   (:mod:`.states`), the solver's error codes (:mod:`.error_codes`), a trilinear SDF value-and-gradient helper
   (:mod:`.sdf`) and the embedded render-mesh fields of a visual geom (:mod:`.vis_geom`);
 - a ``kernel_update_geoms`` that places the geoms of a root after an articulated body (:mod:`.kinematics`; the upstream
@@ -21,8 +22,10 @@ instead, or in :mod:`~eden.engine.solvers.mochi.hosting`:
   does), and raising the kinematic kernels' parallelization level;
 - the serializer fix of https://github.com/Kashu7100/Genesis/pull/31, as the class name ``MochiRigid``
   (:mod:`.materials.rigid`);
-- in :mod:`.hosting`: constructing the solver for a scene, adding its entities, drawing them with the rasterizer,
-  resetting a scene of deformable bodies alone, and freeing the solver's arrays with its scene.
+- in :mod:`.hosting`: constructing the solver for a scene, adding its entities, drawing them with the rasterizer, and
+  saving and restoring its state with the scene's;
+- the kinematic-state, geom-box and visual-geom kernels Genesis dropped or folded into its own kinematics
+  (:mod:`.kinematics`), and freeing the solver's arrays in ``MochiSolver.destroy``.
 
 Left out: ``gs.init(cpu_threads=...)`` (set ``QD_NUM_THREADS`` instead), the interactive viewer's wait for a starved
 draw thread (a generic viewer fix, not a Mochi one), and the RayTracer path (refused by
@@ -37,6 +40,8 @@ from typing import Any
 _LAZY_NAMES = {
     "MochiEntity": "eden.engine.solvers.mochi.mochi_entity",
     "MochiOptions": "eden.engine.solvers.mochi.options",
+    "MochiRigidSpec": "eden.engine.solvers.mochi.specs",
+    "MochiSoftSpec": "eden.engine.solvers.mochi.specs",
     "MochiSoftEntity": "eden.engine.solvers.mochi.mochi_soft_entity",
     "MochiSolver": "eden.engine.solvers.mochi.mochi_solver",
     "Rod": "eden.engine.solvers.mochi.morphs",

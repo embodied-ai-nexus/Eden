@@ -58,6 +58,19 @@ jobs:
           prerelease=$(uv run --no-project --with packaging python -c "from packaging.version import Version; print(str(Version('$version').is_prerelease).lower())")
           echo "Version $version (pre-release: $prerelease)"
           echo "prerelease=$prerelease" >> "$GITHUB_OUTPUT"
+      # `[tool.uv.sources]`, and `[tool.uv]`'s override-dependencies / constraint-dependencies, change what uv
+      # installs for Eden's own project, while the wheel's users resolve its published metadata from the index: a
+      # wheel published then installs what the checkout never ran. Genesis is pinned to an unreleased commit that way between its
+      # releases (see pyproject.toml), so publishing waits for the release. The script's docstring lists what it
+      # refuses (a swapping source of a published requirement, any direct reference in those settings, any override of
+      # a published requirement) and what it leaves alone.
+      - name: The checkout installs nothing the wheel would not
+        run: |
+          swapped=$(uv run --no-project --with packaging python .github/scripts/swapped_requirements.py)
+          if [ -n "$swapped" ]; then
+            echo "::error::pyproject.toml makes uv install these otherwise than the published wheel would: $swapped. For a published requirement, pin a released version in [project] and drop its source entry or override; for another package, drop its direct reference (name @ url) or turn it into a version bound."
+            exit 1
+          fi
       # A fresh checkout, so no stale build/ or *.egg-info can leak into the distributions.
       - name: Build
         run: uv build

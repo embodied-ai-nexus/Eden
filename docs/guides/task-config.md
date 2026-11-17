@@ -477,8 +477,25 @@ as `__main__`), the load raises `ImportError` naming it, rather than falling bac
 the installed Eden or Genesis differs from the one that saved the file, the load logs a warning.
 
 Loading validates every Eden options object, so an unknown or stale field, or a term parameter that no
-longer exists, raises at load and names the class and the field. Embedded Genesis options are not
-validated: an unknown key on one is dropped with a warning.
+longer exists, raises at load and names the class and the field. Embedded Genesis options (`fem_options`,
+`coupler_options`, a surface) are not validated, but an unknown key on one raises too. A config saved before a
+Genesis upgrade carries every field its options had then, at their defaults too, so a field the upgrade retired
+(`FEMOptions.enable_vertex_constraints`, `SPHOptions.pressure_solver`, the SAP coupler's contact types) stops the
+load rather than run physics other than the saved ones. The error says what became of the field and how to migrate
+it, where in the config it sits, and how the saving Eden and Genesis differ from the installed ones. A Genesis option without class tags
+(a hand-written override) is read as the class its field calls for; when a subclass declares the rejected keys, the
+error names the `_option_module_` / `_option_class_` to add.
+
+A checkpoint whose `config.json` holds a retired field cannot be replayed as trained on the installed Genesis. To
+reproduce the run, use the Eden and Genesis that saved it (the `_meta` of `config.json` records both; the error
+names those that differ from the installed ones). To run it under the current physics, copy `config.json`, remove
+the retired fields from the copy and pass it with `--config` and the `--task` it was saved from: a full `--config`
+replaces the checkpoint's own config, leaving that file as the record of the run, but it is built as a fresh run, so
+training-only settings such as CUDA graphs are not reset for the replay. Removing the fields does not make a trained
+policy behave as it did: what they set is gone.
+
+An options class that retires a field declares it in `_retired_fields`, mapped to the migration, as a term retires a
+parameter in `_retired_params`; Genesis classes are noted in `eden/options/_retired_fields.py`.
 
 !!! note "The subclass rule is not task identity"
     `load_from_file`'s "this class or a subclass" is right for a library loader, but several tasks

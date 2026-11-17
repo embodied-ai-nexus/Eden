@@ -9,7 +9,6 @@ Gotcha: this module uses ``@qd.kernel`` (Quadrants/Taichi), so
 kernel's type annotations into strings and break kernel compilation.
 """
 
-import functools
 import math
 
 import genesis as gs
@@ -22,6 +21,10 @@ import trimesh
 from genesis.utils.geom import trans_quat_to_T
 
 from genesis.engine.entities.base_entity import Entity
+from genesis.engine.solvers.rigid.collider import func_broad_phase
+from genesis.engine.solvers.rigid.collider.data import ColliderInfo, ColliderState
+from genesis.engine.solvers.rigid.constraint.data import ConstraintState
+from genesis.engine.solvers.rigid.data import DynInfo, DynState, RigidInfo
 from eden.utils.geom import transform_by_R
 from eden.utils.mesh import (
     SupportData,
@@ -34,47 +37,44 @@ from eden.utils.mesh import (
     sample_polygon_grid,
 )
 
+#: How far ``RigidEntity.place_on_to`` inflates every geom and link box before its broad-phase query, in meters: an
+#: object resting this close to the support (``place_on_to`` leaves one 1 mm above it) still holds its place.
+PLACEMENT_MARGIN = 0.01
 
-@functools.cache
-def _broad_phase_kernel():
-    """Return a kernel that runs Genesis' collider broad phase on its own.
+
+@qd.kernel
+def _kernel_broad_phase(
+    dyn_state: DynState,
+    collider_state: ColliderState,
+    constraint_state: ConstraintState,
+    dyn_info: DynInfo,
+    rigid_info: RigidInfo,
+    collider_info: ColliderInfo,
+    rigid_config: qd.template(),
+    collider_config: qd.template(),
+    errno: qd.Tensor,
+):
+    """Run Genesis' collider broad phase on its own.
 
     ``func_broad_phase`` is a ``@qd.func`` since https://github.com/Genesis-Embodied-AI/Genesis/pull/3433, so it can
-    only be called from inside a kernel, and Genesis' own kernel around it (``kernel_detection``) first recomputes
-    the geom AABBs, which would discard the inflated ones :meth:`SupportSurfaceMixin._kernel_update_aabbs` writes.
-    Built on first use because ``genesis.utils.array_class`` requires ``gs.init()`` to have run. The argument list
-    mirrors the ``func_broad_phase`` call in Genesis' ``func_detection``.
+    only be called from inside a kernel, and Genesis' own kernel around it (``kernel_detection``) runs the narrow phase
+    too. The broad phase pairs the links whose boxes overlap, which it computes from their boxes in the link frame
+    (``links_init_aabb_*``), then the geoms of those links whose world boxes (``dyn_state.geoms.aabb_*``) and, for two
+    convex geoms, rest-pose boxes moved with them (``geoms_init_AABB``) overlap. ``RigidEntity.place_on_to`` inflates
+    all three by ``PLACEMENT_MARGIN`` and puts them back afterwards. The argument list mirrors the ``func_broad_phase``
+    call in Genesis' ``func_detection``.
     """
-    from genesis.engine.solvers.rigid.collider import func_broad_phase
-    from genesis.utils import array_class
-
-    @qd.kernel
-    def kernel_broad_phase(
-        geoms_init_AABB: array_class.GeomsInitAABB,
-        dyn_state: array_class.DynState,
-        collider_state: array_class.ColliderState,
-        constraint_state: array_class.ConstraintState,
-        dyn_info: array_class.DynInfo,
-        rigid_info: array_class.RigidInfo,
-        collider_info: array_class.ColliderInfo,
-        rigid_config: qd.template(),
-        collider_config: qd.template(),
-        errno: qd.Tensor,
-    ):
-        func_broad_phase(
-            geoms_init_AABB,
-            dyn_state,
-            collider_state,
-            constraint_state,
-            dyn_info,
-            rigid_info,
-            collider_info,
-            rigid_config,
-            collider_config,
-            errno,
-        )
-
-    return kernel_broad_phase
+    func_broad_phase(
+        dyn_state,
+        collider_state,
+        constraint_state,
+        dyn_info,
+        rigid_info,
+        collider_info,
+        rigid_config,
+        collider_config,
+        errno,
+    )
 
 
 @qd.data_oriented
@@ -518,9 +518,11 @@ class SupportSurfaceMixin:
         geoms_aabb_min: qd.Tensor,
         geoms_aabb_max: qd.Tensor,
     ):
-        """Recompute every geom's world AABB from its init AABB, inflated by 0.01 m per side, before the broad phase."""
-        qd.loop_config(serialize=self.solver.sim._para_level < gs.PARA_LEVEL.PARTIAL)
-        for i_g, i_b in qd.ndrange(self.solver.n_geoms, self.solver._B):
+        """Recompute every geom's world AABB from its rest-pose box, which ``RigidEntity.place_on_to`` inflated by
+        ``PLACEMENT_MARGIN`` per side, before the broad phase.
+        """
+        qd.loop_config(serialize=self.solver.sim.para_level < gs.PARA_LEVEL.PARTIAL)
+        for i_g, i_b in qd.ndrange(self.solver.n_geoms, self.solver.n_envs_):
             pos = geoms_pos[i_g, i_b]
             quat = geoms_quat[i_g, i_b]
 
@@ -535,8 +537,8 @@ class SupportSurfaceMixin:
                 lower = qd.min(lower, corner_pos)
                 upper = qd.max(upper, corner_pos)
 
-            geoms_aabb_min[i_g, i_b] = lower - 0.01
-            geoms_aabb_max[i_g, i_b] = upper + 0.01
+            geoms_aabb_min[i_g, i_b] = lower
+            geoms_aabb_max[i_g, i_b] = upper
 
     @qd.kernel
     def _kernel_filter_detection(
@@ -552,9 +554,10 @@ class SupportSurfaceMixin:
         geoms_aabb_min: qd.Tensor,
         geoms_aabb_max: qd.Tensor,
     ):
-        qd.loop_config(serialize=self.solver.sim._para_level < gs.PARA_LEVEL.ALL)
-        for i_b in range(self.solver._B):
-            for i_pair in range(n_broad_pairs[i_b]):
+        qd.loop_config(serialize=self.solver.sim.para_level < gs.PARA_LEVEL.ALL)
+        for i_b in range(self.solver.n_envs_):
+            # The count goes on past the capacity, which `place_on_to` raises for once this is done
+            for i_pair in range(qd.min(n_broad_pairs[i_b], broad_collision_pairs.shape[0])):
                 i_ga = broad_collision_pairs[i_pair, i_b][0]
                 i_gb = broad_collision_pairs[i_pair, i_b][1]
 

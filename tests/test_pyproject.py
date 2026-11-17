@@ -132,6 +132,93 @@ def test_the_published_metadata_holds_no_direct_reference():
     assert direct == set()
 
 
+def test_the_genesis_source_init_names_is_the_one_a_checkout_installs():
+    """`eden.init` names `GENESIS_SOURCE` when the installed genesis-world predates Eden's; a checkout's `uv sync`
+    installs `[tool.uv.sources]`. Both go together once a genesis-world release holds the commit.
+    """
+    from eden.utils.distribution import GENESIS_SOURCE
+
+    assert GENESIS_SOURCE == _genesis_source()
+    # The commit the source names still calls itself the release the requirement pins (see pyproject.toml), which is
+    # what lets uv substitute it: a moved pin and a stale requirement would fail to resolve.
+    (genesis,) = (req for req in _published_requirements() if req.name == "genesis-world")
+    assert str(genesis.specifier).startswith("==")
+    # The docs that tell a pip user which Genesis to install name the same source
+    written = {
+        (path.relative_to(REPO_ROOT).as_posix(), url)
+        for path in _doc_sources()
+        for url in re.findall(
+            r"https://github\.com/Genesis-Embodied-AI/genesis-world/archive/[^\s\"'`)]+", path.read_text()
+        )
+    }
+    assert {url for _, url in written} <= {GENESIS_SOURCE}, sorted(written)
+
+
+def test_the_release_refuses_what_the_checkout_installs_and_the_wheel_would_not():
+    """`.github/scripts/swapped_requirements.py`, which `release.yml` runs before building: a source of a requirement
+    the wheel publishes would leave the wheel installing what the checkout never ran.
+    """
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location(
+        "swapped", REPO_ROOT / ".github" / "scripts" / "swapped_requirements.py"
+    )
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    pyproject = {
+        "project": {"dependencies": ["Genesis_World==1.4.6"], "optional-dependencies": {"x": ["foo>=1"]}},
+        "dependency-groups": {"dev": ["bar"]},
+        "tool": {"uv": {"sources": {"genesis-world": {"url": "u"}, "foo": {"git": "g"}, "bar": {"path": "p"}}}},
+    }
+    assert module.swapped_requirements(pyproject) == ["foo ([tool.uv.sources])", "genesis-world ([tool.uv.sources])"]
+    # An index source installs the same release from another index (torch from a CUDA index)
+    pyproject["tool"]["uv"]["sources"] = {"foo": [{"index": "cu128", "marker": "sys_platform == 'linux'"}]}
+    assert module.swapped_requirements(pyproject) == []
+    assert module.swapped_requirements({"project": {"dependencies": ["a"]}}) == []
+    # A direct reference in an override or a constraint, published or transitive (`quadrants` comes with Genesis);
+    # a version bound there resolves from the index, as the wheel does
+    pyproject["tool"]["uv"]["override-dependencies"] = [
+        "trimesh[easy]>=5,<6",
+        "Genesis-World @ https://example.com/g.tgz",
+    ]
+    pyproject["tool"]["uv"]["constraint-dependencies"] = ["quadrants @ git+https://example.com/q", "numpy<3"]
+    assert module.swapped_requirements(pyproject) == [
+        "Genesis-World ([tool.uv] override-dependencies)",
+        "quadrants ([tool.uv] constraint-dependencies)",
+    ]
+    # An override replaces the requirement the wheel publishes, at any version; a constraint only narrows it
+    pyproject["tool"]["uv"]["override-dependencies"] = ["genesis-world==1.5.0", "trimesh<6"]
+    pyproject["tool"]["uv"]["constraint-dependencies"] = ["foo<2"]
+    assert module.swapped_requirements(pyproject) == ["genesis-world ([tool.uv] override-dependencies)"]
+    # A direct reference to a published requirement in a group: `uv sync` installs the `dev` group by default. One to
+    # a package the wheel does not name is left alone (the `*-git` groups), and so is an included group's entry
+    del pyproject["tool"]["uv"]["override-dependencies"]
+    pyproject["dependency-groups"] = {
+        "dev": ["pytest", {"include-group": "x-git"}, "genesis-world @ https://example.com/g.tgz"],
+        "x-git": ["televuer @ git+https://example.com/t"],
+    }
+    pyproject["tool"]["uv"]["dev-dependencies"] = ["foo @ file:///foo"]
+    assert module.swapped_requirements(pyproject) == [
+        "foo ([tool.uv] dev-dependencies)",
+        "genesis-world (group 'dev')",
+    ]
+    # Today's pin: the release waits for a genesis-world release holding the commit
+    assert module.swapped_requirements(_load_pyproject()) == (
+        ["genesis-world ([tool.uv.sources])"] if _genesis_source() else []
+    )
+
+
+def _genesis_source() -> str | None:
+    source = _load_pyproject().get("tool", {}).get("uv", {}).get("sources", {}).get("genesis-world")
+    if source is None:
+        return None
+    assert isinstance(source, dict) and "url" in source, (
+        f"The genesis-world source in pyproject.toml is {source!r}; these tests and "
+        "eden.utils.distribution.GENESIS_SOURCE expect one archive `url`. Update both for the new shape."
+    )
+    return source["url"]
+
+
 def test_each_unpublished_requirement_is_the_pin_its_extras_git_group_installs():
     """The install command printed outside a checkout and the group a checkout syncs must name the same commit."""
     from eden.utils.distribution import UNPUBLISHED_REQUIREMENTS

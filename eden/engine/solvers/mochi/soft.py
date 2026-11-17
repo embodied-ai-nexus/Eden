@@ -21,7 +21,8 @@ import genesis as gs
 import genesis.utils.geom as gu
 import numpy as np
 import quadrants as qd
-from genesis.utils import array_class
+from genesis.engine.solvers.rigid.data import DynInfo, DynState
+from genesis.utils.sdf import SDFInfo
 
 from eden.engine.solvers.mochi.articulated import (
     func_jacobian_times_dofs,
@@ -1077,8 +1078,8 @@ def func_soft_broadphase(
     per_env: qd.template(),
     envs: qd.Tensor,
     n_envs: qd.Tensor,
-    dyn_state: array_class.DynState,
-    dyn_info: array_class.DynInfo,
+    dyn_state: DynState,
+    dyn_info: DynInfo,
     mochi_info: MochiInfo,
     mochi_state: MochiState,
     contact_state: MochiContactState,
@@ -1136,8 +1137,8 @@ def func_soft_broadphase(
 
 @qd.kernel
 def kernel_soft_broadphase(
-    dyn_state: array_class.DynState,
-    dyn_info: array_class.DynInfo,
+    dyn_state: DynState,
+    dyn_info: DynInfo,
     mochi_info: MochiInfo,
     mochi_state: MochiState,
     contact_state: MochiContactState,
@@ -1169,9 +1170,9 @@ def func_soft_contact_eval(
     per_env: qd.template(),
     envs: qd.Tensor,
     n_envs: qd.Tensor,
-    dyn_state: array_class.DynState,
-    dyn_info: array_class.DynInfo,
-    sdf_info: array_class.SDFInfo,
+    dyn_state: DynState,
+    dyn_info: DynInfo,
+    sdf_info: SDFInfo,
     mochi_info: MochiInfo,
     mochi_state: MochiState,
     soft_info: MochiSoftInfo,
@@ -1328,9 +1329,9 @@ def func_soft_contact_eval(
 
 @qd.kernel
 def kernel_soft_contact_eval(
-    dyn_state: array_class.DynState,
-    dyn_info: array_class.DynInfo,
-    sdf_info: array_class.SDFInfo,
+    dyn_state: DynState,
+    dyn_info: DynInfo,
+    sdf_info: SDFInfo,
     mochi_info: MochiInfo,
     mochi_state: MochiState,
     soft_info: MochiSoftInfo,
@@ -1375,7 +1376,7 @@ def func_soft_pairs_to_blocks(
     per_env: qd.template(),
     envs: qd.Tensor,
     n_envs: qd.Tensor,
-    dyn_state: array_class.DynState,
+    dyn_state: DynState,
     mochi_info: MochiInfo,
     mochi_state: MochiState,
     soft_state: MochiSoftState,
@@ -1423,7 +1424,7 @@ def func_soft_pairs_to_blocks(
 
 @qd.kernel
 def kernel_soft_pairs_to_blocks(
-    dyn_state: array_class.DynState,
+    dyn_state: DynState,
     mochi_info: MochiInfo,
     mochi_state: MochiState,
     soft_state: MochiSoftState,
@@ -1461,8 +1462,8 @@ def func_soft_point_displacement(
     i_b,
     r_b,
     src: qd.Tensor,
-    dyn_state: array_class.DynState,
-    dyn_info: array_class.DynInfo,
+    dyn_state: DynState,
+    dyn_info: DynInfo,
     rigid_config: qd.template(),
 ):
     """Displacement of the collider point (lever arm r_b about the link origin) per the link's ancestor increments."""
@@ -1479,8 +1480,8 @@ def func_soft_point_force_add(
     r_b,
     g,
     dst: qd.Tensor,
-    dyn_state: array_class.DynState,
-    dyn_info: array_class.DynInfo,
+    dyn_state: DynState,
+    dyn_info: DynInfo,
     rigid_config: qd.template(),
 ):
     """Accumulate dst += J_b^T (g, r_b x g): a force g at the collider point as a wrench on the link's ancestor
@@ -1569,7 +1570,7 @@ def func_assemble_attachments(
     per_env: qd.template(),
     envs: qd.Tensor,
     n_envs: qd.Tensor,
-    dyn_state: array_class.DynState,
+    dyn_state: DynState,
     mochi_state: MochiState,
     soft_info: MochiSoftInfo,
     soft_state: MochiSoftState,
@@ -1624,7 +1625,7 @@ def func_assemble_attachments(
 
 @qd.kernel
 def kernel_assemble_attachments(
-    dyn_state: array_class.DynState,
+    dyn_state: DynState,
     mochi_state: MochiState,
     soft_info: MochiSoftInfo,
     soft_state: MochiSoftState,
@@ -1659,8 +1660,8 @@ def func_soft_matvec(
     n_envs: qd.Tensor,
     src: qd.Tensor,
     dst: qd.Tensor,
-    dyn_state: array_class.DynState,
-    dyn_info: array_class.DynInfo,
+    dyn_state: DynState,
+    dyn_info: DynInfo,
     mochi_info: MochiInfo,
     mochi_state: MochiState,
     soft_info: MochiSoftInfo,
@@ -1914,8 +1915,8 @@ def func_soft_condense_dense(
     per_env: qd.template(),
     envs: qd.Tensor,
     n_envs: qd.Tensor,
-    dyn_state: array_class.DynState,
-    dyn_info: array_class.DynInfo,
+    dyn_state: DynState,
+    dyn_info: DynInfo,
     mochi_state: MochiState,
     soft_info: MochiSoftInfo,
     soft_state: MochiSoftState,
@@ -2116,8 +2117,8 @@ def func_soft_condense_dense(
 
 @qd.kernel
 def kernel_soft_condense_dense(
-    dyn_state: array_class.DynState,
-    dyn_info: array_class.DynInfo,
+    dyn_state: DynState,
+    dyn_info: DynInfo,
     mochi_state: MochiState,
     soft_info: MochiSoftInfo,
     soft_state: MochiSoftState,
@@ -2633,7 +2634,7 @@ def func_tet_tree_refit(
 def func_query_point(
     i_q,
     i_b,
-    dyn_state: array_class.DynState,
+    dyn_state: DynState,
     mochi_info: MochiInfo,
     mochi_state: MochiState,
     soft_info: MochiSoftInfo,
@@ -2698,8 +2699,8 @@ def func_soft_collider_eval(
     per_env: qd.template(),
     envs: qd.Tensor,
     n_envs: qd.Tensor,
-    dyn_state: array_class.DynState,
-    dyn_info: array_class.DynInfo,
+    dyn_state: DynState,
+    dyn_info: DynInfo,
     mochi_info: MochiInfo,
     mochi_state: MochiState,
     soft_info: MochiSoftInfo,
@@ -2918,8 +2919,8 @@ def func_soft_collider_eval(
 
 @qd.kernel
 def kernel_soft_collider_eval(
-    dyn_state: array_class.DynState,
-    dyn_info: array_class.DynInfo,
+    dyn_state: DynState,
+    dyn_info: DynInfo,
     mochi_info: MochiInfo,
     mochi_state: MochiState,
     soft_info: MochiSoftInfo,
@@ -3875,8 +3876,8 @@ def func_pc_collider_eval(
     per_env: qd.template(),
     envs: qd.Tensor,
     n_envs: qd.Tensor,
-    dyn_state: array_class.DynState,
-    dyn_info: array_class.DynInfo,
+    dyn_state: DynState,
+    dyn_info: DynInfo,
     mochi_info: MochiInfo,
     mochi_state: MochiState,
     soft_info: MochiSoftInfo,
@@ -4079,8 +4080,8 @@ def func_pc_collider_eval(
 
 @qd.kernel
 def kernel_pc_collider_eval(
-    dyn_state: array_class.DynState,
-    dyn_info: array_class.DynInfo,
+    dyn_state: DynState,
+    dyn_info: DynInfo,
     mochi_info: MochiInfo,
     mochi_state: MochiState,
     soft_info: MochiSoftInfo,

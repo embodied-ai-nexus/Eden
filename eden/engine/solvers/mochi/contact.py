@@ -12,7 +12,8 @@ import genesis as gs
 import genesis.utils.geom as gu
 import numpy as np
 import quadrants as qd
-from genesis.utils import array_class
+from genesis.engine.solvers.rigid.data import DynInfo, DynState
+from genesis.utils.sdf import SDFInfo
 
 from eden.engine.solvers.mochi.colliders import query_collider, query_collider_lower_bound
 from eden.engine.solvers.mochi.contact_utils import collision_response, func_mat3_to_sym6, func_sym6_to_mat3
@@ -173,7 +174,7 @@ def func_zero_assembly(
     per_env: qd.template(),
     envs: qd.Tensor,
     n_envs: qd.Tensor,
-    dyn_state: array_class.DynState,
+    dyn_state: DynState,
     mochi_state: MochiState,
     contact_state: MochiContactState,
     hit_readback: MochiHitReadback,
@@ -225,7 +226,7 @@ def func_zero_assembly(
 
 @qd.kernel
 def kernel_zero_assembly(
-    dyn_state: array_class.DynState,
+    dyn_state: DynState,
     mochi_state: MochiState,
     contact_state: MochiContactState,
     hit_readback: MochiHitReadback,
@@ -260,8 +261,8 @@ def func_conservative_bounds(
     per_env: qd.template(),
     envs: qd.Tensor,
     n_envs: qd.Tensor,
-    dyn_state: array_class.DynState,
-    dyn_info: array_class.DynInfo,
+    dyn_state: DynState,
+    dyn_info: DynInfo,
     mochi_info: MochiInfo,
     mochi_state: MochiState,
     contact_state: MochiContactState,
@@ -314,8 +315,8 @@ def func_conservative_bounds(
 
 @qd.kernel
 def kernel_conservative_bounds(
-    dyn_state: array_class.DynState,
-    dyn_info: array_class.DynInfo,
+    dyn_state: DynState,
+    dyn_info: DynInfo,
     mochi_info: MochiInfo,
     mochi_state: MochiState,
     contact_state: MochiContactState,
@@ -341,8 +342,8 @@ def func_broadphase_pairs(
     per_env: qd.template(),
     envs: qd.Tensor,
     n_envs: qd.Tensor,
-    dyn_state: array_class.DynState,
-    dyn_info: array_class.DynInfo,
+    dyn_state: DynState,
+    dyn_info: DynInfo,
     mochi_info: MochiInfo,
     mochi_state: MochiState,
     contact_state: MochiContactState,
@@ -406,8 +407,8 @@ def func_broadphase_pairs(
 
 @qd.kernel
 def kernel_broadphase_pairs(
-    dyn_state: array_class.DynState,
-    dyn_info: array_class.DynInfo,
+    dyn_state: DynState,
+    dyn_info: DynInfo,
     mochi_info: MochiInfo,
     mochi_state: MochiState,
     contact_state: MochiContactState,
@@ -437,9 +438,9 @@ def func_contact_eval_sample(
     i_la,
     i_lb,
     i_gb,
-    dyn_state: array_class.DynState,
-    dyn_info: array_class.DynInfo,
-    sdf_info: array_class.SDFInfo,
+    dyn_state: DynState,
+    dyn_info: DynInfo,
+    sdf_info: SDFInfo,
     mochi_info: MochiInfo,
     mochi_state: MochiState,
     contact_state: MochiContactState,
@@ -573,9 +574,9 @@ def func_contact_eval(
     per_env: qd.template(),
     envs: qd.Tensor,
     n_envs: qd.Tensor,
-    dyn_state: array_class.DynState,
-    dyn_info: array_class.DynInfo,
-    sdf_info: array_class.SDFInfo,
+    dyn_state: DynState,
+    dyn_info: DynInfo,
+    sdf_info: SDFInfo,
     mochi_info: MochiInfo,
     mochi_state: MochiState,
     contact_state: MochiContactState,
@@ -693,9 +694,9 @@ def func_contact_eval(
 
 @qd.kernel
 def kernel_contact_eval(
-    dyn_state: array_class.DynState,
-    dyn_info: array_class.DynInfo,
-    sdf_info: array_class.SDFInfo,
+    dyn_state: DynState,
+    dyn_info: DynInfo,
+    sdf_info: SDFInfo,
     mochi_info: MochiInfo,
     mochi_state: MochiState,
     contact_state: MochiContactState,
@@ -734,8 +735,8 @@ def func_pairs_to_blocks(
     per_env: qd.template(),
     envs: qd.Tensor,
     n_envs: qd.Tensor,
-    dyn_state: array_class.DynState,
-    dyn_info: array_class.DynInfo,
+    dyn_state: DynState,
+    dyn_info: DynInfo,
     mochi_info: MochiInfo,
     mochi_state: MochiState,
     contact_state: MochiContactState,
@@ -817,8 +818,8 @@ def func_pairs_to_blocks(
 
 @qd.kernel
 def kernel_pairs_to_blocks(
-    dyn_state: array_class.DynState,
-    dyn_info: array_class.DynInfo,
+    dyn_state: DynState,
+    dyn_info: DynInfo,
     mochi_info: MochiInfo,
     mochi_state: MochiState,
     contact_state: MochiContactState,

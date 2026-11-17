@@ -22,6 +22,8 @@ explicit under every integrator.
 
 from __future__ import annotations
 
+import itertools
+import math
 import weakref
 from dataclasses import dataclass, field
 from functools import cached_property
@@ -32,12 +34,13 @@ import genesis.utils.geom as gu
 import numpy as np
 import torch
 from genesis.typing import UnitVec4FType, Vec2FType, Vec3FType
+from genesis.utils.misc import qd_from_torch, qd_to_torch
 
 import eden as en
 from eden.utils.contacts import aggregate_grouped_contacts, resolve_local_link_idx
 from eden.entities.base import Entity
 from eden.entities.dofs_default_mixin import DofDefaultsMixin
-from eden.entities.support_mixin import SupportSurfaceMixin
+from eden.entities.support_mixin import PLACEMENT_MARGIN, SupportSurfaceMixin, _kernel_broad_phase
 from eden.options.actuators import ActuatorSpecOptions
 from eden.options.entities import RESOLVED_DOF_TENSOR_FIELD_NAMES, RIGID_CONSTRAINT_FIELD_NAMES
 from eden.utils.misc import (
@@ -45,6 +48,8 @@ from eden.utils.misc import (
     DofRuns,
     as_genesis_control_index,
     as_genesis_index,
+    assert_built,
+    assert_unbuilt,
     env_indices,
     is_env_mask,
     sanitize_envs_idx,
@@ -385,8 +390,6 @@ def _dofs_pos_plan(entity: RigidEntity, dofs_idx_local) -> _DofsPosPlan:
 def _qpos0(solver) -> torch.Tensor:
     qpos0 = _QPOS0.get(solver)
     if qpos0 is None:
-        from genesis.utils.misc import qd_to_torch
-
         qpos0 = _QPOS0[solver] = qd_to_torch(solver.qpos0, transpose=True, copy=not gs.use_zerocopy)
     return qpos0
 
@@ -632,7 +635,7 @@ class RigidEntity(Entity, SupportSurfaceMixin, DofDefaultsMixin):
     # ----------------------------------- post_build -------------------------------------
     # ------------------------------------------------------------------------------------
 
-    @gs.assert_built
+    @assert_built
     def _parse_dofs_info(
         self,
         dofs_info: dict[str, float | Vec2FType],
@@ -650,7 +653,7 @@ class RigidEntity(Entity, SupportSurfaceMixin, DofDefaultsMixin):
 
         return info.to(self.device)
 
-    @gs.assert_built
+    @assert_built
     def _init_dofs_property(
         self,
         attr_name: str,
@@ -991,7 +994,7 @@ class RigidEntity(Entity, SupportSurfaceMixin, DofDefaultsMixin):
         """
         return self._env.rigid_solver._integrator == gs.integrator.Euler
 
-    @gs.assert_built
+    @assert_built
     def post_build(self) -> None:
         # First: every step below branches on ``is_fixed_base``, so a declaration the asset
         # contradicts must stop the build before any of them runs on the wrong branch.
@@ -1718,7 +1721,7 @@ class RigidEntity(Entity, SupportSurfaceMixin, DofDefaultsMixin):
     # ------------------------------------ attach ----------------------------------------
     # ------------------------------------------------------------------------------------
 
-    @gs.assert_unbuilt
+    @assert_unbuilt
     def attach_to(
         self,
         entity: Entity,
@@ -1907,7 +1910,7 @@ class RigidEntity(Entity, SupportSurfaceMixin, DofDefaultsMixin):
     # ------------------------------- find named indices ---------------------------------
     # ------------------------------------------------------------------------------------
 
-    @gs.assert_built
+    @assert_built
     def find_named_dofs_idx_local(
         self,
         dofs_name: list[str] | str,
@@ -1956,7 +1959,7 @@ class RigidEntity(Entity, SupportSurfaceMixin, DofDefaultsMixin):
 
         return res_dofs_name, res_dofs_idx
 
-    @gs.assert_built
+    @assert_built
     def find_free_base_dofs_idx_local(self, joint_name: str | None = None) -> list[int]:
         """Find the six local DOF indices of the floating base's free joint.
 
@@ -1998,7 +2001,7 @@ class RigidEntity(Entity, SupportSurfaceMixin, DofDefaultsMixin):
             f"Pass None to auto-detect the free base joint by type."
         )
 
-    @gs.assert_built
+    @assert_built
     def find_named_links_idx_local(
         self,
         links_name: list[str] | str,
@@ -3780,12 +3783,9 @@ class RigidEntity(Entity, SupportSurfaceMixin, DofDefaultsMixin):
         ``collider_config``, ``_errno``). Isolated here so a Genesis collider refactor breaks
         this one named method rather than the body of :meth:`place_on_to`. The argument list
         mirrors the ``func_broad_phase`` call in Genesis' ``func_detection``; the kernel that wraps it
-        lives in :func:`eden.entities.support_mixin._broad_phase_kernel`.
+        lives in :func:`eden.entities.support_mixin._kernel_broad_phase`.
         """
-        from eden.entities.support_mixin import _broad_phase_kernel
-
-        _broad_phase_kernel()(
-            self.solver.geoms_init_AABB,
+        _kernel_broad_phase(
             self.solver.dyn_state,
             self.solver.collider.collider_state,
             self.solver.constraint_solver.constraint_state,
@@ -3829,41 +3829,83 @@ class RigidEntity(Entity, SupportSurfaceMixin, DofDefaultsMixin):
         )
         # NOTE: force to update collision state
         entity.solver.collider.clear()
-        # NOTE: update slightly bigger AABBs
-        entity._kernel_update_aabbs(
-            self.solver.dyn_state.geoms.pos,
-            self.solver.dyn_state.geoms.quat,
-            self.solver.geoms_init_AABB,
-            self.solver.dyn_state.geoms.aabb_min,
-            self.solver.dyn_state.geoms.aabb_max,
-        )
-        # NOTE: use broad phase to check the occupied space on the support surface
-        self._run_broad_phase()
-        tensor = torch.zeros(
-            (self._env.num_envs, self.solver.n_entities, 2, 3),
-            dtype=gs.tc_float,
-            device=self.device,
-        )
-        tensor[..., 0, :] = torch.inf
-        tensor[..., 1, :] = -torch.inf
-        valid_mask = torch.zeros(
-            (self._env.num_envs, self.solver.n_entities),
-            dtype=gs.tc_int,
-            device=self.device,
-        )
-        # NOTE: get set of AABBs that is already occupied
-        entity._kernel_filter_detection(
-            tensor,
-            valid_mask,
-            self.solver.collider.collider_state.n_broad_pairs,
-            self.solver.collider.collider_state.broad_collision_pairs,
-            self.solver.dyn_info.geoms.link_idx,
-            self.solver.dyn_info.links.entity_idx,
-            self.solver.dyn_info.entities.geom_start,
-            self.solver.dyn_info.entities.geom_end,
-            self.solver.dyn_state.geoms.aabb_min,
-            self.solver.dyn_state.geoms.aabb_max,
-        )
+        # The query inflates every box the broad phase reads (see `_kernel_broad_phase`): the rest-pose boxes of the
+        # geoms and of the links, which nothing refits, and the live geom boxes, which the solver refits only as it
+        # places a movable geom. They are put back once it is done, with the error flags the query may set.
+        geoms_state, rigid_info = self.solver.dyn_state.geoms, self.solver.rigid_info
+        collider_info = self.solver.collider.collider_info
+        saved = [
+            (array, qd_to_torch(array, copy=True))
+            for array in (
+                rigid_info.geoms_init_AABB,
+                collider_info.links_init_aabb_min,
+                collider_info.links_init_aabb_max,
+                geoms_state.aabb_min,
+                geoms_state.aabb_max,
+                self.solver._errno,
+            )
+        ]
+        try:
+            # NOTE: update slightly bigger AABBs
+            corners, links_min, links_max = (values for _, values in saved[:3])
+            lower, upper = corners.amin(dim=1) - PLACEMENT_MARGIN, corners.amax(dim=1) + PLACEMENT_MARGIN
+            # Corner 0 is the lower one and corner 7 the upper one, which the oriented-box test reads
+            is_upper = torch.tensor(list(itertools.product((False, True), repeat=3)), device=corners.device)
+            qd_from_torch(rigid_info.geoms_init_AABB, torch.where(is_upper, upper[:, None], lower[:, None]))
+            # A geom box inflated in its own frame reaches up to sqrt(3) margins further in its link's
+            qd_from_torch(collider_info.links_init_aabb_min, links_min - math.sqrt(3.0) * PLACEMENT_MARGIN)
+            qd_from_torch(collider_info.links_init_aabb_max, links_max + math.sqrt(3.0) * PLACEMENT_MARGIN)
+            if gs.backend == gs.metal:  # a torch write must land before the next kernel reads it (see `qd_from_torch`)
+                torch.mps.synchronize()
+            entity._kernel_update_aabbs(
+                self.solver.dyn_state.geoms.pos,
+                self.solver.dyn_state.geoms.quat,
+                self.solver.rigid_info.geoms_init_AABB,
+                self.solver.dyn_state.geoms.aabb_min,
+                self.solver.dyn_state.geoms.aabb_max,
+            )
+            # NOTE: use broad phase to check the occupied space on the support surface
+            self._run_broad_phase()
+            n_broad_pairs = qd_to_torch(self.solver.collider.collider_state.n_broad_pairs)[envs_idx]
+            capacity = self.solver.collider.collider_state.broad_collision_pairs.shape[0]
+            if (n_broad_pairs > capacity).any():
+                raise RuntimeError(
+                    f"Cannot place '{self.name}' on '{entity.name}': the broad phase found "
+                    f"{int(n_broad_pairs.max())} candidate geom pairs within {PLACEMENT_MARGIN} m of each other in an "
+                    f"env, over its capacity of {capacity}, so the free space on the support is unknown. Raise "
+                    "EnvOptions.multiplier_collision_broad_phase (or max_collision_pairs): the capacity is their "
+                    "product, capped at the number of geom pairs that can collide."
+                )
+            tensor = torch.zeros(
+                (self._env.num_envs, self.solver.n_entities, 2, 3),
+                dtype=gs.tc_float,
+                device=self.device,
+            )
+            tensor[..., 0, :] = torch.inf
+            tensor[..., 1, :] = -torch.inf
+            valid_mask = torch.zeros(
+                (self._env.num_envs, self.solver.n_entities),
+                dtype=gs.tc_int,
+                device=self.device,
+            )
+            # NOTE: get set of AABBs that is already occupied
+            entity._kernel_filter_detection(
+                tensor,
+                valid_mask,
+                self.solver.collider.collider_state.n_broad_pairs,
+                self.solver.collider.collider_state.broad_collision_pairs,
+                self.solver.dyn_info.geoms.link_idx,
+                self.solver.dyn_info.links.entity_idx,
+                self.solver.dyn_info.entities.geom_start,
+                self.solver.dyn_info.entities.geom_end,
+                self.solver.dyn_state.geoms.aabb_min,
+                self.solver.dyn_state.geoms.aabb_max,
+            )
+        finally:
+            for array, values in saved:
+                qd_from_torch(array, values)
+            if gs.backend == gs.metal:  # a torch write must land before the next kernel reads it (see `qd_from_torch`)
+                torch.mps.synchronize()
         AABBs = tensor[:, (valid_mask == 1).any(dim=0)]
         AABBs = AABBs[envs_idx]
 

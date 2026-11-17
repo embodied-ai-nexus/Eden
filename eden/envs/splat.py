@@ -14,7 +14,6 @@ broadcast (``SplatCamera``) or per-env (``BatchSplatCamera``) is a *camera* choi
 from __future__ import annotations
 
 import torch
-import genesis as gs
 from genesis.options.renderers import RendererOptions
 
 from eden.envs.base import EnvBase, RLEnvBase
@@ -37,7 +36,7 @@ from eden.options import (
 )
 from eden.utils.batch_splat_renderer import BatchSplatRenderer, SplatEntry
 from eden.utils.configs import EdenSplatConfig, EdenSplatRLConfig
-from eden.utils.misc import resolve_named_entity
+from eden.utils.misc import assert_unbuilt, resolve_named_entity
 
 
 class _SplatEnvMixin:
@@ -202,7 +201,7 @@ class _SplatEnvMixin:
         per_env_pose = bool(camera_options.attach_entity_name) or bool(camera_options.follow_entity_name)
         return BatchSplatCamera if per_env_pose else SplatCamera
 
-    @gs.assert_unbuilt
+    @assert_unbuilt
     def _setup_cameras(self):
         self.cameras: dict[str, object] = {}
         for camera_name in self.cameras_options.keys():

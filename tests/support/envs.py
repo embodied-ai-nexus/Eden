@@ -52,9 +52,9 @@ def control_force_over_one_step(env: EnvBase, entity) -> torch.Tensor:
     step still counts on the scene's clock.
     """
     solver = env.rigid_solver
-    state = solver.get_state()
+    qpos, dofs_vel = solver.get_qpos(), solver.get_dofs_velocity()
     env.scene.step()
     force = entity.get_dofs_control_force()
-    solver.set_qpos(state.qpos)
-    solver.set_dofs_velocity(state.dofs_vel)
+    solver.set_qpos(qpos)
+    solver.set_dofs_velocity(dofs_vel)
     return force

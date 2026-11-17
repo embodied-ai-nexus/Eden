@@ -49,7 +49,9 @@ classifiers = [
 ]
 dependencies = [
   # A released version, never a git reference: PyPI rejects a direct reference in the published metadata, and
-  # .github/workflows/release.yml refuses to publish one. 1.4.6 is genesis-world commit 3975e557 (tag v1.4.6).
+  # .github/workflows/release.yml refuses to publish one. Eden currently runs on an unreleased genesis-world commit,
+  # which `[tool.uv.sources]` below substitutes for this requirement in a checkout; that commit still calls itself
+  # 1.4.6, so the requirement holds for both. See the note there before releasing.
   "genesis-world==1.4.6",
   "torch>=2.9.2",
   "torchvision>=0.19.0",
@@ -409,3 +411,16 @@ required-environments = [
   "sys_platform == 'darwin' and platform_machine == 'arm64'",
   "sys_platform == 'win32' and platform_machine == 'AMD64'"
 ]
+
+# genesis-world at an unreleased commit of its main branch, 74 commits past v1.4.6 (commit 3975e557): Eden's engine
+# addons build on the solver API that commit has (the data structs that replaced `genesis.utils.array_class`, solvers
+# built from the simulator alone), so released 1.4.6 no longer runs Eden. The commit still calls itself 1.4.6, which
+# satisfies the requirement above. GitHub's archive of the commit rather than a `git` source: uv clones a git source
+# with every submodule, recursively, which for genesis-world is LuisaRender and its dependencies, none of which the
+# Python package holds.
+# uv applies a source wherever it builds Eden from source (`uv sync`, `uv pip install -e .`, a path or git dependency
+# of another project); pip ignores it, and a built wheel's metadata keeps
+# `genesis-world==1.4.6` above, which installs the 1.4.6 release, so .github/workflows/release.yml refuses to publish
+# while this table names genesis-world. Once a genesis-world release holds this commit, pin it above and drop the table.
+[tool.uv.sources]
+genesis-world = {url = "https://github.com/Genesis-Embodied-AI/genesis-world/archive/c27c6ca4e79183225d0fe2d25baa61db63ff127f.tar.gz"}

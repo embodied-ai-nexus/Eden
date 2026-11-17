@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
+from types import MappingProxyType
 from typing import ClassVar, Literal, TypeAlias
 
 import genesis as gs
@@ -283,6 +285,12 @@ class MPMSandMaterialOptions(MaterialOptions):
     _genesis_material_cls: ClassVar[type] = gs.materials.MPM.Sand
 
 
+_WCSPH_EQUATION_OF_STATE = (
+    "the equation of state of the WCSPH solver, which Genesis removed (it solves SPH with DFSPH alone now); nothing"
+    " replaces it: remove from the config"
+)
+
+
 class SPHLiquidMaterialOptions(MaterialOptions):
     """Options for an SPH liquid material.
 
@@ -290,15 +298,13 @@ class SPHLiquidMaterialOptions(MaterialOptions):
     ----------
     rho: float, optional
         The rest density (kg/m^3) the material tends to maintain in equilibrium. Default is 1000.
-    stiffness: float, optional
-        State stiffness (N/m^2): how pressure increases with compression. Default is 50000.0.
-    exponent: float, optional
-        State exponent: how nonlinearly pressure scales with density. Larger values mean a stiffer response to
-        compression. Default is 7.0.
     mu: float, optional
         The viscosity of the liquid. Default is 0.005.
-    gamma: float, optional
-        The surface tension of the liquid: how strongly the material "clumps" together at boundaries. Default is 0.01.
+    surface_tension: float, optional
+        The surface tension of the liquid (N/m), which pulls a curved free surface toward its center of curvature, so
+        droplets round up and jets break into drops. 0 leaves the free surface unconstrained. Default is 0.0728, water
+        at 20 degrees Celsius. Genesis solves SPH with DFSPH alone since genesis-world#3778, which dropped the
+        equation-of-state ``stiffness`` and ``exponent``; this replaced the unitless ``gamma`` in genesis-world#3755.
     sampler: str, optional
         Particle sampler ('pbs', 'regular', 'random'). 'pbs' is only supported on Linux x86. Default is 'regular':
         SPH is sensitive to the initial particle distribution, which sets the initial density and pressure fields.
@@ -307,13 +313,21 @@ class SPHLiquidMaterialOptions(MaterialOptions):
     """
 
     rho: float = 1000.0
-    stiffness: float = 50_000.0
-    exponent: float = 7.0
     mu: float = 0.005
-    gamma: float = 0.01
+    surface_tension: float = 0.0728
     sampler: str = "regular"
 
     _genesis_material_cls: ClassVar[type] = gs.materials.SPH.Liquid
+    _retired_fields: ClassVar[Mapping[str, str]] = MappingProxyType(
+        {
+            # genesis-world#3778
+            "stiffness": _WCSPH_EQUATION_OF_STATE,
+            "exponent": _WCSPH_EQUATION_OF_STATE,
+            # genesis-world#3755
+            "gamma": "Genesis replaced this unitless cohesion with 'surface_tension', in N/m (default 0.0728, water),"
+            " which a gamma value does not convert to; remove from the config",
+        }
+    )
 
 
 class PBDLiquidMaterialOptions(MaterialOptions):

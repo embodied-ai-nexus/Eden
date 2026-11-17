@@ -52,7 +52,7 @@ def memory_report(solver):
     import torch
     from quadrants.lang.util import to_numpy_type
 
-    _B = solver._B
+    _B = solver.n_envs_
 
     def tensor_bytes(tensor):
         if hasattr(tensor, "get_member_field") and hasattr(tensor, "keys"):

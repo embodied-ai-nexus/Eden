@@ -10,7 +10,7 @@ environment, and the direct linear solver factorizes the Newton system island by
 
 import genesis as gs
 import quadrants as qd
-from genesis.utils import array_class
+from genesis.engine.solvers.rigid.data import DynInfo
 
 from eden.engine.solvers.mochi.data import (
     COLLIDER_TYPE,
@@ -58,7 +58,7 @@ def func_build_islands(
     per_env: qd.template(),
     envs: qd.Tensor,
     n_envs: qd.Tensor,
-    dyn_info: array_class.DynInfo,
+    dyn_info: DynInfo,
     mochi_info: MochiInfo,
     mochi_state: MochiState,
     contact_state: MochiContactState,
@@ -205,7 +205,7 @@ def func_build_islands(
 
 @qd.kernel
 def kernel_build_islands(
-    dyn_info: array_class.DynInfo,
+    dyn_info: DynInfo,
     mochi_info: MochiInfo,
     mochi_state: MochiState,
     contact_state: MochiContactState,

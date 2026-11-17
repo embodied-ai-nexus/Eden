@@ -9,7 +9,7 @@
 
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.12%2B-blue.svg)](pyproject.toml)
-[![Genesis 1.4.6](https://img.shields.io/badge/genesis-1.4.6-ff69b4.svg)](https://github.com/Genesis-Embodied-AI/genesis-world/releases/tag/v1.4.6)
+[![Genesis c27c6ca](https://img.shields.io/badge/genesis-1.4.6%2B74%20(c27c6ca)-ff69b4.svg)](https://github.com/Genesis-Embodied-AI/genesis-world/commit/c27c6ca4e79183225d0fe2d25baa61db63ff127f)
 [![Docs](https://img.shields.io/badge/docs-online-brightgreen.svg)](https://embodied-ai-nexus.github.io/Eden)
 
 [Installation](#installation) · [Quick start](#quick-start) · [Gallery](#gallery) · [Documentation](https://embodied-ai-nexus.github.io/Eden) · [Citation](#citation)

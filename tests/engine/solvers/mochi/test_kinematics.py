@@ -3,7 +3,7 @@
 import genesis as gs
 import numpy as np
 import quadrants as qd
-from genesis.utils import array_class
+from genesis.engine.solvers.rigid.data import DynInfo
 
 from eden.engine.solvers.mochi.kinematics import func_joint_q_end
 
@@ -33,7 +33,7 @@ _EVERY_JOINT_TYPE_MJCF = """
 
 
 @qd.kernel
-def _kernel_joints_q_end(dyn_info: array_class.DynInfo, q_end: qd.types.ndarray()):
+def _kernel_joints_q_end(dyn_info: DynInfo, q_end: qd.types.ndarray()):
     for i_j in range(q_end.shape[0]):
         q_end[i_j] = func_joint_q_end(dyn_info.joints.q_start[i_j], dyn_info.joints.type[i_j])
 

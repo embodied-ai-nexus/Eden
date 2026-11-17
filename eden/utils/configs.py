@@ -18,12 +18,14 @@ save/load is therefore type-preserving and idempotent (pinned by
 ``tests/utils/test_configs.py::test_every_task_config_round_trips_to_a_fixed_point``).
 """
 
+import difflib
 import json
 import os
+import sys
 from enum import Enum
 from functools import lru_cache
 from types import UnionType
-from typing import Union, get_args, get_origin
+from typing import Any, Union, get_args, get_origin
 
 import numpy as np
 import torch
@@ -50,7 +52,8 @@ from eden.options import (
     TerminationManagerOptions,
 )
 from eden.options._metadata import OPTION_METADATA_KEYS
-from eden.options.options import ConfigurableOptions, Options
+from eden.options._retired_fields import retired_fields
+from eden.options.options import ConfigurableOptions, Options, unknown_fields_message
 from eden.options.splat import NyxSplatOptions, SplatOptions
 from eden.utils.misc import describe_provenance_change, get_eden_provenance, get_package_provenance
 
@@ -426,15 +429,35 @@ class EdenConfig(ConfigurableOptions):
             # class tags, so it resolves the saved class the same way.
             meta = {key: data.pop(key, None) for key in (*OPTION_METADATA_KEYS, "eden_version", "genesis_version")}
 
-        options = to_options(data, cls._saved_config_class(meta, source))
-
-        for key, name, current in (
-            ("eden", "Eden", get_eden_provenance()),
-            ("genesis", "Genesis", get_package_provenance("genesis-world")),
-        ):
-            if change := describe_provenance_change(meta.get(key), current):
-                en.logger.warning(f"{name} differs from the one that saved {source}: {change}.")
-
+        changes = {
+            name: change
+            for key, name, current in (
+                ("eden", "Eden", get_eden_provenance()),
+                ("genesis", "Genesis", get_package_provenance("genesis-world")),
+            )
+            if (change := describe_provenance_change(meta.get(key), current))
+        }
+        saved_cls = cls._saved_config_class(meta, source)
+        try:
+            options = to_options(data, saved_cls)
+        except Exception as e:
+            # Where it sits, and the version change that most likely retired it: the warnings below never print.
+            notes = [f"{name} {change}." for name, change in changes.items()]
+            if getattr(e, "_eden_retired_fields", False):
+                if len(retired := _retired_fields_in(data)) > 1:
+                    # The load stops at the first option it fails on; the copy needs every one removed at once
+                    notes.append(f"Retired fields across {source}: {'; '.join(retired)}.")
+                notes.append(
+                    "Removing a retired field runs the config under the current physics, not the saved run's, so a"
+                    " policy trained under the saved config may behave otherwise: to reproduce the run, use the Eden and"
+                    " Genesis that saved it. To run it under the current ones, copy the file, remove the retired fields"
+                    f" from the copy and pass it with --config and the --task it was saved from, keeping {source} as the"
+                    " record of the run (see docs/guides/task-config.md)."
+                )
+            _note_where_loading_raised(e, f"loading {source}", notes)
+            raise
+        for name, change in changes.items():
+            en.logger.warning(f"{name} differs from the one that saved {source}: {change}.")
         return options
 
     @classmethod
@@ -501,11 +524,31 @@ class EdenConfig(ConfigurableOptions):
         EdenConfig
             A new config instance based on this config with overrides applied.
         """
-        return self.with_overrides_from_dict(read_config_file(path))
+        return self.with_overrides_from_dict(read_config_file(path), source=path)
 
-    def with_overrides_from_dict(self, data_dict: dict) -> "EdenConfig":
+    def with_overrides_from_dict(self, data_dict: dict, source: str = "an override") -> "EdenConfig":
+        """Create a new config by merging a partial config onto this one.
+
+        The current config is not modified.
+
+        Parameters
+        ----------
+        data_dict: dict
+            The partial config, in the saved layout.
+        source: str
+            Where it came from (a file, ``--override #2``), named in the note a rejected value raises with.
+
+        Returns
+        -------
+        EdenConfig
+            A new config instance based on this config with overrides applied.
+        """
         merged = _deep_merge(self._to_dict(), data_dict)
-        return to_options(merged, self)
+        try:
+            return to_options(merged, self)
+        except Exception as e:
+            _note_where_loading_raised(e, f"applying {source} to {type(self).__name__}", [])
+            raise
 
     def _to_dict(self) -> dict:
         """Export config to a dict with option metadata (same shape as saved JSON/YAML)."""
@@ -880,9 +923,9 @@ def _option_class_from_annotation(annotation, value=None):
         if len(option_classes) == 1:
             return option_classes[0]
         # Multiple candidates (e.g. `SurfaceOptions | Surface`): a dict with class
-        # metadata is handled before we get here, so this is a legacy metadata-less
-        # dict. Disambiguate by field-key overlap — the class whose declared fields
-        # best cover the dict's keys.
+        # metadata is handled before we get here, so this one carries none (a
+        # hand-written override). Disambiguate by field-key overlap — the class whose
+        # declared fields best cover the dict's keys.
         if len(option_classes) > 1 and isinstance(value, dict):
             keys = set(value) - set(OPTION_METADATA_KEYS)
             return max(option_classes, key=lambda cls: len(keys & set(getattr(cls, "model_fields", {}))))
@@ -925,13 +968,39 @@ def _coerce_dict_key(key, key_type):
     return key
 
 
-def _construct_options(options_cls: type[Options], value: dict):
+def _construct_options(options_cls: type[Options], value: dict, *, recorded: bool):
+    """Rebuild ``options_cls`` from its saved ``value``; ``recorded`` tells whether the save names the class (its
+    type-recovery tags) or the loader inferred it from the field's annotation (see :func:`_safe_model_construct`).
+
+    An exception raised for a field carries the field's path in the config (:func:`_config_path`), so the load can
+    say where the offending value sits (``env_options.fem_options``).
+    """
     option_dict = {}
     for key, item in value.items():
         field_info = options_cls.model_fields.get(key)
         field_annotation = field_info.annotation if field_info is not None else None
-        option_dict[key] = _convert_value(item, field_annotation)
-    return _safe_model_construct(options_cls, option_dict)
+        option_dict[key] = _convert_at(str(key), item, field_annotation)
+    return _safe_model_construct(options_cls, option_dict, recorded=recorded)
+
+
+def _convert_at(step: str, value, annotation):
+    """:func:`_convert_value`, recording ``step`` (a field name, ``[3]`` or ``['table']``) in the config path of an
+    exception it raises, so the load can say where the offending value sits (``scene_options.table.surface``).
+    """
+    try:
+        return _convert_value(value, annotation)
+    except Exception as e:
+        try:
+            e._eden_config_path = (step, *getattr(e, "_eden_config_path", ()))
+        except AttributeError:  # an exception type that takes no attributes: the load says less, nothing more
+            pass
+        raise
+
+
+def _config_path(exc: BaseException) -> str:
+    """The path in the config of the value whose reconstruction raised ``exc`` (empty: the root itself)."""
+    steps = getattr(exc, "_eden_config_path", ())
+    return "".join(step if str(step).startswith("[") else f".{step}" for step in steps).lstrip(".")
 
 
 def _convert_value(value, target_annotation=None):
@@ -941,26 +1010,26 @@ def _convert_value(value, target_annotation=None):
         option_module = value.get("_option_module_", None)
         option_class = value.get("_option_class_", None)
         ResolvedClass = get_options_class_from_qualname(f"{option_module}.{option_class}")
-        return _construct_options(ResolvedClass, value)
+        return _construct_options(ResolvedClass, value, recorded=True)
 
     target_options_cls = _option_class_from_annotation(target_annotation, value)
     if isinstance(value, dict) and target_options_cls is not None:
-        return _construct_options(target_options_cls, value)
+        return _construct_options(target_options_cls, value, recorded=False)
 
     # Handle dicts (may contain dynamic configs)
     elif isinstance(value, dict):
         nested_annotation = _value_annotation(target_annotation)
         kt = _key_annotation(target_annotation)
-        return {_coerce_dict_key(k, kt): _convert_value(v, nested_annotation) for k, v in value.items()}
+        return {_coerce_dict_key(k, kt): _convert_at(f"[{k!r}]", v, nested_annotation) for k, v in value.items()}
     # Handle lists (may contain nested dynamic configs; NamedTuple rows load via target_annotation)
     elif isinstance(value, (list, tuple)):
         if target_annotation is not None and _is_namedtuple_class(target_annotation):
             seq = value
             fields = target_annotation._fields
             if len(seq) == len(fields):
-                return target_annotation(*(_convert_value(v, None) for v in seq))
+                return target_annotation(*(_convert_at(f"[{i}]", v, None) for i, v in enumerate(seq)))
         nested_annotation = _item_annotation(target_annotation)
-        return [_convert_value(item, nested_annotation) for item in value]
+        return [_convert_at(f"[{i}]", item, nested_annotation) for i, item in enumerate(value)]
     # Coerce serialized enum values (dumped as their ``.value``) back to the enum instance. Load
     # reconstructs options via ``model_construct`` (validators skipped — see ``_safe_model_construct``),
     # so declared enum fields would otherwise come back as bare ``str``. Lenient (strict=False): an
@@ -979,7 +1048,7 @@ def to_options(config: dict, base_options: Options | type[Options]):
     Eden options (config root classes included) are rebuilt with validation, so an unknown key on
     an ``extra="forbid"`` class raises, while ``extra="allow"`` classes (ManagerOptions,
     SceneOptions, etc.) keep unknown keys as their dynamic term/entity children. Genesis-native
-    options skip validation, and an ``extra="forbid"`` one drops unknown keys with a warning — see
+    options skip validation, but an unknown key on an ``extra="forbid"`` one raises too — see
     :func:`_safe_model_construct`.
 
     Parameters
@@ -992,18 +1061,10 @@ def to_options(config: dict, base_options: Options | type[Options]):
         a task config's ``__init__`` can be expensive and its result is discarded here.
     """
     options_cls = base_options if isinstance(base_options, type) else type(base_options)
-
-    # Convert all config attributes
-    res = {}
-    for key, value in config.items():
-        field_info = options_cls.model_fields.get(key)
-        field_annotation = field_info.annotation if field_info is not None else None
-        res[key] = _convert_value(value, field_annotation)
-
-    return _safe_model_construct(options_cls, res)
+    return _construct_options(options_cls, config, recorded=True)
 
 
-def _safe_model_construct(cls: type, data: dict):
+def _safe_model_construct(cls: type, data: dict, *, recorded: bool = True):
     """Build ``cls`` from an already type-recovered ``data`` dict, validating eden options on load.
 
     ``_convert_value`` has already reconstructed nested Options instances and enums; this turns
@@ -1024,27 +1085,153 @@ def _safe_model_construct(cls: type, data: dict):
       builder-``__init__`` subclasses, so nothing here needs non-persisted construction args.
     - **genesis-native Options** stay on ``model_construct`` (validation skipped): they are
       ``strict=True`` and their fixed-size vector fields would reject the JSON list form. Since
-      ``model_construct`` can't validate, unknown/legacy keys on a ``forbid`` genesis option are
-      dropped with a warning — a genesis (third-party) schema change must not hard-fail a load.
-      Nothing validates these fields, so a ``FloatArray`` declared on one would load back as a
-      plain ``list``.
+      ``model_construct`` can't validate, the keys of a ``forbid`` genesis option are checked here:
+
+      * a computed field (``ColorTexture.is_black``) is derived state the dump writes out: skipped;
+      * an unknown key raises, worded as an eden option's unknown field is: mostly a field a Genesis
+        upgrade retired, which a save from before it carries even at its default. The physics it set
+        are gone, so the load refuses it rather than run something other than what was saved. Do not
+        go back to dropping it with a warning;
+      * when the class is only *inferred* from the field's annotation (``recorded=False``: a
+        hand-written override, or a hand-edited file, without class tags) and an imported subclass
+        declares the key, the error says so and names the tags to add. Such a key is refused too: it
+        is what the user typed, and dropping it would leave, say, a bare ``BaseCouplerOptions`` that
+        fails only at scene build. (Every save has recorded its classes since Eden 0.1.0.)
+
+      Nothing validates these fields, so a ``FloatArray`` declared on one would load back as a plain
+      ``list``.
     """
     is_eden = issubclass(cls, ConfigurableOptions)
     # Type-recovery tags are internal metadata, never real fields — drop them for both eden
     # (re-seeded by ``ConfigurableOptions.__init__``) and genesis-native options, so they never
-    # reach ``model_validate``/``model_construct`` nor the unknown-key warning below.
+    # reach ``model_validate``/``model_construct`` nor the unknown-key check below.
     data = {k: v for k, v in data.items() if k not in OPTION_METADATA_KEYS}
     if is_eden:
         # model_validate enforces the class's own extra policy: forbid -> raises loud on an
         # unknown field; allow -> keeps it as a dynamic child. Fail-fast, no silent drop.
-        return cls.model_validate(data)
+        try:
+            return cls.model_validate(data)
+        except ValidationError as e:
+            # Only when the error tells them as retired: with any other error, pydantic's own message stands
+            # (``_enrich_extra_forbidden``), and advice about retired fields would point at nothing it names.
+            if set(data) & set(retired_fields(cls)) and all(err["type"] == "extra_forbidden" for err in e.errors()):
+                _mark_retired_fields(e)
+            raise
     if cls.model_config.get("extra") == "forbid":
-        known_fields = set(cls.model_fields.keys())
-        dropped = {k for k in data if k not in known_fields}
-        if dropped:
-            en.logger.warning(f"Dropping unknown keys when loading {cls.__name__}: {dropped}")
-        data = {k: v for k, v in data.items() if k in known_fields}
+        # A computed field (``ColorTexture.is_black``) is derived state the dump writes out, not a setting: skipped.
+        data = {k: v for k, v in data.items() if k not in cls.model_computed_fields}
+        if unknown := [key for key in data if key not in cls.model_fields]:
+            error = ValueError(
+                unknown_fields_message(cls, unknown, context="" if recorded else _subclass_hint(cls, unknown))
+            )
+            if set(unknown) & set(retired_fields(cls)):
+                _mark_retired_fields(error)
+            raise error
     return cls.model_construct(**data)
+
+
+def _retired_fields_in(data: Any, path: str = "") -> list[str]:
+    """``"<path> (<field>, ...)"`` for each option of the saved ``data`` that holds fields its recorded class retired,
+    in file order. An option without a recorded class (a hand-written file) is not listed. Never raises: it adds to a
+    message about another error.
+    """
+    found = []
+    if isinstance(data, dict):
+        if _is_dynamic_config(data):
+            try:
+                cls = get_options_class_from_qualname(f"{data['_option_module_']}.{data['_option_class_']}")
+                if keys := [key for key in data if key in retired_fields(cls)]:
+                    found.append(f"{path or '<root>'} ({', '.join(map(str, keys))})")
+            except Exception:
+                pass
+        for key, value in data.items():
+            found += _retired_fields_in(value, f"{path}.{key}" if path else str(key))
+    elif isinstance(data, list):
+        for i, value in enumerate(data):
+            found += _retired_fields_in(value, f"{path}[{i}]")
+    return found
+
+
+def _mark_retired_fields(exc: BaseException) -> None:
+    """Flag ``exc`` as raised for retired fields, so a file load can add how to replay the file (see
+    :meth:`EdenConfig.load_from_data`).
+    """
+    try:
+        exc._eden_retired_fields = True
+    except AttributeError:  # an exception type that takes no attributes: the load says less, nothing more
+        pass
+
+
+def _note_where_loading_raised(exc: BaseException, doing: str, changes: list[str]) -> None:
+    """Add to ``exc`` where in the config its value sits (``env_options.fem_options``) and what ``doing`` was, plus the
+    Eden / Genesis version ``changes`` since the save: a field Genesis retired fails here, and the change says why.
+    """
+    path = _config_path(exc)
+    exc.add_note(" ".join([f"Raised {doing}" + (f", at '{path}'." if path else "."), *changes]))
+
+
+def _subclass_hint(cls: type, keys: list[Any]) -> str:
+    """For an option read as ``cls`` because it carries no class tags, what its subclasses make of the rejected
+    ``keys``: the tags that pick the subclass declaring them all, or else, key by key, a subclass that retired it (with
+    its note), declares it, or declares a close match. Nothing when no subclass says anything of them. Only subclasses
+    its tags can name count: a class defined in a function or a ``__main__`` script cannot be loaded by them. Genesis
+    options only: an untagged Eden option is validated by pydantic, whose error lists its declared class's fields.
+    """
+    keys = [str(key) for key in keys]
+    subclasses, pending = [], list(cls.__subclasses__())
+    while pending:
+        sub = pending.pop()
+        pending += sub.__subclasses__()
+        if sub.__module__ != "__main__" and getattr(sys.modules.get(sub.__module__), sub.__qualname__, None) is sub:
+            subclasses.append(sub)
+    declaring = {key: {sub for sub in subclasses if key in getattr(sub, "model_fields", {})} for key in keys}
+    read_as = f"It carries no class tags, so it was read as {cls.__name__}"
+    them = f"'{keys[0]}'" if len(keys) == 1 else f"all of {keys}"
+    owners = set.intersection(*declaring.values()) if declaring else set()
+    if len(owners) == 1:
+        (owner,) = owners
+        return (
+            f"{read_as}, but {owner.__name__} declares {them}: add '_option_module_': '{owner.__module__}',"
+            f" '_option_class_': '{owner.__name__}' next to {'it' if len(keys) == 1 else 'them'}."
+        )
+    if owners and len({c.__module__ for c in owners}) == 1:
+        return (
+            f"{read_as}, but {len(owners)} subclasses declare {them}: add '_option_module_':"
+            f" '{next(iter(owners)).__module__}' and '_option_class_': {_some_names(owners)}, the one meant."
+        )
+    if owners:
+        return (
+            f"{read_as}, but {len(owners)} subclasses declare {them}: add the '_option_module_' and '_option_class_' of"
+            f" the one meant, among {_some_names(owners, qualified=True)}."
+        )
+    told = []
+    for key in keys:
+        retiring = {sub for sub in subclasses if key in retired_fields(sub)}
+        if retiring:
+            note = retired_fields(next(iter(retiring)))[key]
+            told.append(f"{_some_names(retiring)} retired '{key}': {note}")
+        elif declaring[key]:
+            told.append(f"{_some_names(declaring[key])} declares '{key}'")
+        elif close := difflib.get_close_matches(key, sorted({f for sub in subclasses for f in sub.model_fields}), n=1):
+            near = {sub for sub in subclasses if close[0] in sub.model_fields}
+            told.append(f"'{key}' may be '{close[0]}' of {_some_names(near)}")
+    if not told:
+        return ""
+    return (
+        f"{read_as}. Of its subclasses, {'; '.join(told)}. To read it as one, add '_option_module_' and"
+        " '_option_class_' naming it."
+    )
+
+
+#: How many candidate classes a hint names before "or N more".
+_NAMES_SHOWN = 5
+
+
+def _some_names(classes: set[type], *, qualified: bool = False) -> str:
+    """``classes`` as ``'A' or 'B'`` (``'module.A'`` when ``qualified``), sorted, the first few then "or N more"."""
+    names = sorted(f"'{c.__module__}.{c.__name__}'" if qualified else f"'{c.__name__}'" for c in classes)
+    shown = names[:_NAMES_SHOWN]
+    return " or ".join(shown) + (f" or {len(names) - len(shown)} more" if len(names) > len(shown) else "")
 
 
 def load_json(path: str):

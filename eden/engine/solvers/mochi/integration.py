@@ -12,7 +12,7 @@ configuration.
 import genesis as gs
 import genesis.utils.geom as gu
 import quadrants as qd
-from genesis.utils import array_class
+from genesis.engine.solvers.rigid.data import DynInfo, DynState, RigidInfo
 
 from eden.engine.solvers.mochi.data import INTEGRATOR, N_HISTORY, SOLVE_STATUS, MochiInfo, MochiIslandState, MochiState
 from eden.engine.solvers.mochi.kinematics import func_joint_q_end
@@ -56,9 +56,9 @@ def func_step_start(
     per_env: qd.template(),
     envs: qd.Tensor,
     n_envs: qd.Tensor,
-    dyn_state: array_class.DynState,
-    dyn_info: array_class.DynInfo,
-    rigid_info: array_class.RigidInfo,
+    dyn_state: DynState,
+    dyn_info: DynInfo,
+    rigid_info: RigidInfo,
     mochi_info: MochiInfo,
     mochi_state: MochiState,
     island_state: MochiIslandState,
@@ -177,9 +177,9 @@ def func_step_start(
 
 @qd.kernel
 def kernel_step_start(
-    dyn_state: array_class.DynState,
-    dyn_info: array_class.DynInfo,
-    rigid_info: array_class.RigidInfo,
+    dyn_state: DynState,
+    dyn_info: DynInfo,
+    rigid_info: RigidInfo,
     mochi_info: MochiInfo,
     mochi_state: MochiState,
     island_state: MochiIslandState,
@@ -208,7 +208,7 @@ def func_store_stage_start_poses(
     per_env: qd.template(),
     envs: qd.Tensor,
     n_envs: qd.Tensor,
-    dyn_state: array_class.DynState,
+    dyn_state: DynState,
     mochi_state: MochiState,
     rigid_config: qd.template(),
 ):
@@ -232,7 +232,7 @@ def func_store_stage_start_poses(
 
 @qd.kernel
 def kernel_store_stage_start_poses(
-    dyn_state: array_class.DynState,
+    dyn_state: DynState,
     mochi_state: MochiState,
     rigid_config: qd.template(),
 ):
@@ -253,9 +253,9 @@ def func_post_stage(
     per_env: qd.template(),
     envs: qd.Tensor,
     n_envs: qd.Tensor,
-    dyn_state: array_class.DynState,
-    dyn_info: array_class.DynInfo,
-    rigid_info: array_class.RigidInfo,
+    dyn_state: DynState,
+    dyn_info: DynInfo,
+    rigid_info: RigidInfo,
     mochi_info: MochiInfo,
     mochi_state: MochiState,
     rigid_config: qd.template(),
@@ -343,9 +343,9 @@ def func_post_stage(
 
 @qd.kernel
 def kernel_post_stage(
-    dyn_state: array_class.DynState,
-    dyn_info: array_class.DynInfo,
-    rigid_info: array_class.RigidInfo,
+    dyn_state: DynState,
+    dyn_info: DynInfo,
+    rigid_info: RigidInfo,
     mochi_info: MochiInfo,
     mochi_state: MochiState,
     rigid_config: qd.template(),
@@ -367,8 +367,8 @@ def kernel_post_stage(
 @qd.kernel
 def kernel_reset_history(
     envs_idx: qd.types.ndarray(),
-    dyn_state: array_class.DynState,
-    dyn_info: array_class.DynInfo,
+    dyn_state: DynState,
+    dyn_info: DynInfo,
     mochi_info: MochiInfo,
     mochi_state: MochiState,
     rigid_config: qd.template(),

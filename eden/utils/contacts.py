@@ -2,9 +2,7 @@
 
 These have no dependency on the entity abstraction, so they live with the other
 math-only helpers (next to :mod:`eden.utils.pc`) and can be unit-tested without
-importing :mod:`eden.entities.rigid` (which pulls in the support-surface mixin
-and triggers ``genesis.utils.array_class`` top-level code that requires
-``gs.init()``).
+importing :mod:`eden.entities.rigid` and the entity stack behind it.
 
 Scaling note: the ``(B, C, n_a, n_b)`` broadcast in
 :func:`aggregate_grouped_contacts` is fine at link-level pair counts (≤ ~30 per

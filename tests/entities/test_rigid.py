@@ -661,6 +661,106 @@ def test_place_on_to_rests_the_object_on_the_support_surface(batched_env):
     assert torch.all(cube.get_pos()[:, 2] > _TABLE_TOP)
 
 
+def test_place_on_to_leaves_the_geom_boxes_of_the_scene_as_it_found_them(batched_env, monkeypatch):
+    """The query inflates every box the broad phase reads: the rest-pose boxes of the geoms and the links, and the live
+    geom boxes. Nothing refits the rest-pose boxes, and Genesis refits a live box only as it places a movable geom
+    (genesis-world#3773), so an inflated box would widen every later broad phase. The placement's own setter is stubbed
+    out: the forward kinematics it runs refits every live box, which would hide a query that left them inflated, and a
+    placement whose setter does not run (no valid sample) must not leave them so either.
+    """
+    from genesis.utils.misc import qd_to_torch
+
+    from eden.managers.terms.events.placement import uniform_sampler
+
+    solver = batched_env.rigid_solver
+    geoms, collider_info = solver.dyn_state.geoms, solver.collider.collider_info
+    rest_boxes = (
+        solver.rigid_info.geoms_init_AABB,
+        collider_info.links_init_aabb_min,
+        collider_info.links_init_aabb_max,
+    )
+    rest_before = [qd_to_torch(array, copy=True) for array in rest_boxes]
+    before = qd_to_torch(geoms.aabb_min, copy=True), qd_to_torch(geoms.aabb_max, copy=True)
+    placed = batched_env.entities["placed"]
+    monkeypatch.setattr(placed, "set_pos", lambda *args, **kwargs: None)
+    placed.place_on_to(batched_env.entities["table"], sampler=uniform_sampler)
+    for got, want in zip(rest_boxes, rest_before):
+        torch.testing.assert_close(qd_to_torch(got, copy=True), want, rtol=0.0, atol=0.0)
+    batched_env.scene.step()  # the movable geoms are refitted, the world-fixed ones only restored
+    after = qd_to_torch(geoms.aabb_min, copy=True), qd_to_torch(geoms.aabb_max, copy=True)
+    fixed = torch.tensor([geom.is_fixed for geom in solver.geoms], device=after[0].device)
+    assert fixed.any()
+    for got, want in zip(after, before):
+        torch.testing.assert_close(got[fixed], want[fixed], rtol=0.0, atol=0.0)
+
+
+@pytest.mark.parametrize("gap", [0.0, 0.001, 0.008])
+def test_place_on_to_keeps_clear_of_an_object_resting_just_above_the_support(gap):
+    """An object within the placement margin of the support holds its place, the one ``place_on_to`` itself leaves 1 mm
+    above it included. The broad phase pairs links by their boxes, then two convex geoms by their oriented rest-pose
+    boxes too, so the margin widens those as well as the world boxes of the geoms.
+    """
+    from eden.entities.support_mixin import PLACEMENT_MARGIN
+    from eden.managers.terms.events.placement import uniform_sampler
+
+    assert gap < PLACEMENT_MARGIN
+    env = build_env(
+        EdenConfig(
+            env_options=EnvOptions(num_envs=2),
+            scene_options=SceneOptions(
+                table=BoxOptions(
+                    size=_TABLE_SIZE, fixed=True, default_root_pos=(0.0, 3.0, 0.2), is_support_enabled=True
+                ),
+                resting=BoxOptions(size=(2 * _CUBE_HALF,) * 3, default_root_pos=(0.0, 3.0, 0.9)),
+                placed=BoxOptions(size=(2 * _CUBE_HALF,) * 3, default_root_pos=(0.5, 3.0, 0.9)),
+            ),
+        )
+    )
+    resting_pos = torch.tensor([[0.1, 3.1, _TABLE_TOP + _CUBE_HALF + gap]] * 2, device=env.device)
+    env.entities["resting"].set_pos(resting_pos)
+    seen_holes = []
+
+    def sampler(support, asset_AABB, holes, batch_size):
+        seen_holes.append(holes)
+        return uniform_sampler(support, asset_AABB=asset_AABB, holes=holes, batch_size=batch_size)
+
+    env.entities["placed"].place_on_to(env.entities["table"], sampler=sampler)
+    (hole,) = seen_holes
+    assert hole.shape[:2] == (2, 1), hole.shape  # the resting cube, in each env
+    torch.testing.assert_close(hole[:, 0].mean(dim=1)[:, :2], resting_pos[:, :2], rtol=0.0, atol=1e-4)  # centred on it
+
+
+def test_place_on_to_raises_when_its_query_overflows_the_broad_phase_and_leaves_no_error_flag():
+    """The inflated query finds more candidate pairs than a step does. Over the broad phase's capacity, the free space
+    on the support is unknown, so the placement raises with the option to raise; the overflow flag the query set in the
+    rigid solver is put back, or the next step would raise it as the scene's own.
+    """
+    from genesis.utils.misc import qd_to_torch
+
+    from eden.managers.terms.events.placement import uniform_sampler
+
+    env = build_env(
+        EdenConfig(
+            env_options=EnvOptions(num_envs=2, max_collision_pairs=1, multiplier_collision_broad_phase=1),
+            scene_options=SceneOptions(
+                table=BoxOptions(
+                    size=_TABLE_SIZE, fixed=True, default_root_pos=(0.0, 3.0, 0.2), is_support_enabled=True
+                ),
+                **{
+                    f"resting_{i}": BoxOptions(
+                        size=(2 * _CUBE_HALF,) * 3, default_root_pos=(0.2 * i - 0.2, 3.0, _TABLE_TOP + _CUBE_HALF)
+                    )
+                    for i in range(3)
+                },
+                placed=BoxOptions(size=(2 * _CUBE_HALF,) * 3, default_root_pos=(0.5, 3.0, 0.9)),
+            ),
+        )
+    )
+    with pytest.raises(RuntimeError, match="multiplier_collision_broad_phase"):
+        env.entities["placed"].place_on_to(env.entities["table"], sampler=uniform_sampler)
+    assert not qd_to_torch(env.rigid_solver._errno).any()
+
+
 # ── per-link mass ─────────────────────────────────────────────────────────────────────────────────
 
 

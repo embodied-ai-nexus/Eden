@@ -21,7 +21,8 @@ from eden.options import (
     SphereOptions,
 )
 from eden.options.managers.rewards import RewardManagerOptions, RewardTermOptions
-from eden.options.options import ConfigurableOptions
+from eden.options.materials import SPHLiquidMaterialOptions
+from eden.options.options import ConfigurableOptions, unknown_fields_message
 from eden.options.sensors import SensorOptions
 from eden.utils.configs import EdenRLConfig
 
@@ -329,3 +330,75 @@ def test_a_shallow_copy_recomputes_the_keys_it_enumerates():
     copied.alive = RewardTermOptions(name="upright")
 
     assert "alive" in copied.keys() and "alive" not in manager_options.keys()
+
+
+# --- Retired fields: declarations checked at class creation, and how unknown fields are told ---
+
+
+def test_an_eden_option_cannot_retire_a_field_it_still_has():
+    with pytest.raises(TypeError, match=r"Stale has \['mu'\] as fields, which were retired \('mu' by Stale"):
+
+        class Stale(SPHLiquidMaterialOptions):
+            _retired_fields = {"mu": "renamed"}
+
+
+def test_a_subclass_cannot_bring_back_a_field_its_base_retired_and_is_told_which_base():
+    class Tinted(SPHLiquidMaterialOptions):
+        pass
+
+    with pytest.raises(
+        TypeError,
+        match=r"retired \('gamma' by SPHLiquidMaterialOptions, .* drop the entry from SPHLiquidMaterialOptions",
+    ):
+
+        class Reuse(Tinted):
+            gamma: float = 0.0
+
+
+@pytest.mark.parametrize("extra", ["allow", "ignore"])
+def test_an_option_that_does_not_forbid_unknown_keys_cannot_retire_fields(extra):
+    """There a retired key would load as a dynamic child, or be ignored, instead of failing."""
+    with pytest.raises(TypeError, match=f"is extra='{extra}', so a retired field would load"):
+
+        class Lenient(ConfigurableOptions):
+            model_config = {"extra": extra}
+            _retired_fields = {"speed": "gone"}
+
+
+class _Retiring(ConfigurableOptions):
+    rate: float = 1.0
+    _retired_fields = {"speed": "renamed 'rate'; set that instead", "gain": "gone; remove from the config"}
+
+
+def test_unknown_fields_are_told_in_one_error_with_each_retired_note_once():
+    with pytest.raises(ValidationError) as error:
+        _Retiring(speed=1.0, gain=2.0, rat=3.0)
+    (only,) = error.value.errors()
+    assert only["loc"] == ("speed",) and only["type"] == "extra_forbidden"
+    message = only["msg"]
+    assert message.startswith("'rat' is not a field of _Retiring. Did you mean 'rate'?")
+    assert "Retired ['speed'] of _Retiring: renamed 'rate'; set that instead." in message
+    assert "Retired ['gain'] of _Retiring: gone; remove from the config." in message
+    assert message.count("Valid fields") == 1 and message.endswith("Valid fields: rate: float.")
+
+
+class _Holder(ConfigurableOptions):
+    child: _Retiring = _Retiring()
+
+
+def test_a_nested_option_with_several_unknown_fields_keeps_its_own_message():
+    """Grouped at the first field's location, a parent sees the error as its child's, not as an unknown field 'child'."""
+    with pytest.raises(ValidationError) as error:
+        _Holder(child={"speed": 1.0, "gain": 2.0})
+    (only,) = error.value.errors()
+    assert only["loc"] == ("child", "speed")
+    assert "Retired ['speed'] of _Retiring" in only["msg"] and "Retired ['gain'] of _Retiring" in only["msg"]
+
+
+def test_a_lone_unknown_field_keeps_its_location_and_context_precedes_the_field_list():
+    with pytest.raises(ValidationError) as error:
+        _Retiring(speed=1.0)
+    assert error.value.errors()[0]["loc"] == ("speed",)
+    assert unknown_fields_message(_Retiring, ["x"], context="Read as _Retiring.").endswith(
+        "Read as _Retiring. Valid fields: rate: float."
+    )

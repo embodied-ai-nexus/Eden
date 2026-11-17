@@ -21,6 +21,7 @@ Common entry points:
 """
 
 import importlib
+import importlib.util
 import logging as _stdlib_logging
 import os
 import secrets
@@ -127,6 +128,46 @@ from eden.utils.smoke import is_smoke  # noqa: F401
 #: ``import genesis`` back on ``import eden``'s cold path for one default argument.
 #: ``None`` is not a backend Genesis accepts, so nothing can be passing it deliberately.
 _DEFAULT_BACKEND = None
+
+
+def _require_genesis_api() -> None:
+    """Raise, naming the command that fixes it, when the installed genesis-world predates the API Eden is written for.
+
+    Its version cannot tell: the unreleased commit Eden runs on still calls itself 1.4.6 (see
+    ``eden.utils.distribution.GENESIS_SOURCE``), as the release does. The entity specs (``genesis/options/entities.py``)
+    are the most recent part of that API Eden reads, and the release lacks them; without this check, the first Eden
+    module to import a part it lacks fails with a bare ``ModuleNotFoundError``. Run at ``import eden``, which imports no
+    Genesis, so the package is located on disk rather than imported (``find_spec`` of a top-level name imports nothing).
+    A missing Genesis is left to the ``import genesis`` that then fails.
+    """
+    spec = importlib.util.find_spec("genesis")
+    if spec is None or not spec.submodule_search_locations:
+        return
+    roots = list(spec.submodule_search_locations)
+    # A package read from an archive (a zipped or frozen install) cannot be looked into without importing it
+    if not all(os.path.isdir(root) for root in roots):
+        return
+    entities = ("entities.py", "entities.pyc", "entities")  # a source module, a sourceless one, or a package
+    if any(os.path.exists(os.path.join(root, "options", name)) for root in roots for name in entities):
+        return
+    from eden.utils.distribution import GENESIS_SOURCE, installed_version
+
+    install = (
+        f'`pip install "genesis-world @ {GENESIS_SOURCE}"`'
+        if GENESIS_SOURCE is not None
+        else "`pip install --upgrade genesis-world`"
+    )
+    version = installed_version("genesis-world") or "of unknown version"
+    raise ImportError(
+        f"The Genesis found at {os.pathsep.join(roots)} (genesis-world {version}) predates the Genesis API Eden is "
+        "written for: it lacks `genesis.options.entities`. In a checkout of Eden, run `uv sync`, which installs the "
+        f"Genesis that pyproject.toml pins; otherwise run {install}. If that path is not the environment you installed "
+        "into, another Genesis shadows it (PYTHONPATH, an editable checkout). Pinning genesis-world back to the "
+        "release it reports does not help: Eden no longer runs on it."
+    )
+
+
+_require_genesis_api()
 
 
 def init(

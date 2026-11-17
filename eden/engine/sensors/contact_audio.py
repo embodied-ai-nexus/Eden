@@ -61,7 +61,7 @@ from eden.engine._surface import require_members
 from eden.engine.sensors.audio import AudioContext, AudioSource
 
 if TYPE_CHECKING:
-    from genesis.engine.scene import Scene
+    from genesis.engine.simulator import Simulator
     from genesis.engine.sensors.sensor_manager import SensorManager
     from genesis.ext.pyrender.mesh import Mesh
     from genesis.vis.rasterizer_context import RasterizerContext
@@ -69,6 +69,8 @@ if TYPE_CHECKING:
 require_members(
     __name__,
     {
+        # `_validate` is the hook `scene.add_sensor` runs, overridden here: a rename would leave the override dead
+        RigidSensorOptionsMixin: ("_validate",),
         SimpleSensor: ("_update_raw_data", "_get_return_format", "_get_cache_dtype", "build", "_draw_debug"),
         RigidSensorMixin: ("_register_link", "set_pos_offset"),
         RigidSolver: ("get_links_vel", "get_links_ang"),
@@ -354,7 +356,7 @@ class ContactAudio(RigidSensorOptionsMixin["ContactAudioSensor"], SimpleSensorOp
                     f"{n_freqs - self.n_modes} would never sound. Raise `n_modes` or drop them."
                 )
 
-    def validate_scene(self, scene: "Scene"):
+    def _validate(self, sim: "Simulator"):
         """Require a link to listen on, and that every named material exists in the scene.
 
         Runs in ``scene.add_sensor``, after Eden has injected ``entity_idx`` / ``link_idx_local``. Entities are
@@ -362,17 +364,17 @@ class ContactAudio(RigidSensorOptionsMixin["ContactAudioSensor"], SimpleSensorOp
 
         Parameters
         ----------
-        scene : Scene
-            The scene the sensor is being added to.
+        sim : Simulator
+            The simulator of the scene the sensor is being added to.
         """
         if self.entity_idx < 0:
             gs.raise_exception(
                 "ContactAudio needs the link whose contacts it voices, but entity_idx is still -1. Set "
                 "`attach_entity_name` (and usually `attach_link_name`) on the enclosing eden SensorOptions."
             )
-        super().validate_scene(scene)
+        super()._validate(sim)
         for key in self.properties:
-            _material_links(scene.entities, key)
+            _material_links(sim.entities, key)
 
 
 class ContactVoice(AudioSource):
@@ -427,7 +429,7 @@ class ContactVoice(AudioSource):
         self._table: dict[str, torch.Tensor] = {}
 
         def state(*shape):
-            return torch.zeros((solver._sim._B, 0, *shape), dtype=gs.tc_float, device=gs.device)
+            return torch.zeros((solver._sim.n_envs_, 0, *shape), dtype=gs.tc_float, device=gs.device)
 
         # Persistent synthesis state, one column per sensor. `cur_*` latch the *free* coefficients of the last
         # material touched, so a released mode keeps ringing down with that material's own decay.
@@ -744,7 +746,7 @@ class ContactAudioSensor(
                     f"ContactAudio declares n_modes={options.n_modes} but the scene's other ContactAudio sensors use "
                     f"n_modes={sm.voice._n_modes}. They share one modal bank, so n_modes must agree."
                 )
-        sm.voice.add_sensor(options, self._manager._sim.entities)
+        sm.voice.add_sensor(options, self._manager.sim.entities)
 
     def _get_return_format(self) -> tuple[int, ...]:
         return (self._options.audio_substeps,)
@@ -782,7 +784,7 @@ class ContactAudioSensor(
         context : RasterizerContext
             The viewer context to draw into.
         """
-        env_idx = context.rendered_envs_idx[0] if self._manager._sim.n_envs > 0 else None
+        env_idx = context.rendered_envs_idx[0] if self._manager.sim.n_envs > 0 else None
         pos = tensor_to_array(self._link.get_pos(env_idx).reshape((3,)))
         amp = float(self.read(env_idx).reshape(-1).abs().max())
 

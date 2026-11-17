@@ -12,14 +12,14 @@ damping, stiffness, armature, drives) and the convergence weights of the degrees
 import genesis as gs
 import genesis.utils.geom as gu
 import quadrants as qd
-from genesis.utils import array_class
+from genesis.engine.solvers.rigid.data import DynInfo, DynState, RigidInfo
 
 from eden.engine.solvers.mochi.data import MochiInfo, MochiState
 from eden.engine.solvers.mochi.newton import func_is_env_active
 
 
 @qd.func
-def func_link_dof_jacobian(i_l, i_d, i_b, dyn_state: array_class.DynState):
+def func_link_dof_jacobian(i_l, i_d, i_b, dyn_state: DynState):
     """Column of the link Jacobian for an ancestor degree of freedom: world-frame velocity of the link origin and
     angular velocity per unit velocity of the degree of freedom. The motion subspace is stored about the tree's
     center of mass, hence the shift to the link origin.
@@ -32,7 +32,7 @@ def func_link_dof_jacobian(i_l, i_d, i_b, dyn_state: array_class.DynState):
 
 
 @qd.func
-def func_jacobian_column_dot(i_l, i_d, i_b, vec6, dyn_state: array_class.DynState):
+def func_jacobian_column_dot(i_l, i_d, i_b, vec6, dyn_state: DynState):
     """J_col^T vec6 for one degree of freedom."""
     vel, ang = func_link_dof_jacobian(i_l, i_d, i_b, dyn_state)
     return (
@@ -45,8 +45,8 @@ def func_jacobian_times_dofs(
     i_l,
     i_b,
     dofs: qd.Tensor,
-    dyn_state: array_class.DynState,
-    dyn_info: array_class.DynInfo,
+    dyn_state: DynState,
+    dyn_info: DynInfo,
     rigid_config: qd.template(),
 ):
     """Link-space 6-vector J_l dofs (translational then angular), summing over the ancestor degrees of freedom."""
@@ -70,8 +70,8 @@ def func_jacobian_transpose_add(
     i_b,
     vec6,
     out: qd.Tensor,
-    dyn_state: array_class.DynState,
-    dyn_info: array_class.DynInfo,
+    dyn_state: DynState,
+    dyn_info: DynInfo,
     rigid_config: qd.template(),
 ):
     """Out += J_l^T vec6 over the ancestor degrees of freedom of the link (atomic)."""
@@ -84,9 +84,7 @@ def func_jacobian_transpose_add(
 
 
 @qd.func
-def func_joint_dof_displacement(
-    i_j, i_d_, q_start, i_b, joint_type, rigid_info: array_class.RigidInfo, mochi_state: MochiState
-):
+def func_joint_dof_displacement(i_j, i_d_, q_start, i_b, joint_type, rigid_info: RigidInfo, mochi_state: MochiState):
     """Tangent-space displacement of the i_d_-th degree of freedom of a joint since the stage start: a coordinate
     difference for scalar joints and the translation of a free joint, the body-frame rotation vector for the rotational
     part of free and spherical joints.
@@ -128,8 +126,8 @@ def func_project_links_residual(
     per_env: qd.template(),
     envs: qd.Tensor,
     n_envs: qd.Tensor,
-    dyn_state: array_class.DynState,
-    dyn_info: array_class.DynInfo,
+    dyn_state: DynState,
+    dyn_info: DynInfo,
     mochi_info: MochiInfo,
     mochi_state: MochiState,
     rigid_config: qd.template(),
@@ -150,8 +148,8 @@ def func_project_links_residual(
 
 @qd.kernel
 def kernel_project_links_residual(
-    dyn_state: array_class.DynState,
-    dyn_info: array_class.DynInfo,
+    dyn_state: DynState,
+    dyn_info: DynInfo,
     mochi_info: MochiInfo,
     mochi_state: MochiState,
     rigid_config: qd.template(),
@@ -177,9 +175,9 @@ def func_assemble_joints(
     per_env: qd.template(),
     envs: qd.Tensor,
     n_envs: qd.Tensor,
-    dyn_state: array_class.DynState,
-    dyn_info: array_class.DynInfo,
-    rigid_info: array_class.RigidInfo,
+    dyn_state: DynState,
+    dyn_info: DynInfo,
+    rigid_info: RigidInfo,
     mochi_info: MochiInfo,
     mochi_state: MochiState,
     rigid_config: qd.template(),
@@ -303,9 +301,9 @@ def func_assemble_joints(
 
 @qd.kernel
 def kernel_assemble_joints(
-    dyn_state: array_class.DynState,
-    dyn_info: array_class.DynInfo,
-    rigid_info: array_class.RigidInfo,
+    dyn_state: DynState,
+    dyn_info: DynInfo,
+    rigid_info: RigidInfo,
     mochi_info: MochiInfo,
     mochi_state: MochiState,
     rigid_config: qd.template(),
@@ -338,8 +336,8 @@ def func_update_conv_weights(
     per_env: qd.template(),
     envs: qd.Tensor,
     n_envs: qd.Tensor,
-    dyn_state: array_class.DynState,
-    dyn_info: array_class.DynInfo,
+    dyn_state: DynState,
+    dyn_info: DynInfo,
     mochi_info: MochiInfo,
     mochi_state: MochiState,
     rigid_config: qd.template(),
@@ -394,8 +392,8 @@ def func_update_conv_weights(
 
 @qd.kernel
 def kernel_update_conv_weights(
-    dyn_state: array_class.DynState,
-    dyn_info: array_class.DynInfo,
+    dyn_state: DynState,
+    dyn_info: DynInfo,
     mochi_info: MochiInfo,
     mochi_state: MochiState,
     rigid_config: qd.template(),
@@ -415,9 +413,9 @@ def kernel_update_conv_weights(
 
 @qd.kernel(fastcache=True)
 def kernel_record_dofs_control_force(
-    dyn_state: array_class.DynState,
-    dyn_info: array_class.DynInfo,
-    rigid_info: array_class.RigidInfo,
+    dyn_state: DynState,
+    dyn_info: DynInfo,
+    rigid_info: RigidInfo,
     rigid_config: qd.template(),
 ):
     """Record in `dofs.qf_applied` the force the actuator of each degree of freedom applied over the step that just

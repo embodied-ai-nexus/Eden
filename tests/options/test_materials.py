@@ -77,6 +77,28 @@ def test_material_forwards_every_set_field_to_genesis(options_cls, genesis_cls):
     assert {name: getattr(material, name) for name in forwarded} == forwarded
 
 
+def test_an_old_sph_liquid_fails_once_saying_what_became_of_each_field():
+    """A config saved before Genesis made DFSPH its only SPH solver carries all three, at their defaults too: one error
+    must tell what became of each, not three errors repeating the field list, and not a typo's "not a field".
+    """
+    with pytest.raises(ValidationError) as error:
+        SPHLiquidMaterialOptions(stiffness=50_000.0, exponent=7.0, gamma=0.01)
+    message = str(error.value)
+    assert "1 validation error" in message and message.count("Valid fields") == 1
+    assert (
+        "Retired ['stiffness', 'exponent'] of SPHLiquidMaterialOptions: the equation of state of the WCSPH" in message
+    )
+    assert "Retired ['gamma'] of SPHLiquidMaterialOptions: Genesis replaced this unitless cohesion" in message
+
+
+def test_a_subclass_inherits_the_retired_fields_of_its_base():
+    class TintedLiquid(SPHLiquidMaterialOptions):
+        pass
+
+    with pytest.raises(ValidationError, match=r"Retired \['gamma'\] of TintedLiquid"):
+        TintedLiquid(gamma=0.01)
+
+
 @pytest.mark.parametrize("field", ["friction_torsional", "friction_rolling"])
 def test_a_negative_rigid_friction_axis_is_rejected_at_construction(field):
     """Genesis would reject it only at build; the field constraint moves that to the config."""

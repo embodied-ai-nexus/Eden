@@ -215,7 +215,7 @@ def test_embedded_visual_mesh_follows_deformation(tmp_path, show_viewer):
     assert vgeom.elems_idx is not None and vgeom.n_vverts == len(visual.vertices)
 
     def render_verts():
-        vverts, _, _ = solver.get_soft_state_render(0)
+        vverts, _, _ = solver.get_soft_state_render()
         return qd_to_numpy(vverts)[vgeom.vvert_start : vgeom.vvert_end, 0].astype(np.float64)
 
     # The visual mesh is placed in the frame of the simulation mesh (a primitive morph: its local frame plus the

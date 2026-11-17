@@ -38,13 +38,15 @@ import difflib
 import inspect
 from collections.abc import Mapping
 from functools import cached_property
-from typing import Any, Self, TypeVar
+from types import MappingProxyType
+from typing import Any, ClassVar, Self, TypeVar
 
 from genesis.options.options import Options
 from pydantic import BaseModel, PrivateAttr, ValidationError
 from pydantic_core import InitErrorDetails, PydanticCustomError
 
 from eden.options._metadata import OPTION_METADATA_KEYS, getattribute_with_extra, option_metadata
+from eden.options._retired_fields import retired_fields
 from eden.utils.params import ParamInfo, render_annotation, render_params
 
 T = TypeVar("T", bound=Options)
@@ -71,17 +73,35 @@ def _is_cached_property(cls: type, key: str) -> bool:
     return isinstance(getattr(cls, key, None), cached_property)
 
 
-def _unknown_field_message(cls: type, field: str) -> str:
-    """The one wording for "``field`` is not a field of ``cls``" — names the valid fields and the
-    closest one, which is the only thing that unsticks the author.
+def unknown_fields_message(cls: type, fields: list[Any], *, context: str = "") -> str:
+    """The one wording for "``fields`` are not fields of ``cls``" — names the valid fields and, for a
+    typo, the closest one, which is the only thing that unsticks the author.
 
-    Shared by construction (:func:`_enrich_extra_forbidden`) and ``model_copy(update=...)``
-    (:meth:`ConfigurableOptions._validate_copy_update`) so the same typo reads the same either way.
+    Shared by construction (:func:`_enrich_extra_forbidden`), ``model_copy(update=...)``
+    (:meth:`ConfigurableOptions._validate_copy_update`) and the config loader's Genesis options
+    (``eden.utils.configs._safe_model_construct``) so the same mistake reads the same either way. A
+    retired field (:func:`eden.options._retired_fields.retired_fields`) gets its migration note, worded
+    as a retired term parameter's is (:func:`eden.utils.params.invalid_parameters_message`): a config
+    saved before it was retired carries it unasked, so the error must say what became of it. Fields
+    retired for one reason share its note, and the valid fields are listed once, last: ``context``
+    (what the caller knows about how the value was read) goes before them.
     """
+    retired = retired_fields(cls)
+    fields = [str(field) for field in fields]  # an inline YAML override can key a mapping by 1, on or null
     valid = sorted(f for f in cls.model_fields if f not in OPTION_METADATA_KEYS)
-    close = difflib.get_close_matches(field, valid, n=1)
-    hint = f" Did you mean '{close[0]}'?" if close else ""
-    return f"'{field}' is not a field of {cls.__name__}.{hint} Valid fields: {render_params(_field_specs(cls))}."
+    sentences = []
+    retired_by_note: dict[str, list[str]] = {}
+    for field in fields:
+        if field in retired:
+            retired_by_note.setdefault(retired[field], []).append(field)
+            continue
+        close = difflib.get_close_matches(field, valid, n=1)
+        hint = f" Did you mean '{close[0]}'?" if close else ""
+        sentences.append(f"'{field}' is not a field of {cls.__name__}.{hint}")
+    sentences += [f"Retired {keys} of {cls.__name__}: {note}." for note, keys in retired_by_note.items()]
+    if context:
+        sentences.append(context)
+    return f"{' '.join(sentences)} Valid fields: {render_params(_field_specs(cls))}."
 
 
 def _enrich_extra_forbidden(cls: type, exc: ValidationError) -> ValidationError | None:
@@ -91,7 +111,9 @@ def _enrich_extra_forbidden(cls: type, exc: ValidationError) -> ValidationError 
     is the only thing that unsticks the author (an ``extra="forbid"`` config class like
     ``RslRlOnPolicyRunnerOptions`` would otherwise reject a typo without teaching the field set).
     When *every* error is an unknown-field rejection, return an equivalent ``ValidationError``
-    whose message lists the valid fields — plus a ``did you mean`` when one is close. The rebuilt
+    whose message lists the valid fields — plus a ``did you mean`` when one is close, and a retired
+    field's migration note. Several top-level unknown fields become one error, at the first one's
+    location, telling them all, so the notes and the field list are said once. The rebuilt
     error keeps ``type=extra_forbidden`` (via :class:`PydanticCustomError`) so callers and tests
     that key on that type still see it. Returns ``None`` when any error is *not* extra_forbidden,
     so a genuine type error alongside is never masked or reworded.
@@ -110,21 +132,28 @@ def _enrich_extra_forbidden(cls: type, exc: ValidationError) -> ValidationError 
         return None
     if not any(len(e["loc"]) == 1 for e in errors):
         return None
+    # Every top-level unknown field of cls is told in one error, at the first one's place: an old save carries
+    # several retired fields at once (an SPH liquid's three), whose note and valid-field list are said once. Not at
+    # ``loc=()``: a parent validating this class as its field would read ``("child",)`` as an unknown field of its own.
+    top = [e for e in errors if len(e["loc"]) == 1]
+    fields = [str(e["loc"][0]) for e in top]
+    # error_type stays "extra_forbidden"; only the human message changes.
+    told = PydanticCustomError("extra_forbidden", unknown_fields_message(cls, fields))
+    loc, given = (
+        top[0]["loc"],
+        top[0].get("input") if len(top) == 1 else {f: e.get("input") for f, e in zip(fields, top)},
+    )
     line_errors: list[InitErrorDetails] = []
     for e in errors:
-        loc = e["loc"]
-        if len(loc) == 1:
-            message = _unknown_field_message(cls, str(loc[0]))
-        else:
+        if e is top[0]:
+            line_errors.append(InitErrorDetails(type=told, loc=loc, input=given))
+        elif len(e["loc"]) > 1:
             # Nested: reuse the message pydantic already rendered (the nested class's own enriched
             # text, or its native "Extra inputs are not permitted") — attributing it to cls here
-            # would name the wrong class. Safe as a template: extra_forbidden messages carry no
-            # ``{}`` (field names are identifiers; field lists render with ``[]``).
-            message = e["msg"]
-        # error_type stays "extra_forbidden"; only the human message changes.
-        line_errors.append(
-            InitErrorDetails(type=PydanticCustomError("extra_forbidden", message), loc=loc, input=e.get("input"))
-        )
+            # would name the wrong class. Safe as a template whatever the keys hold: a
+            # PydanticCustomError given no context leaves ``{...}`` in its message as written.
+            nested = PydanticCustomError("extra_forbidden", e["msg"])
+            line_errors.append(InitErrorDetails(type=nested, loc=e["loc"], input=e.get("input")))
     return ValidationError.from_exception_data(cls.__name__, line_errors)
 
 
@@ -142,6 +171,40 @@ class ConfigurableOptions(Options):
     model_config = {"extra": "forbid", "strict": False}
 
     _locked: bool = PrivateAttr(default=False)
+
+    #: Fields this class no longer has, each mapped to how to migrate a value written for it — the options
+    #: counterpart of ``ConfigurableMixin._retired_params``. They stay invalid; the note only joins the unknown-field
+    #: error (:func:`unknown_fields_message`), so a config saved before the field was retired fails with directions.
+    #: Declarations accumulate over the MRO, so a subclass lists only the names it adds and inherits its base's notes.
+    #: Genesis options, which cannot declare their own, are noted in :mod:`eden.options._retired_fields`.
+    _retired_fields: ClassVar[Mapping[str, str]] = MappingProxyType({})
+
+    @classmethod
+    def __pydantic_init_subclass__(cls, **kwargs: Any) -> None:
+        super().__pydantic_init_subclass__(**kwargs)
+        retired: dict[str, str] = {}
+        for base in reversed(cls.__mro__):
+            retired.update(base.__dict__.get("_retired_fields") or {})
+        if still := sorted(set(retired) & set(cls.model_fields)):
+            # Each class stores the merged mapping, so a name's declaring class is the one nearest the root holding it.
+            owners = {
+                name: next(
+                    b for b in reversed(cls.__mro__) if name in (b.__dict__.get("_retired_fields") or {})
+                ).__name__
+                for name in still
+            }
+            by = "; ".join(f"'{name}' by {owner}" for name, owner in owners.items())
+            raise TypeError(
+                f"{cls.__name__} has {still} as fields, which were retired ({by}, in _retired_fields): a retired name"
+                f" cannot come back below the class that retired it, whose saved configs it would misread. Name the"
+                f" field otherwise, or drop the entry from {' and '.join(sorted(set(owners.values())))}."
+            )
+        if retired and (extra := cls.model_config.get("extra")) != "forbid":
+            raise TypeError(
+                f"{cls.__name__} is extra={extra!r}, so a retired field would load as a dynamic child or be ignored"
+                f" instead of failing: _retired_fields only works on an extra='forbid' class."
+            )
+        cls._retired_fields = MappingProxyType(retired)
 
     def __eq__(self, other: Any) -> bool:
         """``BaseModel.__eq__`` without the lock state: two options are equal when their values are.
@@ -402,7 +465,7 @@ class ConfigurableOptions(Options):
             return
         unknown = [key for key in update if key not in type(self).model_fields]
         if unknown:
-            raise ValueError(" ".join(_unknown_field_message(type(self), key) for key in unknown))
+            raise ValueError(unknown_fields_message(type(self), unknown))
 
     def updated(self, **updates: Any) -> Self:
         """Return a deep copy with the given fields replaced — the way to override inherited options.

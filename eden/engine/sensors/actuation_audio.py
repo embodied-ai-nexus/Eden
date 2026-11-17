@@ -50,7 +50,7 @@ from eden.engine.sensors._dsp import bandpass_coeffs, resonator_coeffs, two_pole
 from eden.engine.sensors.audio import AudioContext, AudioSource
 
 if TYPE_CHECKING:
-    from genesis.engine.scene import Scene
+    from genesis.engine.simulator import Simulator
     from genesis.engine.sensors.sensor_manager import SensorManager
 
 # Below this pitch a tone is not heard as one. The whine fades out under it; see `ActuationVoice.emit`.
@@ -59,6 +59,8 @@ _AUDIBLE_FLOOR_HZ = 20.0
 require_members(
     __name__,
     {
+        # `_validate` is the hook `scene.add_sensor` runs, overridden here: a rename would leave the override dead
+        RigidEntitySensorOptionsMixin: ("_validate",),
         SimpleSensor: ("_update_raw_data", "_get_return_format", "_get_cache_dtype", "build"),
         RigidSolver: ("get_dofs_control_force", "get_dofs_velocity"),
         RigidJoint: ("n_dofs", "dof_start", "dof_end", "link"),
@@ -189,7 +191,7 @@ class ActuationAudio(
 
         ``entity_idx`` is deliberately *not* checked here. Eden injects it during env build (see
         ``eden.entities.sensor.Sensor.pre_build``), so at construction time the declarative path
-        legitimately still has the ``-1`` default; :meth:`validate_scene` enforces it once the value is real.
+        legitimately still has the ``-1`` default; :meth:`_validate` enforces it once the value is real.
 
         Parameters
         ----------
@@ -200,7 +202,7 @@ class ActuationAudio(
         if self.joints is not None and not self.joints:
             gs.raise_exception("ActuationAudio was given an empty `joints` tuple; pass None to cover every joint.")
 
-    def validate_scene(self, scene: "Scene"):
+    def _validate(self, sim: "Simulator"):
         """Require a real rigid entity, and refuse the link attachment this sensor would ignore.
 
         Runs in ``scene.add_sensor`` before the sensor is constructed, which is after Eden has injected
@@ -208,8 +210,8 @@ class ActuationAudio(
 
         Parameters
         ----------
-        scene : Scene
-            The scene the sensor is being added to.
+        sim : Simulator
+            The simulator of the scene the sensor is being added to.
         """
         if self.entity_idx < 0:
             gs.raise_exception(
@@ -217,7 +219,7 @@ class ActuationAudio(
                 "`attach_entity_name` on the enclosing eden SensorOptions (or entity_idx directly when adding the "
                 "sensor through Genesis)."
             )
-        super().validate_scene(scene)
+        super()._validate(sim)
         ignored = {name: getattr(self, name) for name in ("link_idx_local", "pos_offset", "euler_offset")}
         set_anyway = {name: value for name, value in ignored.items() if any(v != 0 for v in np.atleast_1d(value))}
         if set_anyway:
@@ -257,7 +259,7 @@ class ActuationVoice(AudioSource):
 
         n_emit = len(dof_idx)
         n_partials = options.n_partials
-        B = self._sim._B
+        B = self._sim.n_envs_
         K = options.audio_substeps
         self._K = K
         self._dt_sub = self._sim.dt / K
@@ -499,8 +501,8 @@ class ActuationAudioSensor(SimpleSensor[ActuationAudio, AudioContext, ActuationA
 
     def _resolve_dofs(self) -> None:
         """Map the requested joint names to solver-global DOF and link indices, or fail naming the gap."""
-        # `ActuationAudio.validate_scene` has already established that entity_idx names a rigid entity.
-        entity = self._manager._sim.entities[self._options.entity_idx]
+        # `ActuationAudio._validate` has already established that entity_idx names a rigid entity.
+        entity = self._manager.sim.entities[self._options.entity_idx]
         joints = list(entity.joints)
 
         wanted = self._options.joints
@@ -554,7 +556,7 @@ class ActuationAudioSensor(SimpleSensor[ActuationAudio, AudioContext, ActuationA
         context = self._shared_context
         self._voice = ActuationVoice(
             self._options,
-            self._manager._sim.rigid_solver,
+            self._manager.sim.rigid_solver,
             self._dof_idx,
             self._emit_links,
             self._properties,

@@ -9,7 +9,7 @@
 import genesis as gs
 import genesis.utils.geom as gu
 import quadrants as qd
-from genesis.utils import array_class
+from genesis.engine.solvers.rigid.data import DynInfo, RigidInfo
 
 from eden.engine.solvers.mochi.data import (
     LINEAR_TOLERANCE,
@@ -156,7 +156,7 @@ def func_store_initial_norms(
     per_env: qd.template(),
     envs: qd.Tensor,
     n_envs: qd.Tensor,
-    rigid_info: array_class.RigidInfo,
+    rigid_info: RigidInfo,
     mochi_state: MochiState,
     island_state: MochiIslandState,
     rigid_config: qd.template(),
@@ -185,7 +185,7 @@ def func_store_initial_norms(
 
 @qd.kernel
 def kernel_store_initial_norms(
-    rigid_info: array_class.RigidInfo,
+    rigid_info: RigidInfo,
     mochi_state: MochiState,
     island_state: MochiIslandState,
     rigid_config: qd.template(),
@@ -208,7 +208,7 @@ def func_linesearch_begin(
     per_env: qd.template(),
     envs: qd.Tensor,
     n_envs: qd.Tensor,
-    rigid_info: array_class.RigidInfo,
+    rigid_info: RigidInfo,
     mochi_state: MochiState,
     rigid_config: qd.template(),
 ):
@@ -249,7 +249,7 @@ def func_linesearch_begin(
 
 @qd.kernel
 def kernel_linesearch_begin(
-    rigid_info: array_class.RigidInfo,
+    rigid_info: RigidInfo,
     mochi_state: MochiState,
     rigid_config: qd.template(),
 ):
@@ -270,8 +270,8 @@ def func_apply_increment(
     per_env: qd.template(),
     envs: qd.Tensor,
     n_envs: qd.Tensor,
-    dyn_info: array_class.DynInfo,
-    rigid_info: array_class.RigidInfo,
+    dyn_info: DynInfo,
+    rigid_info: RigidInfo,
     mochi_info: MochiInfo,
     mochi_state: MochiState,
     rigid_config: qd.template(),
@@ -332,8 +332,8 @@ def func_apply_increment(
 
 @qd.kernel
 def kernel_apply_increment(
-    dyn_info: array_class.DynInfo,
-    rigid_info: array_class.RigidInfo,
+    dyn_info: DynInfo,
+    rigid_info: RigidInfo,
     mochi_info: MochiInfo,
     mochi_state: MochiState,
     rigid_config: qd.template(),
@@ -357,7 +357,7 @@ def func_linesearch_decide(
     per_env: qd.template(),
     envs: qd.Tensor,
     n_envs: qd.Tensor,
-    rigid_info: array_class.RigidInfo,
+    rigid_info: RigidInfo,
     mochi_info: MochiInfo,
     mochi_state: MochiState,
     rigid_config: qd.template(),
@@ -397,7 +397,7 @@ def func_linesearch_decide(
 
 @qd.kernel
 def kernel_linesearch_decide(
-    rigid_info: array_class.RigidInfo,
+    rigid_info: RigidInfo,
     mochi_info: MochiInfo,
     mochi_state: MochiState,
     rigid_config: qd.template(),

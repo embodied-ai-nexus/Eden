@@ -38,6 +38,7 @@ from eden.options.managers.events import EventManagerOptions, EventTermOptions
 from eden.options.managers.metrics import MetricManagerOptions, MetricTermOptions
 from eden.options.managers.observations import NoiseOptions, ObservationManagerOptions
 from eden.options.managers.rewards import RewardGroupOptions, RewardManagerOptions, RewardTermOptions
+from eden.options.materials import SPHLiquidMaterialOptions
 from eden.options.options import ConfigurableOptions
 from eden.options.sensors import SensorOptions
 from eden.utils.configs import (
@@ -205,6 +206,167 @@ def test_load_fails_fast_on_a_corrupt_field_or_an_unknown_key(tmp_path):
         RoundtripConfig.load_from_file(stale)
     with pytest.raises(ValidationError, match="extra_forbidden"):
         EdenConfig(unknown_field="value")
+
+
+def test_load_refuses_a_genesis_option_field_the_installed_genesis_lacks(tmp_path):
+    """A save from before a Genesis upgrade carries the fields it retired, at their defaults too: the physics they set
+    are gone, so the load must not drop them and run something else. A retired field says what became of it, and the
+    error says where it sits and which Genesis saved the file.
+    """
+    config = RoundtripConfig(
+        env_options=EnvOptions(
+            num_envs=1, fem_options=gs.options.FEMOptions(), coupler_options=gs.options.SAPCouplerOptions()
+        )
+    )
+
+    def from_release(raw):  # saved under an older Genesis release
+        raw["_meta"]["genesis"] = {"version": "0.0.1", "commit": None}
+        raw["config"]["env_options"]["fem_options"].update(enable_vertex_constraints=False)
+
+    retired = _saved(tmp_path, config, name="retired.json")
+    _rewrite(retired, from_release)
+    renamed = _saved(tmp_path, config, name="renamed.json")
+    _rewrite(
+        renamed,
+        lambda raw: raw["config"]["env_options"]["coupler_options"].update(
+            enable_fem_self_tet_contact=True, rigid_rigid_contact_type="tet", fem_floor_contact_type="tet"
+        ),
+    )
+    typo = _saved(tmp_path, config, name="typo.json")
+    _rewrite(typo, lambda raw: raw["config"]["env_options"]["fem_options"].update(dampng=0.1))
+
+    with pytest.raises(ValueError, match=r"Retired \['enable_vertex_constraints'\] of FEMOptions: .*always available"):
+        RoundtripConfig.load_from_file(retired)
+    with pytest.raises(ValueError) as retired_error:
+        RoundtripConfig.load_from_file(retired)
+    (note,) = retired_error.value.__notes__
+    assert f"Raised loading {retired}, at 'env_options.fem_options'." in note
+    assert "Genesis saved 0.0.1, running " in note  # the upgrade that most likely retired the field
+    # Removing it is no replay: the note offers both real choices, and keeps the run's own file as its record
+    assert "to reproduce the run, use the Eden and Genesis that saved it" in note
+    assert f"pass it with --config and the --task it was saved from, keeping {retired} as the record" in note
+    assert "Retired fields across" not in note  # one option holds them all, and the error names it
+    # The load stops at the first option it fails on, and the note lists every one, so the copy is fixed in one pass
+    _rewrite(retired, lambda raw: raw["config"]["env_options"]["coupler_options"].update(point_contact_stiffness=1e8))
+    with pytest.raises(ValueError) as both_error:
+        RoundtripConfig.load_from_file(retired)
+    assert (
+        f"Retired fields across {retired}: env_options.coupler_options (point_contact_stiffness); "
+        "env_options.fem_options (enable_vertex_constraints)." in both_error.value.__notes__[0]
+    )
+    with pytest.raises(ValueError, match="renamed 'enable_fem_self_collision'.*; set that instead") as renamed_error:
+        RoundtripConfig.load_from_file(renamed)
+    # Fields retired for one reason share its note, and the valid fields are listed once
+    message = str(renamed_error.value)
+    assert "Retired ['rigid_rigid_contact_type', 'fem_floor_contact_type'] of SAPCouplerOptions" in message
+    assert message.count("Valid fields") == 1
+    with pytest.raises(
+        ValueError, match="'dampng' is not a field of FEMOptions. Did you mean 'damping'?"
+    ) as typo_error:
+        RoundtripConfig.load_from_file(typo)
+    assert "reproduce the run" not in typo_error.value.__notes__[0]  # a typo retired nothing
+    loaded = RoundtripConfig.load_from_file(_saved(tmp_path, config, name="current.json"))
+    assert loaded.env_options.fem_options == config.env_options.fem_options
+
+
+def test_an_untagged_genesis_option_in_an_override_refuses_a_key_its_field_type_lacks(tmp_path):
+    """An override's keys are what the user just typed: one the field's declared class lacks raises, saying how to name
+    the subclass, rather than leave a bare ``BaseCouplerOptions`` that fails only at scene build.
+    """
+    base = RoundtripConfig(env_options=EnvOptions(num_envs=1))
+    with pytest.raises(ValueError, match="'dampng' is not a field of FEMOptions. Did you mean 'damping'?") as typo:
+        base.with_overrides_from_dict({"env_options": {"fem_options": {"dampng": 0.1}}})
+    assert typo.value.__notes__ == ["Raised applying an override to RoundtripConfig, at 'env_options.fem_options'."]
+    assert "class tags" not in str(typo.value)  # FEMOptions has no subclass: the tags could not help
+    sap = {"n_sap_iterations": 50}
+    tags = "'_option_module_': 'genesis.options.solvers', '_option_class_': 'SAPCouplerOptions'"
+    with pytest.raises(ValueError, match=f"read as BaseCouplerOptions, .* add {tags} next to it"):
+        base.with_overrides_from_dict({"env_options": {"coupler_options": sap}})
+
+    partial = tmp_path / "partial.yaml"
+    partial.write_text("env_options:\n  fem_options:\n    dampng: 0.1\n")
+    with pytest.raises(ValueError) as from_file:
+        base.with_overrides_from_file(str(partial))
+    assert from_file.value.__notes__ == [f"Raised applying {partial} to RoundtripConfig, at 'env_options.fem_options'."]
+
+    tagged = {"_option_module_": "genesis.options.solvers", "_option_class_": "SAPCouplerOptions", **sap}
+    coupler = base.with_overrides_from_dict({"env_options": {"coupler_options": tagged}}).env_options.coupler_options
+    assert isinstance(coupler, gs.options.SAPCouplerOptions) and coupler.n_sap_iterations == 50
+
+
+def test_an_untagged_option_is_told_what_its_subclasses_make_of_a_key_none_declares():
+    """Read as the bare ``BaseCouplerOptions`` (no fields), a retired or misspelled SAP key still gets its migration or
+    the field meant; a subclass its tags could not name (defined here, in a function) is no candidate.
+    """
+    base = RoundtripConfig(env_options=EnvOptions(num_envs=1))
+
+    def coupler(**keys):
+        return {"env_options": {"coupler_options": keys}}
+
+    with pytest.raises(ValueError, match="'SAPCouplerOptions' retired 'enable_fem_self_tet_contact': renamed"):
+        base.with_overrides_from_dict(coupler(enable_fem_self_tet_contact=True))
+    with pytest.raises(ValueError, match="'n_sap_iteration' may be 'n_sap_iterations' of 'SAPCouplerOptions'"):
+        base.with_overrides_from_dict(coupler(n_sap_iteration=5))
+
+    class LocalFEM(gs.options.FEMOptions):
+        stiffness_scale: float = 1.0
+
+    with pytest.raises(ValueError) as local:
+        base.with_overrides_from_dict({"env_options": {"fem_options": {"stiffness_scale": 2.0}}})
+    assert "LocalFEM" not in str(local.value) and "class tags" not in str(local.value)
+
+
+def test_an_override_naming_a_retired_field_gets_its_note_but_no_replay_advice():
+    """Replay advice is for a saved file; an override's retired key is the user's to drop."""
+    base = RoundtripConfig(env_options=EnvOptions(num_envs=1, coupler_options=gs.options.SAPCouplerOptions()))
+    with pytest.raises(ValueError, match="Retired \\['point_contact_stiffness'\\]") as error:
+        base.with_overrides_from_dict({"env_options": {"coupler_options": {"point_contact_stiffness": 1e8}}})
+    assert "reproduce the run" not in error.value.__notes__[0]
+
+
+def test_an_old_sph_liquid_in_a_saved_config_fails_with_the_replay_choices(tmp_path):
+    """The Eden-option path (validated by pydantic) flags retired fields as the Genesis path does, but only when its
+    error tells them as retired: next to another error, pydantic's own message stands and the advice would point at
+    nothing it names.
+    """
+    config = RoundtripConfig(
+        scene_options=SceneOptions(water=BoxOptions(size=(0.1, 0.1, 0.1), material=SPHLiquidMaterialOptions()))
+    )
+    old = _saved(tmp_path, config, name="old.json")
+    _rewrite(old, lambda raw: raw["config"]["scene_options"]["water"]["material"].update(stiffness=5e4, gamma=0.01))
+    with pytest.raises(ValidationError, match=r"Retired \['stiffness'\] of SPHLiquidMaterialOptions") as error:
+        RoundtripConfig.load_from_file(old)
+    (note,) = error.value.__notes__
+    assert f"Raised loading {old}, at 'scene_options.water.material'." in note and "reproduce the run" in note
+
+    mixed = _saved(tmp_path, config, name="mixed.json")
+    _rewrite(mixed, lambda raw: raw["config"]["scene_options"]["water"]["material"].update(stiffness=5e4, rho="x"))
+    with pytest.raises(ValidationError) as mixed_error:
+        RoundtripConfig.load_from_file(mixed)
+    assert "reproduce the run" not in mixed_error.value.__notes__[0]
+
+
+@pytest.mark.parametrize("key", [1, True, None])
+def test_a_non_string_override_key_is_told_not_crashed_on(key):
+    """Inline YAML keys a mapping by ``1``, ``on`` or ``null``: building the message must not raise in its place."""
+    base = RoundtripConfig(env_options=EnvOptions(num_envs=1))
+    with pytest.raises(ValueError, match=f"'{key}' is not a field of FEMOptions"):
+        base.with_overrides_from_dict({"env_options": {"fem_options": {key: 2}}})
+    with pytest.raises(ImportError) as error:
+        base.with_overrides_from_dict({key: {"_option_module_": "no_such_module", "_option_class_": "Nope"}})
+    assert error.value.__notes__ == [f"Raised applying an override to RoundtripConfig, at '{key}'."]
+
+
+class _GroupedConfig(RoundtripConfig):
+    fems: list[gs.options.FEMOptions] = []
+
+
+def test_a_load_error_names_the_list_index_of_the_offending_value(tmp_path):
+    path = _saved(tmp_path, _GroupedConfig(fems=[gs.options.FEMOptions(), gs.options.FEMOptions()]), name="list.json")
+    _rewrite(path, lambda raw: raw["config"]["fems"][1].update(bogus=1))
+    with pytest.raises(ValueError) as error:
+        _GroupedConfig.load_from_file(path)
+    assert error.value.__notes__[0].startswith(f"Raised loading {path}, at 'fems[1]'.")
 
 
 # ---------------------------------------------------------------------------
@@ -401,16 +563,22 @@ def test_genesis_options_round_trip_to_their_concrete_classes(tmp_path):
         gs.surfaces.Plastic(colour=(1.0, 0.0, 0.0))
 
 
-def test_a_genesis_surface_saved_without_class_metadata_rebuilds_from_the_field_type(tmp_path):
+def test_a_genesis_surface_saved_without_its_class_raises_naming_the_tags_to_add(tmp_path):
+    """Read as its field's declared ``Surface``, a ``Default``'s own fields would drop and the plane render otherwise;
+    the error names the subclasses that declare them and the tags that pick one.
+    """
     path = _saved(
         tmp_path,
         EdenConfig(scene_options=SceneOptions(plane=PlaneOptions(surface=gs.surfaces.Default(double_sided=True)))),
     )
     _rewrite(path, lambda raw: _without_class_tags(raw["config"]["scene_options"]["plane"]["surface"]))
 
-    surface = EdenConfig.load_from_file(path).scene_options.plane.surface
-
-    assert isinstance(surface, gs.surfaces.Surface) and surface.double_sided is True
+    with pytest.raises(ValueError, match="read as Surface.* '_option_module_': 'genesis.options.surfaces'") as error:
+        EdenConfig.load_from_file(path)
+    assert (
+        "'Default'" in str(error.value).split("'_option_class_':")[1]
+    )  # among the candidates, whatever others Genesis adds
+    assert error.value.__notes__[0].startswith(f"Raised loading {path}, at 'scene_options.plane.surface'.")
 
 
 @pytest.mark.requires_genesis

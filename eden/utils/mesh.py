@@ -13,8 +13,7 @@ import trimesh
 from trimesh.transformations import unit_vector
 
 if TYPE_CHECKING:
-    # Importing RigidLink eagerly pulls genesis.utils.array_class, which
-    # requires gs.init() to have run. Defer to type-check only.
+    # Annotations only: this module does not otherwise touch Genesis' entities.
     from genesis.engine.entities.rigid_entity.rigid_link import RigidLink
 
 

@@ -5,7 +5,7 @@
 # (quadrants) and hosted on Genesis.
 # SPDX-License-Identifier: Apache-2.0
 import os
-from typing import NamedTuple
+from typing import TYPE_CHECKING, NamedTuple
 
 import genesis as gs
 import genesis.utils.element as eu
@@ -15,6 +15,7 @@ import numpy as np
 import torch
 import trimesh
 from genesis.engine.entities.base_entity import Entity
+from genesis.options.surfaces import Surface
 from genesis.utils.misc import tensor_to_array
 
 from eden.engine.solvers.mochi import materials as mochi_materials
@@ -22,6 +23,12 @@ from eden.engine.solvers.mochi.mochi_entity import filter_entity_contacts
 from eden.engine.solvers.mochi.morphs import Rod
 from eden.engine.solvers.mochi.states import MochiSoftEntityState
 from eden.engine.solvers.mochi.vis_geom import MochiVisGeom
+
+if TYPE_CHECKING:
+    from genesis.engine.scene import Scene
+
+    from eden.engine.solvers.mochi.mochi_solver import MochiSolver
+    from eden.engine.solvers.mochi.specs import MochiSoftSpec
 
 TET_NODE_FORMAT = ".node"
 TET_VTK_FORMAT = ".vtk"
@@ -160,26 +167,24 @@ class MochiSoftEntity(Entity):
 
     def __init__(
         self,
-        scene,
-        solver,
-        material,
-        morph,
-        surface,
-        idx,
-        idx_in_solver,
-        v_start,
-        vvert_start,
-        vface_start,
-        name=None,
+        scene: "Scene",
+        solver: "MochiSolver",
+        surface: Surface,
+        spec: "MochiSoftSpec",
+        idx: int,
+        idx_in_solver: int,
+        v_start: int,
+        vvert_start: int,
+        vface_start: int,
     ):
-        self._is_shell = isinstance(material, mochi_materials.Shell)
-        self._is_rod = isinstance(material, mochi_materials.Rod)
-        if self._is_rod != isinstance(morph, Rod):
+        self._is_shell = isinstance(spec.material, mochi_materials.Shell)
+        self._is_rod = isinstance(spec.material, mochi_materials.Rod)
+        if self._is_rod != isinstance(spec.morph, Rod):
             gs.raise_exception(
                 "A `Rod` morph (eden.engine.solvers.mochi.morphs) requires a `Rod` material "
                 "(eden.engine.solvers.mochi.materials), and conversely."
             )
-        super().__init__(idx, scene, morph, solver, material, surface, name=name)
+        super().__init__(idx, scene, solver, surface, spec)
         self._idx_in_solver = idx_in_solver
         self._v_start = v_start
         self._vvert_start = vvert_start
@@ -392,8 +397,12 @@ class MochiSoftEntity(Entity):
     # ---------------------------------------- io ----------------------------------------
     # ------------------------------------------------------------------------------------
 
+    def _build(self) -> None:
+        """Mark the entity built, which the MochiSolver does once the arrays of the deformable bodies exist."""
+        self._is_built = True
+
     def get_state(self):
-        state = MochiSoftEntityState(self, self._sim.cur_step_global)
+        state = MochiSoftEntityState(self, self._solver.sim.cur_step_global)
         self._solver.get_soft_entity_state(self, state.pos, state.vel)
         return state
 
@@ -416,7 +425,7 @@ class MochiSoftEntity(Entity):
         damping : float, optional
             Damping d on the violation rate, adding 1/2 (d / dt) |c - c_stage_start|^2 per stage. Defaults to 0.
         """
-        if self.is_built:
+        if self._is_built:
             gs.raise_exception("Attachments must be registered before the scene is built.")
         verts_idx = np.unique(np.asarray(verts_idx, dtype=gs.np_int).reshape((-1,)))
         if len(verts_idx) == 0 or verts_idx[0] < 0 or verts_idx[-1] >= self.n_vertices:
@@ -493,7 +502,7 @@ class MochiSoftEntity(Entity):
 
     def _load_embedded_mesh(self, file, pos, euler, scale, kind):
         """Load a triangle mesh and place it in the frame of the simulation mesh (see `set_visual_mesh`)."""
-        if self.is_built:
+        if self._is_built:
             gs.raise_exception(f"The {kind} must be set before the scene is built.")
         if self._is_shell or self._is_rod:
             gs.raise_exception(f"Only solid (tetrahedral) entities can carry an embedded {kind}.")

@@ -15,13 +15,13 @@ from pyglet.window import key, mouse
 from typing_extensions import override
 
 import genesis.utils.geom as gu
+from genesis.engine.entities.rigid_entity.rigid_link import RigidLink
 from genesis.utils.misc import tensor_to_array
 from genesis.vis.viewer_plugins import EVENT_HANDLE_STATE, RaycasterViewerPlugin
 
 import eden as en
 
 if TYPE_CHECKING:
-    from genesis.engine.entities.rigid_entity import RigidLink
     from genesis.engine.scene import Scene
     from genesis.ext.pyrender.node import Node
 
@@ -102,13 +102,6 @@ class MeshPointSelectorPlugin(RaycasterViewerPlugin):
     def build(self, viewer, camera: "Node", scene: "Scene"):
         super().build(viewer, camera, scene)
 
-        # Resolved here rather than at module scope: importing RigidLink pulls
-        # genesis.utils.array_class, which requires gs.init() to have run. Cached so the
-        # per-frame hover check in on_draw does not re-resolve it.
-        from genesis.engine.entities.rigid_entity.rigid_link import RigidLink
-
-        self._rigid_link_cls = RigidLink
-
         # A screen-space click maps to a single world ray, so the selection is only
         # well defined for one environment. Eden scenes are always vectorized
         # (``n_envs >= 1``); a raw Genesis scene is unbatched (``n_envs == 0``). Both
@@ -155,7 +148,7 @@ class MeshPointSelectorPlugin(RaycasterViewerPlugin):
         """
         if ray_hit is None or ray_hit.geom is None:
             return False
-        if isinstance(ray_hit.geom.link, self._rigid_link_cls):
+        if isinstance(ray_hit.geom.link, RigidLink):
             return True
         if not self._warned_non_rigid:
             self._warned_non_rigid = True

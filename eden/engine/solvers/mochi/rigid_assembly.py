@@ -12,7 +12,7 @@ damping is a joint-space term, assembled in ``articulated.py``.
 import genesis as gs
 import genesis.utils.geom as gu
 import quadrants as qd
-from genesis.utils import array_class
+from genesis.engine.solvers.rigid.data import DynInfo, DynState
 
 from eden.engine.solvers.mochi.data import MochiInfo, MochiState
 from eden.engine.solvers.mochi.lie import (
@@ -33,8 +33,8 @@ def func_assemble_links(
     per_env: qd.template(),
     envs: qd.Tensor,
     n_envs: qd.Tensor,
-    dyn_state: array_class.DynState,
-    dyn_info: array_class.DynInfo,
+    dyn_state: DynState,
+    dyn_info: DynInfo,
     mochi_info: MochiInfo,
     mochi_state: MochiState,
     rigid_config: qd.template(),
@@ -143,8 +143,8 @@ def func_assemble_links(
 
 @qd.kernel
 def kernel_assemble_links(
-    dyn_state: array_class.DynState,
-    dyn_info: array_class.DynInfo,
+    dyn_state: DynState,
+    dyn_info: DynInfo,
     mochi_info: MochiInfo,
     mochi_state: MochiState,
     rigid_config: qd.template(),

@@ -249,9 +249,9 @@ def _config_from_checkpoint(args):
         en.logger.info(f"🧩 Reset the training-only env_options {', '.join(reset)} for the replay.")
     if getattr(args, "config", None):
         # A *saved* --config would have suppressed the sibling above, so this is a partial.
-        config = config.with_overrides_from_dict(read_config_arg(args.config))
-    for overrides in overrides_from_args(args):
-        config = config.with_overrides_from_dict(overrides)
+        config = config.with_overrides_from_dict(read_config_arg(args.config), source=f"--config {args.config}")
+    for number, overrides in enumerate(overrides_from_args(args), start=1):
+        config = config.with_overrides_from_dict(overrides, source=f"--override #{number}")
     _apply_run_name(config, getattr(args, "run_name", ""))
     en.logger.info(f"🧩 Loaded the checkpoint's own config ~~<{sibling}>~~ (--config/--override on top).")
     return config

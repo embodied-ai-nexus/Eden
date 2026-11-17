@@ -32,8 +32,7 @@ class FEMEntity(Entity):
         :meth:`~eden.entities.base.Entity._reject_relative`).
         """
         self._reject_relative(relative, "get_pos")
-        state = self._entity.get_state()
-        pos = state.pos  # (B, n_vertices, 3)
+        pos = self._entity.get_verts_pos()  # (B, n_vertices, 3)
         centroid = pos.mean(dim=1)  # (B, 3)
         if envs_idx is not None:
             return centroid[envs_idx]
@@ -43,8 +42,7 @@ class FEMEntity(Entity):
         """Return mean vertex velocity, shape (B, 3). Only world frame is supported."""
         if frame != "world":
             raise ValueError(f"FEMEntity only supports frame='world', got '{frame}'.")
-        state = self._entity.get_state()
-        vel = state.vel  # (B, n_vertices, 3)
+        vel = self._entity.get_verts_vel()  # (B, n_vertices, 3)
         mean_vel = vel.mean(dim=1)  # (B, 3)
         if envs_idx is not None:
             return mean_vel[envs_idx]
@@ -233,16 +231,14 @@ class FEMEntity(Entity):
 
     def get_vertex_positions(self, envs_idx=None):
         """Return per-vertex positions, shape (B, n_vertices, 3)."""
-        state = self._entity.get_state()
-        pos = state.pos
+        pos = self._entity.get_verts_pos()
         if envs_idx is not None:
             return pos[envs_idx]
         return pos
 
     def get_vertex_velocities(self, envs_idx=None):
         """Return per-vertex velocities, shape (B, n_vertices, 3)."""
-        state = self._entity.get_state()
-        vel = state.vel
+        vel = self._entity.get_verts_vel()
         if envs_idx is not None:
             return vel[envs_idx]
         return vel

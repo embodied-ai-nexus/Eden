@@ -79,6 +79,19 @@ uv sync --inexact --extra vis
 With plain pip in a clone, `pip install -e ".[vis]"` works for most extras, but pip ignores the
 `[tool.uv]` settings in `pyproject.toml`, so the `soma-retargeter` extra cannot be installed that way.
 
+!!! note "`main` runs on an unreleased Genesis commit"
+    Between Genesis releases, `main` may pin `genesis-world` to a commit of its `main` branch, through
+    `[tool.uv.sources]` in `pyproject.toml`. uv installs that commit wherever it builds Eden from source: `uv sync`
+    in the clone, `uv pip install -e .`, and another project that depends on Eden by path or git. pip ignores the
+    table (as does uv given `--no-sources`) and installs the release the requirement names, on which `import eden`
+    raises with the command to run. Then install the commit yourself:
+
+    ```bash
+    pip install "genesis-world @ https://github.com/Genesis-Embodied-AI/genesis-world/archive/c27c6ca4e79183225d0fe2d25baa61db63ff127f.tar.gz"
+    ```
+
+    A release of Eden on PyPI always names a released Genesis, so `pip install eden-world` needs nothing more.
+
 ### Running `eden`
 
 Inside an activated virtual environment, `eden` is on your `PATH`. Without activating it, prefix every command with

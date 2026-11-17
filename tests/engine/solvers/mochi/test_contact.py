@@ -10,7 +10,7 @@ from genesis.utils.misc import tensor_to_array
 
 from eden.engine.solvers.mochi import MochiOptions, Rod, create_mochi_scene
 from eden.engine.solvers.mochi import materials as mochi_materials
-from tests.engine.solvers.mochi.conftest import make_static_config, plane_collision_response
+from tests.engine.solvers.mochi.conftest import make_config, plane_collision_response
 from tests.support.asserts import assert_allclose
 
 CONTACT_PARAMS = {
@@ -40,7 +40,7 @@ def test_collision_response_is_gradient_of_potential(params_name, friction_model
         points_stage_start[k] = points[k] - sliding * np.array([0.0, 1.0, 0.0])
 
     for use_fitted in (True, False):
-        config = make_static_config(
+        config = make_config(
             friction_model=FRICTION_MODEL.CINF if friction_model == "cinf" else FRICTION_MODEL.C1,
             use_fitted_friction_hessian=use_fitted,
         )
@@ -157,7 +157,7 @@ def test_collision_response_tangent_is_symmetric(params_name, friction_model):
     points_stage_start = points - rng.normal(scale=0.5 * dt_stage, size=points.shape)
     for use_fitted in (True, False):
         for implicit_normal in (True, False):
-            config = make_static_config(
+            config = make_config(
                 friction_model=FRICTION_MODEL.CINF if friction_model == "cinf" else FRICTION_MODEL.C1,
                 use_fitted_friction_hessian=use_fitted,
                 implicit_normal_force_for_dissipation=implicit_normal,

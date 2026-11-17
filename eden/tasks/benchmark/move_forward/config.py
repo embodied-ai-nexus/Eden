@@ -276,7 +276,7 @@ class MoveForwardConfig(EdenRLConfig):
         )
     )
 
-    runner_options: RslRlOnPolicyRunnerOptions = RslRlOnPolicyRunnerOptions(
+    runner_options: RslRlOnPolicyRunnerOptions | RlGamesPpoRunnerOptions = RslRlOnPolicyRunnerOptions(
         experiment_name="move_forward_go2",
         max_iterations=101,
         num_steps_per_env=24,

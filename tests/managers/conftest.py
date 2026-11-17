@@ -131,12 +131,12 @@ def flag_solver_error():
     """Return ``flag(env, envs)``: mark those envs as Genesis marks a corrupt one once a step is over (here
     ``INVALID_CONTACT_NAN``), which ``rigid_solver.get_error_envs_mask()`` reports. Cleared on teardown.
     """
-    from genesis.utils.array_class import ErrorCode
+    from genesis.engine.solvers.rigid.data import RigidErrorCode
 
     flagged = []
 
     def flag(env, envs) -> None:
-        env.rigid_solver.flag_errno(int(ErrorCode.INVALID_CONTACT_NAN), envs)
+        env.rigid_solver.flag_errno(int(RigidErrorCode.INVALID_CONTACT_NAN), envs)
         flagged.append(env)
 
     yield flag
