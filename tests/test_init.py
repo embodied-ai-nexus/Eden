@@ -487,8 +487,9 @@ def test_a_run_name_is_sanitized_into_the_middle_and_the_id_stays_last(frozen_no
 
 
 def test_import_eden_names_the_genesis_to_install_when_the_installed_one_predates_eden(monkeypatch, tmp_path):
-    """The unreleased commit Eden runs on calls itself 1.4.6, as the release does: the API tells them apart. Checked at
-    `import eden`, ahead of the first module to import a part of the API the release lacks, without importing Genesis.
+    """genesis-world 1.4.6 lacks the API Eden is written for, and the commits after it that have the API still call
+    themselves 1.4.6: the API tells them apart. Checked at `import eden`, ahead of the first module to import a part of
+    the API 1.4.6 lacks, without importing Genesis.
     """
     import importlib.machinery
     import importlib.util

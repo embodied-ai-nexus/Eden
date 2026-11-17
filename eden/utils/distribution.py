@@ -72,9 +72,7 @@ def editable_checkout(dist: metadata.Distribution) -> Path | None:
 #: commit. A checkout's ``uv sync`` installs it through ``pyproject.toml``'s ``[tool.uv.sources]``, which a wheel does
 #: not carry: an install from PyPI, or ``pip install`` of a checkout, gets the release the requirement names instead,
 #: and ``import eden`` names this source in the error it raises then. ``tests/test_pyproject.py`` keeps the two equal.
-GENESIS_SOURCE: str | None = (
-    "https://github.com/Genesis-Embodied-AI/genesis-world/archive/c27c6ca4e79183225d0fe2d25baa61db63ff127f.tar.gz"
-)
+GENESIS_SOURCE: str | None = None
 
 
 #: Requirements an extra needs that are not on PyPI. PyPI refuses a wheel whose metadata holds a direct (``git+``)
