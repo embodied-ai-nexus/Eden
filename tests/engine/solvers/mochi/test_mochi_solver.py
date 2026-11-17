@@ -295,6 +295,48 @@ def test_state_reset_restores_trajectory(show_viewer):
         assert_allclose(box.get_pos(), trajectory[i_step], tol=1e-9)
 
 
+@pytest.mark.precision("64")
+def test_moving_a_fixed_body_moves_its_collision_geom(show_viewer):
+    scene = _mochi_scene(show_viewer, 1.0 / 60.0, n_newton_iterations=8)
+    scene.add_entity(gs.morphs.Plane(), material=mochi_materials.Rigid())
+    table = scene.add_entity(
+        gs.morphs.Box(size=(0.4, 0.4, 0.2), pos=(0.0, 0.0, 0.1), fixed=True), material=mochi_materials.Rigid()
+    )
+    ball = scene.add_entity(gs.morphs.Sphere(radius=0.05, pos=(0.0, 0.0, 0.3)), material=mochi_materials.Rigid())
+    scene.build(n_envs=2)
+    solver = scene.mochi_solver
+    for _ in range(20):
+        scene.step()
+    state = scene.get_state()
+    assert_allclose(ball.get_pos()[:, 2], 0.25, atol=2e-3)
+
+    def is_inside_table(points, env_idx):
+        distances, _, _ = solver.get_collider_distances(table.geoms[0].idx, points, envs_idx=[env_idx])
+        return tensor_to_array(distances < 0.0)
+
+    # The table moved away in environment 0 alone collides at its new place there at once, and the ball drops onto
+    # the ground. Environment 1 keeps the table and the ball resting on it.
+    table.set_pos(np.array([[5.0, 0.0, 0.1]]), envs_idx=[0])
+    assert_array_equal(is_inside_table([[5.0, 0.0, 0.1], [0.0, 0.0, 0.1]], 0), [True, False])
+    assert_array_equal(is_inside_table([[5.0, 0.0, 0.1], [0.0, 0.0, 0.1]], 1), [False, True])
+    for _ in range(30):
+        scene.step()
+    ball_z = tensor_to_array(ball.get_pos()[:, 2])
+    assert_allclose(ball_z[0], 0.05, atol=2e-3)
+    assert_allclose(ball_z[1], 0.25, atol=2e-3)
+
+    # A move with the forward kinematics deferred, and a rotation, move the geom too: a quarter turn about x stands the
+    # 0.2 m tall table 0.4 m tall.
+    table.set_pos(np.array([[0.0, 5.0, 0.1]]), envs_idx=[0], skip_forward=True)
+    assert_array_equal(is_inside_table([[0.0, 5.0, 0.1], [5.0, 0.0, 0.1]], 0), [True, False])
+    table.set_quat(np.array([[np.sqrt(0.5), np.sqrt(0.5), 0.0, 0.0]]), envs_idx=[0])
+    assert_array_equal(is_inside_table([[0.0, 5.0, 0.28]], 0), [True])
+
+    # Restoring the state taken before the moves puts the geom back where that state has the table.
+    scene.reset(state)
+    assert_array_equal(is_inside_table([[0.0, 0.0, 0.1], [0.0, 5.0, 0.1]], 0), [True, False])
+
+
 def _normal_damping_for_restitution(restitution, impact_speed):
     """Normal viscous damping coefficient producing a given coefficient of restitution at a given approach speed
     (rational fit of the Hunt-Crossley-like response of the penalty contact).
