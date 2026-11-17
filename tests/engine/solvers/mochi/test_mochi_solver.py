@@ -347,33 +347,45 @@ def test_moving_a_fixed_body_moves_its_collision_geom(show_viewer):
 
 
 @pytest.mark.precision("64")
-def test_fixed_body_with_shared_vertices_takes_one_pose_in_every_env(show_viewer):
+@pytest.mark.parametrize("n_envs", [0, 2])
+def test_fixed_body_with_shared_vertices_takes_one_pose_in_every_env(n_envs, show_viewer):
     scene = _mochi_scene(show_viewer, 1.0 / 60.0)
-    table = scene.add_entity(
-        gs.morphs.Box(size=(0.4, 0.4, 0.2), pos=(0.0, 0.0, 0.1), fixed=True, batch_fixed_verts=False),
-        material=mochi_materials.Rigid(),
-    )
-    scene.build(n_envs=2)
+    tables = [
+        scene.add_entity(
+            gs.morphs.Box(size=(0.4, 0.4, 0.2), pos=(x, 0.0, 0.1), fixed=True, batch_fixed_verts=False),
+            material=mochi_materials.Rigid(),
+        )
+        for x in (0.0, 1.0)
+    ]
+    scene.build(n_envs=n_envs)
     solver = scene.mochi_solver
+    links_idx = [table.base_link_idx for table in tables]
 
-    # A pose of its own in some environments is refused before anything moves, as the rigid solver refuses it.
-    with pytest.raises(gs.GenesisException, match="batch_fixed_verts=True"):
-        table.set_pos(np.array([[5.0, 0.0, 0.1]]), envs_idx=[0])
-    with pytest.raises(gs.GenesisException, match="batch_fixed_verts=True"):
-        table.set_quat(np.array([[np.sqrt(0.5), np.sqrt(0.5), 0.0, 0.0], [1.0, 0.0, 0.0, 0.0]]))
-    assert_allclose(table.get_pos(), [[0.0, 0.0, 0.1]] * 2, tol=1e-12)
+    def assert_tables_at(xs):
+        for table, x in zip(tables, xs):
+            assert_allclose(table.get_pos(), np.broadcast_to([x, 0.0, 0.1], (max(n_envs, 1), 3)).squeeze(), tol=1e-12)
+            if n_envs > 0:
+                for env_idx in range(n_envs):
+                    is_inside = _is_inside_geom(solver, table.geoms[0], [[x, 0.0, 0.1], [x + 0.5, 0.0, 0.1]], env_idx)
+                    assert_array_equal(is_inside, [True, False])
 
-    # One pose for every environment moves the geom in each, also through the solver with a slice of links.
-    table.set_pos(np.array([5.0, 0.0, 0.1]))
-    for env_idx in range(2):
-        assert_array_equal(
-            _is_inside_geom(solver, table.geoms[0], [[5.0, 0.0, 0.1], [0.0, 0.0, 0.1]], env_idx), [True, False]
-        )
-    solver.set_base_links_pos(np.array([[0.0, 5.0, 0.1]]), slice(table.base_link_idx, table.base_link_idx + 1))
-    for env_idx in range(2):
-        assert_array_equal(
-            _is_inside_geom(solver, table.geoms[0], [[0.0, 5.0, 0.1], [5.0, 0.0, 0.1]], env_idx), [True, False]
-        )
+    # One pose per table, the same in every environment, moves each table and its geom, whether the solver is given
+    # the tables' links, all its base links, or a slice of them.
+    solver.set_base_links_pos(np.array([[2.0, 0.0, 0.1], [4.0, 0.0, 0.1]]), links_idx)
+    assert_tables_at([2.0, 4.0])
+    solver.set_base_links_pos(np.array([[3.0, 0.0, 0.1], [5.0, 0.0, 0.1]]))
+    assert_tables_at([3.0, 5.0])
+    solver.set_base_links_pos(np.array([[6.0, 0.0, 0.1]]), slice(links_idx[1], links_idx[1] + 1))
+    assert_tables_at([3.0, 6.0])
+
+    if n_envs > 0:
+        # A pose of its own in some environments is refused before anything moves, as the rigid solver refuses it.
+        with pytest.raises(gs.GenesisException, match=r"called on 1 of the 2 environments .*batch_fixed_verts=True"):
+            tables[0].set_pos(np.array([[5.0, 0.0, 0.1]]), envs_idx=[0])
+        with pytest.raises(gs.GenesisException, match=r"different orientation in different environments"):
+            tables[0].set_quat(np.array([[np.sqrt(0.5), np.sqrt(0.5), 0.0, 0.0], [1.0, 0.0, 0.0, 0.0]]))
+        assert_tables_at([3.0, 6.0])
+        assert_allclose(tables[0].get_quat(), [[1.0, 0.0, 0.0, 0.0]] * n_envs, tol=1e-12)
 
 
 _FIXED_BASE_WITH_CHILD_MJCF = """

@@ -561,9 +561,13 @@ class MochiSolver(GravityMixin, TimeBasedMixin, KinematicSolver):
         self.hit_readback = get_mochi_hit_readback(self, 1, 1, 1, 1)
         self._is_hit_readback_allocated = False
         self._links_entity_idx = np.array([link.entity.idx for link in self.links] or [-1], dtype=gs.np_int)
+        # Host copies the base-pose setters read: which links are fixed, and which of those carry geoms whose vertices
+        # their entity shares between environments, so that they have one pose in every environment.
+        self._base_links_idx_host = tensor_to_array(self._base_links_idx)
         self._links_is_fixed = np.array([link.is_fixed for link in self.links], dtype=bool)
-        self._fixed_base_links_idx = np.array(
-            [link.idx for link in self.links if link.parent_idx == -1 and link.is_fixed], dtype=gs.np_int
+        self._links_has_shared_pose = np.array(
+            [link.is_fixed and bool(link.geoms) and not link.entity._batch_fixed_verts for link in self.links],
+            dtype=bool,
         )
         self._geoms_link_idx = np.array([geom.link.idx for geom in self.geoms] or [-1], dtype=gs.np_int)
         self._soft_entities_idx = np.array([entity.idx for entity in self._soft_entities] or [-1], dtype=gs.np_int)
@@ -2542,63 +2546,68 @@ class MochiSolver(GravityMixin, TimeBasedMixin, KinematicSolver):
     # `_set_kinematic_state` is.
     @mutates(StateChange.GEOMETRY, links="links_idx")
     def set_base_links_pos(self, pos, links_idx=None, envs_idx=None, *, relative=False, skip_forward=False):
-        fixed_links_idx = self._fixed_links_among(links_idx)
-        self._check_pose_shared_by_envs(fixed_links_idx, pos, envs_idx, "set_pos")
+        targeted_links_idx = self._targeted_links_idx(links_idx)
+        self._check_pose_shared_by_envs(targeted_links_idx, pos, 3, envs_idx, "position", "set_pos")
+        moves_fixed_link = bool(self._links_is_fixed[targeted_links_idx].any())
         super().set_base_links_pos(
-            pos, links_idx, envs_idx, relative=relative, skip_forward=skip_forward or len(fixed_links_idx) > 0
+            pos, links_idx, envs_idx, relative=relative, skip_forward=skip_forward or moves_fixed_link
         )
-        if len(fixed_links_idx) > 0:
+        if moves_fixed_link:
             self._place_geoms_of_fixed_links(envs_idx, skip_forward)
 
     @mutates(StateChange.GEOMETRY, links="links_idx")
     def set_base_links_quat(self, quat, links_idx=None, envs_idx=None, *, relative=False, skip_forward=False):
-        fixed_links_idx = self._fixed_links_among(links_idx)
-        self._check_pose_shared_by_envs(fixed_links_idx, quat, envs_idx, "set_quat")
+        targeted_links_idx = self._targeted_links_idx(links_idx)
+        self._check_pose_shared_by_envs(targeted_links_idx, quat, 4, envs_idx, "orientation", "set_quat")
+        moves_fixed_link = bool(self._links_is_fixed[targeted_links_idx].any())
         super().set_base_links_quat(
-            quat, links_idx, envs_idx, relative=relative, skip_forward=skip_forward or len(fixed_links_idx) > 0
+            quat, links_idx, envs_idx, relative=relative, skip_forward=skip_forward or moves_fixed_link
         )
-        if len(fixed_links_idx) > 0:
+        if moves_fixed_link:
             self._place_geoms_of_fixed_links(envs_idx, skip_forward)
 
-    def _fixed_links_among(self, links_idx):
-        """The fixed links among the links a base-pose setter targets (its base links when None), as a numpy array.
+    def _targeted_links_idx(self, links_idx):
+        """The links a base-pose setter targets (its base links when None), as a numpy array.
 
-        An int, the index an entity's `set_pos` passes, is looked up on the host, without a device sync.
+        An int in range, the index an entity's `set_pos` passes, is looked up on the host, without a device sync.
         """
         if links_idx is None:
-            return self._fixed_base_links_idx
-        if isinstance(links_idx, (int, np.integer)):
-            links_idx = np.array([links_idx])
-        else:
-            links_idx = tensor_to_array(sanitize_index(links_idx, -1, self.n_links, 0, "links_idx"))
-        return links_idx[self._links_is_fixed[links_idx]]
+            return self._base_links_idx_host
+        if isinstance(links_idx, (int, np.integer)) and 0 <= links_idx < self.n_links:
+            return np.array([links_idx])
+        return tensor_to_array(sanitize_index(links_idx, -1, self.n_links, 0, "links_idx"))
 
-    def _check_pose_shared_by_envs(self, fixed_links_idx, value, envs_idx, setter):
+    def _check_pose_shared_by_envs(self, targeted_links_idx, value, value_size, envs_idx, quantity, setter):
         """Raise when a fixed link with geoms and shared vertices would take a pose of its own in some environments.
 
-        Such an entity has one pose in every environment, which is what the rigid solver enforces and what Eden's reset
-        states rely on (`eden.utils.buffers.reset_states.stores_root_pose`), so the MochiSolver refuses it too, though
-        its contact reads the geoms of each environment and would follow.
+        Such a link has one pose in every environment, and the rigid solver refuses a write that would break that. The
+        MochiSolver refuses it too, though its contact reads the geoms of each environment and would follow, so that
+        a scene accepts the same writes on both.
         """
-        entities = {
-            self.links[i_l].entity
-            for i_l in fixed_links_idx
-            if self.links[i_l].geoms and not self.links[i_l].entity._batch_fixed_verts
-        }
-        if not entities:
+        has_shared_pose = self._links_has_shared_pose[targeted_links_idx]
+        if not has_shared_pose.any():
             return
-        value = torch.as_tensor(value, dtype=gs.tc_float, device=gs.device)
-        is_shared = value.ndim < 2 or len(value) == 1 or bool((torch.diff(value, dim=0).abs() < gs.EPS).all())
-        is_all_envs = envs_idx is None or torch.equal(
-            torch.sort(self._sim.sanitize_envs_idx(envs_idx)).values, self._envs_idx
+        names = sorted({f"'{self.links[i_l].entity.name}'" for i_l in targeted_links_idx[has_shared_pose]})
+        what = f"the fixed {'entity' if len(names) == 1 else 'entities'} {', '.join(names)}"
+        why = (
+            "which was built without `batch_fixed_verts=True` and so has one pose in every environment. Fix: build it "
+            "with `batch_fixed_verts=True` in its morph to pose it per environment"
         )
-        if not (is_shared and is_all_envs):
-            names = ", ".join(sorted(f"'{entity.name}'" for entity in entities))
+        value, _, envs_idx = self._sanitize_io_variables(
+            value, targeted_links_idx, self.n_links, "links_idx", envs_idx, (value_size,), skip_allocation=True
+        )
+        if not torch.equal(torch.sort(envs_idx).values, self._envs_idx):
             gs.raise_exception(
-                f"`{setter}` was given a pose that differs between environments, or for only some of them, for the "
-                f"fixed entity {names}, which was built without `batch_fixed_verts=True` and so has one pose in "
-                "every environment. Fix: build it with `batch_fixed_verts=True` in its morph to pose it per "
-                "environment, or pass one pose with `envs_idx=None`."
+                f"`{setter}` was called on {len(envs_idx)} of the {self.n_envs} environments for {what}, {why}, or "
+                "call it with `envs_idx=None`."
+            )
+        if self.n_envs == 0:
+            value = value[None]
+        value = value[:, torch.as_tensor(np.flatnonzero(has_shared_pose), device=value.device)]
+        if not bool((torch.diff(value, dim=0).abs() < gs.EPS).all()):
+            gs.raise_exception(
+                f"`{setter}` was given a different {quantity} in different environments for {what}, {why}, or pass "
+                f"one {quantity} for every environment."
             )
 
     def _place_geoms_of_fixed_links(self, envs_idx, skip_forward):
