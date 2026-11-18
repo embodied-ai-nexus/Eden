@@ -7037,7 +7037,7 @@ surfaces are rejected at validation (the solver reads none of them), <code>set_m
 </span><span id="__span-22-18"><a id="__codelineno-22-18" name="__codelineno-22-18" href="#__codelineno-22-18"></a><span class="p">)</span>
 </span></code></pre></div>
 <p>A <strong>rod</strong> (<code>RodOptions</code>) is the one morph unique to this solver: the centerline polyline plus a
-<code>MochiRodMaterialOptions</code>; clamp it after build by fixing its first nodes (<code>set_vertices_fixed([0, 1])</code>). A
+<code>MochiRodMaterialOptions</code>; clamp it by fixing its first two nodes from a STARTUP event (<code>PinSoftBodyVertices</code>). A
 <strong>solid</strong> may load a tetrahedral mesh directly, a tetgen <code>.node</code> (its <code>.ele</code> sibling is read alongside) or a
 legacy ASCII <code>.vtk</code>, which only a <code>MochiElasticMaterialOptions</code> entity may do. A tetgen box meshes into a handful
 of tetrahedra, too few to deform, so <code>eden.utils.procedural_meshes</code> writes regular meshes to the cache:
@@ -7046,9 +7046,11 @@ for a shell).</p>
 <p><strong>Pinning and driving vertices.</strong> <code>set_vertices_fixed</code> / <code>set_vertices_target</code> take one vertex set for every env,
 <code>(n,)</code>, or one per env: an <code>(n_envs, n)</code> tensor padded with <code>-1</code>, which stays on the device. This is how a
 gripper carries whichever vertices it closed on in each env (<code>SettledGraspLatch</code> / <code>FeatureGraspLatch</code> in
-<code>eden.tasks.mochi.custom_terms</code>). A pin, and the position it holds the vertex to, live outside the state
-<code>scene.reset</code> restores, so re-pin at reset (<code>PinSoftBodyVertices</code>) rather than once at startup, and release
-whatever a gripper held when its env resets.</p>
+<code>eden.tasks.mochi.custom_terms</code>). A pin, and the position it holds the vertex to, are part of the state
+<code>scene.reset</code> restores. An env takes that state at the end of its build, after the STARTUP events, so a pin made at
+STARTUP (<code>PinSoftBodyVertices</code>) holds through every reset, a pin made from code after <code>env.build()</code> lasts until its
+env next resets, and a reset releases whatever a gripper held. Writing a pinned vertex's position moves the hold with
+it, so a RESET event that places the body carries its pins along.</p>
 <p><strong>Mounting a soft body.</strong> A <strong>solid</strong> mounted on a robot link (a sponge under a gripper) is named in
 <code>attachments_dict</code> like a welded rigid child. The mounting transform means what it means for
 <code>RigidEntity.attach_to</code>, and the vertices of the face nearest the link are tied to it. The body is placed at the

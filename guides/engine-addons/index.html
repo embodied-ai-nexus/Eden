@@ -5308,12 +5308,12 @@ seams are the ones any hosted solver meets:</p>
 <td><code>on_fem</code> / <code>update_fem</code> / <code>_rigid_solvers</code> are bound on the scene's rasterizer context, and the solver places its visual geoms itself at the end of each scene step (the pipelined step's kinematics place them at every substep)</td>
 </tr>
 <tr>
-<td><code>Simulator.get_state</code> / <code>reset</code> / <code>destroy</code> take the solvers whose declared data holds their whole state (<code>is_checkpointable</code>), whose arrays <code>destroy</code> frees</td>
-<td>the solver is not checkpointable: the scene's <code>sim.get_state</code> / <code>sim.reset</code> are bound to save and restore its state alongside, and <code>MochiSolver.destroy</code> frees its own arrays</td>
+<td><code>Simulator.get_state</code> / <code>reset</code> / <code>destroy</code> and the checkpoints take the solvers whose declared data holds their whole state (<code>is_checkpointable</code>), and <code>destroy</code> frees the arrays that data lists</td>
+<td>nothing is bound: <code>MochiSolver.data</code> yields every array of its structs, each field of which carries its <code>DataKind</code> (<code>eden/engine/solvers/mochi/data.py</code>), so the simulator saves, restores and frees it as it does the rigid solver</td>
 </tr>
 <tr>
 <td>the scene serializer names a material class by its bare <code>__name__</code></td>
-<td>a material extending an upstream one takes a name of its own (<code>MochiRigid</code>, not <code>Rigid</code>), or every rigid scene of the process would load back with it; <code>scene.export</code> is bound to raise, since <code>gs.Scene.load</code> rebuilds a scene without the hosted solver</td>
+<td>a material extending an upstream one takes a name of its own (<code>MochiRigid</code>, not <code>Rigid</code>), or every rigid scene of the process would load back with it; <code>scene.export</code>, <code>save_checkpoint</code>, <code>start_recording</code> and pickling are bound to raise, since Genesis rebuilds a scene from any of them without the hosted solver</td>
 </tr>
 </tbody>
 </table>
