@@ -160,6 +160,8 @@ class ResetFromStateBuffer(EventTerm):
                 )
             free_base_joint(entity, consumer=where)  # raises for a free body inside it, which no row can hold
             fixed_root = states.has_root
+            if fixed_root and self.num_envs > 1:
+                _check_root_carries_no_shared_pose(entity, name, where)
             vel_dofs = []
         else:
             if not states.has_root:
@@ -281,6 +283,33 @@ class ResetFromStateBuffer(EventTerm):
                 f"Columns: {', '.join(self.buffer.columns) or '(none)'}."
             )
         return self.buffer.columns[name].index_select(0, self._current)
+
+
+def _check_root_carries_no_shared_pose(entity, name: str, where: str) -> None:
+    """Raise when a per-env write of ``entity``'s fixed root would carry a fixed entity that the MochiSolver holds in
+    one pose for every env, which it refuses on every reset of a subset of envs.
+
+    ``entity`` is posed per env (``batch_fixed_verts=True``), but a fixed entity attached below it may be built
+    without the flag and carry collision geoms: its fixed vertices are shared between envs. The rigid solver accepts
+    that move; the MochiSolver refuses it (``MochiSolver.get_entities_sharing_pose``).
+    """
+    from eden.engine.solvers.mochi.mochi_solver import MochiSolver
+
+    solver = entity.entity.solver
+    if not isinstance(solver, MochiSolver):
+        return
+    names = solver.get_entities_sharing_pose(entity.entity.base_link_idx)
+    if not names:
+        return
+    quoted = ", ".join(f"'{n}'" for n in names)
+    what, them = ("entity", "it") if len(names) == 1 else ("entities", "them")
+    raise ValueError(
+        f"{where} stores a root pose per env for entity '{name}', but moving '{name}' carries the fixed {what} "
+        f"{quoted}, attached below it with collision geoms and built without batch_fixed_verts=True. The MochiSolver "
+        f"holds one pose for {them} in every env, so it would refuse every reset of a subset of envs. Fix: set "
+        f"batch_fixed_verts=True on {quoted} to pose {them} per env, or set batch_fixed_verts=False on '{name}' and "
+        f"regenerate the buffer (capture_reset_states then stores no root for it)."
+    )
 
 
 def _gather_or_zeros(column: torch.Tensor | None, current: torch.Tensor, width: int) -> torch.Tensor:

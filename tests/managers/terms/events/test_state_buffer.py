@@ -576,3 +576,57 @@ def test_category_weights_that_do_not_fit_raise_at_build(env, tmp_path, labelled
     term = ResetFromStateBuffer(env=env, options=ResetFromStateBuffer.configure(path=path, **overrides))
     with pytest.raises(ValueError, match=match):
         term.build()
+
+
+MOUNT_MJCF = """<mujoco model="mount"><worldbody>
+  <body name="plate" pos="0 0 0.05"><geom type="box" size="0.1 0.1 0.05"/></body>
+</worldbody></mujoco>"""
+
+
+@pytest.mark.parametrize("is_fixture_batched", [False, True], ids=["shared-fixture", "batched-fixture"])
+def test_a_mochi_mount_carrying_a_fixture_posed_once_for_every_env_raises_at_build(tmp_path, is_fixture_batched):
+    """The MochiSolver holds a fixture built without batch_fixed_verts=True in one pose for every env, and refuses to
+    move the mount it is attached to in a subset of envs: the buffer is refused at build, not on the first reset.
+    """
+    from eden.engine.solvers.mochi.options import MochiOptions
+    from eden.options import BoxOptions, EntityOptions, EnvOptions, SceneOptions
+    from eden.options.materials import MochiRigidMaterialOptions
+    from eden.utils.configs import EdenConfig
+
+    (tmp_path / "mount.xml").write_text(MOUNT_MJCF)
+    material = MochiRigidMaterialOptions(penalty_coefficient=1e7)
+    env = build_env(
+        EdenConfig(
+            env_options=EnvOptions(num_envs=2, sim_dt=1.0 / 60.0, mochi_options=MochiOptions()),
+            scene_options=SceneOptions(
+                mount=EntityOptions(
+                    file=str(tmp_path / "mount.xml"), is_fixed_base=True, batch_fixed_verts=True, material=material
+                ),
+                fixture=BoxOptions(
+                    size=(0.1, 0.1, 0.1),
+                    fixed=True,
+                    batch_fixed_verts=is_fixture_batched,
+                    default_root_pos=(0.0, 0.0, 0.1),
+                    material=material,
+                ),
+                attachments_dict={"fixture": ("mount", "plate")},
+            ),
+        )
+    )
+    path = tmp_path / "mount.pt"
+    capture_reset_states(env, ["mount"]).save(path)
+    term = ResetFromStateBuffer(env=env, options=ResetFromStateBuffer.configure(path=str(path)))
+    if not is_fixture_batched:
+        with pytest.raises(
+            ValueError,
+            match=r"root pose per env for entity 'mount', but moving 'mount' carries the fixed entity 'fixture'.*"
+            r"Fix: set batch_fixed_verts=True on 'fixture'",
+        ):
+            term.build()
+        return
+    # A fixture posed per env follows the mount, which a reset of one env restores alone.
+    term.build()
+    mount = env.entities["mount"]
+    mount.set_pos(torch.tensor([[1.0, 0.0, 0.0]], device=env.device), envs_idx=torch.tensor([1], device=env.device))
+    term.compute(torch.tensor([1], device=env.device))
+    torch.testing.assert_close(mount.get_pos().cpu(), torch.zeros(2, 3, dtype=gs.tc_float), atol=1e-6, rtol=0)

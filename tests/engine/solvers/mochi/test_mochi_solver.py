@@ -463,19 +463,14 @@ def _mount_with_fixture(show_viewer, is_mount_batched):
 
 
 @pytest.mark.precision("64")
-def test_a_fixture_sharing_its_vertices_below_a_mount_posed_per_env_is_refused_at_build(show_viewer):
-    # Eden's reset states would store a pose per environment for the mount, which the fixture cannot follow.
-    scene, _, _ = _mount_with_fixture(show_viewer, is_mount_batched=True)
-    with pytest.raises(gs.GenesisException, match=r"fixed entity 'fixture' .* attached below 'mount', which was built"):
-        scene.build(n_envs=2)
-
-
-@pytest.mark.precision("64")
-def test_moving_a_fixed_body_moves_the_geom_of_an_entity_attached_to_it(show_viewer):
-    scene, mount, fixture = _mount_with_fixture(show_viewer, is_mount_batched=False)
+@pytest.mark.parametrize("is_mount_batched", [False, True])
+def test_moving_a_fixed_body_moves_the_geom_of_an_entity_attached_to_it(is_mount_batched, show_viewer):
+    # The fixture decides: a mount that could be posed per environment on its own takes one pose all the same.
+    scene, mount, fixture = _mount_with_fixture(show_viewer, is_mount_batched)
     scene.build(n_envs=2)
     solver = scene.mochi_solver
     assert not mount.geoms
+    assert solver.get_entities_sharing_pose(mount.base_link_idx) == ["fixture"]
 
     # The mount carries no geom, but moving it moves the fixture welded below it, which shares its fixed vertices
     # between environments: a pose of its own in one of them is refused, one for all moves the fixture's geom.

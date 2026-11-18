@@ -564,13 +564,11 @@ class MochiSolver(GravityMixin, TimeBasedMixin, KinematicSolver):
         self._links_shared_pose_entities = [set() for _ in range(self.n_links)]
         for link in self.links:
             if link.is_fixed and link.geoms:
-                is_shared = not link.entity._batch_fixed_verts
                 i_l = link.idx
                 while i_l >= 0:
                     self._links_moves_fixed_geoms[i_l] = True
-                    if is_shared:
+                    if not link.entity._batch_fixed_verts:
                         self._links_shared_pose_entities[i_l].add(link.entity.name)
-                        self._check_attached_below_batched(link.entity, self.links[i_l].entity)
                     i_l = self._links_parent_idx[i_l]
         self._links_has_shared_pose = np.array([bool(names) for names in self._links_shared_pose_entities], dtype=bool)
         self._base_links_idx_host = tensor_to_array(self._base_links_idx)
@@ -2467,9 +2465,7 @@ class MochiSolver(GravityMixin, TimeBasedMixin, KinematicSolver):
 
     def _resume(self, envs_idx) -> None:
         """Bring what a step reads before writing it up to date with a restored state, in the given environments."""
-        kernel_update_geoms(self._envs_idx, self.dyn_state, self.dyn_info, self.rigid_info, self.rigid_config, False)
-        kernel_update_geom_aabbs(self.geoms_init_AABB, self.dyn_state, self.dyn_info, self.rigid_config)
-        # The fixed geoms too in the restored environments, since the state may hold a fixed link moved since (see
+        # Every geom, the fixed ones included, since the state may hold a fixed link moved since (see
         # `_set_base_links_pose`); their boxes are fitted along.
         kernel_update_geoms(envs_idx, self.dyn_state, self.dyn_info, self.rigid_info, self.rigid_config, True)
         self._external_state_dirty_mask[tensor_to_array(envs_idx)] = False
@@ -2507,7 +2503,8 @@ class MochiSolver(GravityMixin, TimeBasedMixin, KinematicSolver):
         if links_idx is None:
             targeted_links_idx = self._base_links_idx_host
         elif isinstance(links_idx, (int, np.integer)):
-            # The link an entity's setter passes, resolved on the host (`@mutates` has range-checked it)
+            # The link an entity's setter passes, resolved on the host. An int out of range has already raised an
+            # IndexError in `@mutates`, which indexes this solver's link mask with it (the solver subscribes at build).
             targeted_links_idx = np.array([links_idx % self.n_links])
         else:
             targeted_links_idx = tensor_to_array(sanitize_index(links_idx, -1, self.n_links, 0, "links_idx"))
@@ -2521,25 +2518,15 @@ class MochiSolver(GravityMixin, TimeBasedMixin, KinematicSolver):
             # The contacts read back before the move were found against the geoms where they were
             self._is_contacts_recorded = False
 
-    def _check_attached_below_batched(self, entity, ancestor_entity):
-        """Raise when `entity`, a fixed entity with collision geoms that shares its fixed vertices between environments,
-        is attached below `ancestor_entity`, built with `batch_fixed_verts=True`.
+    def get_entities_sharing_pose(self, link_idx: int) -> list[str]:
+        """The names (sorted) of the fixed entities with collision geoms built without `batch_fixed_verts=True` that a
+        move of link `link_idx` carries, the link's own entity and those attached below it included.
 
-        The ancestor can be posed per environment, and Eden's reset states store a root pose for it per environment
-        (`stores_root_pose`), but a per-environment move would carry `entity`, which has one pose in every
-        environment, and `_check_pose_shared_by_envs` refuses it. A partial reset would then raise mid-run, so the pair
-        is refused at build.
+        Each has one pose in every environment, so `set_base_links_pos` / `set_base_links_quat` refuse to pose the link
+        on a subset of environments or differently per environment while this is not empty (see
+        `_check_pose_shared_by_envs`). Eden's `ResetFromStateBuffer` reads it at build.
         """
-        if ancestor_entity is entity or not ancestor_entity._batch_fixed_verts:
-            return
-        gs.raise_exception(
-            f"The fixed entity '{entity.name}' carries collision geoms and was built without `batch_fixed_verts=True`, "
-            f"so it has one pose in every environment, but it is attached below '{ancestor_entity.name}', which was "
-            f"built with `batch_fixed_verts=True` and can be posed per environment (a primitive morph defaults to "
-            f"True). A per-environment move of '{ancestor_entity.name}', such as a partial reset, would then be "
-            f"refused. Fix: set `batch_fixed_verts=True` on '{entity.name}' (in its entity options or morph), or "
-            f"`batch_fixed_verts=False` on '{ancestor_entity.name}' to give both one pose in every environment."
-        )
+        return sorted(self._links_shared_pose_entities[link_idx])
 
     def _check_pose_shared_by_envs(self, targeted_links_idx, value, value_size, envs_idx):
         """Raise when a move would give a fixed entity that shares its fixed vertices between environments a pose of its

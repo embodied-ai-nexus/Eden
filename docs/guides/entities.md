@@ -961,8 +961,9 @@ vertex-based solid, shell or rod. Solver settings (`MochiOptions`, precision, pe
     `MochiSoftEntity.set_quat` raises: bake the orientation into `default_root_quat`. A fixed entity with
     collision geoms built without `batch_fixed_verts=True` shares its vertices between envs: `set_pos` /
     `set_quat` that would pose it on a subset of envs, or differently in different envs, raises, also when the move
-    reaches it through an entity it is attached to. A partial `scene.reset(state, envs_idx)` is not checked. Attaching
-    such an entity below one built with `batch_fixed_verts=True` (a primitive morph's default) raises at build.
+    reaches it through an entity it is attached to. A partial `scene.reset(state, envs_idx)` is not checked.
+    `ResetFromStateBuffer` raises at build on a buffer that stores a per-env root for an entity such a fixture is
+    attached below.
 
 ```python
 from eden.engine.solvers.mochi import MochiOptions
