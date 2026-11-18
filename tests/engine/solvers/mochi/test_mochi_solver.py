@@ -390,15 +390,15 @@ def test_fixed_body_with_shared_vertices_takes_one_pose_in_every_env(n_envs, sho
     assert_tables_at([3.0, 8.0])
 
     if n_envs > 0:
-        # A pose of its own in some environments is refused before anything moves. The error names the table at fault
-        # and the poses that differ.
+        # A pose of its own in some environments is refused before the pose is written (the entity setter zeroes the
+        # DOF velocities first, as on the rigid solver). The error names the table at fault and the poses that differ.
         with pytest.raises(gs.GenesisException, match=r"called on 1 of the 2 environments \(envs_idx \[0\]\)"):
             tables[0].set_pos(np.array([[5.0, 0.0, 0.1]]), envs_idx=[0])
         with pytest.raises(gs.GenesisException, match=r"different orientation .* in env 1\) for the fixed entity 'b'"):
             tables[1].set_quat(np.array([[1.0, 0.0, 0.0, 0.0], [np.sqrt(0.5), np.sqrt(0.5), 0.0, 0.0]]))
         assert_tables_at([3.0, 8.0])
         assert_allclose(tables[1].get_quat(), [[1.0, 0.0, 0.0, 0.0]] * n_envs, tol=1e-12)
-        # q and -q are one orientation, the same in every environment.
+        # q and -q are one orientation, the same in every environment (the rigid solver refuses this call).
         tables[1].set_quat(np.array([[1.0, 0.0, 0.0, 0.0], [-1.0, 0.0, 0.0, 0.0]]))
         assert_tables_at([3.0, 8.0])
 
@@ -428,29 +428,26 @@ def test_moving_a_fixed_body_moves_the_geoms_of_its_fixed_descendants(tmp_path, 
     top = stand.get_link("top")
     assert top.is_fixed and top.geoms and not stand.base_link.geoms
 
-    # Its base link, MJCF's world body at the origin, carries no geom, but the stand shares its fixed vertices between
-    # environments all the same, so a pose of its own in one of them is refused.
-    with pytest.raises(gs.GenesisException, match=r"fixed entity 'stand', which carries collision geoms"):
-        stand.set_pos(np.array([[5.0, 0.0, 0.0]]), envs_idx=[0])
+    def assert_top_at(xs):
+        for env_idx, x in enumerate(xs):
+            is_inside = _is_inside_geom(solver, top.geoms[0], [[x, 0.0, 0.25], [5.0 - x, 0.0, 0.25]], env_idx)
+            assert_array_equal(is_inside, [True, False])
 
-    # The forward kinematics the move defers would carry the child link to its new pose, but not its geom.
-    stand.set_pos(np.array([5.0, 0.0, 0.0]), skip_forward=True)
-    for env_idx in range(2):
-        is_inside = _is_inside_geom(solver, top.geoms[0], [[5.0, 0.0, 0.25], [0.0, 0.0, 0.25]], env_idx)
-        assert_array_equal(is_inside, [True, False])
+    # Its base link, MJCF's world body at the origin, carries no geom, so it takes a pose per environment, as on the
+    # rigid solver, and the child's geom follows in that environment alone. The forward kinematics the move defers
+    # would carry the child link to its new pose, but not its geom.
+    stand.set_pos(np.array([[5.0, 0.0, 0.0]]), envs_idx=[0], skip_forward=True)
+    assert_top_at([5.0, 0.0])
     scene.step()
-    assert_allclose(top.get_pos(), [[5.0, 0.0, 0.25]] * 2, tol=1e-9)
-    assert_array_equal(_is_inside_geom(solver, top.geoms[0], [[5.0, 0.0, 0.25], [0.0, 0.0, 0.25]], 0), [True, False])
+    assert_allclose(top.get_pos(), [[5.0, 0.0, 0.25], [0.0, 0.0, 0.25]], tol=1e-9)
+    assert_top_at([5.0, 0.0])
 
 
 @pytest.mark.precision("64")
-@pytest.mark.parametrize("is_mount_batched", [False, True])
-def test_moving_a_fixed_body_moves_the_geom_of_an_entity_attached_to_it(is_mount_batched, show_viewer):
+def test_moving_a_fixed_body_moves_the_geom_of_an_entity_attached_to_it(show_viewer):
     scene = _mochi_scene(show_viewer, 1.0 / 60.0)
     mount = scene.add_entity(
-        gs.morphs.Box(
-            size=(0.1, 0.1, 0.1), pos=(0.0, 0.0, 0.0), fixed=True, collision=False, batch_fixed_verts=is_mount_batched
-        ),
+        gs.morphs.Box(size=(0.1, 0.1, 0.1), pos=(0.0, 0.0, 0.0), fixed=True, collision=False, batch_fixed_verts=False),
         material=mochi_materials.Rigid(),
         name="mount",
     )
@@ -469,16 +466,10 @@ def test_moving_a_fixed_body_moves_the_geom_of_an_entity_attached_to_it(is_mount
             is_inside = _is_inside_geom(solver, fixture.geoms[0], [[x, 0.0, 0.1], [5.0 - x, 0.0, 0.1]], env_idx)
             assert_array_equal(is_inside, [True, False])
 
-    # The mount carries no geom, but moving it moves the fixture welded below it. The mount's own flag decides whether
-    # it takes a pose per environment, whatever the fixture's: one built without batch_fixed_verts takes one pose in
-    # every environment, so a pose of its own in one of them is refused.
-    if is_mount_batched:
-        mount.set_pos(np.array([[5.0, 0.0, 0.0]]), envs_idx=[0])
-        assert_fixture_at([5.0, 0.0])
-    else:
-        with pytest.raises(gs.GenesisException, match=r"fixed entity 'mount', which carries collision geoms"):
-            mount.set_pos(np.array([[5.0, 0.0, 0.0]]), envs_idx=[0])
-        assert_fixture_at([0.0, 0.0])
+    # The mount carries no geom, so it takes a pose per environment, as on the rigid solver, and moving it moves the
+    # fixture welded below it in that environment alone.
+    mount.set_pos(np.array([[5.0, 0.0, 0.0]]), envs_idx=[0])
+    assert_fixture_at([5.0, 0.0])
     mount.set_pos(np.array([5.0, 0.0, 0.0]))
     assert_fixture_at([5.0, 5.0])
 
