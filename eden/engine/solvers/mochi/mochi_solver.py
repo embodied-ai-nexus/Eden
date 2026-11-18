@@ -2520,12 +2520,13 @@ class MochiSolver(GravityMixin, TimeBasedMixin, KinematicSolver):
 
         Genesis stores the vertices of such a link once for every environment. Nothing the MochiSolver runs reads them,
         and its contact reads the geoms of each environment, so it would follow the pose; the refusal keeps a scene
-        that raises on the rigid solver from passing here. It is narrower than the rigid solver's where that one
-        refuses a call that keeps every such link at one pose:
-        - q and -q are one orientation.
-        - Only the values of such links must agree between environments; a free body moved in the same call may differ.
-        - The value is compared as given, not after `relative` composes it with the link's offset and orientation,
-          which are the same in every environment for such a link (the MochiSolver refuses heterogeneous entities).
+        that raises on the rigid solver from passing here. It accepts two calls the rigid solver refuses, both of which
+        keep every such link at one pose: q and -q in different environments, and a free body moved per environment in
+        the same call (only the values of such links must agree). It compares every environment with the first rather
+        than with the one before, so values that drift by less than `gs.EPS` from one environment to the next, but more
+        overall, raise here only. The value is compared as given: `relative` composes it with the link's offset and
+        current orientation, the same in every environment for such a link unless a partial state restore gave it
+        another pose.
         """
         if not self._links_has_shared_pose[targeted_links_idx].any():
             return

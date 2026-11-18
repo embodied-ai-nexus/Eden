@@ -54,10 +54,12 @@ class MochiEntity(RigidEntity):
 
     def get_contacts(self, with_entity=None, exclude_self_contact=False, is_padded=False):
         """
-        Returns the contact points computed at the end of the most recent `scene.step()`, filtered to those involving
-        this entity (and `with_entity` if given). The contacts are computed on the first read after the step and kept
-        until the next one, except that moving a fixed body with `set_pos` / `set_quat`, restoring a state and setting
-        soft vertices discard them, so the next read computes them against the new geometry.
+        Returns the contact points of the current geometry, filtered to those involving this entity (and `with_entity`
+        if given). They are computed on the first read after a `scene.step()` and kept until the next step. The setters
+        that place geoms or vertices at once discard them, so the next read computes them again: `set_pos` / `set_quat`
+        on an entity whose move carries a fixed link with collision geoms, a state restore, and the soft vertex and
+        soft contact-parameter setters. After any other setter (`set_qpos`, `set_pos` on a free body or on a fixed base
+        carrying only movable geoms) the geoms, and so the contacts, follow at the next step.
 
         A contact point is a sample of the collision surface of side A pressed into the distance field of side B
         (a rigid geom, or a deformable body). The returned dict has the keys 'entity_a', 'entity_b' (scene entity
