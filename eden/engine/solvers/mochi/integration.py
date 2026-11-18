@@ -267,7 +267,8 @@ def func_post_stage(
     antisymmetric part of (R - R_start)/h R^T and the symmetric part is kept so the next step extrapolates the same
     rotation increment). A diverged environment is reset to its previous configuration at rest. A sleeping body
     keeps its pose, and its velocities are set to zero: the finite difference of its unchanged pose cancels only up to
-    rounding (for a quaternion q, conj(q) q evaluates to the identity exactly only under fast-math reassociation).
+    rounding, because conj(q) q for a quaternion q leaves a residue whose size depends on the backend and on fast-math
+    code generation.
     """
     n_joints = dyn_info.joints.type.shape[0]
     n_links = dyn_state.links.pos.shape[0]
