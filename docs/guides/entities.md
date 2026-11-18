@@ -958,12 +958,11 @@ vertex-based solid, shell or rod. Solver settings (`MochiOptions`, precision, pe
     `default_dofs_frictionloss`, `default_dofs_force_limits`, the constraint-solver parameters and support
     surfaces are rejected at validation (the solver reads none of them), `set_mass` raises (set the material's
     `rho`), and per-env DOF info is `MochiOptions.batch_dofs_info`, not the `EnvOptions` field of the same name.
-    `MochiSoftEntity.set_quat` raises: bake the orientation into `default_root_quat`. A fixed entity with
-    collision geoms built without `batch_fixed_verts=True` shares its vertices between envs: `set_pos` /
-    `set_quat` that would pose it on a subset of envs, or differently in different envs, raises, also when the move
-    reaches it through an entity it is attached to. A partial `scene.reset(state, envs_idx)` is not checked.
-    `ResetFromStateBuffer` raises at build on a buffer that stores a per-env root for an entity such a fixture is
-    attached below.
+    `MochiSoftEntity.set_quat` raises: bake the orientation into `default_root_quat`. A fixed entity built without
+    `batch_fixed_verts=True` has one pose in every env, and reset states store no root for it: `set_pos` /
+    `set_quat` that would pose it on a subset of envs, or differently in different envs, raises when it carries
+    collision geoms, on its own links or on an entity attached below it. A partial `scene.reset(state, envs_idx)` is
+    not checked.
 
 ```python
 from eden.engine.solvers.mochi import MochiOptions

@@ -555,22 +555,20 @@ class MochiSolver(GravityMixin, TimeBasedMixin, KinematicSolver):
         self.hit_readback = get_mochi_hit_readback(self, 1, 1, 1, 1)
         self._is_hit_readback_allocated = False
         self._links_entity_idx = np.array([link.entity.idx for link in self.links] or [-1], dtype=gs.np_int)
-        # Host copies the base-pose setters read, over the kinematic subtree a move of a link carries (the links of
-        # an entity attached below it included): whether it holds a fixed link with collision geoms, which the step
-        # never places, and whether that link's entity shares its fixed vertices between environments, so that the
-        # move must be the same in every environment.
-        # The names of those entities are kept for the error naming them.
+        # Host copies the base-pose setters read: whether the kinematic subtree a move of a link carries (the links of
+        # an entity attached below it included) holds a fixed link with collision geoms, which the step never places,
+        # and whether the link's own entity, built without `batch_fixed_verts=True`, must then take one pose in every
+        # environment (see `_check_pose_shared_by_envs`).
         self._links_moves_fixed_geoms = np.zeros(self.n_links, dtype=bool)
-        self._links_shared_pose_entities = [set() for _ in range(self.n_links)]
         for link in self.links:
             if link.is_fixed and link.geoms:
                 i_l = link.idx
                 while i_l >= 0:
                     self._links_moves_fixed_geoms[i_l] = True
-                    if not link.entity._batch_fixed_verts:
-                        self._links_shared_pose_entities[i_l].add(link.entity.name)
                     i_l = self._links_parent_idx[i_l]
-        self._links_has_shared_pose = np.array([bool(names) for names in self._links_shared_pose_entities], dtype=bool)
+        self._links_has_shared_pose = self._links_moves_fixed_geoms & np.array(
+            [not link.entity._batch_fixed_verts for link in self.links], dtype=bool
+        )
         self._base_links_idx_host = tensor_to_array(self._base_links_idx)
         self._geoms_link_idx = np.array([geom.link.idx for geom in self.geoms] or [-1], dtype=gs.np_int)
         self._soft_entities_idx = np.array([entity.idx for entity in self._soft_entities] or [-1], dtype=gs.np_int)
@@ -2503,8 +2501,9 @@ class MochiSolver(GravityMixin, TimeBasedMixin, KinematicSolver):
         if links_idx is None:
             targeted_links_idx = self._base_links_idx_host
         elif isinstance(links_idx, (int, np.integer)):
-            # The link an entity's setter passes, resolved on the host. An int out of range has already raised an
-            # IndexError in `@mutates`, which indexes this solver's link mask with it (the solver subscribes at build).
+            # The link an entity's setter passes, resolved on the host without a round trip through the device
+            if not -self.n_links <= links_idx < self.n_links:
+                gs.raise_exception(f"links_idx {links_idx} is out of range for the {self.n_links} links of the solver.")
             targeted_links_idx = np.array([links_idx % self.n_links])
         else:
             targeted_links_idx = tensor_to_array(sanitize_index(links_idx, -1, self.n_links, 0, "links_idx"))
@@ -2518,27 +2517,18 @@ class MochiSolver(GravityMixin, TimeBasedMixin, KinematicSolver):
             # The contacts read back before the move were found against the geoms where they were
             self._is_contacts_recorded = False
 
-    def get_entities_sharing_pose(self, link_idx: int) -> list[str]:
-        """The names (sorted) of the fixed entities with collision geoms built without `batch_fixed_verts=True` that a
-        move of link `link_idx` carries, the link's own entity and those attached below it included.
-
-        Each has one pose in every environment, so `set_base_links_pos` / `set_base_links_quat` refuse to pose the link
-        on a subset of environments or differently per environment while this is not empty (see
-        `_check_pose_shared_by_envs`). Eden's `ResetFromStateBuffer` reads it at build.
-        """
-        return sorted(self._links_shared_pose_entities[link_idx])
-
     def _check_pose_shared_by_envs(self, targeted_links_idx, value, value_size, envs_idx):
-        """Raise when a move would give a fixed entity that shares its fixed vertices between environments a pose of its
-        own in some of them.
+        """Raise when a move would give a fixed entity built without `batch_fixed_verts=True` a pose of its own in some
+        environments while it carries collision geoms, on its own links or on an entity attached below it.
 
-        Such an entity, built without `batch_fixed_verts=True` with collision geoms on its fixed links, has one pose in
-        every environment: its vertices are held once for all of them, and Eden's reset states store no root pose for
-        it (`stores_root_pose`, which assumes the same of a fixed entity without geoms). The MochiSolver refuses the
-        move, though its contact reads the geoms of each environment and would follow. The rule covers every fixed geom
-        the move carries, attached entities included, where the rigid solver checks only the targeted links that carry
-        geoms themselves and so accepts a pose per environment for a base link without geoms whose descendants carry
-        them (the world body an MJCF file is loaded under).
+        Genesis holds such an entity in one pose for every environment, and Eden's reset states store no root pose for
+        it (`stores_root_pose`), so a per-environment pose would be dropped from a capture without an error. The
+        MochiSolver itself would follow the pose: its contact reads the geoms of each environment, and nothing it runs
+        reads the fixed vertices shared between environments. The rule is decided by the flag of the entity posed,
+        which `stores_root_pose` reads: a fixture attached below an entity posed per environment follows it, whatever
+        its own flag. Where the rigid solver checks the targeted links that carry geoms themselves, this checks every
+        fixed geom the move carries, so a pose per environment is refused for a base link without geoms whose
+        descendants carry them too (the world body an MJCF file is loaded under).
         """
         if not self._links_has_shared_pose[targeted_links_idx].any():
             return
@@ -2568,8 +2558,7 @@ class MochiSolver(GravityMixin, TimeBasedMixin, KinematicSolver):
             i_differing = int(np.flatnonzero(tensor_to_array(is_differing.any(dim=0)))[0])
             i_env = int(np.flatnonzero(tensor_to_array(is_differing[:, i_differing]))[0])
             shared_links_idx = shared_links_idx[[i_differing]]
-        names = sorted(set().union(*(self._links_shared_pose_entities[i_l] for i_l in shared_links_idx)))
-        names = [f"'{name_}'" for name_ in names]
+        names = [f"'{name_}'" for name_ in sorted({self.links[i_l].entity.name for i_l in shared_links_idx})]
         if len(names) == 1:
             what = f"the fixed entity {names[0]}, which carries collision geoms and was built"
             whose, fix_on = "it has one pose", names[0]

@@ -443,8 +443,9 @@ def test_moving_a_fixed_body_moves_the_geoms_of_its_fixed_descendants(tmp_path, 
     assert_array_equal(_is_inside_geom(solver, top.geoms[0], [[5.0, 0.0, 0.25], [0.0, 0.0, 0.25]], 0), [True, False])
 
 
-def _mount_with_fixture(show_viewer, is_mount_batched):
-    """A fixed mount without geoms, and a fixed fixture with a geom that shares its vertices, attached below it."""
+@pytest.mark.precision("64")
+@pytest.mark.parametrize("is_mount_batched", [False, True])
+def test_moving_a_fixed_body_moves_the_geom_of_an_entity_attached_to_it(is_mount_batched, show_viewer):
     scene = _mochi_scene(show_viewer, 1.0 / 60.0)
     mount = scene.add_entity(
         gs.morphs.Box(
@@ -459,27 +460,27 @@ def _mount_with_fixture(show_viewer, is_mount_batched):
         name="fixture",
     )
     fixture.attach(mount, mount.base_link.name)
-    return scene, mount, fixture
-
-
-@pytest.mark.precision("64")
-@pytest.mark.parametrize("is_mount_batched", [False, True])
-def test_moving_a_fixed_body_moves_the_geom_of_an_entity_attached_to_it(is_mount_batched, show_viewer):
-    # The fixture decides: a mount that could be posed per environment on its own takes one pose all the same.
-    scene, mount, fixture = _mount_with_fixture(show_viewer, is_mount_batched)
     scene.build(n_envs=2)
     solver = scene.mochi_solver
     assert not mount.geoms
-    assert solver.get_entities_sharing_pose(mount.base_link_idx) == ["fixture"]
 
-    # The mount carries no geom, but moving it moves the fixture welded below it, which shares its fixed vertices
-    # between environments: a pose of its own in one of them is refused, one for all moves the fixture's geom.
-    with pytest.raises(gs.GenesisException, match=r"fixed entity 'fixture', which carries collision geoms"):
+    def assert_fixture_at(xs):
+        for env_idx, x in enumerate(xs):
+            is_inside = _is_inside_geom(solver, fixture.geoms[0], [[x, 0.0, 0.1], [5.0 - x, 0.0, 0.1]], env_idx)
+            assert_array_equal(is_inside, [True, False])
+
+    # The mount carries no geom, but moving it moves the fixture welded below it. The mount's own flag decides whether
+    # it takes a pose per environment, whatever the fixture's: one built without batch_fixed_verts takes one pose in
+    # every environment, so a pose of its own in one of them is refused.
+    if is_mount_batched:
         mount.set_pos(np.array([[5.0, 0.0, 0.0]]), envs_idx=[0])
+        assert_fixture_at([5.0, 0.0])
+    else:
+        with pytest.raises(gs.GenesisException, match=r"fixed entity 'mount', which carries collision geoms"):
+            mount.set_pos(np.array([[5.0, 0.0, 0.0]]), envs_idx=[0])
+        assert_fixture_at([0.0, 0.0])
     mount.set_pos(np.array([5.0, 0.0, 0.0]))
-    for env_idx in range(2):
-        is_inside = _is_inside_geom(solver, fixture.geoms[0], [[5.0, 0.0, 0.1], [0.0, 0.0, 0.1]], env_idx)
-        assert_array_equal(is_inside, [True, False])
+    assert_fixture_at([5.0, 5.0])
 
 
 def _normal_damping_for_restitution(restitution, impact_speed):
