@@ -7015,7 +7015,13 @@ ill-conditions the Newton system in fp32). <code>requires_grad</code> is refused
 <code>default_dofs_frictionloss</code>, <code>default_dofs_force_limits</code>, the constraint-solver parameters and support
 surfaces are rejected at validation (the solver reads none of them), <code>set_mass</code> raises (set the material's
 <code>rho</code>), and per-env DOF info is <code>MochiOptions.batch_dofs_info</code>, not the <code>EnvOptions</code> field of the same name.
-<code>MochiSoftEntity.set_quat</code> raises: bake the orientation into <code>default_root_quat</code>.</p>
+<code>MochiSoftEntity.set_quat</code> raises: bake the orientation into <code>default_root_quat</code>. <code>set_pos</code> / <code>set_quat</code> whose
+move carries a fixed link with collision geoms (the entity's own or an attached entity's) place every geom of the
+moved envs at once; other moves place theirs at the next step. As on the rigid solver, they raise when they would
+pose a fixed base link with collision geoms, of an entity built without <code>batch_fixed_verts=True</code>, on a subset of
+envs or differently in different envs. A base link without geoms of such an entity (an MJCF world body with no
+geom of its own) can be posed per env on both solvers, but reset states store no root for it, so
+<code>capture_reset_states</code> does not keep that pose.</p>
 </div>
 <div class="language-python highlight"><pre><span></span><code><span id="__span-22-1"><a id="__codelineno-22-1" name="__codelineno-22-1" href="#__codelineno-22-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">eden.engine.solvers.mochi</span><span class="w"> </span><span class="kn">import</span> <span class="n">MochiOptions</span>
 </span><span id="__span-22-2"><a id="__codelineno-22-2" name="__codelineno-22-2" href="#__codelineno-22-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">eden.options.entities</span><span class="w"> </span><span class="kn">import</span> <span class="n">PlaneOptions</span><span class="p">,</span> <span class="n">RodOptions</span><span class="p">,</span> <span class="n">SceneOptions</span><span class="p">,</span> <span class="n">SphereOptions</span>
