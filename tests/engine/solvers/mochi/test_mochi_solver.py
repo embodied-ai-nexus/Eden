@@ -315,13 +315,19 @@ def test_moving_a_fixed_body_moves_its_collision_geom(show_viewer):
     def is_inside_table(points, env_idx):
         return _is_inside_geom(solver, table.geoms[0], points, env_idx)
 
+    def is_ball_touching_table():
+        return tensor_to_array(ball.get_contacts(with_entity=table)["valid_mask"].any(dim=-1))
+
     # The table moved away in environment 0 alone collides at its new place there at once, its box with it, and the
-    # ball drops onto the ground. Environment 1 keeps the table and the ball resting on it.
+    # ball drops onto the ground. Environment 1 keeps the table and the ball resting on it. The contacts read back
+    # before the move are found again against the moved geom.
+    assert_array_equal(is_ball_touching_table(), [True, True])
     table.set_pos(np.array([[5.0, 0.0, 0.1]]), envs_idx=[0])
     assert_array_equal(is_inside_table([[5.0, 0.0, 0.1], [0.0, 0.0, 0.1]], 0), [True, False])
     assert_array_equal(is_inside_table([[5.0, 0.0, 0.1], [0.0, 0.0, 0.1]], 1), [False, True])
     aabb_min = qd_to_torch(solver.dyn_state.geoms.aabb_min)[table.geoms[0].idx]
     assert_allclose(aabb_min[:, 0], [4.8, -0.2], tol=1e-9)
+    assert_array_equal(is_ball_touching_table(), [False, True])
     for _ in range(30):
         scene.step()
     ball_z = tensor_to_array(ball.get_pos()[:, 2])
@@ -392,6 +398,9 @@ def test_fixed_body_with_shared_vertices_takes_one_pose_in_every_env(n_envs, sho
             tables[1].set_quat(np.array([[1.0, 0.0, 0.0, 0.0], [np.sqrt(0.5), np.sqrt(0.5), 0.0, 0.0]]))
         assert_tables_at([3.0, 8.0])
         assert_allclose(tables[1].get_quat(), [[1.0, 0.0, 0.0, 0.0]] * n_envs, tol=1e-12)
+        # q and -q are one orientation, the same in every environment.
+        tables[1].set_quat(np.array([[1.0, 0.0, 0.0, 0.0], [-1.0, 0.0, 0.0, 0.0]]))
+        assert_tables_at([3.0, 8.0])
 
 
 _FIXED_BASE_WITH_CHILD_MJCF = """
@@ -434,11 +443,13 @@ def test_moving_a_fixed_body_moves_the_geoms_of_its_fixed_descendants(tmp_path, 
     assert_array_equal(_is_inside_geom(solver, top.geoms[0], [[5.0, 0.0, 0.25], [0.0, 0.0, 0.25]], 0), [True, False])
 
 
-@pytest.mark.precision("64")
-def test_moving_a_fixed_body_moves_the_geom_of_an_entity_attached_to_it(show_viewer):
+def _mount_with_fixture(show_viewer, is_mount_batched):
+    """A fixed mount without geoms, and a fixed fixture with a geom that shares its vertices, attached below it."""
     scene = _mochi_scene(show_viewer, 1.0 / 60.0)
     mount = scene.add_entity(
-        gs.morphs.Box(size=(0.1, 0.1, 0.1), pos=(0.0, 0.0, 0.0), fixed=True, collision=False),
+        gs.morphs.Box(
+            size=(0.1, 0.1, 0.1), pos=(0.0, 0.0, 0.0), fixed=True, collision=False, batch_fixed_verts=is_mount_batched
+        ),
         material=mochi_materials.Rigid(),
         name="mount",
     )
@@ -448,6 +459,20 @@ def test_moving_a_fixed_body_moves_the_geom_of_an_entity_attached_to_it(show_vie
         name="fixture",
     )
     fixture.attach(mount, mount.base_link.name)
+    return scene, mount, fixture
+
+
+@pytest.mark.precision("64")
+def test_a_fixture_sharing_its_vertices_below_a_mount_posed_per_env_is_refused_at_build(show_viewer):
+    # Eden's reset states would store a pose per environment for the mount, which the fixture cannot follow.
+    scene, _, _ = _mount_with_fixture(show_viewer, is_mount_batched=True)
+    with pytest.raises(gs.GenesisException, match=r"fixed entity 'fixture' .* attached below 'mount', which was built"):
+        scene.build(n_envs=2)
+
+
+@pytest.mark.precision("64")
+def test_moving_a_fixed_body_moves_the_geom_of_an_entity_attached_to_it(show_viewer):
+    scene, mount, fixture = _mount_with_fixture(show_viewer, is_mount_batched=False)
     scene.build(n_envs=2)
     solver = scene.mochi_solver
     assert not mount.geoms
