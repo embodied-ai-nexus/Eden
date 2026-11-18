@@ -1043,7 +1043,9 @@ def kernel_step_monolith(
             rigid_info,
             mochi_info,
             mochi_state,
+            island_state,
             rigid_config,
+            mochi_config,
         )
         if qd.static(mochi_config.has_soft):
             func_soft_post_stage(

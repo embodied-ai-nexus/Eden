@@ -258,12 +258,16 @@ def func_post_stage(
     rigid_info: RigidInfo,
     mochi_info: MochiInfo,
     mochi_state: MochiState,
+    island_state: MochiIslandState,
     rigid_config: qd.template(),
+    mochi_config: qd.template(),
 ):
     """Recover the velocities by finite differences over the stage: per degree of freedom (in the tangent space of
     its joint, so that the kinematic solver's velocity conventions hold), and per link (the angular velocity is the
     antisymmetric part of (R - R_start)/h R^T and the symmetric part is kept so the next step extrapolates the same
-    rotation increment). A diverged environment is reset to its previous configuration at rest.
+    rotation increment). A diverged environment is reset to its previous configuration at rest. A sleeping body
+    keeps its pose, and its velocities are set to zero: the finite difference of its unchanged pose cancels only up to
+    rounding (for a quaternion q, conj(q) q evaluates to the identity exactly only under fast-math reassociation).
     """
     n_joints = dyn_info.joints.type.shape[0]
     n_links = dyn_state.links.pos.shape[0]
@@ -286,6 +290,11 @@ def func_post_stage(
             for i_d in range(dof_start, dyn_info.joints.dof_end[I_j]):
                 dyn_state.dofs.vel[i_d, i_b] = 0.0
             continue
+        if qd.static(mochi_config.use_sleeping):  # noqa: SIM102
+            if island_state.nodes_is_asleep[island_state.dofs_node[dof_start], i_b]:
+                for i_d in range(dof_start, dyn_info.joints.dof_end[I_j]):
+                    dyn_state.dofs.vel[i_d, i_b] = 0.0
+                continue
         h = mochi_state.dt_stage[i_b]
         if joint_type == gs.JOINT_TYPE.FREE or joint_type == gs.JOINT_TYPE.SPHERICAL:
             rot_offset = 0
@@ -319,7 +328,10 @@ def func_post_stage(
         i_b = envs[i_slot] if qd.static(not per_env) else i_b_env
         if not mochi_info.links.is_dynamic[i_l]:
             continue
-        if mochi_state.status[i_b] == SOLVE_STATUS.DIVERGED:
+        is_at_rest = mochi_state.status[i_b] == SOLVE_STATUS.DIVERGED
+        if qd.static(mochi_config.use_sleeping):
+            is_at_rest = is_at_rest or mochi_state.links_is_asleep[i_l, i_b]
+        if is_at_rest:
             mochi_state.links_vel[i_l, i_b] = qd.Vector.zero(gs.qd_float, 3)
             mochi_state.links_ang[i_l, i_b] = qd.Vector.zero(gs.qd_float, 3)
             mochi_state.links_vsym[i_l, i_b] = qd.Matrix.zero(gs.qd_float, 3, 3)
@@ -348,7 +360,9 @@ def kernel_post_stage(
     rigid_info: RigidInfo,
     mochi_info: MochiInfo,
     mochi_state: MochiState,
+    island_state: MochiIslandState,
     rigid_config: qd.template(),
+    mochi_config: qd.template(),
 ):
     func_post_stage(
         0,
@@ -360,7 +374,9 @@ def kernel_post_stage(
         rigid_info,
         mochi_info,
         mochi_state,
+        island_state,
         rigid_config,
+        mochi_config,
     )
 
 

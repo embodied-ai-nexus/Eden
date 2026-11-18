@@ -3,9 +3,10 @@ comes near them or their state is set (see MochiOptions.use_sleeping).
 
 Sleep is decided per island node (an entity) and environment. A node sleeps with every other node of its island, and
 stays frozen exactly: it skips the warm start, its residual is zeroed, so its rows of the Newton system have zero
-right-hand side and the linear solvers leave it in place, and its contact and element work is skipped. Sleeping nodes
-keep their conservative bounds in the broadphase, so an awake body whose bounds reach a sleeping one joins its island
-and wakes the whole island before the solve.
+right-hand side and the linear solvers leave it in place, its contact and element work is skipped, and its rigid
+velocities are set to zero rather than finite-differenced from its unchanged pose. Sleeping nodes keep their
+conservative bounds in the broadphase, so an awake body whose bounds reach a sleeping one joins its island and wakes
+the whole island before the solve.
 
 The API wakes what it changes: a state setter wakes its environments, a control command or a degree-of-freedom
 parameter wakes the nodes of its degrees of freedom, a kinematic vertex target wakes its entity, and a change of gravity

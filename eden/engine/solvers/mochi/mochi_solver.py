@@ -1960,7 +1960,14 @@ class MochiSolver(GravityMixin, TimeBasedMixin, KinematicSolver):
         self._select_linear_arms()
         self._newton_solve()
         kernel_post_stage(
-            self.dyn_state, self.dyn_info, self.rigid_info, self.mochi_info, self.mochi_state, self.rigid_config
+            self.dyn_state,
+            self.dyn_info,
+            self.rigid_info,
+            self.mochi_info,
+            self.mochi_state,
+            self.island_state,
+            self.rigid_config,
+            self.mochi_config,
         )
         if self.has_soft:
             kernel_soft_post_stage(self.mochi_state, self.soft_info, self.soft_state, self.rigid_config)
