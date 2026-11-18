@@ -232,7 +232,8 @@ def test_sleeping_islands_freeze_and_wake(n_envs, show_viewer):
 @pytest.mark.precision("64")
 @pytest.mark.strict_math
 @pytest.mark.parametrize("step_kernel", ["monolith", "pipeline", "graph"])
-def test_sleeping_box_velocity_is_zero_under_strict_math(step_kernel, show_viewer):
+@pytest.mark.parametrize("n_envs", [0, 2])
+def test_sleeping_box_velocity_is_zero_under_strict_math(n_envs, step_kernel, show_viewer):
     """A sleeping body's velocity is exactly zero without fast-math too, where the finite difference of its unchanged
     quaternion leaves a rounding residue.
     """
@@ -246,7 +247,7 @@ def test_sleeping_box_velocity_is_zero_under_strict_math(step_kernel, show_viewe
         ),
         material=mochi_materials.Rigid(),
     )
-    scene.build()
+    scene.build(n_envs=n_envs)
     for _ in range(40):
         scene.step()
     node = scene.mochi_solver.entities.index(box)

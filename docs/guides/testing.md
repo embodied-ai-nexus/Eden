@@ -162,8 +162,7 @@ run of the whole suite has not been re-verified since, so running per file remai
 
 The markers are declared in `tests/conftest.py`: `slow`, `requires_genesis`, `precision(bits)` (the Genesis
 precision a MochiSolver test runs at, in `tests/engine/solvers/mochi`), and `strict_math` (a MochiSolver test whose
-kernels compile with quadrants' `fast_math` off; the init fixture wraps `qd.init`, because `gs.init` passes
-`fast_math` explicitly and so overrides `QD_FAST_MATH`). `pyproject.toml` passes `--strict-markers`,
+kernels compile with quadrants' `fast_math` off, in the same directory). `pyproject.toml` passes `--strict-markers`,
 so an undeclared marker is a collection error rather than a decorator that silently does nothing. Nothing is marked
 automatically; apply a marker per test or per module (`pytestmark = pytest.mark.requires_genesis`).
 
