@@ -249,6 +249,7 @@ require_members(
             "add_entity",
             "clear_errno",
             "destroy",
+            "_sanitize_io_variables",
             "register_errors",
             "set_base_links_pos",
             "set_base_links_quat",
@@ -561,23 +562,23 @@ class MochiSolver(GravityMixin, TimeBasedMixin, KinematicSolver):
         self.hit_readback = get_mochi_hit_readback(self, 1, 1, 1, 1)
         self._is_hit_readback_allocated = False
         self._links_entity_idx = np.array([link.entity.idx for link in self.links] or [-1], dtype=gs.np_int)
-        # Host copies the base-pose setters read: the fixed links whose entity carries collision geoms on its fixed
-        # links, which a move of the link carries along, and those of them whose entity shares its fixed vertices
-        # between environments, so that it has one pose in every environment.
+        # Host copies the base-pose setters read, over the kinematic subtree a move of a link carries (the links of
+        # an entity attached below it included): whether it holds a fixed link with collision geoms, which the step
+        # never places, and whether that link's entity shares its fixed vertices between environments, so that the
+        # move must be the same in every environment.
+        # The names of those entities are kept for the error naming them.
+        self._links_moves_fixed_geoms = np.zeros(self.n_links, dtype=bool)
+        self._links_shared_pose_entities = [set() for _ in range(self.n_links)]
+        for link in self.links:
+            if link.is_fixed and link.geoms:
+                i_l = link.idx
+                while i_l >= 0:
+                    self._links_moves_fixed_geoms[i_l] = True
+                    if not link.entity._batch_fixed_verts:
+                        self._links_shared_pose_entities[i_l].add(link.entity.name)
+                    i_l = self._links_parent_idx[i_l]
+        self._links_has_shared_pose = np.array([bool(names) for names in self._links_shared_pose_entities], dtype=bool)
         self._base_links_idx_host = tensor_to_array(self._base_links_idx)
-        entities_has_fixed_geoms = {
-            entity.idx: any(link.is_fixed and link.geoms for link in entity.links) for entity in self._entities
-        }
-        self._links_moves_fixed_geoms = np.array(
-            [link.is_fixed and entities_has_fixed_geoms[link.entity.idx] for link in self.links], dtype=bool
-        )
-        self._links_has_shared_pose = np.array(
-            [
-                is_moving and not link.entity._batch_fixed_verts
-                for link, is_moving in zip(self.links, self._links_moves_fixed_geoms)
-            ],
-            dtype=bool,
-        )
         self._geoms_link_idx = np.array([geom.link.idx for geom in self.geoms] or [-1], dtype=gs.np_int)
         self._soft_entities_idx = np.array([entity.idx for entity in self._soft_entities] or [-1], dtype=gs.np_int)
         links_node, dofs_node = self._island_nodes()
@@ -2555,29 +2556,32 @@ class MochiSolver(GravityMixin, TimeBasedMixin, KinematicSolver):
     # `_set_kinematic_state` is.
     @mutates(StateChange.GEOMETRY, links="links_idx")
     def set_base_links_pos(self, pos, links_idx=None, envs_idx=None, *, relative=False, skip_forward=False):
-        self._set_base_links_pose(
-            super().set_base_links_pos, pos, 3, links_idx, envs_idx, relative, skip_forward, "position", "set_pos"
-        )
+        self._set_base_links_pose(super().set_base_links_pos, pos, 3, links_idx, envs_idx, relative, skip_forward)
 
     @mutates(StateChange.GEOMETRY, links="links_idx")
     def set_base_links_quat(self, quat, links_idx=None, envs_idx=None, *, relative=False, skip_forward=False):
-        self._set_base_links_pose(
-            super().set_base_links_quat, quat, 4, links_idx, envs_idx, relative, skip_forward, "orientation", "set_quat"
-        )
+        self._set_base_links_pose(super().set_base_links_quat, quat, 4, links_idx, envs_idx, relative, skip_forward)
 
-    def _set_base_links_pose(
-        self, set_pose, value, value_size, links_idx, envs_idx, relative, skip_forward, quantity, setter
-    ):
-        """Set the position or orientation of base links with the parent setter `set_pose`, and place the geoms the
-        fixed links among them carry.
+    def _set_base_links_pose(self, set_pose, value, value_size, links_idx, envs_idx, relative, skip_forward):
+        """Set the position (`value_size` 3) or orientation (4) of base links with the parent setter `set_pose`, and
+        place the fixed geoms the move carries.
 
         Genesis' forward kinematics places no collision geom, and this solver's step places only those of movable
-        links, so the geoms of a fixed link moved by `set_pos` or `set_quat` would otherwise go on colliding where it
-        was. They are placed even under `skip_forward`, after a forward kinematics of their own: the step's pass would
-        carry the link's fixed descendants to their new pose and leave their geoms behind.
+        links, so the geoms of a fixed link moved by `set_pos` or `set_quat`, or attached below one, would otherwise go
+        on colliding where they were. They are placed even under `skip_forward`, after a forward kinematics of their
+        own: the step's pass would carry the fixed links to their new pose and leave their geoms behind.
         """
-        targeted_links_idx = self._targeted_links_idx(links_idx)
-        self._check_pose_shared_by_envs(targeted_links_idx, value, value_size, envs_idx, quantity, setter)
+        if links_idx is None:
+            targeted_links_idx = self._base_links_idx_host
+        else:
+            targeted_links_idx = tensor_to_array(sanitize_index(links_idx, -1, self.n_links, 0, "links_idx"))
+            is_out_of_range = (targeted_links_idx < 0) | (targeted_links_idx >= self.n_links)
+            if is_out_of_range.any():
+                gs.raise_exception(
+                    f"`links_idx` holds {targeted_links_idx[is_out_of_range].tolist()}, outside the {self.n_links} "
+                    f"links of the solver (0 to {self.n_links - 1})."
+                )
+        self._check_pose_shared_by_envs(targeted_links_idx, value, value_size, envs_idx)
         set_pose(value, links_idx, envs_idx, relative=relative, skip_forward=skip_forward)
         if self._links_moves_fixed_geoms[targeted_links_idx].any():
             envs_idx = self._sim.sanitize_envs_idx(envs_idx)
@@ -2585,28 +2589,17 @@ class MochiSolver(GravityMixin, TimeBasedMixin, KinematicSolver):
                 kernel_forward_kinematics(envs_idx, self.dyn_state, self.dyn_info, self.rigid_info, self.rigid_config)
             kernel_update_geoms(envs_idx, self.dyn_state, self.dyn_info, self.rigid_info, self.rigid_config, True)
 
-    def _targeted_links_idx(self, links_idx):
-        """The links a base-pose setter targets (its base links when None), as a numpy array.
+    def _check_pose_shared_by_envs(self, targeted_links_idx, value, value_size, envs_idx):
+        """Raise when a move would give a fixed entity that shares its fixed vertices between environments a pose of its
+        own in some of them.
 
-        An int in range, the index an entity's `set_pos` passes, is read as it is rather than through `sanitize_index`,
-        which would copy it to the device and back.
-        """
-        if links_idx is None:
-            return self._base_links_idx_host
-        if isinstance(links_idx, (int, np.integer)) and 0 <= links_idx < self.n_links:
-            return np.array([links_idx])
-        return tensor_to_array(sanitize_index(links_idx, -1, self.n_links, 0, "links_idx"))
-
-    def _check_pose_shared_by_envs(self, targeted_links_idx, value, value_size, envs_idx, quantity, setter):
-        """Raise when a fixed entity that shares its fixed vertices between environments would take a pose of its own
-        in some of them.
-
-        Such an entity, built without `batch_fixed_verts=True` and carrying collision geoms on its fixed links, has one
-        pose in every environment: Eden's reset states store no root pose for it (`stores_root_pose`), and its vertices
-        are held once for all environments. The MochiSolver refuses the write, though its contact reads the geoms of
-        each environment and would follow. The rule is per entity, as `stores_root_pose` is: the rigid solver checks
-        only the links that carry geoms themselves, so it also accepts a pose per environment for a base link without
-        geoms whose descendants carry them (the world body an MJCF file is loaded under), which this refuses.
+        Such an entity, built without `batch_fixed_verts=True` with collision geoms on its fixed links, has one pose in
+        every environment: its vertices are held once for all of them, and Eden's reset states store no root pose for
+        it (`stores_root_pose`, which assumes the same of a fixed entity without geoms). The MochiSolver refuses the
+        move, though its contact reads the geoms of each environment and would follow. The rule covers every fixed geom
+        the move carries, attached entities included, where the rigid solver checks only the targeted links that carry
+        geoms themselves and so accepts a pose per environment for a base link without geoms whose descendants carry
+        them (the world body an MJCF file is loaded under).
         """
         if not self._links_has_shared_pose[targeted_links_idx].any():
             return
@@ -2624,15 +2617,16 @@ class MochiSolver(GravityMixin, TimeBasedMixin, KinematicSolver):
         if is_all_envs and not bool(is_differing.any()):
             return
 
+        quantity, setter = ("position", "set_pos") if value_size == 3 else ("orientation", "set_quat")
+        name = f"`{setter}` (`set_base_links_{setter[4:]}`)"
         envs = tensor_to_array(envs_idx).tolist()
         shared_links_idx = links_idx[has_shared_pose]
         if is_all_envs:
             i_differing = int(np.flatnonzero(tensor_to_array(is_differing.any(dim=0)))[0])
             i_env = int(np.flatnonzero(tensor_to_array(is_differing[:, i_differing]))[0])
-            offending_links_idx = shared_links_idx[[i_differing]]
-        else:
-            offending_links_idx = shared_links_idx
-        names = sorted({f"'{self.links[i_l].entity.name}'" for i_l in offending_links_idx})
+            shared_links_idx = shared_links_idx[[i_differing]]
+        names = sorted(set().union(*(self._links_shared_pose_entities[i_l] for i_l in shared_links_idx)))
+        names = [f"'{name_}'" for name_ in names]
         if len(names) == 1:
             what = f"the fixed entity {names[0]}, which carries collision geoms and was built"
             whose, fix_on = "it has one pose", names[0]
@@ -2643,12 +2637,11 @@ class MochiSolver(GravityMixin, TimeBasedMixin, KinematicSolver):
             f"{what} without `batch_fixed_verts=True`, so {whose} in every environment. Fix: set "
             f"`batch_fixed_verts=True` on {fix_on} (in its entity options or morph) to pose it per environment"
         )
-        name = f"`{setter}` (`set_base_links_{setter[4:]}`)"
         if not is_all_envs:
             shown = ", ".join(map(str, envs[:8])) + (", ..." if len(envs) > 8 else "")
             gs.raise_exception(
-                f"{name} was called on {len(envs)} of the {self.n_envs} environments (envs_idx [{shown}]) for {why}, "
-                "or call it with `envs_idx=None`."
+                f"{name} was called on {len(envs)} of the {self.n_envs} environments (envs_idx [{shown}]) for {why}. "
+                "Calling it with `envs_idx=None` instead moves it in every environment, the running ones included."
             )
         first, other = (tensor_to_array(value[i_b, i_differing]).round(6).tolist() for i_b in (0, i_env))
         gs.raise_exception(

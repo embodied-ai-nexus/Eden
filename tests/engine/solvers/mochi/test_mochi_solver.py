@@ -436,6 +436,34 @@ def test_moving_a_fixed_body_moves_the_geoms_of_its_fixed_descendants(tmp_path, 
     assert_array_equal(_is_inside_geom(solver, top.geoms[0], [[5.0, 0.0, 0.25], [0.0, 0.0, 0.25]], 0), [True, False])
 
 
+@pytest.mark.precision("64")
+def test_moving_a_fixed_body_moves_the_geom_of_an_entity_attached_to_it(show_viewer):
+    scene = _mochi_scene(show_viewer, 1.0 / 60.0)
+    mount = scene.add_entity(
+        gs.morphs.Box(size=(0.1, 0.1, 0.1), pos=(0.0, 0.0, 0.0), fixed=True, collision=False),
+        material=mochi_materials.Rigid(),
+        name="mount",
+    )
+    fixture = scene.add_entity(
+        gs.morphs.Box(size=(0.4, 0.4, 0.2), pos=(0.0, 0.0, 0.1), fixed=True, batch_fixed_verts=False),
+        material=mochi_materials.Rigid(),
+        name="fixture",
+    )
+    fixture.attach(mount, mount.base_link.name)
+    scene.build(n_envs=2)
+    solver = scene.mochi_solver
+    assert not mount.geoms
+
+    # The mount carries no geom, but moving it moves the fixture welded below it, which shares its fixed vertices
+    # between environments: a pose of its own in one of them is refused, one for all moves the fixture's geom.
+    with pytest.raises(gs.GenesisException, match=r"fixed entity 'fixture', which carries collision geoms"):
+        mount.set_pos(np.array([[5.0, 0.0, 0.0]]), envs_idx=[0])
+    mount.set_pos(np.array([5.0, 0.0, 0.0]))
+    for env_idx in range(2):
+        is_inside = _is_inside_geom(solver, fixture.geoms[0], [[5.0, 0.0, 0.1], [0.0, 0.0, 0.1]], env_idx)
+        assert_array_equal(is_inside, [True, False])
+
+
 def _normal_damping_for_restitution(restitution, impact_speed):
     """Normal viscous damping coefficient producing a given coefficient of restitution at a given approach speed
     (rational fit of the Hunt-Crossley-like response of the penalty contact).
