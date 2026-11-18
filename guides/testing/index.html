@@ -5253,8 +5253,9 @@ which prints one line, <code>RESULT {...}</code>, that the test parses and asser
 <p>Whole-suite runs in one process used to crash partway through, because every <code>scene.build()</code> used up kernel-tree
 slots that a process has a fixed number of. That leak is fixed in the Genesis version Eden pins, but a single-process
 run of the whole suite has not been re-verified since, so running per file remains the supported way.</p>
-<p>The markers are declared in <code>tests/conftest.py</code>: <code>slow</code>, <code>requires_genesis</code>, and <code>precision(bits)</code> (the Genesis
-precision a MochiSolver test runs at, in <code>tests/engine/solvers/mochi</code>). <code>pyproject.toml</code> passes <code>--strict-markers</code>,
+<p>The markers are declared in <code>tests/conftest.py</code>: <code>slow</code>, <code>requires_genesis</code>, <code>precision(bits)</code> (the Genesis
+precision a MochiSolver test runs at, in <code>tests/engine/solvers/mochi</code>), and <code>strict_math</code> (a MochiSolver test whose
+kernels compile with quadrants' <code>fast_math</code> off, in the same directory). <code>pyproject.toml</code> passes <code>--strict-markers</code>,
 so an undeclared marker is a collection error rather than a decorator that silently does nothing. Nothing is marked
 automatically; apply a marker per test or per module (<code>pytestmark = pytest.mark.requires_genesis</code>).</p>
 <h2 id="see-also">See also<a class="headerlink" href="#see-also" title="Permanent link">&para;</a></h2>
