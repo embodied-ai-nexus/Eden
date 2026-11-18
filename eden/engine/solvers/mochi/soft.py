@@ -2146,49 +2146,6 @@ def kernel_soft_condense_dense(
 
 
 @qd.kernel
-def kernel_soft_get_state(
-    pos: qd.types.ndarray(),
-    vel: qd.types.ndarray(),
-    pos_prev: qd.types.ndarray(),
-    vel_prev: qd.types.ndarray(),
-    soft_state: MochiSoftState,
-    rigid_config: qd.template(),
-):
-    n_verts = soft_state.verts_pos.shape[0]
-    _B = soft_state.verts_pos.shape[1]
-    qd.loop_config(serialize=qd.static(rigid_config.para_level < gs.PARA_LEVEL.PARTIAL))
-    for i_v, i_b in qd.ndrange(n_verts, _B):
-        for k in qd.static(range(3)):
-            pos[i_b, i_v, k] = soft_state.verts_pos[i_v, i_b][k]
-            vel[i_b, i_v, k] = soft_state.verts_vel[i_v, i_b][k]
-            for j in qd.static(range(N_HISTORY)):
-                pos_prev[i_b, j, i_v, k] = soft_state.verts_pos_prev[j, i_v, i_b][k]
-                vel_prev[i_b, j, i_v, k] = soft_state.verts_vel_prev[j, i_v, i_b][k]
-
-
-@qd.kernel
-def kernel_soft_set_state(
-    envs_idx: qd.types.ndarray(),
-    pos: qd.types.ndarray(),
-    vel: qd.types.ndarray(),
-    pos_prev: qd.types.ndarray(),
-    vel_prev: qd.types.ndarray(),
-    soft_state: MochiSoftState,
-    rigid_config: qd.template(),
-):
-    n_verts = soft_state.verts_pos.shape[0]
-    qd.loop_config(serialize=qd.static(rigid_config.para_level < gs.PARA_LEVEL.PARTIAL))
-    for i_v, i_b_ in qd.ndrange(n_verts, envs_idx.shape[0]):
-        i_b = envs_idx[i_b_]
-        for k in qd.static(range(3)):
-            soft_state.verts_pos[i_v, i_b][k] = pos[i_b, i_v, k]
-            soft_state.verts_vel[i_v, i_b][k] = vel[i_b, i_v, k]
-            for j in qd.static(range(N_HISTORY)):
-                soft_state.verts_pos_prev[j, i_v, i_b][k] = pos_prev[i_b, j, i_v, k]
-                soft_state.verts_vel_prev[j, i_v, i_b][k] = vel_prev[i_b, j, i_v, k]
-
-
-@qd.kernel
 def kernel_soft_get_entity_state(
     v_start: qd.i32,
     pos: qd.types.ndarray(),

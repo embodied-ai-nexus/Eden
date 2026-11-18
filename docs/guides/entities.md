@@ -985,7 +985,7 @@ scene_options = SceneOptions(
 ```
 
 A **rod** (`RodOptions`) is the one morph unique to this solver: the centerline polyline plus a
-`MochiRodMaterialOptions`; clamp it after build by fixing its first nodes (`set_vertices_fixed([0, 1])`). A
+`MochiRodMaterialOptions`; clamp it by fixing its first two nodes from a STARTUP event (`PinSoftBodyVertices`). A
 **solid** may load a tetrahedral mesh directly, a tetgen `.node` (its `.ele` sibling is read alongside) or a
 legacy ASCII `.vtk`, which only a `MochiElasticMaterialOptions` entity may do. A tetgen box meshes into a handful
 of tetrahedra, too few to deform, so `eden.utils.procedural_meshes` writes regular meshes to the cache:
@@ -995,9 +995,11 @@ for a shell).
 **Pinning and driving vertices.** `set_vertices_fixed` / `set_vertices_target` take one vertex set for every env,
 `(n,)`, or one per env: an `(n_envs, n)` tensor padded with `-1`, which stays on the device. This is how a
 gripper carries whichever vertices it closed on in each env (`SettledGraspLatch` / `FeatureGraspLatch` in
-`eden.tasks.mochi.custom_terms`). A pin, and the position it holds the vertex to, live outside the state
-`scene.reset` restores, so re-pin at reset (`PinSoftBodyVertices`) rather than once at startup, and release
-whatever a gripper held when its env resets.
+`eden.tasks.mochi.custom_terms`). A pin, and the position it holds the vertex to, are part of the state
+`scene.reset` restores. An env takes that state at the end of its build, after the STARTUP events, so a pin made at
+STARTUP (`PinSoftBodyVertices`) holds through every reset, a pin made from code after `env.build()` lasts until its
+env next resets, and a reset releases whatever a gripper held. Writing a pinned vertex's position moves the hold with
+it, so a RESET event that places the body carries its pins along.
 
 **Mounting a soft body.** A **solid** mounted on a robot link (a sponge under a gripper) is named in
 `attachments_dict` like a welded rigid child. The mounting transform means what it means for

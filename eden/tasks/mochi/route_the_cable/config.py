@@ -358,7 +358,7 @@ class MochiRouteTheCableConfig(EdenRLConfig):
     )
 
     event_options: EventManagerOptions = EventManagerOptions(
-        # Welded under the bracket; Mochi keeps pins outside the state a reset restores, so they are re-made each reset.
+        # Welded under the bracket, where the reset leaves the cable.
         weld_cable=custom_terms.PinSoftBodyVertices.configure(
             mode=EventMode.RESET, entity_name="cable", vertices=ANCHORED_NODES
         ),

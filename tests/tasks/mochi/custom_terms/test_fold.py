@@ -5,7 +5,11 @@ import math
 import pytest
 import torch
 
+from eden import EventMode
+from eden.envs.base import RLEnvBase
+from eden.tasks import TASK_REGISTRY
 from eden.tasks.mochi.common import YAM_FINGER_SPEED, YAM_FINGERS_OPEN
+from eden.tasks.mochi.custom_terms import PinSoftBodyVertices
 from eden.tasks.mochi.fold_the_towel import config as fold_config
 from tests.tasks.mochi.conftest import action, build_task, place_tcp, tool_centre
 
@@ -101,6 +105,39 @@ def test_a_reset_releases_the_latch(env):
     assert latch.is_latched.tolist() == [True, True]
     env.reset(envs_idx=torch.tensor([1], device=env.device))
     assert latch.is_latched.tolist() == [True, False]
+
+
+@pytest.mark.requires_genesis
+@pytest.mark.slow
+def test_a_reset_keeps_a_startup_pin_on_a_vertex_the_latch_held():
+    """The reset restores the pins of the reset state, so the latch's own reset must not unpin the rows it held: one
+    of them is pinned at STARTUP here, and it still holds the towel up in the env that reset.
+    """
+    config = TASK_REGISTRY.build("mochi_fold_the_towel")
+    config.env_options.num_envs = 2
+    pinned = fold_config.EDGE_GRASP[2]
+    config.event_options.pin_edge = PinSoftBodyVertices.configure(
+        mode=EventMode.STARTUP, entity_name="towel", vertices=[pinned]
+    )
+    env = RLEnvBase.from_config(config)
+    env.build()
+    env.reset()
+    towel = env.entities["towel"]
+    latch = env.action_manager.get_term("left_gripper")
+    edge = towel.get_vertex_positions()[:, pinned]
+    place_tcp(env, "left", edge + torch.tensor([0.0, 0.0, 0.012], device=env.device), yaw=1.5708)
+    _close_fully(env)
+    assert (latch._pinned[1] == pinned).any()
+
+    env.reset(envs_idx=torch.tensor([1], device=env.device))
+    # Lifted 5 cm, the towel falls back to the table but for the pinned vertex, which the pin holds where it was written
+    raised = towel.get_vertex_positions()[1:] + torch.tensor([0.0, 0.0, 0.05], device=env.device)
+    towel.set_vertex_positions(raised, envs_idx=torch.tensor([1], device=env.device))
+    for _ in range(10):
+        env.step(action(env))
+    verts = towel.get_vertex_positions()[1]
+    assert abs(float(verts[pinned, 2] - raised[0, pinned, 2])) < 1e-6
+    assert float(verts[:, 2].mean() - raised[0, :, 2].mean()) < -0.01
 
 
 @pytest.mark.requires_genesis

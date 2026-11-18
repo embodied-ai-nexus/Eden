@@ -4,6 +4,8 @@ Each test builds a real scene. The private Genesis attributes ``hosting`` writes
 ``Simulator._entities``, ``Scene._desc``) are not read here: what they make the scene do is.
 """
 
+import pickle
+
 import genesis as gs
 import numpy as np
 import pytest
@@ -119,10 +121,18 @@ def test_the_hosting_refuses_what_it_cannot_honour(tmp_path):
         _scene(renderer=gs.renderers.BatchRenderer())
 
     scene.add_entity(gs.morphs.Plane(), material=mochi_materials.Rigid())
-    # `gs.Scene.load` would rebuild it without the solver.
-    with pytest.raises(gs.GenesisException, match="hosts Eden's MochiSolver"):
+    # Genesis would rebuild it from any of these without the solver.
+    with pytest.raises(gs.GenesisException, match="Cannot export .*hosts Eden's MochiSolver"):
         scene.export(tmp_path / f"mochi{SCENE_FORMAT}")
+    with pytest.raises(
+        gs.GenesisException, match="Cannot record a trajectory to .*mochi.gstraj.*hosts Eden's MochiSolver"
+    ):
+        scene.start_recording(gs.recorders.TrajectoryFile(filename=str(tmp_path / "mochi.gstraj")))
     scene.build()
+    with pytest.raises(gs.GenesisException, match="Cannot save a checkpoint to .*hosts Eden's MochiSolver"):
+        scene.save_checkpoint(tmp_path / "mochi.gstraj")
+    with pytest.raises(gs.GenesisException, match="Cannot pickle it: this scene hosts Eden's MochiSolver"):
+        pickle.dumps(scene)
     with pytest.raises(gs.GenesisException, match="before the scene is built"):
         install_mochi_solver(scene)
 
@@ -200,8 +210,8 @@ def test_a_frame_drawn_after_a_setter_shows_the_body_where_the_setter_put_it():
 
 
 def test_a_reset_restores_a_scene_of_deformable_bodies_alone():
-    """``Simulator.reset`` skips a solver whose ``data`` leaves state out (``is_checkpointable``), as the MochiSolver's
-    does; the installed reset restores it, deformable vertices included.
+    """``Simulator.reset`` restores the solver's state, deformable vertices included, from the arrays its ``data``
+    declares.
     """
     scene = _scene()
     cube = scene.add_entity(
@@ -218,7 +228,7 @@ def test_a_reset_restores_a_scene_of_deformable_bodies_alone():
 
 
 def test_a_saved_state_restores_the_mochi_bodies_of_the_environments_it_is_given():
-    """The scene's state holds the MochiSolver's, which `Simulator.get_state` leaves out (it is not checkpointable)."""
+    """The scene's state holds the MochiSolver's under its class name, as it holds every other solver's."""
     scene = _scene()
     scene.add_entity(gs.morphs.Plane(), material=mochi_materials.Rigid())
     box = scene.add_entity(gs.morphs.Box(size=(0.2, 0.2, 0.2), pos=(0.0, 0.0, 0.5)), material=mochi_materials.Rigid())
@@ -235,17 +245,6 @@ def test_a_saved_state_restores_the_mochi_bodies_of_the_environments_it_is_given
 
     scene.reset(state, envs_idx=[1])
     torch.testing.assert_close(box.get_pos(), torch.stack((moved[0], saved[1])), rtol=0.0, atol=0.0)
-
-    state.solvers.pop(type(scene.mochi_solver).__name__)
-    with pytest.raises(gs.GenesisException, match="holds no state of the MochiSolver"):
-        scene.reset(state)
-
-    other = _scene()
-    other.add_entity(gs.morphs.Box(size=(0.2, 0.2, 0.2), pos=(0.0, 0.0, 0.5)), material=mochi_materials.Rigid())
-    other.add_entity(gs.morphs.Sphere(radius=0.1, pos=(0.5, 0.0, 0.5)), material=mochi_materials.Rigid())
-    other.build(n_envs=2)
-    with pytest.raises(gs.GenesisException, match="taken from another scene"):
-        scene.reset(other.get_state())
 
 
 @pytest.mark.parametrize("step_kernel", ["monolith", "pipeline", "graph"])
@@ -337,8 +336,8 @@ def test_an_error_raises_at_the_next_check_unless_its_environment_is_reset():
 
 
 def test_the_arrays_of_the_solver_are_freed_with_its_scene():
-    """``Simulator.destroy`` frees the arrays of the solvers whose ``data`` it can list, which this solver refuses: its
-    own ``destroy`` frees them.
+    """``Simulator.destroy`` frees the arrays of the solvers whose ``data`` lists them, this one's own structs and the
+    collision arrays it puts in the kinematic tree included.
     """
     if not gs.use_ndarray:
         pytest.skip("only ndarrays are freed with their scene; fields go with `qd.reset`")
@@ -362,4 +361,3 @@ def test_the_arrays_of_the_solver_are_freed_with_its_scene():
 
     scene.destroy()
     assert all(array._unwrap().arr is None for array in arrays)
-    solver.destroy()  # an array already freed is left alone

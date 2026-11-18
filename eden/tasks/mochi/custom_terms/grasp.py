@@ -192,10 +192,9 @@ class _PinningGripper(RateLimitedGripper):
 
     def reset(self, envs_idx: torch.Tensor | None = None) -> None:
         super().reset(envs_idx)
-        # Pins outlive a scene reset (they are not part of the solver state), so they are released here.
-        mask = torch.zeros(self.num_envs, dtype=torch.bool, device=self.device)
-        mask[slice(None) if envs_idx is None else envs_idx] = True
-        self._release(mask)
+        # The scene reset before this put back the pins of the env's reset state, which the latch made none of, so the
+        # jaws hold nothing now. Unpinning the rows held would also undo a pin of that state on the same vertex.
+        self._pinned[slice(None) if envs_idx is None else envs_idx] = -1
 
 
 @ACTION_TERM_REGISTRY.register()

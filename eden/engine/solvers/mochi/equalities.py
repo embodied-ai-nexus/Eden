@@ -10,12 +10,14 @@ constraint violation c, with Gauss-Newton Hessian blocks on the two constrained 
 """
 
 import dataclasses
+from typing import ClassVar
 
 import genesis as gs
 import genesis.utils.geom as gu
 import numpy as np
 import quadrants as qd
 from genesis.engine.solvers.rigid.data import DynInfo, DynState, RigidInfo
+from genesis.utils.data import DataKind
 
 from eden.engine.solvers.mochi.data import V, V_MAT, MochiInfo, MochiState
 from eden.engine.solvers.mochi.lie import skew
@@ -24,6 +26,7 @@ from eden.engine.solvers.mochi.newton import func_is_env_active
 
 @dataclasses.dataclass(eq=True, kw_only=False, frozen=True)
 class MochiEqualitiesInfo:
+    kind: ClassVar[DataKind] = DataKind.CONSTANT
     # Constraint type (gs.EQUALITY_TYPE), the two constrained links (connect, weld) or joints (joint), and the data
     # of the constraint (anchors, relative pose and torque scale, or polynomial coefficients).
     eq_type: qd.Tensor
@@ -34,6 +37,7 @@ class MochiEqualitiesInfo:
 
 @dataclasses.dataclass(eq=True, kw_only=False, frozen=True)
 class MochiEqualitiesState:
+    kind: ClassVar[DataKind] = DataKind.SCRATCH
     # Constraint violation at the stage start (6 rows at most), the 6x6 block coupling the two links of a connect or
     # weld constraint and the scalar coupling the two joints of a joint constraint.
     c_stage_start: qd.Tensor

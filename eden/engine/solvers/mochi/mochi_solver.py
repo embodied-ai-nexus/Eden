@@ -4,9 +4,8 @@
 # (http://www.apache.org/licenses/LICENSE-2.0). Modified by the Eden authors: ported from C++ to Python
 # (quadrants) and hosted on Genesis.
 # SPDX-License-Identifier: Apache-2.0
-import dataclasses
 import math
-from collections.abc import Iterable, Iterator
+from collections.abc import Iterator
 from typing import TYPE_CHECKING, NamedTuple
 
 import genesis as gs
@@ -16,7 +15,7 @@ import numpy as np
 import quadrants as qd
 import torch
 from genesis.constants import link_ref_frame
-from genesis.engine.solvers.base_solver import GravityMixin, Solver, StateChange, Subscriber, TimeBasedMixin, mutates
+from genesis.engine.solvers.base_solver import GravityMixin, StateChange, Subscriber, TimeBasedMixin, mutates
 from genesis.engine.solvers.kinematic_solver import KinematicSolver
 from genesis.engine.solvers.rigid.abd.accessor import (
     kernel_control_dofs_force,
@@ -37,19 +36,18 @@ from genesis.engine.solvers.rigid.abd.misc import (
     kernel_init_link_dynamics,
     kernel_init_vert_fields,
 )
-from genesis.options.morphs import Morph
 from genesis.engine.solvers.rigid.data import DynInfo, DynState, RigidInfo
-from genesis.utils.sdf import SDFInfo
-from genesis.utils.data import namespace, opt_in
+from genesis.engine.states.solvers import SolverCheckpoint
+from genesis.options.morphs import Morph
+from genesis.utils.data import ConfigItem, DataItem, DataKind, iter_data, namespace, opt_in
 from genesis.utils.misc import (
     get_gpu_shared_tile_sizes,
-    qd_destroy_data,
     qd_to_numpy,
     qd_to_torch,
     sanitize_index,
     tensor_to_array,
 )
-from genesis.utils.sdf import SDF
+from genesis.utils.sdf import SDF, SDFInfo
 
 from eden.engine._surface import require_members
 from eden.engine.solvers.mochi import materials as mochi_materials
@@ -81,13 +79,12 @@ from eden.engine.solvers.mochi.data import (
     INTEGRATOR,
     LINEAR_TOLERANCE,
     LINESEARCH,
-    N_HISTORY,
-    V,
     V_VEC,
     MochiCollisionData,
+    MochiConfig,
     MochiInfo,
     MochiState,
-    MochiConfig,
+    V,
     get_mochi_contact_state,
     get_mochi_hit_readback,
     get_mochi_info,
@@ -111,8 +108,6 @@ from eden.engine.solvers.mochi.integration import (
 )
 from eden.engine.solvers.mochi.islands import kernel_build_islands, kernel_cholesky_solve_islands
 from eden.engine.solvers.mochi.kinematics import (
-    kernel_get_kinematic_state,
-    kernel_set_kinematic_state,
     kernel_update_geom_aabbs,
     kernel_update_geoms,
     kernel_update_kinematics,
@@ -176,7 +171,6 @@ from eden.engine.solvers.mochi.soft import (
     kernel_soft_contact_eval,
     kernel_soft_dirichlet,
     kernel_soft_get_entity_state,
-    kernel_soft_get_state,
     kernel_soft_get_state_render,
     kernel_soft_get_vertices_field,
     kernel_soft_init_render,
@@ -185,7 +179,6 @@ from eden.engine.solvers.mochi.soft import (
     kernel_soft_set_entity_contact_params,
     kernel_soft_set_links_pair_enabled,
     kernel_soft_set_pair_enabled,
-    kernel_soft_set_state,
     kernel_soft_set_vertices_fixed,
     kernel_soft_set_vertices_positions,
     kernel_soft_set_vertices_target,
@@ -197,7 +190,6 @@ from eden.engine.solvers.mochi.soft import (
     kernel_tet_tree_refit,
 )
 from eden.engine.solvers.mochi.soft_materials import ELASTIC_MODEL_BY_NAME
-from eden.engine.solvers.mochi.states import MochiSolverState
 from eden.engine.solvers.mochi.step_graph import kernel_step_graph
 from eden.engine.solvers.mochi.step_monolith import kernel_step_monolith
 from eden.engine.solvers.mochi.tet_tree import build_tet_tree
@@ -295,25 +287,30 @@ def _next_power_of_two(n):
     return 1 << max(0, int(n) - 1).bit_length()
 
 
-def _iter_ndarrays(values: Iterable, seen: set[int]) -> Iterator[qd.Ndarray]:
-    """The Quadrants ndarrays among `values`, and in the dataclasses, lists, tuples and dicts among them, once each.
-
-    A `qd.Tensor` is a wrapper, and two of them can wrap one ndarray, so each is unwrapped before it is counted.
-    """
-    for value in values:
-        if isinstance(value, qd.Tensor):
-            value = value._unwrap()
-        if id(value) in seen:
-            continue
-        seen.add(id(value))
-        if isinstance(value, qd.Ndarray):
-            yield value
-        elif dataclasses.is_dataclass(value) and not isinstance(value, type):
-            yield from _iter_ndarrays((getattr(value, field.name) for field in dataclasses.fields(value)), seen)
-        elif isinstance(value, (list, tuple)):
-            yield from _iter_ndarrays(value, seen)
-        elif isinstance(value, dict):
-            yield from _iter_ndarrays(value.values(), seen)
+# The attributes of the solver holding its structs, whose fields carry their kinds (see `MochiSolver.data`). The soft
+# structs are None in a scene without deformable bodies.
+_STRUCTS = (
+    "mochi_info",
+    "mochi_state",
+    "contact_state",
+    "island_state",
+    "eq_info",
+    "eq_state",
+    "hit_readback",
+    "sdf_info",
+    "soft_info",
+    "soft_state",
+)
+_CONSTANT_ARRAYS = (
+    "_soft_vverts_vert_idx",
+    "_soft_vverts_elem",
+    "_soft_vverts_bary",
+    "_rod_vverts_vvert",
+    "_rod_vverts_node",
+    "_rod_vverts_elem",
+    "_rod_vverts_offset",
+)
+_SCRATCH_ARRAYS = ("_soft_vverts_render", "_newton_counter", "_round_counter", "_pcg_counter")
 
 
 class MochiSolver(GravityMixin, TimeBasedMixin, KinematicSolver):
@@ -331,13 +328,9 @@ class MochiSolver(GravityMixin, TimeBasedMixin, KinematicSolver):
     # reads this one at its construction alone, before any MochiSolver exists.
     entity_spec_cls = mochi_specs.MochiRigidSpec
     _entity_classes = ((Morph, MochiEntity),)
-    # Its state includes the deformable vertices, the integration history and the contact state, which its `data`
-    # leaves out (see `data` below): `Simulator.get_state` and `Simulator.reset` skip it, and the hosting saves and
-    # restores it through `get_state` and `set_state` instead. Known debt: once the Mochi structs (`data.py`) are
-    # `genesis.utils.data.Data` with declared kinds, `data` can list them and this becomes True, which retires the
-    # hosting's `_bind_state`, `MochiSolverState`, `destroy` below and the kinematic-state kernels of `kinematics.py`,
-    # and lets a Mochi scene be checkpointed and recorded.
-    is_checkpointable = False
+    # Its `data` declares every array it holds with its kind (see `eden.engine.solvers.mochi.data`), so the simulator
+    # saves, restores, records and frees it as it does the rigid solver.
+    is_checkpointable = True
 
     def __init__(self, sim: "Simulator", options: MochiOptions) -> None:
         super().__init__(sim, options)
@@ -2435,113 +2428,48 @@ class MochiSolver(GravityMixin, TimeBasedMixin, KinematicSolver):
     # -------------------------------- state get/set -------------------------------------
     # ------------------------------------------------------------------------------------
 
-    def get_state(self) -> MochiSolverState | None:
-        """The state the solver steps from, which `set_state` restores: the kinematic state of the tree, the
-        integration history and the deformable vertices (see `eden.engine.solvers.mochi.hosting`, which saves it with
-        the scene's).
-        """
-        if not self.is_active:
-            return None
-        state = MochiSolverState(self, self.sim.cur_step_global)
-        kernel_get_kinematic_state(
-            state.qpos,
-            state.dofs_vel,
-            state.links_pos,
-            state.links_quat,
-            self.dyn_state,
-            self.rigid_info,
-            self.rigid_config,
-        )
-        state.qpos_prev = qd_to_torch(self.mochi_state.qpos_prev, copy=True).permute((2, 0, 1)).contiguous()
-        state.dofs_vel_prev = qd_to_torch(self.mochi_state.dofs_vel_prev, copy=True).permute((2, 0, 1)).contiguous()
-        state.links_vel = qd_to_torch(self.mochi_state.links_vel, copy=True).permute((1, 0, 2)).contiguous()
-        state.links_ang = qd_to_torch(self.mochi_state.links_ang, copy=True).permute((1, 0, 2)).contiguous()
-        state.links_vsym = qd_to_torch(self.mochi_state.links_vsym, copy=True).permute((1, 0, 2, 3)).contiguous()
-        state.links_vel_prev = (
-            qd_to_torch(self.mochi_state.links_vel_prev, copy=True).permute((2, 0, 1, 3)).contiguous()
-        )
-        state.links_ang_prev = (
-            qd_to_torch(self.mochi_state.links_ang_prev, copy=True).permute((2, 0, 1, 3)).contiguous()
-        )
-        state.links_vsym_prev = (
-            qd_to_torch(self.mochi_state.links_vsym_prev, copy=True).permute((2, 0, 1, 3, 4)).contiguous()
-        )
-        state.n_hist = qd_to_torch(self.mochi_state.n_hist, copy=True)
-        if self.has_soft:
-            kernel_soft_get_state(
-                state.soft_pos,
-                state.soft_vel,
-                state.soft_pos_prev,
-                state.soft_vel_prev,
-                self.soft_state,
-                self.rigid_config,
-            )
-        return state
+    @property
+    def data(self) -> Iterator[DataItem | ConfigItem]:
+        """Yield the arrays of the kinematic tree, then every array of the solver's own structs under its kind.
 
-    @mutates(StateChange.GEOMETRY, StateChange.DYNAMICS)
-    def _set_kinematic_state(self, state: MochiSolverState, envs_idx=None) -> None:
-        """Write the kinematic state of the tree back and bring its forward kinematics up to date.
-
-        A method of its own, tagged apart from `set_state`, so that the subscribers are notified when it returns, the
-        solver's own among them (`_on_external_state_change`), before `set_state` restores the integration history and
-        marks the environments in sync again. It takes the environments as the caller gave them, which the subscribers
-        receive and sanitize, as those of every other setter.
+        A test walks the attributes of a built solver and fails on an array this leaves out, so a new array is declared
+        here or in its struct (see `tests/engine/solvers/mochi/test_checkpoint.py`).
         """
-        envs_idx = self._sim.sanitize_envs_idx(envs_idx)
-        kernel_set_kinematic_state(
-            envs_idx,
-            state.qpos,
-            state.dofs_vel,
-            state.links_pos,
-            state.links_quat,
-            self.dyn_state,
-            self.rigid_info,
-            self.rigid_config,
-        )
-        kernel_forward_kinematics(envs_idx, self.dyn_state, self.dyn_info, self.rigid_info, self.rigid_config)
+        yield from super().data
+        yield from iter_data(self, "mochi_config")
+        for name in _STRUCTS:
+            if getattr(self, name) is not None:
+                yield from iter_data(self, name)
+        # The render maps of the deformable surfaces, and the scratch of the render and of the graph step kernel
+        for name in _CONSTANT_ARRAYS:
+            if getattr(self, name) is not None:
+                yield from iter_data(self, name, DataKind.CONSTANT)
+        for name in _SCRATCH_ARRAYS:
+            if getattr(self, name) is not None:
+                yield from iter_data(self, name, DataKind.SCRATCH)
+
+    def set_state(self, state: SolverCheckpoint, envs_idx=None) -> None:
+        """Restore the state `get_state` returned, in the given environments (all of them if None).
+
+        The kinematic solver restores the arrays of kind STATE and runs the forward kinematics, which notifies the
+        subscribers, this solver among them (`_on_external_state_change`). The multistep history is part of that state,
+        so the environments are marked in sync again, or the next step would rebuild their history and take a
+        backward-Euler step instead.
+        """
+        super().set_state(state, envs_idx)
+        self._resume(self._sim.sanitize_envs_idx(envs_idx))
+
+    def __setstate__(self, state: SolverCheckpoint) -> None:
+        super().__setstate__(state)
+        self._resume(self._envs_idx)
+
+    def _resume(self, envs_idx) -> None:
+        """Bring what a step reads before writing it up to date with a restored state, in the given environments."""
         # Every geom, the fixed ones included, since the state may hold a fixed link moved since (see
         # `_set_base_links_pose`); their boxes are fitted along.
         kernel_update_geoms(envs_idx, self.dyn_state, self.dyn_info, self.rigid_info, self.rigid_config, True)
-        self._is_forward_pos_updated = True
-        self._is_forward_vel_updated = True
-
-    def set_state(self, state: MochiSolverState, envs_idx=None) -> None:
-        """Restore the state `get_state` returned, in the given environments (all of them if None)."""
-        if not self.is_active:
-            return
-        # The kinematic state first, then the integration history on top, leaving nothing for the external-state sync
-        # of the next step to rebuild.
-        self._set_kinematic_state(state, envs_idx)
-        envs_idx = self._sim.sanitize_envs_idx(envs_idx)
-        _kernel_set_history(
-            envs_idx,
-            state.qpos_prev,
-            state.dofs_vel_prev,
-            state.links_vel,
-            state.links_ang,
-            state.links_vsym,
-            state.links_vel_prev,
-            state.links_ang_prev,
-            state.links_vsym_prev,
-            state.n_hist,
-            self.mochi_state,
-            self.rigid_config,
-        )
-        if self.has_soft:
-            kernel_soft_set_state(
-                envs_idx,
-                state.soft_pos,
-                state.soft_vel,
-                state.soft_pos_prev,
-                state.soft_vel_prev,
-                self.soft_state,
-                self.rigid_config,
-            )
         self._external_state_dirty_mask[tensor_to_array(envs_idx)] = False
         self._is_contacts_recorded = False
-        # A restored environment starts over: whatever error it raised (a diverged solve) is cleared, as the rigid
-        # solver clears its own, so that resetting the environments `get_error_envs_mask` names lets the others go on.
-        self.clear_errno(envs_idx)
 
     def set_qpos(self, qpos, qs_idx=None, envs_idx=None, *, skip_forward=False):
         super().set_qpos(qpos, qs_idx, envs_idx, skip_forward=skip_forward)
@@ -2552,8 +2480,7 @@ class MochiSolver(GravityMixin, TimeBasedMixin, KinematicSolver):
         super().set_dofs_position(position, dofs_idx, envs_idx)
         self.clear_errno(envs_idx)
 
-    # The base-pose setters are tagged themselves so that the subscribers are notified once the geoms are placed, as
-    # `_set_kinematic_state` is.
+    # The base-pose setters are tagged themselves so that the subscribers are notified once the geoms are placed.
     @mutates(StateChange.GEOMETRY, links="links_idx")
     def set_base_links_pos(self, pos, links_idx=None, envs_idx=None, *, relative=False, skip_forward=False):
         self._set_base_links_pose(super().set_base_links_pos, pos, 3, links_idx, envs_idx, relative, skip_forward)
@@ -2645,26 +2572,11 @@ class MochiSolver(GravityMixin, TimeBasedMixin, KinematicSolver):
             f"in env {envs[i_env]}) for {why}, or pass one {quantity} for every environment."
         )
 
-    # A checkpoint or a trajectory frame is refused: the arrays of the kinematic tree leave out the deformable vertices,
-    # the integration history and the contact state of the solver, so a scene restored from them would silently resume
-    # from another state. The base solver's `data` raises that, and `is_checkpointable` above keeps `Simulator.destroy`
-    # from gathering the arrays to free from it.
-    data = Solver.data
-
     def destroy(self) -> None:
-        """Destroy the entities, the deformable ones included, and free the ndarrays of the solver right away.
-
-        `Simulator.destroy` frees the arrays of the checkpointable systems alone, gathered from their `data`, which
-        this solver refuses. Those freed here are the ones its attributes hold, alone or in the structs (dataclasses)
-        and the containers they hold. One already freed — by an earlier call, or by `Simulator.destroy` as the array
-        of another solver — is left alone; a field is freed by `qd.reset`.
-        """
+        """Destroy the entities, the deformable ones included. `Simulator.destroy` frees the arrays `data` yields."""
         super().destroy()
         for entity in self._soft_entities:
             entity._destroy()
-        for array in _iter_ndarrays(vars(self).values(), set()):
-            if array.arr is not None:
-                qd_destroy_data(array)
 
     # ------------------------------------------------------------------------------------
     # ----------------------------------- contact API ------------------------------------
@@ -3344,52 +3256,6 @@ def _kernel_activate_all_envs(mochi_state: MochiState, rigid_config: qd.template
     for i_b in range(mochi_state.is_active.shape[0]):
         mochi_state.is_active[i_b] = True
         mochi_state.ls_is_done[i_b] = False
-
-
-@qd.kernel
-def _kernel_set_history(
-    envs_idx: qd.types.ndarray(),
-    qpos_prev: qd.types.ndarray(),
-    dofs_vel_prev: qd.types.ndarray(),
-    links_vel: qd.types.ndarray(),
-    links_ang: qd.types.ndarray(),
-    links_vsym: qd.types.ndarray(),
-    links_vel_prev: qd.types.ndarray(),
-    links_ang_prev: qd.types.ndarray(),
-    links_vsym_prev: qd.types.ndarray(),
-    n_hist: qd.types.ndarray(),
-    mochi_state: MochiState,
-    rigid_config: qd.template(),
-):
-    n_qs = mochi_state.qpos_prev.shape[1]
-    n_dofs = mochi_state.dofs_vel_prev.shape[1]
-    n_links = mochi_state.links_vsym.shape[0]
-    qd.loop_config(serialize=qd.static(rigid_config.para_level < gs.PARA_LEVEL.ALL))
-    for i_b_ in range(envs_idx.shape[0]):
-        mochi_state.n_hist[envs_idx[i_b_]] = n_hist[envs_idx[i_b_]]
-    qd.loop_config(serialize=qd.static(rigid_config.para_level < gs.PARA_LEVEL.PARTIAL))
-    for i_q, i_b_ in qd.ndrange(n_qs, envs_idx.shape[0]):
-        i_b = envs_idx[i_b_]
-        for k in qd.static(range(N_HISTORY)):
-            mochi_state.qpos_prev[k, i_q, i_b] = qpos_prev[i_b, k, i_q]
-    qd.loop_config(serialize=qd.static(rigid_config.para_level < gs.PARA_LEVEL.PARTIAL))
-    for i_d, i_b_ in qd.ndrange(n_dofs, envs_idx.shape[0]):
-        i_b = envs_idx[i_b_]
-        for k in qd.static(range(N_HISTORY)):
-            mochi_state.dofs_vel_prev[k, i_d, i_b] = dofs_vel_prev[i_b, k, i_d]
-    qd.loop_config(serialize=qd.static(rigid_config.para_level < gs.PARA_LEVEL.PARTIAL))
-    for i_l, i_b_ in qd.ndrange(n_links, envs_idx.shape[0]):
-        i_b = envs_idx[i_b_]
-        for j in qd.static(range(3)):
-            mochi_state.links_vel[i_l, i_b][j] = links_vel[i_b, i_l, j]
-            mochi_state.links_ang[i_l, i_b][j] = links_ang[i_b, i_l, j]
-            for k in qd.static(range(N_HISTORY)):
-                mochi_state.links_vel_prev[k, i_l, i_b][j] = links_vel_prev[i_b, k, i_l, j]
-                mochi_state.links_ang_prev[k, i_l, i_b][j] = links_ang_prev[i_b, k, i_l, j]
-        for j, l in qd.static(qd.ndrange(3, 3)):
-            mochi_state.links_vsym[i_l, i_b][j, l] = links_vsym[i_b, i_l, j, l]
-            for k in qd.static(range(N_HISTORY)):
-                mochi_state.links_vsym_prev[k, i_l, i_b][j, l] = links_vsym_prev[i_b, k, i_l, j, l]
 
 
 @qd.kernel
