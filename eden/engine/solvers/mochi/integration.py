@@ -292,6 +292,7 @@ def func_post_stage(
                 dyn_state.dofs.vel[i_d, i_b] = 0.0
             continue
         if qd.static(mochi_config.use_sleeping):  # noqa: SIM102
+            # dof_start is a DOF of this joint: fixed joints, the only ones without any, were skipped above.
             if island_state.nodes_is_asleep[island_state.dofs_node[dof_start], i_b]:
                 for i_d in range(dof_start, dyn_info.joints.dof_end[I_j]):
                     dyn_state.dofs.vel[i_d, i_b] = 0.0
