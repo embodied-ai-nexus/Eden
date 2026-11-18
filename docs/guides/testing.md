@@ -160,8 +160,10 @@ Whole-suite runs in one process used to crash partway through, because every `sc
 slots that a process has a fixed number of. That leak is fixed in the Genesis version Eden pins, but a single-process
 run of the whole suite has not been re-verified since, so running per file remains the supported way.
 
-The markers are declared in `tests/conftest.py`: `slow`, `requires_genesis`, and `precision(bits)` (the Genesis
-precision a MochiSolver test runs at, in `tests/engine/solvers/mochi`). `pyproject.toml` passes `--strict-markers`,
+The markers are declared in `tests/conftest.py`: `slow`, `requires_genesis`, `precision(bits)` (the Genesis
+precision a MochiSolver test runs at, in `tests/engine/solvers/mochi`), and `strict_math` (a MochiSolver test whose
+kernels compile with quadrants' `fast_math` off; the init fixture wraps `qd.init`, because `gs.init` passes
+`fast_math` explicitly and so overrides `QD_FAST_MATH`). `pyproject.toml` passes `--strict-markers`,
 so an undeclared marker is a collection error rather than a decorator that silently does nothing. Nothing is marked
 automatically; apply a marker per test or per module (`pytestmark = pytest.mark.requires_genesis`).
 

@@ -42,8 +42,9 @@ def genesis_at_the_test_precision(request, monkeypatch):
 
     The suite's session initialization is single precision with Eden's ``eps`` (1e-8); these tests' tolerances were set
     against Genesis' own (1e-15), and most of them against double precision. ``gs.init`` passes quadrants
-    ``fast_math=not debug``, which overrides ``QD_FAST_MATH``, and its debug mode also makes torch deterministic for the
-    rest of the process, so a strict-math test overrides the flag on its way into ``qd.init`` instead.
+    ``fast_math=not debug``, which overrides ``QD_FAST_MATH``, so a strict-math test overrides the flag on its way into
+    ``qd.init``. ``gs.init(debug=True)`` would turn fast-math off too, but it also compiles quadrants in debug mode with
+    bounds checks on the CPU and makes torch deterministic for the rest of the process.
     """
     marks = [mark.args[0] for mark in request.node.iter_markers("precision")]
     is_strict_math = request.node.get_closest_marker("strict_math") is not None
@@ -53,10 +54,12 @@ def genesis_at_the_test_precision(request, monkeypatch):
         monkeypatch.setattr(qd, "init", lambda *args, **kwargs: qd_init(*args, **{**kwargs, "fast_math": False}))
     gs.init(backend=gs.cpu, precision=marks[0] if marks else "64", seed=0, logging_level="warning", theme="raw")
     if is_strict_math:
-        assert not qd.lang.impl.current_cfg().fast_math, (
+        assert not qd.cfg.fast_math, (
             "The strict_math mark left quadrants compiling with fast_math on: gs.init no longer reaches quadrants "
-            "through `qd.init`, so patching it does nothing. Find how gs.init now initializes quadrants and override "
-            "fast_math there, rather than dropping the mark, which would let its tests pass under fast-math."
+            "through `qd.init`, so this fixture's patch of it does nothing. Find where gs.init now passes fast_math "
+            "(grep 'fast_math=not debug' in genesis/__init__.py) and patch that call in this fixture. Dropping the "
+            "mark would let its tests pass under fast-math, and setting QD_FAST_MATH=0 has no effect, because "
+            "gs.init's explicit argument overrides it."
         )
     yield
 
