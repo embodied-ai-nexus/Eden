@@ -345,6 +345,8 @@ def test_moving_a_fixed_body_moves_its_collision_geom(show_viewer):
     scene.reset(state, envs_idx=[0])
     assert_array_equal(is_inside_table([[0.0, 0.0, 0.1], [0.0, 5.0, 0.1]], 0), [True, False])
     assert_array_equal(is_inside_table([[0.0, 0.0, 0.1], [0.0, 5.0, 0.1]], 1), [False, True])
+    aabb_min = qd_to_torch(solver.dyn_state.geoms.aabb_min)[table.geoms[0].idx]
+    assert_allclose(aabb_min[:, :2], [[-0.2, -0.2], [-0.2, 4.8]], tol=1e-9)
     scene.reset(state)
     for env_idx in range(2):
         assert_array_equal(is_inside_table([[0.0, 0.0, 0.1], [0.0, 5.0, 0.1]], env_idx), [True, False])

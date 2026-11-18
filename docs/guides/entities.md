@@ -959,9 +959,9 @@ vertex-based solid, shell or rod. Solver settings (`MochiOptions`, precision, pe
     surfaces are rejected at validation (the solver reads none of them), `set_mass` raises (set the material's
     `rho`), and per-env DOF info is `MochiOptions.batch_dofs_info`, not the `EnvOptions` field of the same name.
     `MochiSoftEntity.set_quat` raises: bake the orientation into `default_root_quat`. A fixed entity with
-    collision geoms takes one pose in every env unless it is built with `batch_fixed_verts=True`: `set_pos` /
-    `set_quat` on a subset of envs, or with poses that differ between envs, raises, also when the move reaches it
-    through an entity it is attached to.
+    collision geoms built without `batch_fixed_verts=True` shares its vertices between envs: `set_pos` /
+    `set_quat` that would pose it on a subset of envs, or differently in different envs, raises, also when the move
+    reaches it through an entity it is attached to. A partial `scene.reset(state, envs_idx)` is not checked.
 
 ```python
 from eden.engine.solvers.mochi import MochiOptions

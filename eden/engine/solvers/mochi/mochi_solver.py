@@ -246,10 +246,10 @@ require_members(
             "_create_data_manager",
             "_init_entity_fields",
             "_init_link_fields",
+            "_sanitize_io_variables",
             "add_entity",
             "clear_errno",
             "destroy",
-            "_sanitize_io_variables",
             "register_errors",
             "set_base_links_pos",
             "set_base_links_quat",
@@ -2569,18 +2569,14 @@ class MochiSolver(GravityMixin, TimeBasedMixin, KinematicSolver):
         Genesis' forward kinematics places no collision geom, and this solver's step places only those of movable
         links, so the geoms of a fixed link moved by `set_pos` or `set_quat`, or attached below one, would otherwise go
         on colliding where they were. They are placed even under `skip_forward`, after a forward kinematics of their
-        own: the step's pass would carry the fixed links to their new pose and leave their geoms behind.
+        own: the step's pass would carry the fixed links to their new pose and leave their geoms behind. Every geom of
+        the moved environments is placed then, the movable ones included; after a setter that moves no fixed geom,
+        the movable geoms follow at the next step, as the step places them.
         """
         if links_idx is None:
             targeted_links_idx = self._base_links_idx_host
         else:
             targeted_links_idx = tensor_to_array(sanitize_index(links_idx, -1, self.n_links, 0, "links_idx"))
-            is_out_of_range = (targeted_links_idx < 0) | (targeted_links_idx >= self.n_links)
-            if is_out_of_range.any():
-                gs.raise_exception(
-                    f"`links_idx` holds {targeted_links_idx[is_out_of_range].tolist()}, outside the {self.n_links} "
-                    f"links of the solver (0 to {self.n_links - 1})."
-                )
         self._check_pose_shared_by_envs(targeted_links_idx, value, value_size, envs_idx)
         set_pose(value, links_idx, envs_idx, relative=relative, skip_forward=skip_forward)
         if self._links_moves_fixed_geoms[targeted_links_idx].any():
