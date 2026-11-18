@@ -3,7 +3,6 @@
 import genesis as gs
 import numpy as np
 import pytest
-import quadrants as qd
 from genesis.utils.misc import qd_to_numpy, tensor_to_array
 
 from eden.engine.solvers.mochi import MochiOptions, create_mochi_scene
@@ -231,18 +230,14 @@ def test_sleeping_islands_freeze_and_wake(n_envs, show_viewer):
 
 
 @pytest.mark.precision("64")
-def test_sleeping_box_velocity_is_zero_under_strict_math(monkeypatch, show_viewer):
-    # A sleeping body's velocity is set to zero rather than finite-differenced from its unchanged pose. The rotation
-    # increment conj(q) q of an unchanged quaternion cancels exactly under the fast-math code generation the rest of the
-    # suite compiles with, and leaves about 1e-46 under strict IEEE arithmetic (issue #12). gs.init passes quadrants
-    # `fast_math=not debug`, and debug mode also turns on bounds checks, so the flag is overridden on its way in.
-    qd_init = qd.init
-    monkeypatch.setattr(qd, "init", lambda *args, **kwargs: qd_init(*args, **{**kwargs, "fast_math": False}))
-    gs.destroy()
-    gs.init(backend=gs.cpu, precision="64", seed=0, logging_level="warning", theme="raw")
-
+@pytest.mark.strict_math
+@pytest.mark.parametrize("step_kernel", ["monolith", "pipeline", "graph"])
+def test_sleeping_box_velocity_is_zero_under_strict_math(step_kernel, show_viewer):
+    """A sleeping body's velocity is exactly zero without fast-math too, where the finite difference of its unchanged
+    quaternion leaves a rounding residue.
+    """
     size = 0.1
-    scene = _mochi_scene(show_viewer, 0.01, use_sleeping=True)
+    scene = _mochi_scene(show_viewer, 0.01, use_sleeping=True, step_kernel=step_kernel)
     scene.add_entity(gs.morphs.Plane(), material=mochi_materials.Rigid())
     box = scene.add_entity(
         gs.morphs.Box(
@@ -254,6 +249,8 @@ def test_sleeping_box_velocity_is_zero_under_strict_math(monkeypatch, show_viewe
     scene.build()
     for _ in range(40):
         scene.step()
+    node = scene.mochi_solver.entities.index(box)
+    assert scene.mochi_solver.island_state.nodes_is_asleep.to_numpy()[node].all()
     box_pos = tensor_to_array(box.get_pos())
     box_quat = tensor_to_array(box.get_quat())
     for _ in range(5):

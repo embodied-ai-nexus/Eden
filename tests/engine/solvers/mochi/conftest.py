@@ -36,15 +36,28 @@ def restore_the_suite_genesis():
 
 
 @pytest.fixture(autouse=True)
-def genesis_at_the_test_precision(request):
-    """Initialize Genesis for this test on the CPU, seeded 0, at the precision of its ``precision`` mark (64 if none).
+def genesis_at_the_test_precision(request, monkeypatch):
+    """Initialize Genesis for this test on the CPU, seeded 0, at the precision of its ``precision`` mark (64 if none),
+    and with quadrants' fast-math off if it carries a ``strict_math`` mark.
 
     The suite's session initialization is single precision with Eden's ``eps`` (1e-8); these tests' tolerances were set
-    against Genesis' own (1e-15), and most of them against double precision.
+    against Genesis' own (1e-15), and most of them against double precision. ``gs.init`` passes quadrants
+    ``fast_math=not debug``, which overrides ``QD_FAST_MATH``, and its debug mode also makes torch deterministic for the
+    rest of the process, so a strict-math test overrides the flag on its way into ``qd.init`` instead.
     """
     marks = [mark.args[0] for mark in request.node.iter_markers("precision")]
+    is_strict_math = request.node.get_closest_marker("strict_math") is not None
     gs.destroy()
+    if is_strict_math:
+        qd_init = qd.init
+        monkeypatch.setattr(qd, "init", lambda *args, **kwargs: qd_init(*args, **{**kwargs, "fast_math": False}))
     gs.init(backend=gs.cpu, precision=marks[0] if marks else "64", seed=0, logging_level="warning", theme="raw")
+    if is_strict_math:
+        assert not qd.lang.impl.current_cfg().fast_math, (
+            "The strict_math mark left quadrants compiling with fast_math on: gs.init no longer reaches quadrants "
+            "through `qd.init`, so patching it does nothing. Find how gs.init now initializes quadrants and override "
+            "fast_math there, rather than dropping the mark, which would let its tests pass under fast-math."
+        )
     yield
 
 

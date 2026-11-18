@@ -227,3 +227,7 @@ def pytest_configure(config):
         "markers",
         "precision(bits): the Genesis precision ('32' or '64') a MochiSolver test runs at (tests/engine/solvers/mochi)",
     )
+    config.addinivalue_line(
+        "markers",
+        "strict_math: compile a MochiSolver test's kernels with quadrants' fast_math off (tests/engine/solvers/mochi)",
+    )
