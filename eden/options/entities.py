@@ -13,6 +13,8 @@ from __future__ import annotations
 
 import copy
 import functools
+from collections.abc import Mapping
+from types import MappingProxyType
 from typing import ClassVar, Literal, TypeAlias
 
 import genesis as gs
@@ -512,6 +514,12 @@ class BaseEntityOptions(ConfigurableOptions):
     conaffinity: int = 0xFFFF
     collision_link_patterns: list[str] | None = None
     batch_fixed_verts: bool = False
+    _retired_fields: ClassVar[Mapping[str, str]] = MappingProxyType(
+        {
+            "collision_friction": "set the friction of the links collision_link_patterns keeps with"
+            " default_geoms_friction={'<kept link pattern>': value} instead",
+        }
+    )
     # Support-surface sampling lives on the *base* options: ``is_support_enabled`` is honored for
     # every rigid entity (``RigidEntity.post_build``), so a primitive or a terrain used as a table
     # must be able to configure the sampling too — not just switch it on.

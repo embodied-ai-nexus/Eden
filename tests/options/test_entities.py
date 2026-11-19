@@ -289,6 +289,16 @@ def test_a_splat_options_saved_before_857_gets_a_migration_message():
         SceneOptions(splat_options=SplatOptions())
 
 
+def test_a_collision_friction_gets_a_migration_message():
+    """The unknown-field error alone would suggest ``collision``, not the field that replaced it."""
+    with pytest.raises(ValidationError) as error:
+        EntityOptions(file="robot.urdf", collision_link_patterns=[".*pad"], collision_friction=2.0)
+    message = str(error.value)
+    assert "Retired ['collision_friction'] of EntityOptions: set the friction of the links" in message
+    assert "default_geoms_friction={'<kept link pattern>': value} instead" in message
+    assert "Did you mean" not in message
+
+
 # ── the morph= escape hatch ────────────────────────────────────────────────────────────────────────
 
 
