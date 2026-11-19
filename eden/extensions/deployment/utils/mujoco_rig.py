@@ -44,13 +44,13 @@ class RigPart:
     parameters of each of its geoms in the env, an ``(n_geoms, 7)`` array of Genesis' ``(timeconst,
     dampratio, dmin, dmax, width, mid, power)`` -- MuJoCo's ``solref`` and ``solimp`` in one -- as
     stated, before any floor (see :meth:`MujocoRig._apply_contacts`); a body it does not name keeps
-    its asset's. ``links_name`` names the links Genesis built the part with: a body named there is a link
-    of its own (an MJCF keeps every body, a jointless pad included), so it never takes its parent's
-    values; a jointless body it does not name is taken as merged into its parent, as Genesis merges a
-    URDF's fixed child (empty: every jointless body is). ``collisionless_links`` names the bodies whose every geom the env built with
-    ``contype = conaffinity = 0`` (those ``collision_link_patterns`` masked out); their geoms get the same.
-    MuJoCo filters every pair by those bits, so such a geom touches nothing, where Genesis still pairs
-    it with an MJCF or USD entity that keeps a local collision mask.
+    its asset's. ``links_name`` names the links Genesis built the part with: a body named there is a
+    link of its own (an MJCF keeps every body, a jointless pad included), and a body it does not name is
+    one Genesis merged into the link it hangs off (a URDF's fixed child), whose values it takes.
+    ``collisionless_links`` names the links whose every geom the env built with ``contype = conaffinity
+    = 0`` (those ``collision_link_patterns`` masked out); their geoms get the same. MuJoCo filters every
+    pair by those bits, so such a geom touches nothing, where Genesis still pairs it with an MJCF or USD
+    entity that keeps a local collision mask.
     """
 
     name: str
@@ -58,6 +58,7 @@ class RigPart:
     dofs_name: list[str]
     pos: np.ndarray
     quat: np.ndarray
+    links_name: set[str]
     parent: str | None = None
     parent_body: str | None = None
     floating: bool = False
@@ -67,7 +68,6 @@ class RigPart:
     friction: float | None = None
     link_friction: dict[str, float] = field(default_factory=dict)
     link_sol_params: dict[str, np.ndarray] = field(default_factory=dict)
-    links_name: set[str] = field(default_factory=set)
     collisionless_links: set[str] = field(default_factory=set)
 
 
@@ -531,7 +531,7 @@ class MujocoRig:
                 link = names[body][len(prefix) :]
                 if link in table:
                     return link
-                if model.body_jntnum[body] > 0 or link in part.links_name:
+                if link in part.links_name:
                     return None
                 body = int(model.body_parentid[body])
             return None
@@ -557,9 +557,17 @@ class MujocoRig:
             if link is not None:
                 link_geoms.setdefault((part.name, link), []).append(geom)
         if collisionless:
+            mjcf_props = sorted(
+                name for name, prop in self.props.items() if prop.asset_path and not prop.asset_path.endswith(".urdf")
+            )
+            also = (
+                f"; MuJoCo keeps them off the MJCF props {mjcf_props} too, which Genesis still pairs them with"
+                if mjcf_props
+                else ""
+            )
             en.logger.info(
                 f"[deploy] MuJoCo rig: the geoms of {sorted(collisionless)} collide with nothing, as the env built them "
-                "(collision_link_patterns); unlike Genesis, MuJoCo keeps them off MJCF / USD props too."
+                f"(collision_link_patterns){also}."
             )
         for (part, link), geoms in link_geoms.items():
             self._set_sol_params(geoms, self.parts[part].link_sol_params[link], f"{part}/{link}")

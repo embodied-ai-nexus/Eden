@@ -272,11 +272,7 @@ def rig_parts(rig: CompositeEntityOptions, parts: dict[str, EnvPart]) -> list[Ri
                 link_friction=link_friction,
                 link_sol_params={link.name: geoms_sol_params(link.geoms) for link in sim._entity.links if link.geoms},
                 links_name={link.name for link in sim._entity.links},
-                collisionless_links={
-                    link.name
-                    for link in sim._entity.links
-                    if link.geoms and not any(geom.contype or geom.conaffinity for geom in link.geoms)
-                },
+                collisionless_links=sim.collisionless_links_name,
             )
         )
     return described

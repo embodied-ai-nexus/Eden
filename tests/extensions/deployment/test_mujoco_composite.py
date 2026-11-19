@@ -518,7 +518,13 @@ _HAND_MJCF = """<mujoco><worldbody><body name="palm"><geom type="box" size=".05 
   </body></body></worldbody></mujoco>"""
 
 
-def _hand_rig(tmp_path, link_sol_params, *, a=0.02, b=0.02, props=(), collisionless_links=(), links_name=(), **rig):
+def _hand_rig(
+    tmp_path, link_sol_params, *, a=0.02, b=0.02, props=(), collisionless_links=(), links_name=("palm", "finger"), **rig
+):
+    """A one-finger hand whose jointless ``pad`` is merged into ``finger`` unless ``links_name`` names it.
+
+    Merged is what Genesis does to a URDF's fixed child; an MJCF body it keeps as a link of its own.
+    """
     from eden.extensions.deployment.utils.mujoco_rig import MujocoRig, RigPart
 
     tmp_path.mkdir(exist_ok=True)

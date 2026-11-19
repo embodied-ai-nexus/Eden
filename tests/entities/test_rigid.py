@@ -1606,10 +1606,12 @@ def test_a_collision_mask_reaches_the_solver_and_the_collider(mjcf_build):
     # An unmasked MJCF entity keeps its pairs with the masked-out link, and the build log names it.
     plain_base = next(g for g in mjcf_env.entities["plain_pads"].geoms if g.link.name == "base")
     assert candidates(plain_base) == {"base": True, "pad": True}
-    (report,) = [m for m in messages if m.startswith("[collision mask] 'masked_pads'")]
+    # A peer it is not welded to is the object the mask was meant for, so the report is a warning with a fix.
+    (report,) = [m for m in mjcf_build[1] if m.startswith("[collision mask] 'masked_pads'")]
     assert "only links ['pad'] collide (1/2 links)" in report
-    peers = report.split("can still pair with ")[1]
+    peers = report.split("can still pair with ")[1].split(" (MJCF")[0]
     assert "'plain_pads'" in peers
+    assert "Fix: give [" in report and "collision_link_patterns of their own" in report
     # Primitives have no local mask, and a masked MJCF entity (`masked_peer`) gave its up.
     assert not any(f"'{name}'" in peers for name in ("box", "plane", "masked_box", "masked_peer", "masked_marker"))
 

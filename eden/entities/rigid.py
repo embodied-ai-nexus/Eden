@@ -978,19 +978,47 @@ class RigidEntity(Entity, SupportSurfaceMixin, DofDefaultsMixin):
             and entity.entity.is_local_collision_mask
         ]
 
+    @property
+    def collisionless_links_name(self) -> set[str]:
+        """The links with collision geoms whose bits are all zero: the links ``collision_link_patterns`` disabled.
+
+        Genesis builds an asset geom whose ``contype`` and ``conaffinity`` are both zero as a visual geom (the MJCF,
+        URDF and USD parsers all test ``contype or conaffinity``), so a collision geom with zero bits is one the mask
+        disabled. Such a geom pairs only with an MJCF or USD entity that keeps a local mask
+        (:meth:`_collision_mask_peers`). Empty on a kinematic entity, which has no collision geoms.
+        """
+        if self.is_kinematic:
+            return set()
+        colliding = {geom.link.name for geom in self.geoms if geom.contype or geom.conaffinity}
+        return {geom.link.name for geom in self.geoms} - colliding
+
     def _report_collision_mask(self) -> None:
-        """Log which links collide, naming the entities the masked-out links can still pair with."""
+        """Log which links collide, and warn when a peer the masked-out links still pair with is not welded to it.
+
+        A welded neighbour (a Droid's arm, which the gripper hangs off) is a peer on every build, so it alone stays
+        at info; any other is an object the mask was meant to keep off the masked links.
+        """
         if not self.collision_link_patterns or self.is_kinematic:
             return
-        # Genesis builds an asset geom whose bits are both zero as a visual geom, so a collision geom with zero
-        # bits is one the mask disabled.
-        kept = {geom.link.name for geom in self.geoms if geom.contype or geom.conaffinity}
-        n_links = len({geom.link.name for geom in self.geoms})
-        message = f"[collision mask] '{self.name}': only links {sorted(kept)} collide ({len(kept)}/{n_links} links)"
+        links = {geom.link.name for geom in self.geoms}
+        kept = links - self.collisionless_links_name
+        message = f"[collision mask] '{self.name}': only links {sorted(kept)} collide ({len(kept)}/{len(links)} links)"
         peers = self._collision_mask_peers()
         if peers:
             message += f"; the other links can still pair with {peers} (MJCF / USD, with no collision_link_patterns)"
-        en.logger.info(message + ".")
+        unwelded = [
+            name
+            for name in peers
+            if self._env.entities[name] is not self.attachment_parent
+            and self._env.entities[name].attachment_parent is not self
+        ]
+        if not unwelded:
+            en.logger.info(message + ".")
+            return
+        en.logger.warning(
+            f"{message}. Fix: give {unwelded} collision_link_patterns of their own (['.*'] keeps every link colliding), "
+            f"which makes their bits filter pairs across entities too, or load them from a URDF or mesh file."
+        )
 
     @property
     def _needs_explicit_damping_armature(self) -> bool:
