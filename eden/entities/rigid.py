@@ -984,8 +984,9 @@ class RigidEntity(Entity, SupportSurfaceMixin, DofDefaultsMixin):
 
         On an MJCF, URDF or USD entity these are the links ``collision_link_patterns`` disabled: those parsers build an
         asset geom with zero bits as a visual geom. A mesh-file entity configured with ``contype = conaffinity = 0``
-        lists all its links (a primitive so configured builds no collision geom). Such a geom pairs only with an MJCF or USD entity that keeps
-        a local mask (:meth:`_collision_mask_peers`). Empty on a kinematic entity, which has no collision geoms.
+        lists all its links (a primitive so configured builds no collision geom). Such a geom pairs only with an MJCF
+        or USD entity that keeps a local mask (:meth:`_collision_mask_peers`). Empty on a kinematic entity, which has
+        no collision geoms.
         """
         if self.is_kinematic:
             return set()

@@ -1592,7 +1592,7 @@ def test_a_collision_mask_reaches_the_solver_and_the_collider(mjcf_build):
     The mask used to be written to a geom attribute Genesis does not read, so it logged as applied and changed
     nothing.
     """
-    mjcf_env, _, messages = mjcf_build
+    mjcf_env, warnings, _ = mjcf_build
     masked, box = mjcf_env.entities["masked_pads"], mjcf_env.entities["box"]
     assert _solver_by_link(mjcf_env, masked, "contype") == {"base": 0, "pad": 1}
     assert _solver_by_link(mjcf_env, masked, "conaffinity") == {"base": 0, "pad": 1}
@@ -1611,7 +1611,7 @@ def test_a_collision_mask_reaches_the_solver_and_the_collider(mjcf_build):
     assert candidates(plain_base) == {"base": True, "pad": True}
     # A peer with DOFs of its own, free (`plain_pads`) or articulated on a fixed base (`mixed`), can move into the
     # masked links, so the report is a warning with a fix that names those; static scenery is only listed.
-    (report,) = [m for m in mjcf_build[1] if m.startswith("[collision mask] 'masked_pads'")]
+    (report,) = [m for m in warnings if m.startswith("[collision mask] 'masked_pads'")]
     assert "only links ['pad'] collide (1/2 links)" in report
     peers = report.split("can still pair with ")[1].split(" (MJCF")[0]
     movers = re.search(r"\. (\[.*?\]) can move into the masked links\. Fix: ", report).group(1)
@@ -1622,7 +1622,7 @@ def test_a_collision_mask_reaches_the_solver_and_the_collider(mjcf_build):
     override = overrides_from_str(re.search(r'--override "([^"]+)"', report).group(1))
     names = ast.literal_eval(movers)
     assert override == {"scene_options": {name: {"collision_link_patterns": [".*"]} for name in names}}
-    fixed = mjcf_build[0].config.with_overrides_from_dict(override)
+    fixed = mjcf_env.config.with_overrides_from_dict(override)
     assert all(getattr(fixed.scene_options, name).collision_link_patterns == [".*"] for name in names)
     # Primitives have no local mask, and a masked MJCF entity (`masked_peer`) gave its up.
     assert not any(f"'{name}'" in peers for name in ("box", "plane", "masked_box", "masked_peer", "masked_marker"))
