@@ -6888,9 +6888,21 @@ heterogeneous entity cannot be attached, because the mounting transform is one p
 frame-alignment correction a hand with non-default <code>up</code> / <code>front</code> needs.</p>
 <h2 id="fixed-kinematic-and-invisible-entities">Fixed, kinematic and invisible entities<a class="headerlink" href="#fixed-kinematic-and-invisible-entities" title="Permanent link">&para;</a></h2>
 <ul>
-<li><code>is_fixed_base=True</code> pins the root link to the world (see the MJCF rule above).</li>
+<li><code>is_fixed_base=True</code> pins the root link to the world (see the MJCF rule above). Posing it per env needs
+  <code>batch_fixed_verts=True</code>: otherwise <code>set_pos</code> / <code>set_quat</code> raise on a subset of envs or on values that differ
+  per env, on the rigid solver and on Mochi. That check covers a base link with collision geoms.
+  A base link without geoms, such as the <code>world</code> root link Genesis gives an MJCF whose top bodies have no joint,
+  takes a per-env pose anyway (from the setters or from <code>place_on_to</code>). Reset states store no root for either
+  kind, so a restored row finds the entity where the scene reset puts it (<code>env.reset_state</code>, taken after the
+  STARTUP events, so a STARTUP placement is part of it). <code>capture_reset_states</code> raises when a captured env holds
+  it elsewhere: moved after that, and not reset since. A RESET event that moves it counts too, even one that writes
+  the same pose on every reset, since the capture compares with the reset state alone. Only the entities passed
+  to <code>capture_reset_states</code> are checked, so a moved table left out of the capture passes even when captured
+  objects rest on it. A RESET event that poses such an entity per env needs <code>batch_fixed_verts=True</code>, and the row
+  then decides that pose; <code>ResetFromStateBuffer</code> does not check it.</li>
 <li><code>material=KinematicMaterialOptions()</code> puts the entity in Genesis' kinematic solver: it is posed but not
-  simulated and has <strong>no collision geometry</strong>. Use it for goal ghosts and markers. <code>vis_mode="collision"</code> or
+  simulated and has <strong>no collision geometry</strong>. Use it for goal ghosts and markers. A fixed one therefore takes a
+  per-env pose without <code>batch_fixed_verts=True</code>, and the reset-state rule above applies to it. <code>vis_mode="collision"</code> or
   <code>"sdf"</code> on a kinematic entity falls back to its visual mesh with a warning, and <code>collision_link_patterns</code> and
   <code>is_support_enabled</code> are ignored on it.</li>
 <li><code>visualization=False</code> hides an entity from rendering while it still collides.</li>
@@ -7025,9 +7037,9 @@ surfaces are rejected at validation (the solver reads none of them), <code>set_m
 move carries a fixed link with collision geoms (the entity's own or an attached entity's) place every geom of the
 moved envs at once; other moves place theirs at the next step. As on the rigid solver, they raise when they would
 pose a fixed base link with collision geoms, of an entity built without <code>batch_fixed_verts=True</code>, on a subset of
-envs or differently in different envs. A base link without geoms of such an entity (an MJCF world body with no
-geom of its own) can be posed per env on both solvers, but reset states store no root for it, so
-<code>capture_reset_states</code> does not keep that pose.</p>
+envs or differently in different envs. A base link without geoms is accepted per env on both solvers; see
+<a href="#fixed-kinematic-and-invisible-entities">Fixed, kinematic and invisible entities</a> for what reset states do with
+it.</p>
 </div>
 <div class="language-python highlight"><pre><span></span><code><span id="__span-22-1"><a id="__codelineno-22-1" name="__codelineno-22-1" href="#__codelineno-22-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">eden.engine.solvers.mochi</span><span class="w"> </span><span class="kn">import</span> <span class="n">MochiOptions</span>
 </span><span id="__span-22-2"><a id="__codelineno-22-2" name="__codelineno-22-2" href="#__codelineno-22-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">eden.options.entities</span><span class="w"> </span><span class="kn">import</span> <span class="n">PlaneOptions</span><span class="p">,</span> <span class="n">RodOptions</span><span class="p">,</span> <span class="n">SceneOptions</span><span class="p">,</span> <span class="n">SphereOptions</span>
