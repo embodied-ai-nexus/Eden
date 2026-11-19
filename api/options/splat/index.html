@@ -6585,8 +6585,9 @@ What the class-constant rule elsewhere keeps out of saved configs is an absolute
             </td>
             <td class="doc-param-details">
               <div class="doc-md-description">
-                <p>Per-splat radiance scale. Maps to <code>LightFieldAsset.multiplier</code> on
-the Nyx backend; ignored by the gsplat backend (<code>SplatOptions</code>).
+                <p>Per-splat radiance scale. The Nyx backend multiplies it into
+<code>LightFieldAsset.tint</code>, since no gs-nyx release has a
+<code>multiplier</code>; ignored by the gsplat backend (<code>SplatOptions</code>).
 <code>1.0</code> leaves the splat unchanged, <code>&gt;1</code> brightens, <code>&lt;1</code> darkens.</p>
               </div>
               <p>
@@ -6600,8 +6601,8 @@ the Nyx backend; ignored by the gsplat backend (<code>SplatOptions</code>).
             <td class="doc-param-details">
               <div class="doc-md-description">
                 <p>Per-channel multiplicative tint applied on top of <code>multiplier</code>.
-Maps to <code>LightFieldAsset.tint</code> on the Nyx backend; ignored by the
-gsplat backend.</p>
+The Nyx backend sets <code>LightFieldAsset.tint</code> to <code>multiplier * tint</code>;
+ignored by the gsplat backend.</p>
               </div>
               <p>
               </p>
@@ -6986,11 +6987,11 @@ entity's base link).</p>
 
             <details class="mkdocstrings-source">
               <summary>Source code in <code>eden/options/splat.py</code></summary>
-              <div class="language-python highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#eden.options.splat.PCDOptions.resolve_local_dir--source--__codelineno-0-93">93</a></span>
-<span class="normal"><a href="#eden.options.splat.PCDOptions.resolve_local_dir--source--__codelineno-0-94">94</a></span>
-<span class="normal"><a href="#eden.options.splat.PCDOptions.resolve_local_dir--source--__codelineno-0-95">95</a></span></pre></div></td><td class="code"><div><pre><span></span><code><span id="eden.options.splat.PCDOptions.resolve_local_dir--source--__span-0-93"><a id="eden.options.splat.PCDOptions.resolve_local_dir--source--__codelineno-0-93" name="eden.options.splat.PCDOptions.resolve_local_dir--source--__codelineno-0-93"></a><span class="k">def</span><span class="w"> </span><span class="nf">resolve_local_dir</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
-</span><span id="eden.options.splat.PCDOptions.resolve_local_dir--source--__span-0-94"><a id="eden.options.splat.PCDOptions.resolve_local_dir--source--__codelineno-0-94" name="eden.options.splat.PCDOptions.resolve_local_dir--source--__codelineno-0-94"></a><span class="w">    </span><span class="sd">"""Where the file is cached: ``local_dir``, else ``assets_subdir`` under the asset root."""</span>
-</span><span id="eden.options.splat.PCDOptions.resolve_local_dir--source--__span-0-95"><a id="eden.options.splat.PCDOptions.resolve_local_dir--source--__codelineno-0-95" name="eden.options.splat.PCDOptions.resolve_local_dir--source--__codelineno-0-95"></a>    <span class="k">return</span> <span class="n">resolve_local_dir</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">local_dir</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">assets_subdir</span><span class="p">)</span>
+              <div class="language-python highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#eden.options.splat.PCDOptions.resolve_local_dir--source--__codelineno-0-94">94</a></span>
+<span class="normal"><a href="#eden.options.splat.PCDOptions.resolve_local_dir--source--__codelineno-0-95">95</a></span>
+<span class="normal"><a href="#eden.options.splat.PCDOptions.resolve_local_dir--source--__codelineno-0-96">96</a></span></pre></div></td><td class="code"><div><pre><span></span><code><span id="eden.options.splat.PCDOptions.resolve_local_dir--source--__span-0-94"><a id="eden.options.splat.PCDOptions.resolve_local_dir--source--__codelineno-0-94" name="eden.options.splat.PCDOptions.resolve_local_dir--source--__codelineno-0-94"></a><span class="k">def</span><span class="w"> </span><span class="nf">resolve_local_dir</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+</span><span id="eden.options.splat.PCDOptions.resolve_local_dir--source--__span-0-95"><a id="eden.options.splat.PCDOptions.resolve_local_dir--source--__codelineno-0-95" name="eden.options.splat.PCDOptions.resolve_local_dir--source--__codelineno-0-95"></a><span class="w">    </span><span class="sd">"""Where the file is cached: ``local_dir``, else ``assets_subdir`` under the asset root."""</span>
+</span><span id="eden.options.splat.PCDOptions.resolve_local_dir--source--__span-0-96"><a id="eden.options.splat.PCDOptions.resolve_local_dir--source--__codelineno-0-96" name="eden.options.splat.PCDOptions.resolve_local_dir--source--__codelineno-0-96"></a>    <span class="k">return</span> <span class="n">resolve_local_dir</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">local_dir</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">assets_subdir</span><span class="p">)</span>
 </span></code></pre></div></td></tr></table></div>
             </details>
     </div>
