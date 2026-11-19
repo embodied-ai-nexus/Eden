@@ -43,7 +43,10 @@ class RigPart:
     parameters of each of its geoms in the env, an ``(n_geoms, 7)`` array of Genesis' ``(timeconst,
     dampratio, dmin, dmax, width, mid, power)`` -- MuJoCo's ``solref`` and ``solimp`` in one -- as
     stated, before any floor (see :meth:`MujocoRig._apply_contacts`); a body it does not name keeps
-    its asset's.
+    its asset's. ``collisionless_links`` names the bodies whose every geom the env built with
+    ``contype = conaffinity = 0`` (those ``collision_link_patterns`` masked out); their geoms get the same.
+    MuJoCo filters every pair by those bits, so such a geom touches nothing, where Genesis still pairs
+    it with an MJCF or USD entity that keeps a local collision mask.
     """
 
     name: str
@@ -60,6 +63,7 @@ class RigPart:
     friction: float | None = None
     link_friction: dict[str, float] = field(default_factory=dict)
     link_sol_params: dict[str, np.ndarray] = field(default_factory=dict)
+    collisionless_links: set[str] = field(default_factory=set)
 
 
 @dataclass
@@ -485,8 +489,9 @@ class MujocoRig:
     def _apply_contacts(self) -> None:
         """Every geom's contact as the env simulates it: sliding friction, solver parameters, and how a pair mixes them.
 
-        A part geom takes its link's friction (``link_friction``, else the part's ``friction``) and
-        solver parameters (``link_sol_params``); a body with no joint of its own (a fingertip's
+        A part geom takes its link's friction (``link_friction``, else the part's ``friction``), solver
+        parameters (``link_sol_params``) and, on a link the env built without collision
+        (``collisionless_links``), ``contype = conaffinity = 0``; a body with no joint of its own (a fingertip's
         elastomer pad) takes its parent's, as Genesis merges a fixed child into the link it hangs
         off. A prop's geoms take the prop's, and the floor the ground's.
 
@@ -536,6 +541,8 @@ class MujocoRig:
             friction = part.friction if link is None else part.link_friction[link]
             if friction is not None:
                 model.geom_friction[geom, 0] = float(friction)
+            if genesis_link(body, prefix, part.collisionless_links) is not None:
+                model.geom_contype[geom] = model.geom_conaffinity[geom] = 0
             link = genesis_link(body, prefix, part.link_sol_params)
             if link is not None:
                 link_geoms.setdefault((part.name, link), []).append(geom)

@@ -569,6 +569,28 @@ def test_a_contact_mixes_in_mujoco_as_in_genesis(tmp_path, eden_caplog):
     assert mujoco.mj_name2id(no_floor, mujoco.mjtObj.mjOBJ_GEOM, "__eden_floor__") == -1, "floor=None adds none"
 
 
+def test_a_collision_mask_reaches_mujoco_as_the_env_built_it(tmp_path):
+    """The links ``collision_link_patterns`` masked out collide in neither engine, the kept one in both."""
+    import mujoco
+
+    from tests.support.envs import build_env
+
+    config = _config(tmp_path)
+    rig = config.scene_options.robot
+    rig.hand = rig.hand.model_copy(update={"collision_link_patterns": ["f1"]})
+    env = build_env(config, reset=True)
+    with deployments(env) as make:
+        model = make(MujocoCompositeDeployment, connect=True)._rig.model
+
+        def bits(body: str) -> list[tuple[int, int]]:
+            b = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_BODY, f"hand/{body}")
+            geoms = range(int(model.body_geomadr[b]), int(model.body_geomadr[b] + model.body_geomnum[b]))
+            return [(int(model.geom_contype[g]), int(model.geom_conaffinity[g])) for g in geoms]
+
+        assert bits("palm") == bits("f0") == [(0, 0)]
+        assert bits("f1") == [(1, 1)]
+
+
 def test_per_geom_values_an_asset_states_stay_its_own_and_a_mismatch_is_named(tmp_path, eden_caplog):
     """Genesis splits and convexifies meshes, so geoms cannot be paired across engines: the asset's values stay."""
     import mujoco
