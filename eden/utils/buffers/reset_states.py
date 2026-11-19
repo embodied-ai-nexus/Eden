@@ -615,15 +615,19 @@ def _check_one_pose_per_variant(entity: RigidEntity) -> None:
 
     shown = "; ".join(f"{pose(i)} against {pose(int(ref[i]))}" for i in differing[:_SHOWN_ENVS])
     more = f"; and {len(differing) - _SHOWN_ENVS} more env(s)" if len(differing) > _SHOWN_ENVS else ""
-    same_body = "envs that hold the same variant" if entity.is_heterogeneous else "envs"
+    if entity.is_heterogeneous:
+        same_body = "envs that hold the same variant"
+        one_pose = "one pose per variant (a single (3,) pos / (4,) quat per call, envs_idx= that variant's envs)"
+    else:
+        same_body = "envs"
+        one_pose = "one pose in every env (a single (3,) pos / (4,) quat to set_pos / set_quat)"
     raise ValueError(
         f"capture_reset_states: entity '{entity.name}' is fixed-base without batch_fixed_verts=True, so a reset-state "
-        f"row stores no root pose for it, yet its pose differs between {same_body}: {shown}{more}. "
-        "Genesis accepted the per-env pose because its base link carries no collision geom. A row restores no pose "
-        "for it, so a row would land in envs where the entity sits elsewhere. "
+        f"row stores no root pose for it, yet its pose differs between {same_body}: {shown}{more}. Genesis accepts "
+        "such a pose when the base link carries no collision geom: set_pos / set_quat with values per env, or "
+        "RigidEntity.place, which samples one per env. A row would land in envs where the entity sits elsewhere. "
         f"Fix: set batch_fixed_verts=True on '{entity.name}' so rows store and restore its pose per env, or give it "
-        "one pose in every env (set_pos / set_quat with envs_idx=None) before capturing. Capturing only the envs "
-        "that agree is not a fix: a row is restored into any env."
+        f"{one_pose} before capturing. Capturing only the envs that agree is not a fix: a row is restored into any env."
     )
 
 
@@ -663,14 +667,15 @@ def capture_reset_states(
             )
         free_joint = free_base_joint(entity, consumer="capture_reset_states")
         root: dict[str, torch.Tensor] = {}
-        if free_joint is None and not entity.is_attached and not stores_root_pose(entity):
-            _check_one_pose_per_variant(entity)
-        if free_joint is None and stores_root_pose(entity):
+        if free_joint is None and not stores_root_pose(entity):  # an immobile base whose row stores no root
+            if not entity.is_attached:  # a welded entity follows its parent link
+                _check_one_pose_per_variant(entity)
+        elif free_joint is None:  # a fixed base posed per env
             root = {
                 "root_pos": entity.get_pos(envs_idx=envs_idx, relative=True),
                 "root_quat": entity.get_quat(envs_idx=envs_idx, relative=True),
             }
-        elif free_joint is not None:
+        else:  # a free base
             authored_pos = entity.get_pos(envs_idx=envs_idx, relative=True)
             solver_pos, solver_quat = entity.get_pos(envs_idx=envs_idx), entity.get_quat(envs_idx=envs_idx)
             base_vel = entity.get_dofs_vel(dofs_idx_local=list(free_joint.dofs_idx_local), envs_idx=envs_idx)

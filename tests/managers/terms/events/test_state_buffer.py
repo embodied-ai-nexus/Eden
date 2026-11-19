@@ -428,8 +428,9 @@ def stand(env):
     """The geom-less fixed base, put back at one pose in every env after a test poses it per env."""
     stand = env.entities["stand"]
     yield stand
-    stand.set_pos(torch.tensor([STAND_POS] * NUM_ENVS, device=env.device), relative=True)
-    stand.set_quat(torch.tensor([[1.0, 0.0, 0.0, 0.0]] * NUM_ENVS, device=env.device), relative=True)
+    # One unbatched pose, the fix the refusal names.
+    stand.set_pos(torch.tensor(STAND_POS, device=env.device), relative=True)
+    stand.set_quat(torch.tensor([1.0, 0.0, 0.0, 0.0], device=env.device), relative=True)
 
 
 def test_capture_stores_no_root_for_a_fixed_base_at_one_pose_in_every_env(env, stand):

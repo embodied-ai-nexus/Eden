@@ -49,9 +49,11 @@ class ResetFromStateBuffer(EventTerm):
     entities it covers. Each reset writes those entities' full state, meaning the root pose and velocity in the
     authored frame and every joint by name, through one staged write; a fixed base built with
     ``batch_fixed_verts=True`` (a robot mount or fixture placed per row) gets its root pose too. Entities it does
-    not name keep what the scene reset and the other RESET events leave. Which row each env gets is the sampler's
-    call: uniform by default, or the curriculum term named by ``sampler`` (e.g. Success Guided Sampling), bound to
-    this buffer's size at build.
+    not name keep what the scene reset and the other RESET events leave, and so does a fixed base built without
+    ``batch_fixed_verts=True``, whose row stores no root. The restore does not check that base's pose: a RESET event
+    that poses one per env needs ``batch_fixed_verts=True`` on it, and the row then decides that pose. Which row each
+    env gets is the sampler's call: uniform by default, or the curriculum term named by ``sampler`` (e.g. Success
+    Guided Sampling), bound to this buffer's size at build.
 
     RESET events run in ascending ``priority`` number, so give it a larger ``priority`` number than any RESET event
     that writes the same entities; one that runs after it overwrites the restored state. Task data stored with the
@@ -139,9 +141,7 @@ class ResetFromStateBuffer(EventTerm):
                 if entity.is_attached:
                     reason, fix = "is welded to another entity, so it has no root to write", ""
                 else:
-                    reason = (
-                        "is fixed-base without batch_fixed_verts=True, so Genesis holds one pose for it in every env"
-                    )
+                    reason = "is fixed-base without batch_fixed_verts=True, so a row stores no root pose for it"
                     fix = f" Or set batch_fixed_verts=True on '{name}' to restore a pose per env."
                 raise ValueError(
                     f"{where} stores a root pose for entity '{name}', but '{name}' {reason}. Fix: regenerate the "
