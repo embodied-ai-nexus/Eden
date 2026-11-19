@@ -983,8 +983,8 @@ class RigidEntity(Entity, SupportSurfaceMixin, DofDefaultsMixin):
         """The links with collision geoms whose ``contype`` and ``conaffinity`` are all zero.
 
         On an MJCF, URDF or USD entity these are the links ``collision_link_patterns`` disabled: those parsers build an
-        asset geom with zero bits as a visual geom. A primitive or mesh-file entity configured with
-        ``contype = conaffinity = 0`` lists all its links. Such a geom pairs only with an MJCF or USD entity that keeps
+        asset geom with zero bits as a visual geom. A mesh-file entity configured with ``contype = conaffinity = 0``
+        lists all its links (a primitive so configured builds no collision geom). Such a geom pairs only with an MJCF or USD entity that keeps
         a local mask (:meth:`_collision_mask_peers`). Empty on a kinematic entity, which has no collision geoms.
         """
         if self.is_kinematic:
@@ -1016,25 +1016,45 @@ class RigidEntity(Entity, SupportSurfaceMixin, DofDefaultsMixin):
             message += f"; the other links can still pair with {peers} (MJCF / USD, with no collision_link_patterns)"
 
         def tree_root(entity: Entity) -> Entity:
-            while entity.attachment_parent is not None:
+            while getattr(entity, "attachment_parent", None) is not None:
                 entity = entity.attachment_parent
             return entity
 
-        root = tree_root(self)
-        movers = [
-            name
-            for name in peers
-            if self._env.entities[name].n_dofs > 0 and tree_root(self._env.entities[name]) is not root
-        ]
+        # A tree moves if any entity in it has DOFs: a jointless body welded to another robot's flange moves too.
+        roots = {name: tree_root(entity) for name, entity in self._env.entities.items()}
+        moving_roots = {
+            id(roots[name])
+            for name, entity in self._env.entities.items()
+            if isinstance(entity, RigidEntity) and not entity.is_kinematic and entity.n_dofs > 0
+        }
+        own_root = tree_root(self)
+        movers = [name for name in peers if roots[name] is not own_root and id(roots[name]) in moving_roots]
         if not movers:
             en.logger.info(message + ".")
             return
         en.logger.warning(
-            f"{message}. {movers} can move into the masked links. Fix: give them a mask of their own that keeps every "
-            f"link, e.g. scene_options.{movers[0]}.collision_link_patterns=['.*'] (or --override 'scene_options: "
-            f'{{{movers[0]}: {{collision_link_patterns: [".*"]}}}}\'), which makes their MJCF / USD bits filter pairs '
-            f"across entities; or load them from a URDF or mesh file. Setting their contype / conaffinity does not do "
-            f"it: Genesis reads an MJCF / USD entity's bits as a self-collision mask."
+            f"{message}. {movers} can move into the masked links. Fix: {self._collision_mask_fix(movers)}"
+        )
+
+    def _collision_mask_fix(self, movers: list[str]) -> str:
+        """How to make ``movers`` stop pairing with the masked links, as config the caller can type."""
+        from eden.options.entities import BaseEntityOptions
+
+        scene = self._env.config.scene_options
+        # A composite's parts are entities of their own, but their options sit inside the composite's entry, which
+        # is no entity's options (its primary part shares its name).
+        top = [name for name in movers if isinstance(getattr(scene, name, None), BaseEntityOptions)]
+        parts = [name for name in movers if name not in top]
+        ways = []
+        if top:
+            entries = ", ".join(f"{name}: {{collision_link_patterns: ['.*']}}" for name in top)
+            ways.append(f'for {top}, --override "scene_options: {{{entries}}}"')
+        if parts:
+            ways.append(f"for the composite parts {parts}, the same field on each part's options inside its rig")
+        return (
+            f"give them collision_link_patterns=['.*'], a mask that keeps every link and makes their MJCF / USD bits "
+            f"filter pairs across entities ({'; '.join(ways)}), or load them from a URDF or mesh file. Setting their "
+            f"contype / conaffinity does not do it: Genesis reads an MJCF / USD entity's bits as a self-collision mask."
         )
 
     @property

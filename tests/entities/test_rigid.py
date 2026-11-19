@@ -5,6 +5,7 @@ Each section shares one module-scoped scene; a test that moves an entity resets 
 
 from __future__ import annotations
 
+import ast
 import gc
 import math
 import os
@@ -24,7 +25,7 @@ from eden.options.materials import KinematicMaterialOptions, RigidMaterialOption
 from eden.options.actuators import Unitree5020_16_DOUBLE, Unitree7520_14, Unitree7520_22
 from eden.options.robots import FrankaEmikaPanda, FrankaHand, FrankaResearch3, Robotiq2f85
 from eden.options.robots.unitree_g1 import G1Dofs29
-from eden.utils.configs import EdenConfig
+from eden.utils.configs import EdenConfig, overrides_from_str
 from eden.utils.geom import align_up_and_front
 from eden.utils.misc import DofPermutation, DofRuns, get_gs_assets_dir
 from tests.entities.conftest import HAND_STL, assert_quat_close, captured_eden_logs, euler_quat, to_np
@@ -1617,6 +1618,12 @@ def test_a_collision_mask_reaches_the_solver_and_the_collider(mjcf_build):
     assert all(f"'{name}'" in peers for name in ("plain_pads", "mixed", "jointless_declared_fixed"))
     assert "'plain_pads'" in movers and "'mixed'" in movers and "'jointless_declared_fixed'" not in movers
     assert "collision_link_patterns=['.*']" in report and "contype / conaffinity does not do it" in report
+    # The fix is typed as given: its override parses, names every mover, and validates against the config.
+    override = overrides_from_str(re.search(r'--override "([^"]+)"', report).group(1))
+    names = ast.literal_eval(movers)
+    assert override == {"scene_options": {name: {"collision_link_patterns": [".*"]} for name in names}}
+    fixed = mjcf_build[0].config.with_overrides_from_dict(override)
+    assert all(getattr(fixed.scene_options, name).collision_link_patterns == [".*"] for name in names)
     # Primitives have no local mask, and a masked MJCF entity (`masked_peer`) gave its up.
     assert not any(f"'{name}'" in peers for name in ("box", "plane", "masked_box", "masked_peer", "masked_marker"))
 
