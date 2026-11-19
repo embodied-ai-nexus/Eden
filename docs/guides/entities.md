@@ -843,9 +843,10 @@ frame-alignment correction a hand with non-default `up` / `front` needs.
   takes a per-env pose anyway (from the setters or from `place_on_to`). Reset states store no root for either
   kind, so a restored row finds the entity where the scene reset puts it (`env.reset_state`), and
   `capture_reset_states` raises when a captured env holds it elsewhere: moved after the build, or left out of a
-  partial `env.reset(envs_idx=...)`. A RESET event that moves it counts too, even one that repeats the same pose
-  every reset, since the capture compares with the reset state alone. `ResetFromStateBuffer` does not check the
-  pose.
+  partial `env.reset(envs_idx=...)`. A RESET event that moves it counts too, even one that writes the same pose on
+  every reset, since the capture compares with the reset state alone. Only the entities passed to
+  `capture_reset_states` are checked, so a moved table left out of the capture passes even when captured objects
+  rest on it. `ResetFromStateBuffer` does not check the pose.
 - `material=KinematicMaterialOptions()` puts the entity in Genesis' kinematic solver: it is posed but not
   simulated and has **no collision geometry**. Use it for goal ghosts and markers. A fixed one therefore takes a
   per-env pose without `batch_fixed_verts=True`, and the reset-state rule above applies to it. `vis_mode="collision"` or

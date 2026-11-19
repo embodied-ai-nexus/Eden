@@ -2673,7 +2673,8 @@ class RigidEntity(Entity, SupportSurfaceMixin, DofDefaultsMixin):
         Returns
         -------
         pos, quat : torch.Tensor, shapes (n_envs, 3) and (n_envs, 4)
-            The base-link position and wxyz quaternion, in Genesis' float dtype.
+            The base-link position and wxyz quaternion, in Genesis' float dtype. Copies: writing into them leaves
+            ``state`` as it was.
         """
         solver_name = type(self.solver).__name__
         keys = ("dyn_state.links.pos", "dyn_state.links.quat")
@@ -2682,13 +2683,17 @@ class RigidEntity(Entity, SupportSurfaceMixin, DofDefaultsMixin):
         if missing:
             raise RuntimeError(
                 f"RigidEntity.get_base_pose_in_state: entity '{self.name}' is in solver {solver_name}, but the state "
-                f"holds no {missing} for it (solvers in the state: {list(state.solvers)}). Genesis' checkpoint format "
-                "has changed. Fix: update get_base_pose_in_state in eden/entities/rigid.py to the arrays that "
-                "Genesis' Solver.data now names for the link poses."
+                f"holds no {missing} for it (solvers in the state: {list(state.solvers)}). Either the state comes "
+                f"from another scene (fix: pass a scene.get_state() of the scene that holds '{self.name}', such as "
+                "env.reset_state), or Genesis' checkpoint format has changed (fix: update get_base_pose_in_state in "
+                "eden/entities/rigid.py to the arrays that Genesis' Solver.data now names for the link poses)."
             )
         i_l = self.entity.base_link_idx
         rows = slice(None) if envs_idx is None else envs_idx
-        pos, quat = (torch.as_tensor(arrays[key][i_l], device=self.device)[rows].to(gs.tc_float) for key in keys)
+        # A copy: the snapshot's own rows are what every later reset restores.
+        pos, quat = (
+            torch.as_tensor(arrays[key][i_l], device=self.device)[rows].to(gs.tc_float, copy=True) for key in keys
+        )
         return pos, quat
 
     def get_quat(self, envs_idx=None, *, relative: bool = False):

@@ -8,7 +8,8 @@ bodies no row can store: two in one entity (``twins``), and one
 inside a per-env fixed base that also carries a hinge (``rack``). ``stand`` is a fixed base without
 ``batch_fixed_verts`` whose base link (the MJCF world body) carries no geom, so Genesis lets it be posed per env.
 ``stands`` groups two such variants authored at different poses, one per env block. ``marker`` is a fixed
-kinematic box, which has no collision geometry and so takes a per-env pose too.
+kinematic box, which has no collision geometry and so takes a per-env pose too; ``flag``, another kinematic body
+added before it, puts ``marker``'s links after its own in the kinematic solver.
 The oracles are Genesis' own getters: the authored frame through ``relative=True``, and the raw generalized
 coordinates and DOF velocities.
 """
@@ -153,6 +154,12 @@ def env(tmp_path_factory):
                     default_root_pos=(0.6, 0, 0.1),
                 ),
                 stand=EntityOptions(file=str(assets / "stand.xml"), is_fixed_base=True, default_root_pos=STAND_POS),
+                flag=BoxOptions(
+                    size=(0.05, 0.05, 0.05),
+                    fixed=True,
+                    default_root_pos=(-0.4, 0.4, 0.8),
+                    material=KinematicMaterialOptions(),
+                ),
                 marker=BoxOptions(
                     size=(0.05, 0.05, 0.05),
                     fixed=True,
@@ -537,6 +544,27 @@ def test_capture_refuses_a_fixed_kinematic_marker_away_from_its_reset_pose(env):
             capture_reset_states(env, ["marker"])
     finally:
         marker.set_pos(torch.tensor(MARKER_POS, device=env.device), relative=True)
+
+
+def test_base_pose_in_state_is_a_copy_of_the_reset_pose(env):
+    """Writing into the result must not move the pose that every later reset restores."""
+    post = env.entities["post"]
+    pos, quat = post.get_base_pose_in_state(env.reset_state)
+    assert pos.shape == (NUM_ENVS, 3) and quat.shape == (NUM_ENVS, 4)
+    expected = pos.clone()
+    pos += 1.0
+    torch.testing.assert_close(post.get_base_pose_in_state(env.reset_state)[0], expected)
+
+
+def test_base_pose_in_state_names_the_solvers_a_foreign_state_holds(env):
+    """A state without the entity's solver (another scene's) is named, not a bare KeyError."""
+    from types import SimpleNamespace
+
+    foreign = SimpleNamespace(solvers={"OtherSolver": SimpleNamespace(arrays={})})
+    with pytest.raises(
+        RuntimeError, match=r"entity 'stand' is in solver RigidSolver.*\['OtherSolver'\].*another scene"
+    ):
+        env.entities["stand"].get_base_pose_in_state(foreign)
 
 
 def test_capture_reads_only_the_envs_a_mask_selects(env):
