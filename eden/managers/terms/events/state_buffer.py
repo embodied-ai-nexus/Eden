@@ -50,10 +50,10 @@ class ResetFromStateBuffer(EventTerm):
     authored frame and every joint by name, through one staged write; a fixed base built with
     ``batch_fixed_verts=True`` (a robot mount or fixture placed per row) gets its root pose too. Entities it does
     not name keep what the scene reset and the other RESET events leave, and so does a fixed base built without
-    ``batch_fixed_verts=True``, whose row stores no root. The restore does not check that base's pose: a RESET event
-    that poses one per env needs ``batch_fixed_verts=True`` on it, and the row then decides that pose. Which row each
-    env gets is the sampler's call: uniform by default, or the curriculum term named by ``sampler`` (e.g. Success
-    Guided Sampling), bound to this buffer's size at build.
+    ``batch_fixed_verts=True``, whose row stores no root; the restore does not check that base's pose
+    (``docs/guides/entities.md``, "Fixed, kinematic and invisible entities"). Which row each env gets is the
+    sampler's call: uniform by default, or the curriculum term named by ``sampler`` (e.g. Success Guided Sampling),
+    bound to this buffer's size at build.
 
     RESET events run in ascending ``priority`` number, so give it a larger ``priority`` number than any RESET event
     that writes the same entities; one that runs after it overwrites the restored state. Task data stored with the

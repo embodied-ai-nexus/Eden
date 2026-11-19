@@ -200,6 +200,25 @@ def test_reset_restores_the_build_pose_in_both_frames(pose_env):
     np.testing.assert_allclose(to_np(hand.get_pos()), built_world, atol=1e-5)
 
 
+def test_base_pose_in_state_reads_the_reset_pose_as_a_copy(pose_env):
+    """The fixed box, turned 90 degrees, at its reset pose; writing into the result leaves the state as it was."""
+    fixed_box = pose_env.entities["fixed_box"]
+    pos, quat = fixed_box.get_base_pose_in_state(pose_env.reset_state)
+    torch.testing.assert_close(pos, fixed_box.get_pos())
+    torch.testing.assert_close(quat, fixed_box.get_quat())
+    pos += 1.0
+    torch.testing.assert_close(fixed_box.get_base_pose_in_state(pose_env.reset_state)[0], fixed_box.get_pos())
+    one_pos, one_quat = fixed_box.get_base_pose_in_state(pose_env.reset_state, envs_idx=[1])
+    torch.testing.assert_close(one_pos, fixed_box.get_pos(envs_idx=[1]))
+    assert one_quat.shape == (1, 4)
+
+
+def test_base_pose_in_state_refuses_a_state_of_another_scene(pose_env, attach_env):
+    """Both scenes have a RigidSolver, so only the scene check keeps another scene's link rows out."""
+    with pytest.raises(ValueError, match=r"another scene than the one that holds entity 'fixed_box'"):
+        pose_env.entities["fixed_box"].get_base_pose_in_state(attach_env.reset_state)
+
+
 def test_default_root_pose_replaces_an_mjcf_root_bodys_own_pose(pose_env):
     """The G1 pelvis sits at pos z=0.793 in its MJCF; composing it with default_root_pos spawned it 0.79 m up."""
     robot = pose_env.entities["posed_root"]

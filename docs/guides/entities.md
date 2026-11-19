@@ -841,12 +841,13 @@ frame-alignment correction a hand with non-default `up` / `front` needs.
   per env, on the rigid solver and on Mochi. That check covers a base link with collision geoms.
   A base link without geoms, such as the `world` root link Genesis gives an MJCF whose top bodies have no joint,
   takes a per-env pose anyway (from the setters or from `place_on_to`). Reset states store no root for either
-  kind, so a restored row finds the entity where the scene reset puts it (`env.reset_state`), and
-  `capture_reset_states` raises when a captured env holds it elsewhere: moved after the build, or left out of a
-  partial `env.reset(envs_idx=...)`. A RESET event that moves it counts too, even one that writes the same pose on
-  every reset, since the capture compares with the reset state alone. Only the entities passed to
-  `capture_reset_states` are checked, so a moved table left out of the capture passes even when captured objects
-  rest on it. `ResetFromStateBuffer` does not check the pose.
+  kind, so a restored row finds the entity where the scene reset puts it (`env.reset_state`, taken after the
+  STARTUP events, so a STARTUP placement is part of it). `capture_reset_states` raises when a captured env holds
+  it elsewhere: moved after that, and not reset since. A RESET event that moves it counts too, even one that writes
+  the same pose on every reset, since the capture compares with the reset state alone. Only the entities passed
+  to `capture_reset_states` are checked, so a moved table left out of the capture passes even when captured
+  objects rest on it. A RESET event that poses such an entity per env needs `batch_fixed_verts=True`, and the row
+  then decides that pose; `ResetFromStateBuffer` does not check it.
 - `material=KinematicMaterialOptions()` puts the entity in Genesis' kinematic solver: it is posed but not
   simulated and has **no collision geometry**. Use it for goal ghosts and markers. A fixed one therefore takes a
   per-env pose without `batch_fixed_verts=True`, and the reset-state rule above applies to it. `vis_mode="collision"` or

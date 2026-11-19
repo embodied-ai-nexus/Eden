@@ -18,11 +18,11 @@ Frames and orders, the part a hand-written buffer gets wrong:
   re-origins a free body onto. Quaternions are wxyz.
 - ``root_lin_vel`` is the world-frame velocity of that authored origin, and ``root_ang_vel`` the world-frame
   angular velocity. Neither is the free joint's DOF velocity, whose angular half is in the body frame.
-- A **fixed base** has a root pose to store only when it is built with ``batch_fixed_verts=True``: Genesis then
-  keeps its pose per env (a robot base or fixture placed differently in each row), otherwise one pose for every
-  env. It never has a root velocity. :func:`stores_root_pose` is the rule. A restored row finds a base without a root
-  where the scene reset puts it, so :func:`capture_reset_states` refuses one that a captured env holds elsewhere
-  (``docs/guides/entities.md``, "Fixed, kinematic and invisible entities").
+- A **fixed base** has a root pose to store only when it is built with ``batch_fixed_verts=True``, which lets
+  Genesis pose it per env (a robot base or fixture placed differently in each row). It never has a root velocity.
+  :func:`stores_root_pose` is the rule. A restored row finds a base without a root where the scene reset puts it,
+  so :func:`capture_reset_states` refuses one that a captured env holds elsewhere (``docs/guides/entities.md``,
+  "Fixed, kinematic and invisible entities").
 - DOFs are stored **per joint name**, joint-major, for every non-free joint that carries DOFs
   (:attr:`RigidEntity.joints`). That is not ``dofs_name``, which is the *controlled* subset and omits a
   closed-loop gripper's passive followers. Values are the DOF state as Genesis holds it (``get_dofs_pos``):
@@ -580,8 +580,7 @@ def _check_at_reset_pose(env: EnvBase, entity: RigidEntity, envs_idx: torch.Tens
     """Raise when a fixed base that a row stores no root for sits away from its reset pose in a captured env.
 
     The reset pose is the one in ``env.reset_state``, which the scene reset restores per env, a group variant's
-    included. RESET events are not run, so one that moves the base is refused even when it writes the same pose on
-    every reset.
+    included.
     """
     from eden.utils.geom import quat_error_magnitude
 
@@ -600,7 +599,7 @@ def _check_at_reset_pose(env: EnvBase, entity: RigidEntity, envs_idx: torch.Tens
     authored_quat = entity.get_quat(envs_idx=envs_idx, relative=True)
     shown = "; ".join(
         f"env {env_ids[k]} at pos {fmt(authored_pos[k])} quat {fmt(authored_quat[k])}, {shift[k].item():.6g} m and "
-        f"{turn[k].item():.6g} rad from its reset pose"
+        f"{turn[k].item():.6g} rad off"
         for k in away[:_SHOWN_ENVS]
     )
     more = f"; and {len(away) - _SHOWN_ENVS} more env(s)" if len(away) > _SHOWN_ENVS else ""
@@ -608,9 +607,9 @@ def _check_at_reset_pose(env: EnvBase, entity: RigidEntity, envs_idx: torch.Tens
         f"capture_reset_states: entity '{entity.name}' is fixed-base without batch_fixed_verts=True, so a reset-state "
         "row stores no root pose for it and a restored row finds it where the scene reset puts it (env.reset_state). "
         f"In {len(away)} captured env(s) it sits elsewhere (pose as get_pos(relative=True) / "
-        "get_quat(relative=True); distance of the base link from its reset pose): "
-        f"{shown}{more}. It leaves the reset pose when set_pos / set_quat or RigidEntity.place_on_to move it after "
-        "the build, in a RESET event too, and when a partial env.reset(envs_idx=...) leaves its env out. "
+        "get_quat(relative=True), then how far its base link is from the reset pose): "
+        f"{shown}{more}. It left the reset pose when set_pos / set_quat or RigidEntity.place_on_to moved it after the "
+        "build, in a RESET event too, and no env.reset of its env has put it back since. "
         f"Fix: set batch_fixed_verts=True on '{entity.name}' so rows store and restore its pose per env, or, for one "
         "pose in every env, author it with default_root_pos / default_root_quat. Moving it back to the reset pose "
         "just before capturing is not a "

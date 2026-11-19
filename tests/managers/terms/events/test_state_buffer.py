@@ -495,7 +495,7 @@ def test_capture_quotes_each_env_away_from_its_reset_pose(env, stand, monkeypatc
     _move_in_env_2(stand)
     with pytest.raises(ValueError) as raised:
         capture_reset_states(env, ["stand"])
-    assert "env 2 at pos (1, -0.4, 0) quat (1, 0, 0, 0), 1 m and 0 rad from its reset pose." in str(raised.value)
+    assert "env 2 at pos (1, -0.4, 0) quat (1, 0, 0, 0), 1 m and 0 rad off." in str(raised.value)
     stand.set_pos(torch.tensor(STAND_POS, device=env.device), relative=True)
     _turn_in_every_env(stand)
     with pytest.raises(ValueError, match=r"env 0 at pos \(0, -0\.4, 0\) quat \(.*\), 0 m and 0\.3 rad"):
@@ -544,27 +544,6 @@ def test_capture_refuses_a_fixed_kinematic_marker_away_from_its_reset_pose(env):
             capture_reset_states(env, ["marker"])
     finally:
         marker.set_pos(torch.tensor(MARKER_POS, device=env.device), relative=True)
-
-
-def test_base_pose_in_state_is_a_copy_of_the_reset_pose(env):
-    """Writing into the result must not move the pose that every later reset restores."""
-    post = env.entities["post"]
-    pos, quat = post.get_base_pose_in_state(env.reset_state)
-    assert pos.shape == (NUM_ENVS, 3) and quat.shape == (NUM_ENVS, 4)
-    expected = pos.clone()
-    pos += 1.0
-    torch.testing.assert_close(post.get_base_pose_in_state(env.reset_state)[0], expected)
-
-
-def test_base_pose_in_state_names_the_solvers_a_foreign_state_holds(env):
-    """A state without the entity's solver (another scene's) is named, not a bare KeyError."""
-    from types import SimpleNamespace
-
-    foreign = SimpleNamespace(solvers={"OtherSolver": SimpleNamespace(arrays={})})
-    with pytest.raises(
-        RuntimeError, match=r"entity 'stand' is in solver RigidSolver.*\['OtherSolver'\].*another scene"
-    ):
-        env.entities["stand"].get_base_pose_in_state(foreign)
 
 
 def test_capture_reads_only_the_envs_a_mask_selects(env):
