@@ -7,6 +7,7 @@ ball joint and a hinge (``floppy``), a box (``cube``), and a fixed box posed per
 bodies no row can store: two in one entity (``twins``), and one
 inside a per-env fixed base that also carries a hinge (``rack``). ``stand`` is a fixed base without
 ``batch_fixed_verts`` whose base link (the MJCF world body) carries no geom, so Genesis lets it be posed per env.
+``stands`` groups two such variants authored at different poses, one per env block.
 The oracles are Genesis' own getters: the authored frame through ``relative=True``, and the raw generalized
 coordinates and DOF velocities.
 """
@@ -56,10 +57,12 @@ RACK_MJCF = """<mujoco model="rack"><compiler angle="radian"/><worldbody>
   <body name="loose" pos="0 0 0.3"><freejoint name="loose_free"/><geom type="box" size="0.02 0.02 0.02" mass="0.1"/></body>
 </worldbody></mujoco>"""
 STAND_MJCF = """<mujoco model="stand"><worldbody>
-  <body name="top" pos="0 0 0.1"><geom type="box" size="0.05 0.05 0.05"/>
+  <body name="top" pos="0 0 0.1"><geom type="box" size="{width} 0.05 0.05"/>
     <body name="lid" pos="0 0 0.08"><joint name="lid_hinge" axis="0 1 0"/><geom type="box" size="0.05 0.05 0.01"/></body></body>
 </worldbody></mujoco>"""
 STAND_POS = (0.0, -0.4, 0.0)
+#: The authored pose of each ``stands`` variant: envs 0-1 hold the first, envs 2-3 the second.
+STANDS_POS = ((0.4, 0.4, 0.0), (0.8, 0.4, 0.0))
 
 
 def _yaw_pitch(yaw: float, pitch: float) -> list[float]:
@@ -122,7 +125,8 @@ def env(tmp_path_factory):
         ("floppy", FLOPPY_MJCF),
         ("twins", TWINS_MJCF),
         ("rack", RACK_MJCF),
-        ("stand", STAND_MJCF),
+        ("stand", STAND_MJCF.format(width=0.05)),
+        ("stand_wide", STAND_MJCF.format(width=0.08)),
     ):
         (assets / f"{name}.xml").write_text(text)
     buffer_path = assets / "authored.pt"
@@ -146,6 +150,13 @@ def env(tmp_path_factory):
                     default_root_pos=(0.6, 0, 0.1),
                 ),
                 stand=EntityOptions(file=str(assets / "stand.xml"), is_fixed_base=True, default_root_pos=STAND_POS),
+                stands=GroupedEntityOptions(
+                    is_fixed_base=True,
+                    grouped_entities=[
+                        EntityOptions(file=str(assets / f"{name}.xml"), default_root_pos=pos)
+                        for name, pos in zip(("stand", "stand_wide"), STANDS_POS)
+                    ],
+                ),
                 shelf=GroupedEntityOptions(
                     is_fixed_base=True,
                     grouped_entities=[
@@ -442,9 +453,26 @@ def test_capture_refuses_a_fixed_base_without_a_stored_root_posed_per_env(env, s
     with pytest.raises(ValueError, match=r"entity 'stand' is fixed-base without batch_fixed_verts=True") as raised:
         capture_reset_states(env, ["stand"], envs_idx=envs_idx)
     message = str(raised.value)
-    assert "env 2 at pos (1.0, -0.4" in message
+    assert "env 2 at pos (1, -0.4, 0) quat (1, 0, 0, 0) against env 0 at pos (0, -0.4, 0)" in message
     assert "env 1" not in message and "env 3" not in message
     assert "Fix: set batch_fixed_verts=True on 'stand'" in message
+
+
+def test_capture_compares_a_fixed_group_within_each_variant(env):
+    """Each variant's authored pose comes with its geometry; only envs that hold one variant must agree."""
+    stands = env.entities["stands"]
+    authored = torch.tensor(STANDS_POS)[stands.env_variant_idx.cpu()]
+    torch.testing.assert_close(stands.get_pos(relative=True).cpu(), authored, atol=1e-5, rtol=0)
+    assert not capture_reset_states(env, ["stands"]).entities["stands"].has_root
+    stands.set_pos(torch.tensor([[0.8, 0.6, 0.0]], device=env.device), envs_idx=torch.tensor([3], device=env.device))
+    try:
+        with pytest.raises(
+            ValueError,
+            match=r"differs between envs that hold the same variant: env 3 at pos \(0\.8, 0\.6, 0\) .* against env 2 at pos \(0\.8, 0\.4, 0\)",
+        ):
+            capture_reset_states(env, ["stands"])
+    finally:
+        stands.set_pos(authored.to(env.device), relative=True)
 
 
 def test_capture_reads_only_the_envs_a_mask_selects(env):
