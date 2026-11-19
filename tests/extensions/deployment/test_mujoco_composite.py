@@ -678,7 +678,7 @@ def test_a_link_the_mask_disabled_takes_no_contact_parameters_and_raises_no_mism
         for geom in np.flatnonzero(model.geom_bodyid == b):
             assert (model.geom_contype[geom], model.geom_conaffinity[geom]) == (bits, bits), body
     assert "contact parameter sets" not in eden_caplog.text
-    assert "['hand/finger'] collide with nothing" in eden_caplog.text
+    assert "['hand/finger'], which collision_link_patterns disabled, collide with nothing" in eden_caplog.text
 
 
 def test_a_body_inertia_mujoco_cannot_compile_is_made_isotropic_with_its_mass_and_trace(tmp_path):

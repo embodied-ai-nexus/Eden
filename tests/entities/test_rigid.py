@@ -8,6 +8,7 @@ from __future__ import annotations
 import gc
 import math
 import os
+import re
 
 import genesis as gs
 import genesis.utils.geom as gu
@@ -1274,6 +1275,7 @@ def mjcf_build(mjcf_assets):
                         asset, collision_link_patterns=["pad"], default_geoms_friction={"pad": _PAD_FRICTION}
                     ),
                     masked_peer=_two_link(asset, collision_link_patterns=["pad"]),
+                    all_kept=_two_link(asset, collision_link_patterns=[".*"]),
                     masked_box=BoxOptions(
                         size=(0.1, 0.1, 0.1),
                         default_root_pos=(0.6, 0.0, 0.05),
@@ -1606,12 +1608,15 @@ def test_a_collision_mask_reaches_the_solver_and_the_collider(mjcf_build):
     # An unmasked MJCF entity keeps its pairs with the masked-out link, and the build log names it.
     plain_base = next(g for g in mjcf_env.entities["plain_pads"].geoms if g.link.name == "base")
     assert candidates(plain_base) == {"base": True, "pad": True}
-    # A peer it is not welded to is the object the mask was meant for, so the report is a warning with a fix.
+    # A peer with DOFs of its own, free (`plain_pads`) or articulated on a fixed base (`mixed`), can move into the
+    # masked links, so the report is a warning with a fix that names those; static scenery is only listed.
     (report,) = [m for m in mjcf_build[1] if m.startswith("[collision mask] 'masked_pads'")]
     assert "only links ['pad'] collide (1/2 links)" in report
     peers = report.split("can still pair with ")[1].split(" (MJCF")[0]
-    assert "'plain_pads'" in peers
-    assert "Fix: give [" in report and "collision_link_patterns of their own" in report
+    movers = re.search(r"\. (\[.*?\]) can move into the masked links\. Fix: ", report).group(1)
+    assert all(f"'{name}'" in peers for name in ("plain_pads", "mixed", "jointless_declared_fixed"))
+    assert "'plain_pads'" in movers and "'mixed'" in movers and "'jointless_declared_fixed'" not in movers
+    assert "collision_link_patterns=['.*']" in report and "contype / conaffinity does not do it" in report
     # Primitives have no local mask, and a masked MJCF entity (`masked_peer`) gave its up.
     assert not any(f"'{name}'" in peers for name in ("box", "plane", "masked_box", "masked_peer", "masked_marker"))
 
@@ -1621,6 +1626,14 @@ def test_the_links_a_collision_mask_disabled_are_read_off_the_built_bits(mjcf_en
     assert mjcf_env.entities["masked_pads"].collisionless_links_name == {"base"}
     assert mjcf_env.entities["plain_pads"].collisionless_links_name == set()
     assert mjcf_env.entities["masked_marker"].collisionless_links_name == set()
+
+
+def test_a_collision_mask_that_keeps_every_link_masks_nothing_and_lists_no_peers(mjcf_build):
+    """What the warning's fix sets on a peer: its report must not warn about that peer's own neighbours."""
+    _, warnings, messages = mjcf_build
+    (report,) = [m for m in messages if m.startswith("[collision mask] 'all_kept'")]
+    assert "keeps every link with geoms, so nothing is masked" in report
+    assert not any(w.startswith("[collision mask] 'all_kept'") for w in warnings)
 
 
 def test_a_collision_mask_keeps_the_kept_geoms_own_bits(mjcf_env):

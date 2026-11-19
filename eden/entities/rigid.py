@@ -980,12 +980,12 @@ class RigidEntity(Entity, SupportSurfaceMixin, DofDefaultsMixin):
 
     @property
     def collisionless_links_name(self) -> set[str]:
-        """The links with collision geoms whose bits are all zero: the links ``collision_link_patterns`` disabled.
+        """The links with collision geoms whose ``contype`` and ``conaffinity`` are all zero.
 
-        Genesis builds an asset geom whose ``contype`` and ``conaffinity`` are both zero as a visual geom (the MJCF,
-        URDF and USD parsers all test ``contype or conaffinity``), so a collision geom with zero bits is one the mask
-        disabled. Such a geom pairs only with an MJCF or USD entity that keeps a local mask
-        (:meth:`_collision_mask_peers`). Empty on a kinematic entity, which has no collision geoms.
+        On an MJCF, URDF or USD entity these are the links ``collision_link_patterns`` disabled: those parsers build an
+        asset geom with zero bits as a visual geom. A primitive or mesh-file entity configured with
+        ``contype = conaffinity = 0`` lists all its links. Such a geom pairs only with an MJCF or USD entity that keeps
+        a local mask (:meth:`_collision_mask_peers`). Empty on a kinematic entity, which has no collision geoms.
         """
         if self.is_kinematic:
             return set()
@@ -993,27 +993,48 @@ class RigidEntity(Entity, SupportSurfaceMixin, DofDefaultsMixin):
         return {geom.link.name for geom in self.geoms} - colliding
 
     def _report_collision_mask(self) -> None:
-        """Log which links collide, and warn when a free body is among the peers the masked-out links still pair with.
+        """Log which links collide, and warn when a peer the masked-out links still pair with can move into them.
 
-        A free body is what the mask exists to keep off the masked links (an object to grasp). Fixed scenery and
-        welded neighbours (a Droid's arm, a robosuite pedestal) are peers on every build of their scene, so they alone
-        stay at info.
+        A peer with DOFs of its own outside this entity's attachment tree (an object to grasp, a door's handle) is what
+        the mask exists to keep off the masked links. Static scenery (a robosuite pedestal, a bin) and the entities
+        this one is welded into (a Droid's arm) are peers on every build of their scene, so they alone stay at info.
         """
         if not self.collision_link_patterns or self.is_kinematic:
             return
         links = {geom.link.name for geom in self.geoms}
-        kept = links - self.collisionless_links_name
+        masked = self.collisionless_links_name
+        if not masked:
+            en.logger.info(
+                f"[collision mask] '{self.name}': collision_link_patterns keeps every link with geoms, so nothing is "
+                f"masked; the geoms' own bits now filter pairs with other entities too."
+            )
+            return
+        kept = links - masked
         message = f"[collision mask] '{self.name}': only links {sorted(kept)} collide ({len(kept)}/{len(links)} links)"
         peers = self._collision_mask_peers()
         if peers:
             message += f"; the other links can still pair with {peers} (MJCF / USD, with no collision_link_patterns)"
-        free = [name for name in peers if not self._env.entities[name].has_immobile_base]
-        if not free:
+
+        def tree_root(entity: Entity) -> Entity:
+            while entity.attachment_parent is not None:
+                entity = entity.attachment_parent
+            return entity
+
+        root = tree_root(self)
+        movers = [
+            name
+            for name in peers
+            if self._env.entities[name].n_dofs > 0 and tree_root(self._env.entities[name]) is not root
+        ]
+        if not movers:
             en.logger.info(message + ".")
             return
         en.logger.warning(
-            f"{message}. Fix: give {free} collision_link_patterns of their own (['.*'] keeps every link colliding), "
-            f"which makes their bits filter pairs across entities too, or load them from a URDF or mesh file."
+            f"{message}. {movers} can move into the masked links. Fix: give them a mask of their own that keeps every "
+            f"link, e.g. scene_options.{movers[0]}.collision_link_patterns=['.*'] (or --override 'scene_options: "
+            f'{{{movers[0]}: {{collision_link_patterns: [".*"]}}}}\'), which makes their MJCF / USD bits filter pairs '
+            f"across entities; or load them from a URDF or mesh file. Setting their contype / conaffinity does not do "
+            f"it: Genesis reads an MJCF / USD entity's bits as a self-collision mask."
         )
 
     @property

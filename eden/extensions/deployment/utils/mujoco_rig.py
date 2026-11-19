@@ -558,9 +558,9 @@ class MujocoRig:
                 link_geoms.setdefault((part.name, link), []).append(geom)
         if collisionless:
             en.logger.info(
-                f"[deploy] MuJoCo rig: the geoms of {sorted(collisionless)} collide with nothing, as the env built them "
-                "(collision_link_patterns), and in MuJoCo with no exception: the env's '[collision mask]' line names "
-                "the MJCF / USD entities Genesis still pairs them with."
+                f"[deploy] MuJoCo rig: the geoms of {sorted(collisionless)}, which collision_link_patterns disabled, "
+                "collide with nothing here; in Genesis they still pair with the MJCF / USD entities the env's "
+                "'[collision mask]' line names."
             )
         for (part, link), geoms in link_geoms.items():
             self._set_sol_params(geoms, self.parts[part].link_sol_params[link], f"{part}/{link}")
