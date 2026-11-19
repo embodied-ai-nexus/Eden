@@ -41,6 +41,17 @@ def test_nyx_extra_excludes_the_renderers_that_overlight_from_an_environment_map
     assert nyx.contains("0.1.6")
 
 
+def test_nyx_extra_excludes_the_renderer_that_dropped_the_bridge_names_the_plugin_calls():
+    """gs-nyx 0.1.10 renamed `BridgeUpdateDesc` to `BridgeSceneDesc` and dropped `allocate_scene_buffers`.
+
+    gs-nyx-plugin 0.1.10 still calls both and declares `gs-nyx >= 0.1.8` uncapped, so an uncapped extra resolves to a
+    pair that fails with an `AttributeError` when the first Nyx camera is built.
+    """
+    nyx = _nyx_requirements()["gs-nyx"].specifier
+    assert not nyx.contains("0.1.10")
+    assert nyx.contains("0.1.9")
+
+
 def test_nyx_extra_floors_the_bridge_plugin_at_the_first_release_admitting_the_pinned_genesis():
     """Every plugin up to 0.1.6 declares `genesis-world < 1.4.0`, while the pin is 1.4.
 

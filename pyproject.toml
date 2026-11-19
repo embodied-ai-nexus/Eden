@@ -140,12 +140,18 @@ onnx-gpu = [
 # environment map with more energy than the map holds (a matte 0.25-albedo sphere renders
 # brighter than the sky), which washes out every scene with an env map.
 #
+# The renderer is capped below 0.1.10: it renamed `BridgeUpdateDesc` to `BridgeSceneDesc` and dropped
+# `NyxRenderer.allocate_scene_buffers`, which every plugin release so far (0.1.10 included) still calls, so the
+# first Nyx camera fails with an `AttributeError` at scene build. The plugin declares `gs-nyx >= 0.1.8` uncapped,
+# so without this cap pip resolves to the broken pair. Lift it with the plugin floor once a plugin release
+# targets `BridgeSceneDesc`.
+#
 # BUMPING GENESIS: every plugin release so far (0.1.7 - 0.1.10) declares `genesis-world < 1.5.0`,
 # and uv resolves ONE universal lockfile (`tool.uv.required-environments` below). Moving the pin
 # above to a 1.5 version therefore makes `uv sync` / `uv run` fail for every user, nyx or not,
 # until a plugin release admits it. Raise the plugin floor to that release in the same change.
 nyx = [
-  "gs-nyx>=0.1.6,<0.2; platform_system != 'Darwin'",
+  "gs-nyx>=0.1.6,<0.1.10; platform_system != 'Darwin'",
   "gs-nyx-plugin>=0.1.10,<0.2; platform_system != 'Darwin'"
 ]
 # The rl_games PPO backend (`eden train --runner rl_games`). rsl_rl is a core
