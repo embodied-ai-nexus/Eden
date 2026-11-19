@@ -19,7 +19,14 @@ from eden.extensions.deployment.utils.mujoco_scene import kinematic_markers, rea
 from eden.extensions.deployment.utils.mujoco_sim import MujocoFloor
 from eden.options.entities import BoxOptions, SphereOptions
 from tests.extensions.deployment.conftest import TWO_LINK_MJCF
-from tests.extensions.deployment.test_composite import ARM_DOFS, HAND_DEFAULT, HAND_DOFS, _humanoid_config, _rig
+from tests.extensions.deployment.test_composite import (
+    ARM_DOFS,
+    HAND_DEFAULT,
+    HAND_DOFS,
+    WELDED_HAND_MJCF,
+    _humanoid_config,
+    _rig,
+)
 from tests.support.deploy import deployments
 
 CUBE_HALF = 0.025
@@ -511,7 +518,7 @@ _HAND_MJCF = """<mujoco><worldbody><body name="palm"><geom type="box" size=".05 
   </body></body></worldbody></mujoco>"""
 
 
-def _hand_rig(tmp_path, link_sol_params, *, a=0.02, b=0.02, props=(), collisionless_links=(), **rig):
+def _hand_rig(tmp_path, link_sol_params, *, a=0.02, b=0.02, props=(), collisionless_links=(), links_name=(), **rig):
     from eden.extensions.deployment.utils.mujoco_rig import MujocoRig, RigPart
 
     tmp_path.mkdir(exist_ok=True)
@@ -524,6 +531,7 @@ def _hand_rig(tmp_path, link_sol_params, *, a=0.02, b=0.02, props=(), collisionl
         pos=np.array([0.0, 0.0, 0.5]),
         quat=np.array([1.0, 0.0, 0.0, 0.0]),
         link_sol_params=link_sol_params,
+        links_name=set(links_name),
         collisionless_links=set(collisionless_links),
     )
     return MujocoRig([part], list(props), sim_dt=0.002, **rig)
@@ -571,14 +579,25 @@ def test_a_contact_mixes_in_mujoco_as_in_genesis(tmp_path, eden_caplog):
 
 
 def test_a_collision_mask_reaches_mujoco_as_the_env_built_it(tmp_path):
-    """The links ``collision_link_patterns`` masked out collide in neither engine, the kept one in both."""
+    """The links ``collision_link_patterns`` masked out collide in neither engine, the kept ones in both.
+
+    The kept ``tip`` has no joint, as a Robotiq's pads have none: Genesis keeps every MJCF body as a link, so it must
+    not go with the masked finger it hangs off.
+    """
     import mujoco
 
     from tests.support.envs import build_env
 
     config = _config(tmp_path)
     rig = config.scene_options.robot
-    rig.hand = rig.hand.model_copy(update={"collision_link_patterns": ["f1"]})
+    finger_1 = '<joint name="finger_1" type="hinge" axis="0 1 0"/>'
+    Path(rig.hand.file).write_text(
+        WELDED_HAND_MJCF.replace(
+            finger_1,
+            finger_1 + '\n<body name="tip" pos="0.05 0 0"><geom type="sphere" size="0.01" mass="0.01"/></body>',
+        )
+    )
+    rig.hand = rig.hand.model_copy(update={"collision_link_patterns": ["f0", "tip"]})
     env = build_env(config, reset=True)
     with deployments(env) as make:
         model = make(MujocoCompositeDeployment, connect=True)._rig.model
@@ -588,8 +607,8 @@ def test_a_collision_mask_reaches_mujoco_as_the_env_built_it(tmp_path):
             geoms = range(int(model.body_geomadr[b]), int(model.body_geomadr[b] + model.body_geomnum[b]))
             return [(int(model.geom_contype[g]), int(model.geom_conaffinity[g])) for g in geoms]
 
-        assert bits("palm") == bits("f0") == [(0, 0)]
-        assert bits("f1") == [(1, 1)]
+        assert bits("palm") == bits("f1") == [(0, 0)]
+        assert bits("f0") == bits("tip") == [(1, 1)]
 
 
 def test_per_geom_values_an_asset_states_stay_its_own_and_a_mismatch_is_named(tmp_path, eden_caplog):
@@ -608,19 +627,27 @@ def test_per_geom_values_an_asset_states_stay_its_own_and_a_mismatch_is_named(tm
     assert "the geoms of 'hand/finger' carry 2 different contact parameter sets" in eden_caplog.text
 
 
-def test_a_link_the_mask_disabled_takes_no_contact_parameters_and_raises_no_mismatch(tmp_path, eden_caplog):
-    """Its geoms touch nothing, so the env's parameters have nothing to disagree with; its merged pad goes with it."""
+@pytest.mark.parametrize("pad_is_a_link", [False, True], ids=["merged-pad", "pad-link"])
+def test_a_link_the_mask_disabled_takes_no_contact_parameters_and_raises_no_mismatch(
+    tmp_path, eden_caplog, pad_is_a_link
+):
+    """Its geoms touch nothing, so the env's parameters have nothing to disagree with.
+
+    The jointless pad goes with the finger when Genesis merged it in (a URDF's fixed child), and keeps colliding
+    when Genesis kept it as a link of its own (every MJCF body).
+    """
     import mujoco
 
     solimp = (0.9, 0.95, 0.001, 0.5, 2.0)
     stated = np.array([(0.02, 1.0, *solimp), (0.03, 1.0, *solimp)])
-    model = _hand_rig(tmp_path, {"finger": stated}, a=0.02, b=0.05, collisionless_links={"finger"}).model
-    finger, palm = (mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_BODY, f"hand/{b}") for b in ("finger", "palm"))
-    for body, bits in ((finger, 0), (palm, 1)):
-        for geom in np.flatnonzero(model.geom_bodyid == body):
-            assert (model.geom_contype[geom], model.geom_conaffinity[geom]) == (bits, bits)
-    pad = int(model.body_geomadr[mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_BODY, "hand/pad")])
-    assert (model.geom_contype[pad], model.geom_conaffinity[pad]) == (0, 0)
+    links = {"palm", "finger", "pad"} if pad_is_a_link else {"palm", "finger"}
+    rig = _hand_rig(tmp_path, {"finger": stated}, a=0.02, b=0.05, collisionless_links={"finger"}, links_name=links)
+    model = rig.model
+    pad_bits = int(pad_is_a_link)
+    for body, bits in (("finger", 0), ("palm", 1), ("pad", pad_bits)):
+        b = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_BODY, f"hand/{body}")
+        for geom in np.flatnonzero(model.geom_bodyid == b):
+            assert (model.geom_contype[geom], model.geom_conaffinity[geom]) == (bits, bits), body
     assert "contact parameter sets" not in eden_caplog.text
     assert "['hand/finger'] collide with nothing" in eden_caplog.text
 

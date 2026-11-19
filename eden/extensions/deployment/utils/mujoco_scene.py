@@ -271,6 +271,7 @@ def rig_parts(rig: CompositeEntityOptions, parts: dict[str, EnvPart]) -> list[Ri
                 friction=getattr(material, "friction", None),
                 link_friction=link_friction,
                 link_sol_params={link.name: geoms_sol_params(link.geoms) for link in sim._entity.links if link.geoms},
+                links_name={link.name for link in sim._entity.links},
                 collisionless_links={
                     link.name
                     for link in sim._entity.links
