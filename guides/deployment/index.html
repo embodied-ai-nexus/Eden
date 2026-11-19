@@ -6757,7 +6757,10 @@ to the parts, so rigs without hardware backends run too:</p>
   one, the run warns, naming the <code>--mujoco_sim_dt</code> that floors them alike. A link whose geoms carry
   different values in the env (an MJCF asset's own) keeps the asset's, with a warning if they are
   not the same set. Friction alone is not enough: at MuJoCo's default impedance a cube held in
-  Genesis slips out of the hand.</li>
+  Genesis slips out of the hand. The links a part's <code>collision_link_patterns</code> disabled collide with
+  nothing in MuJoCo either, not even the MJCF or USD entities Genesis still pairs them with (see
+  <a href="../entities/#restricting-which-geoms-collide">restricting which geoms collide</a>); the env's
+  <code>[collision mask]</code> build line names those.</li>
 <li><strong>The floor</strong> stands where the scene's ground plane does, raised or tilted alike, with its
   friction and solver parameters. A scene with no ground keeps MuJoCo's plain floor at <code>z = 0</code>, and
   so does one with several, with a warning; a terrain lends the floor its contact but not its shape,

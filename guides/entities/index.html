@@ -6701,8 +6701,15 @@ contact width sees the full capacity.</p>
   and the other's <code>conaffinity</code> share a set bit.</li>
 <li><code>collision_link_patterns</code> keeps collision only on the links matching the patterns, and disables it on every
   other link, before the scene is built. The composite rigs use <code>collision_link_patterns=[".*pad"]</code> on the
-  Robotiq 2F85 so objects are pinched between the pads instead of wedged against the inner linkage.
-  <code>collision_friction</code> sets the friction of the geoms it keeps.</li>
+  Robotiq 2F85 so objects are pinched between the pads instead of wedged against the inner linkage. That holds
+  for primitive, URDF and mesh-file objects, but not for MJCF or USD ones. On the rigid solver, the disabled links
+  still collide with an MJCF or USD entity that sets no <code>collision_link_patterns</code> itself: Genesis reads that
+  entity's <code>contype</code> / <code>conaffinity</code> as a self-collision mask, and skips a pair across two entities on their bits
+  only when neither has one. A line in the build log, starting <code>[collision mask]</code>, names those entities: a warning
+  with a fix when one of them can move into the masked links (it has DOFs of its own: an object to grasp, a door),
+  info when all are static scenery or the entities this one is welded into. The
+  kept geoms keep their own bits, which from then on filter pairs with other entities too. To set the kept links'
+  friction, name them in <code>default_geoms_friction</code> (below).</li>
 </ul>
 <p>A kinematic entity has no collision geometry, so these options are ignored on it with a warning.</p>
 <h3 id="friction-combines-as-max-not-min">Friction combines as <code>max</code>, not <code>min</code><a class="headerlink" href="#friction-combines-as-max-not-min" title="Permanent link">&para;</a></h3>
@@ -6714,8 +6721,7 @@ max when both geoms have the same <code>priority</code>, but a higher-priority g
 Check this when matching another simulator's grasp behaviour. The same rule applies to the torsional and rolling
 coefficients below.</p>
 <p>Set friction entity-wide with <code>material=RigidMaterialOptions(friction=...)</code>, or per link pattern with
-<code>default_geoms_friction={pattern: value}</code>, which is applied at build and keeps every link colliding. Prefer the
-latter over <code>collision_friction</code>, which only covers the geoms <code>collision_link_patterns</code> keeps.</p>
+<code>default_geoms_friction={pattern: value}</code>, which is applied at build and leaves collision as it is.</p>
 <h3 id="torsional-and-rolling-friction-are-opt-in-and-their-strength-is-per-geom">Torsional and rolling friction are opt-in, and their strength is per geom<a class="headerlink" href="#torsional-and-rolling-friction-are-opt-in-and-their-strength-is-per-geom" title="Permanent link">&para;</a></h3>
 <p>Sliding friction is always on. Resistance to <em>spin about the contact normal</em> (torsional) and to <em>rolling about
 the two tangent axes</em> (rolling) are opt-in per scene, because each adds constraint rows to every contact: one for
