@@ -332,8 +332,9 @@ class NyxSplatEnvBase(EnvBase[EdenNyxSplatConfig]):
                 asset_path = converted
             light_field.uri = asset_path
 
-            light_field.multiplier = float(pcd.multiplier)
-            light_field.tint = nps.float3(pcd.tint[0], pcd.tint[1], pcd.tint[2])
+            # No gs-nyx release has `LightFieldAsset.multiplier`, and the tint multiplies the radiance, so the
+            # multiplier goes into the tint.
+            light_field.tint = nps.float3(*(float(pcd.multiplier) * float(c) for c in pcd.tint))
 
             if pcd.scale != 1.0:
                 en.logger.warning(

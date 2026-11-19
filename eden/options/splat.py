@@ -59,13 +59,14 @@ class PCDOptions(ConfigurableOptions):
     quat: array-like[float, float, float, float]
         Rotation of the pcd (w, x, y, z).
     multiplier: float
-        Per-splat radiance scale. Maps to ``LightFieldAsset.multiplier`` on
-        the Nyx backend; ignored by the gsplat backend (``SplatOptions``).
+        Per-splat radiance scale. The Nyx backend multiplies it into
+        ``LightFieldAsset.tint``, since no gs-nyx release has a
+        ``multiplier``; ignored by the gsplat backend (``SplatOptions``).
         ``1.0`` leaves the splat unchanged, ``>1`` brightens, ``<1`` darkens.
     tint: array-like[float, float, float]
         Per-channel multiplicative tint applied on top of ``multiplier``.
-        Maps to ``LightFieldAsset.tint`` on the Nyx backend; ignored by the
-        gsplat backend.
+        The Nyx backend sets ``LightFieldAsset.tint`` to ``multiplier * tint``;
+        ignored by the gsplat backend.
     attach_entity: str | None
         Name of the entity whose pose drives this splat. Requires
         ``SplatOptions(per_env_gaussians=True)``: when set, the splat is treated

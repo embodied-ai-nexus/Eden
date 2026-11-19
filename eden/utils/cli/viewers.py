@@ -83,7 +83,8 @@ def view_splat(ply_path: str, multiplier: float = 1.0, env_brightness: float = 0
     light_field = nps.LightFieldAsset()
     light_field.uri = converted
     light_field.type = nps.ELightFieldType.GaussianField
-    light_field.multiplier = float(multiplier)
+    # No gs-nyx release has `LightFieldAsset.multiplier`; the tint multiplies the radiance.
+    light_field.tint = nps.float3(float(multiplier), float(multiplier), float(multiplier))
 
     env_map = nps.EnvironmentMapAsset()
     env_map.texture = NyxSplatEnvBase._default_constant_env_map_uri(env_brightness)
@@ -493,7 +494,7 @@ def _configure_view(parser: argparse.ArgumentParser) -> None:
         "--multiplier",
         type=float,
         default=1.0,
-        help="LightFieldAsset.multiplier for splat radiance (splat mode)",
+        help="Splat radiance scale, applied through LightFieldAsset.tint (splat mode)",
     )
     parser.add_argument(
         "--env-brightness",

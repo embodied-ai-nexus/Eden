@@ -20,10 +20,10 @@ from gs_nyx import nyx_py_sdk as nps  # noqa: E402
 from gs_nyx_plugin.nyx_camera_options import NyxCameraOptions  # noqa: E402
 
 from eden.envs.base import env_class_for_config  # noqa: E402
-from eden.envs.nyx_splat import write_nyx_camera_profile  # noqa: E402
+from eden.envs.nyx_splat import NyxSplatEnvBase, write_nyx_camera_profile  # noqa: E402
 from eden.options import BoxOptions, EnvOptions, SceneOptions  # noqa: E402
 from eden.options.camera import CameraOptions, CamerasOptions  # noqa: E402
-from eden.options.splat import NyxSplatOptions  # noqa: E402
+from eden.options.splat import NyxSplatOptions, PCDOptions  # noqa: E402
 from eden.utils.configs import EdenNyxSplatConfig  # noqa: E402
 
 
@@ -153,3 +153,15 @@ def test_a_camera_that_brings_its_own_profile_keeps_it():
         assert env.cameras["main"].options.sensor_options.camera_profile == own
     finally:
         env.destroy()
+
+
+def test_a_splat_light_field_carries_its_multiplier_in_the_tint(tmp_path):
+    """No gs-nyx release has `LightFieldAsset.multiplier`, so setting it raised and no splat scene could build."""
+    splat = tmp_path / "splat.spz"  # not a .ply, so no SH-3 conversion reads the empty file
+    splat.touch()
+    pcd = PCDOptions(path=str(splat), multiplier=2.5, tint=(1.0, 0.8, 0.4))
+
+    (light_field,) = NyxSplatEnvBase._build_light_fields({"splat": pcd})
+
+    tint = light_field.tint
+    assert (tint.x, tint.y, tint.z) == pytest.approx((2.5, 2.0, 1.0))
