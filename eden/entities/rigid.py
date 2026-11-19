@@ -605,8 +605,6 @@ class RigidEntity(Entity, SupportSurfaceMixin, DofDefaultsMixin):
     default_geoms_friction_torsional: dict[str, float] = {}
     default_geoms_friction_rolling: dict[str, float] = {}
     collision_link_patterns: list[str] | None = None
-    # The links `collision_link_patterns` keeps, resolved in `pre_build`; None without a mask.
-    _collision_kept_links: set[str] | None = None
 
     is_articulated: bool = False
     is_actuated: bool = False
@@ -934,7 +932,7 @@ class RigidEntity(Entity, SupportSurfaceMixin, DofDefaultsMixin):
         collision-pair candidate list from per-geom ``contype``/``conaffinity`` at build time and offers no setter
         for them. So the geom's description is written, which ``RigidGeom.contype``/``conaffinity`` return and the
         collider and the solver read at build. Geoms on kept links keep their own bits; the others get
-        ``contype = conaffinity = 0``. The kept links are kept for the report after the build.
+        ``contype = conaffinity = 0``.
 
         Genesis gives an MJCF or USD entity a local collision mask, which filters pairs within the entity only, so
         zeroing the bits would not stop a collision with a grasped cube. Clearing the private
@@ -957,7 +955,6 @@ class RigidEntity(Entity, SupportSurfaceMixin, DofDefaultsMixin):
             for pattern in self.collision_link_patterns
             for geom in self._match_geoms("collision_link_patterns", pattern)
         }
-        self._collision_kept_links = kept
         self._entity._is_local_collision_mask = False
         for geom in self.geoms:
             if geom.link.name not in kept:
@@ -983,9 +980,11 @@ class RigidEntity(Entity, SupportSurfaceMixin, DofDefaultsMixin):
 
     def _report_collision_mask(self) -> None:
         """Log which links collide, naming the entities the masked-out links can still pair with."""
-        kept = self._collision_kept_links
-        if kept is None:
+        if not self.collision_link_patterns or self.is_kinematic:
             return
+        # Genesis builds an asset geom whose bits are both zero as a visual geom, so a collision geom with zero
+        # bits is one the mask disabled.
+        kept = {geom.link.name for geom in self.geoms if geom.contype or geom.conaffinity}
         n_links = len({geom.link.name for geom in self.geoms})
         message = f"[collision mask] '{self.name}': only links {sorted(kept)} collide ({len(kept)}/{n_links} links)"
         peers = self._collision_mask_peers()

@@ -511,7 +511,7 @@ _HAND_MJCF = """<mujoco><worldbody><body name="palm"><geom type="box" size=".05 
   </body></body></worldbody></mujoco>"""
 
 
-def _hand_rig(tmp_path, link_sol_params, *, a=0.02, b=0.02, props=(), **rig):
+def _hand_rig(tmp_path, link_sol_params, *, a=0.02, b=0.02, props=(), collisionless_links=(), **rig):
     from eden.extensions.deployment.utils.mujoco_rig import MujocoRig, RigPart
 
     tmp_path.mkdir(exist_ok=True)
@@ -524,6 +524,7 @@ def _hand_rig(tmp_path, link_sol_params, *, a=0.02, b=0.02, props=(), **rig):
         pos=np.array([0.0, 0.0, 0.5]),
         quat=np.array([1.0, 0.0, 0.0, 0.0]),
         link_sol_params=link_sol_params,
+        collisionless_links=set(collisionless_links),
     )
     return MujocoRig([part], list(props), sim_dt=0.002, **rig)
 
@@ -605,6 +606,23 @@ def test_per_geom_values_an_asset_states_stay_its_own_and_a_mismatch_is_named(tm
 
     _hand_rig(tmp_path / "other", {"finger": stated}, a=0.02, b=0.05)
     assert "the geoms of 'hand/finger' carry 2 different contact parameter sets" in eden_caplog.text
+
+
+def test_a_link_the_mask_disabled_takes_no_contact_parameters_and_raises_no_mismatch(tmp_path, eden_caplog):
+    """Its geoms touch nothing, so the env's parameters have nothing to disagree with; its merged pad goes with it."""
+    import mujoco
+
+    solimp = (0.9, 0.95, 0.001, 0.5, 2.0)
+    stated = np.array([(0.02, 1.0, *solimp), (0.03, 1.0, *solimp)])
+    model = _hand_rig(tmp_path, {"finger": stated}, a=0.02, b=0.05, collisionless_links={"finger"}).model
+    finger, palm = (mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_BODY, f"hand/{b}") for b in ("finger", "palm"))
+    for body, bits in ((finger, 0), (palm, 1)):
+        for geom in np.flatnonzero(model.geom_bodyid == body):
+            assert (model.geom_contype[geom], model.geom_conaffinity[geom]) == (bits, bits)
+    pad = int(model.body_geomadr[mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_BODY, "hand/pad")])
+    assert (model.geom_contype[pad], model.geom_conaffinity[pad]) == (0, 0)
+    assert "contact parameter sets" not in eden_caplog.text
+    assert "['hand/finger'] collide with nothing" in eden_caplog.text
 
 
 def test_a_body_inertia_mujoco_cannot_compile_is_made_isotropic_with_its_mass_and_trace(tmp_path):

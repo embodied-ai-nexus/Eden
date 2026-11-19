@@ -531,21 +531,31 @@ class MujocoRig:
             return None
 
         link_geoms: dict[tuple[str, str], list[int]] = {}
+        collisionless: set[str] = set()
         for geom in range(model.ngeom):
             body = int(model.geom_bodyid[geom])
             part = next((p for p in self.parts.values() if names[body].startswith(f"{p.name}/")), None)
             if part is None:
                 continue
             prefix = f"{part.name}/"
+            # A geom that touches nothing needs no contact parameters, and checking its own against the env's
+            # would only warn about a link that cannot collide.
+            if (link := genesis_link(body, prefix, part.collisionless_links)) is not None:
+                model.geom_contype[geom] = model.geom_conaffinity[geom] = 0
+                collisionless.add(f"{prefix}{link}")
+                continue
             link = genesis_link(body, prefix, part.link_friction)
             friction = part.friction if link is None else part.link_friction[link]
             if friction is not None:
                 model.geom_friction[geom, 0] = float(friction)
-            if genesis_link(body, prefix, part.collisionless_links) is not None:
-                model.geom_contype[geom] = model.geom_conaffinity[geom] = 0
             link = genesis_link(body, prefix, part.link_sol_params)
             if link is not None:
                 link_geoms.setdefault((part.name, link), []).append(geom)
+        if collisionless:
+            en.logger.info(
+                f"[deploy] MuJoCo rig: the geoms of {sorted(collisionless)} collide with nothing, as the env built them "
+                "(collision_link_patterns); unlike Genesis, MuJoCo keeps them off MJCF / USD props too."
+            )
         for (part, link), geoms in link_geoms.items():
             self._set_sol_params(geoms, self.parts[part].link_sol_params[link], f"{part}/{link}")
         for name, prop in self.props.items():
