@@ -883,8 +883,9 @@ eden deploy --policy simtoolreal --base_policy none --mujoco --debug_record
   different values in the env (an MJCF asset's own) keeps the asset's, with a warning if they are
   not the same set. Friction alone is not enough: at MuJoCo's default impedance a cube held in
   Genesis slips out of the hand. The links a part's `collision_link_patterns` disabled collide with
-  nothing in MuJoCo either. MuJoCo also keeps them off an MJCF prop, which Genesis still pairs them
-  with (see [restricting which geoms collide](entities.md#restricting-which-geoms-collide)); the run's log names those props.
+  nothing in MuJoCo either, not even the MJCF or USD entities Genesis still pairs them with (see
+  [restricting which geoms collide](entities.md#restricting-which-geoms-collide)); the env's
+  `[collision mask]` build line names those.
 - **The floor** stands where the scene's ground plane does, raised or tilted alike, with its
   friction and solver parameters. A scene with no ground keeps MuJoCo's plain floor at `z = 0`, and
   so does one with several, with a warning; a terrain lends the floor its contact but not its shape,

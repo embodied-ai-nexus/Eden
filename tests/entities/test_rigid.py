@@ -1616,6 +1616,13 @@ def test_a_collision_mask_reaches_the_solver_and_the_collider(mjcf_build):
     assert not any(f"'{name}'" in peers for name in ("box", "plane", "masked_box", "masked_peer", "masked_marker"))
 
 
+def test_the_links_a_collision_mask_disabled_are_read_off_the_built_bits(mjcf_env):
+    """Empty without a mask, and on a kinematic entity, which has no collision geoms to read."""
+    assert mjcf_env.entities["masked_pads"].collisionless_links_name == {"base"}
+    assert mjcf_env.entities["plain_pads"].collisionless_links_name == set()
+    assert mjcf_env.entities["masked_marker"].collisionless_links_name == set()
+
+
 def test_a_collision_mask_keeps_the_kept_geoms_own_bits(mjcf_env):
     """It only disables collision; it does not reset the kept geoms' bits to the default."""
     assert _solver_by_link(mjcf_env, mjcf_env.entities["masked_box"], "contype") == {"box_baselink": _OWN_BITS}

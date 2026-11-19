@@ -647,7 +647,8 @@ contact width sees the full capacity.
   for primitive, URDF and mesh-file objects, but not for MJCF or USD ones. On the rigid solver, the disabled links
   still collide with an MJCF or USD entity that sets no `collision_link_patterns` itself: Genesis reads that
   entity's `contype` / `conaffinity` as a self-collision mask, and skips a pair across two entities on their bits
-  only when neither has one. An info line in the build log, starting `[collision mask]`, names those entities. The
+  only when neither has one. A line in the build log, starting `[collision mask]`, names those entities: a warning
+  with a fix when one of them is a free body (an object to grasp), info when all are fixed or welded. The
   kept geoms keep their own bits, which from then on filter pairs with other entities too. To set the kept links'
   friction, name them in `default_geoms_friction` (below).
 

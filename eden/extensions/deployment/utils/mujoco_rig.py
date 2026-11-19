@@ -557,17 +557,10 @@ class MujocoRig:
             if link is not None:
                 link_geoms.setdefault((part.name, link), []).append(geom)
         if collisionless:
-            mjcf_props = sorted(
-                name for name, prop in self.props.items() if prop.asset_path and not prop.asset_path.endswith(".urdf")
-            )
-            also = (
-                f"; MuJoCo keeps them off the MJCF props {mjcf_props} too, which Genesis still pairs them with"
-                if mjcf_props
-                else ""
-            )
             en.logger.info(
                 f"[deploy] MuJoCo rig: the geoms of {sorted(collisionless)} collide with nothing, as the env built them "
-                f"(collision_link_patterns){also}."
+                "(collision_link_patterns), and in MuJoCo with no exception: the env's '[collision mask]' line names "
+                "the MJCF / USD entities Genesis still pairs them with."
             )
         for (part, link), geoms in link_geoms.items():
             self._set_sol_params(geoms, self.parts[part].link_sol_params[link], f"{part}/{link}")

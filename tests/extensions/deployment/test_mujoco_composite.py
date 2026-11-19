@@ -519,7 +519,16 @@ _HAND_MJCF = """<mujoco><worldbody><body name="palm"><geom type="box" size=".05 
 
 
 def _hand_rig(
-    tmp_path, link_sol_params, *, a=0.02, b=0.02, props=(), collisionless_links=(), links_name=("palm", "finger"), **rig
+    tmp_path,
+    link_sol_params,
+    *,
+    a=0.02,
+    b=0.02,
+    props=(),
+    collisionless_links=(),
+    links_name=("palm", "finger"),
+    link_friction=None,
+    **rig,
 ):
     """A one-finger hand whose jointless ``pad`` is merged into ``finger`` unless ``links_name`` names it.
 
@@ -537,6 +546,7 @@ def _hand_rig(
         pos=np.array([0.0, 0.0, 0.5]),
         quat=np.array([1.0, 0.0, 0.0, 0.0]),
         link_sol_params=link_sol_params,
+        link_friction=dict(link_friction or {}),
         links_name=set(links_name),
         collisionless_links=set(collisionless_links),
     )
@@ -584,7 +594,7 @@ def test_a_contact_mixes_in_mujoco_as_in_genesis(tmp_path, eden_caplog):
     assert mujoco.mj_name2id(no_floor, mujoco.mjtObj.mjOBJ_GEOM, "__eden_floor__") == -1, "floor=None adds none"
 
 
-def test_a_collision_mask_reaches_mujoco_as_the_env_built_it(tmp_path):
+def test_a_collision_mask_reaches_mujoco_as_the_env_built_it(tmp_path, eden_caplog):
     """The links ``collision_link_patterns`` masked out collide in neither engine, the kept ones in both.
 
     The kept ``tip`` has no joint, as a Robotiq's pads have none: Genesis keeps every MJCF body as a link, so it must
@@ -615,6 +625,19 @@ def test_a_collision_mask_reaches_mujoco_as_the_env_built_it(tmp_path):
 
         assert bits("palm") == bits("f1") == [(0, 0)]
         assert bits("f0") == bits("tip") == [(1, 1)]
+    # The only MJCF peer is the arm the hand is welded to: worth naming, not a warning.
+    (report,) = [r for r in eden_caplog.records if r.getMessage().startswith("[collision mask] 'hand'")]
+    assert report.levelname == "INFO" and "can still pair with ['robot']" in report.getMessage()
+
+
+@pytest.mark.parametrize("pad_is_a_link", [False, True], ids=["merged-pad", "pad-link"])
+def test_a_jointless_body_takes_its_links_friction_only_when_genesis_merged_it(tmp_path, pad_is_a_link):
+    import mujoco
+
+    links = {"palm", "finger", "pad"} if pad_is_a_link else {"palm", "finger"}
+    model = _hand_rig(tmp_path, {}, links_name=links, link_friction={"finger": 2.0}).model
+    pad = int(model.body_geomadr[mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_BODY, "hand/pad")])
+    assert model.geom_friction[pad, 0] == pytest.approx(1.0 if pad_is_a_link else 2.0)  # 1.0: the asset's own
 
 
 def test_per_geom_values_an_asset_states_stay_its_own_and_a_mismatch_is_named(tmp_path, eden_caplog):

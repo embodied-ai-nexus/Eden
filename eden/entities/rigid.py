@@ -993,10 +993,11 @@ class RigidEntity(Entity, SupportSurfaceMixin, DofDefaultsMixin):
         return {geom.link.name for geom in self.geoms} - colliding
 
     def _report_collision_mask(self) -> None:
-        """Log which links collide, and warn when a peer the masked-out links still pair with is not welded to it.
+        """Log which links collide, and warn when a free body is among the peers the masked-out links still pair with.
 
-        A welded neighbour (a Droid's arm, which the gripper hangs off) is a peer on every build, so it alone stays
-        at info; any other is an object the mask was meant to keep off the masked links.
+        A free body is what the mask exists to keep off the masked links (an object to grasp). Fixed scenery and
+        welded neighbours (a Droid's arm, a robosuite pedestal) are peers on every build of their scene, so they alone
+        stay at info.
         """
         if not self.collision_link_patterns or self.is_kinematic:
             return
@@ -1006,17 +1007,12 @@ class RigidEntity(Entity, SupportSurfaceMixin, DofDefaultsMixin):
         peers = self._collision_mask_peers()
         if peers:
             message += f"; the other links can still pair with {peers} (MJCF / USD, with no collision_link_patterns)"
-        unwelded = [
-            name
-            for name in peers
-            if self._env.entities[name] is not self.attachment_parent
-            and self._env.entities[name].attachment_parent is not self
-        ]
-        if not unwelded:
+        free = [name for name in peers if not self._env.entities[name].has_immobile_base]
+        if not free:
             en.logger.info(message + ".")
             return
         en.logger.warning(
-            f"{message}. Fix: give {unwelded} collision_link_patterns of their own (['.*'] keeps every link colliding), "
+            f"{message}. Fix: give {free} collision_link_patterns of their own (['.*'] keeps every link colliding), "
             f"which makes their bits filter pairs across entities too, or load them from a URDF or mesh file."
         )
 
