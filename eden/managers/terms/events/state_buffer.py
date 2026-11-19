@@ -141,7 +141,10 @@ class ResetFromStateBuffer(EventTerm):
                 if entity.is_attached:
                     reason, fix = "is welded to another entity, so it has no root to write", ""
                 else:
-                    reason = "is fixed-base without batch_fixed_verts=True, so a row stores no root pose for it"
+                    reason = (
+                        "is fixed-base without batch_fixed_verts=True, and the restore writes a root only for a fixed "
+                        "base built with it"
+                    )
                     fix = f" Or set batch_fixed_verts=True on '{name}' to restore a pose per env."
                 raise ValueError(
                     f"{where} stores a root pose for entity '{name}', but '{name}' {reason}. Fix: regenerate the "

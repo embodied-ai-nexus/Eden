@@ -425,16 +425,29 @@ def test_capture_refuses_a_free_body_no_row_can_hold(env, name, match):
 
 @pytest.fixture
 def stand(env):
-    """The geom-less fixed base, put back at one pose in every env after a test poses it per env."""
+    """The geom-less fixed base, put back at its reset pose after a test moves it."""
     stand = env.entities["stand"]
     yield stand
-    # One unbatched pose, the fix the refusal names.
     stand.set_pos(torch.tensor(STAND_POS, device=env.device), relative=True)
     stand.set_quat(torch.tensor([1.0, 0.0, 0.0, 0.0], device=env.device), relative=True)
 
 
-def test_capture_stores_no_root_for_a_fixed_base_at_one_pose_in_every_env(env, stand):
-    """``q`` and ``-q`` are one orientation, so a sign flip in one env is still one pose."""
+def _move_in_env_2(stand):
+    stand.set_pos(
+        torch.tensor([[1.0, -0.4, 0.0]], device=stand.device), envs_idx=torch.tensor([2], device=stand.device)
+    )
+
+
+def _move_in_every_env(stand):
+    stand.set_pos(torch.tensor([0.5, -0.4, 0.0], device=stand.device), relative=True)
+
+
+def _turn_in_every_env(stand):
+    stand.set_quat(torch.tensor(_yaw_pitch(0.3, 0.0), device=stand.device), relative=True)
+
+
+def test_capture_stores_no_root_for_a_fixed_base_at_its_reset_pose(env, stand):
+    """``q`` and ``-q`` are one orientation, so a sign flip in one env is still the reset pose."""
     quat = torch.tensor([[1.0, 0.0, 0.0, 0.0]] * NUM_ENVS, device=env.device)
     quat[1] = -quat[1]
     stand.set_quat(quat, relative=True)
@@ -443,34 +456,59 @@ def test_capture_stores_no_root_for_a_fixed_base_at_one_pose_in_every_env(env, s
     assert captured.joints_name == ("lid_hinge",)
 
 
-@pytest.mark.parametrize("envs_idx", [None, [0]], ids=["every-env", "an-env-the-pose-agrees-in"])
-def test_capture_refuses_a_fixed_base_without_a_stored_root_posed_per_env(env, stand, envs_idx):
-    """A row restores no pose for ``stand``, so it would land in envs where the stand sits elsewhere.
-
-    Env 0 alone agrees with itself, yet its row is restored into env 2 as well: every env is compared.
-    """
-    stand.set_pos(torch.tensor([[1.0, -0.4, 0.0]], device=env.device), envs_idx=torch.tensor([2], device=env.device))
-    assert stand.get_pos(relative=True)[2, 0].item() == pytest.approx(1.0)  # Genesis took the per-env pose
+@pytest.mark.parametrize(
+    "move, envs_away",
+    [(_move_in_env_2, 1), (_move_in_every_env, NUM_ENVS), (_turn_in_every_env, NUM_ENVS)],
+    ids=["one-env", "one-pos-in-every-env", "yaw-in-every-env"],
+)
+def test_capture_refuses_a_fixed_base_without_a_stored_root_away_from_its_reset_pose(env, stand, move, envs_away):
+    """A restored row finds ``stand`` at its reset pose, so a capture taken with it anywhere else would not hold."""
+    move(stand)
     with pytest.raises(ValueError, match=r"entity 'stand' is fixed-base without batch_fixed_verts=True") as raised:
-        capture_reset_states(env, ["stand"], envs_idx=envs_idx)
+        capture_reset_states(env, ["stand"])
     message = str(raised.value)
-    assert "env 2 at pos (1, -0.4, 0) quat (1, 0, 0, 0) against env 0 at pos (0, -0.4, 0)" in message
-    assert "env 1" not in message and "env 3" not in message
+    assert f"In {envs_away} captured env(s) it sits elsewhere" in message
     assert "Fix: set batch_fixed_verts=True on 'stand'" in message
 
 
-def test_capture_compares_a_fixed_group_within_each_variant(env):
-    """Each variant's authored pose comes with its geometry; only envs that hold one variant must agree."""
+def test_capture_quotes_each_env_away_from_its_reset_pose(env, stand, monkeypatch):
+    """The pose found and the reset pose, side by side; past the cap, a count."""
+    import eden.utils.buffers.reset_states as reset_states
+
+    _move_in_env_2(stand)
+    with pytest.raises(ValueError) as raised:
+        capture_reset_states(env, ["stand"])
+    assert "env 2 at pos (1, -0.4, 0) quat (1, 0, 0, 0), reset pose pos (0, -0.4, 0) quat (1, 0, 0, 0)." in str(
+        raised.value
+    )
+    monkeypatch.setattr(reset_states, "_SHOWN_ENVS", 1)
+    _move_in_every_env(stand)
+    with pytest.raises(ValueError, match=r"env 0 at pos \(0\.5, -0\.4, 0\) .*; and 3 more env\(s\)\."):
+        capture_reset_states(env, ["stand"])
+
+
+def test_capture_checks_only_the_captured_envs_and_a_reset_puts_the_others_back(env, stand):
+    """An env left out of the capture is reset before any row lands in it, and a partial reset re-poses only its envs."""
+    _move_in_env_2(stand)
+    assert not capture_reset_states(env, ["stand"], envs_idx=[0, 1, 3]).entities["stand"].has_root
+    env.reset(envs_idx=torch.tensor([2], device=env.device))
+    torch.testing.assert_close(stand.get_pos(relative=True)[2].cpu(), torch.tensor(STAND_POS), atol=1e-5, rtol=0)
+    capture_reset_states(env, ["stand"])
+    _move_in_every_env(stand)
+    env.reset(envs_idx=torch.tensor([1], device=env.device))
+    with pytest.raises(ValueError, match=r"In 3 captured env\(s\) it sits elsewhere"):
+        capture_reset_states(env, ["stand"])
+
+
+def test_capture_takes_each_variant_of_a_fixed_group_at_its_own_reset_pose(env):
+    """A group's variants are authored at different poses, and each env's reset pose is its variant's."""
     stands = env.entities["stands"]
     authored = torch.tensor(STANDS_POS)[stands.env_variant_idx.cpu()]
     torch.testing.assert_close(stands.get_pos(relative=True).cpu(), authored, atol=1e-5, rtol=0)
     assert not capture_reset_states(env, ["stands"]).entities["stands"].has_root
     stands.set_pos(torch.tensor([[0.8, 0.6, 0.0]], device=env.device), envs_idx=torch.tensor([3], device=env.device))
     try:
-        with pytest.raises(
-            ValueError,
-            match=r"differs between envs that hold the same variant: env 3 at pos \(0\.8, 0\.6, 0\) .* against env 2 at pos \(0\.8, 0\.4, 0\)",
-        ):
+        with pytest.raises(ValueError, match=r"env 3 at pos \(0\.8, 0\.6, 0\) .*, reset pose pos \(0\.8, 0\.4, 0\)"):
             capture_reset_states(env, ["stands"])
     finally:
         stands.set_pos(authored.to(env.device), relative=True)

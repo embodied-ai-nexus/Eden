@@ -836,12 +836,13 @@ frame-alignment correction a hand with non-default `up` / `front` needs.
 
 ## Fixed, kinematic and invisible entities
 
-- `is_fixed_base=True` pins the root link to the world (see the MJCF rule above). Its pose differs per env only
-  when it is built with `batch_fixed_verts=True`: otherwise `set_pos` / `set_quat` raise on a subset of envs or on
-  values that differ per env, on the rigid solver and on Mochi. That check covers a base link with collision geoms.
-  A base link without geoms, such as the `world` root link of a jointless MJCF, takes a per-env pose anyway (from
-  the setters or from `place`), but reset states store no root for it, so `capture_reset_states` raises while that
-  pose differs between envs.
+- `is_fixed_base=True` pins the root link to the world (see the MJCF rule above). Posing it per env needs
+  `batch_fixed_verts=True`: otherwise `set_pos` / `set_quat` raise on a subset of envs or on values that differ
+  per env, on the rigid solver and on Mochi. That check covers a base link with collision geoms.
+  A base link without geoms, such as the `world` root link Genesis gives an MJCF whose top bodies have no joint,
+  takes a per-env pose anyway (from the setters or from `place_on_to`). Reset states store no root for either
+  kind, so a restored row finds the entity at the pose the scene reset gives it, and `capture_reset_states` raises
+  when a captured env holds it elsewhere: moved after the build, or left out of a partial `env.reset(envs_idx=...)`.
 - `material=KinematicMaterialOptions()` puts the entity in Genesis' kinematic solver: it is posed but not
   simulated and has **no collision geometry**. Use it for goal ghosts and markers. `vis_mode="collision"` or
   `"sdf"` on a kinematic entity falls back to its visual mesh with a warning, and `collision_link_patterns` and
