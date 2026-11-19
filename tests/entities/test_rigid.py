@@ -1620,13 +1620,35 @@ def test_a_collision_mask_keeps_the_kept_geoms_own_bits(mjcf_env):
     assert _solver_by_link(mjcf_env, mjcf_env.entities["masked_box"], "conaffinity") == {"box_baselink": _OWN_BITS}
 
 
-def test_a_collision_mask_pattern_that_matches_no_link_raises_before_the_scene_builds(mjcf_assets):
-    match = (
-        r"'rig'.*`collision_link_patterns` pattern 'nope_\*' matches no link; links: \['base', 'pad'\]\. "
-        r"Fix: correct the pattern"
-    )
+# A jointed body with no geom, so Genesis keeps it as a link with nothing to collide.
+_HOLLOW_MJCF = """<mujoco model="hollow"><worldbody>
+  <body name="base" pos="0 0 0.5"><freejoint/><geom type="box" size="0.05 0.05 0.05"/>
+    <body name="frame" pos="0.1 0 0"><joint name="frame_hinge" axis="0 0 1"/>
+      <inertial pos="0 0 0" mass="0.01" diaginertia="1e-5 1e-5 1e-5"/></body></body>
+</worldbody></mujoco>"""
+
+
+@pytest.mark.parametrize(
+    "patterns, match",
+    [
+        (
+            ["base", "nope_*"],
+            r"'rig'.*`collision_link_patterns` pattern 'nope_\*' matches no link; links: \['base', 'frame'\]\. "
+            r"Fix: correct the pattern",
+        ),
+        (
+            ["base", "fra.*"],
+            r"'rig'.*`collision_link_patterns` pattern 'fra\.\*' matches links \['frame'\] but none carry collision "
+            r"geoms; links with geoms: \['base'\]\. Fix: name one of the links with geoms",
+        ),
+    ],
+    ids=["no-link", "no-geoms"],
+)
+def test_a_collision_mask_pattern_that_can_keep_nothing_raises_before_the_scene_builds(tmp_path, patterns, match):
+    (asset := tmp_path / "hollow.xml").write_text(_HOLLOW_MJCF)
+    rig = EntityOptions(file=str(asset), is_articulated=True, collision_link_patterns=patterns)
     with pytest.raises(ValueError, match=match):
-        build_env(_config(plane=PlaneOptions(), rig=_two_link(mjcf_assets, collision_link_patterns=["pad", "nope_*"])))
+        build_env(_config(plane=PlaneOptions(), rig=rig))
 
 
 @pytest.mark.parametrize("field", ["default_geoms_friction_torsional", "default_geoms_friction"])

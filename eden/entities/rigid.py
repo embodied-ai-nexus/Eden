@@ -952,27 +952,11 @@ class RigidEntity(Entity, SupportSurfaceMixin, DofDefaultsMixin):
             return
         if not self.collision_link_patterns:
             return
-        # `_match_geoms` resolves through `find_named_links_idx_local`, which needs a built scene, so its selection
-        # (`key_selects` against every link name) is made here, with its two causes reported apart.
-        every_link_name = [link.name for link in self._entity.links]
-        link_name_set = set(every_link_name)
-        links_with_geoms = {geom.link.name for geom in self.geoms}
-        kept = set()
-        for pattern in self.collision_link_patterns:
-            matched_links = [name for name in every_link_name if key_selects(pattern, name, link_name_set)]
-            if not matched_links:
-                raise ValueError(
-                    f"Entity '{self.name}': `collision_link_patterns` pattern '{pattern}' matches no link; links: "
-                    f"{every_link_name}. Fix: correct the pattern to name one of those links, or remove it."
-                )
-            if not links_with_geoms.intersection(matched_links):
-                raise ValueError(
-                    f"Entity '{self.name}': `collision_link_patterns` pattern '{pattern}' matches links "
-                    f"{sorted(matched_links)} but none carry collision geoms, so there is nothing to keep there; links "
-                    f"with geoms: {sorted(links_with_geoms)}. Fix: name one of the links with geoms, or remove the "
-                    f"pattern."
-                )
-            kept.update(links_with_geoms.intersection(matched_links))
+        kept = {
+            geom.link.name
+            for pattern in self.collision_link_patterns
+            for geom in self._match_geoms("collision_link_patterns", pattern)
+        }
         self._collision_kept_links = kept
         self._entity._is_local_collision_mask = False
         for geom in self.geoms:
@@ -1555,19 +1539,27 @@ class RigidEntity(Entity, SupportSurfaceMixin, DofDefaultsMixin):
     def _match_geoms(
         self, option_name: str, pattern: str, geoms: list[RigidGeom] | None = None, scope: str = ""
     ) -> list[RigidGeom]:
-        """Collision geoms among ``geoms`` (default: all) on the links matching ``pattern``; raises if none carry geoms.
+        """Collision geoms among ``geoms`` (default: all) on the links ``pattern`` selects; raises if there are none.
 
-        ``scope`` names the variants ``geoms`` belong to, for the error.
+        ``scope`` names the variants ``geoms`` belong to, for the error. It reads only the entity's links and geoms, so
+        the collision mask calls it before the build too. A pattern selects links with :func:`key_selects`, as
+        :meth:`find_named_links_idx_local` does.
         """
         geoms = self.geoms if geoms is None else geoms
-        link_names, _ = self.find_named_links_idx_local(pattern)
-        matched_links = set(link_names)
+        every_link_name = [link.name for link in self._entity.links]
+        link_name_set = set(every_link_name)
+        matched_links = {name for name in every_link_name if key_selects(pattern, name, link_name_set)}
+        if not matched_links:
+            raise ValueError(
+                f"Entity '{self.name}': `{option_name}` pattern '{pattern}' matches no link; links: "
+                f"{every_link_name}. Fix: correct the pattern to name one of those links, or remove it."
+            )
         matched = [g for g in geoms if g.link.name in matched_links]
         if not matched:
             raise ValueError(
-                f"Entity '{self.name}': `{option_name}` pattern '{pattern}' matches "
-                f"links {sorted(matched_links)} but none carry collision geoms{scope}; links with geoms: "
-                f"{sorted({g.link.name for g in geoms})}."
+                f"Entity '{self.name}': `{option_name}` pattern '{pattern}' matches links {sorted(matched_links)} but "
+                f"none carry collision geoms{scope}; links with geoms: {sorted({g.link.name for g in geoms})}. Fix: "
+                f"name one of the links with geoms, or remove the pattern."
             )
         return matched
 
@@ -2061,8 +2053,6 @@ class RigidEntity(Entity, SupportSurfaceMixin, DofDefaultsMixin):
             Whether to preserve the order of the links. If True, the links are returned in the order of the keys in
             ``links_name``.
         """
-        # `_apply_collision_link_mask` makes this selection before the build, where this method refuses to run:
-        # keep the two in step.
         every_link_name = [link.name for link in self._entity.links]
         all_links_name = every_link_name if name_scope is None else name_scope
         _, names = resolve_matching_names(

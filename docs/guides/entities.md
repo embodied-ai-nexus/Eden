@@ -644,10 +644,12 @@ contact width sees the full capacity.
 - `collision_link_patterns` keeps collision only on the links matching the patterns, and disables it on every
   other link, before the scene is built. The composite rigs use `collision_link_patterns=[".*pad"]` on the
   Robotiq 2F85 so objects are pinched between the pads instead of wedged against the inner linkage. That holds
-  for primitive, URDF and mesh-file objects; see the MJCF / USD exception below.
-  To set the kept links' friction, name them in `default_geoms_friction` (below). On the rigid solver, the
-  disabled links still collide with an MJCF or USD entity that sets no `collision_link_patterns`
-  itself: Genesis treats those entities' masks as self-collision masks. The build log names those entities.
+  for primitive, URDF and mesh-file objects, but not for MJCF or USD ones. On the rigid solver, the disabled links
+  still collide with an MJCF or USD entity that sets no `collision_link_patterns` itself: Genesis reads that
+  entity's `contype` / `conaffinity` as a self-collision mask, and skips a pair across two entities on their bits
+  only when neither has one. An info line in the build log, starting `[collision mask]`, names those entities. The
+  kept geoms keep their own bits, which from then on filter pairs with other entities too. To set the kept links'
+  friction, name them in `default_geoms_friction` (below).
 
 A kinematic entity has no collision geometry, so these options are ignored on it with a warning.
 
