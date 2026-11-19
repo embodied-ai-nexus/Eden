@@ -2657,6 +2657,40 @@ class RigidEntity(Entity, SupportSurfaceMixin, DofDefaultsMixin):
         """
         return self._entity.get_pos(envs_idx=envs_idx, relative=relative)
 
+    def get_base_pose_in_state(self, state, envs_idx=None) -> tuple[torch.Tensor, torch.Tensor]:
+        """Return the base link's pose in a ``scene.get_state()`` snapshot, such as ``env.reset_state``.
+
+        The solver frame of ``get_pos()`` / ``get_quat()``, read from the snapshot's link arrays. Genesis names those
+        after the solver's data fields (``dyn_state.links.pos``) and lays them out ``(n_links, n_envs, ...)``.
+
+        Parameters
+        ----------
+        state : genesis SimState
+            The snapshot to read.
+        envs_idx : None | torch.Tensor, optional
+            The env ids to read. If None, every env.
+
+        Returns
+        -------
+        pos, quat : torch.Tensor, shapes (n_envs, 3) and (n_envs, 4)
+            The base-link position and wxyz quaternion, in Genesis' float dtype.
+        """
+        solver_name = type(self.solver).__name__
+        keys = ("dyn_state.links.pos", "dyn_state.links.quat")
+        arrays = state.solvers[solver_name].arrays if solver_name in state.solvers else {}
+        missing = [key for key in keys if key not in arrays]
+        if missing:
+            raise RuntimeError(
+                f"RigidEntity.get_base_pose_in_state: entity '{self.name}' is in solver {solver_name}, but the state "
+                f"holds no {missing} for it (solvers in the state: {list(state.solvers)}). Genesis' checkpoint format "
+                "has changed. Fix: update get_base_pose_in_state in eden/entities/rigid.py to the arrays that "
+                "Genesis' Solver.data now names for the link poses."
+            )
+        i_l = self.entity.base_link_idx
+        rows = slice(None) if envs_idx is None else envs_idx
+        pos, quat = (torch.as_tensor(arrays[key][i_l], device=self.device)[rows].to(gs.tc_float) for key in keys)
+        return pos, quat
+
     def get_quat(self, envs_idx=None, *, relative: bool = False):
         """Return the quaternion of the entity's base link.
 

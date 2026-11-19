@@ -110,6 +110,42 @@ def test_mochi_articulated_entity_reads_dof_info():
 
 @pytest.mark.requires_genesis
 @pytest.mark.slow
+def test_capture_reset_states_refuses_a_mochi_fixed_base_away_from_its_reset_pose(tmp_path):
+    """The reset pose comes from the MochiSolver's own part of ``env.reset_state``.
+
+    The stand's base link is the MJCF world body, which has no geom, so Mochi takes a per-env pose of it as the
+    rigid solver does, and reset states store no root for it.
+    """
+    from eden.utils.buffers.reset_states import capture_reset_states
+
+    path = tmp_path / "stand.xml"
+    path.write_text(
+        '<mujoco model="stand"><worldbody><body name="top" pos="0 0 0.1"><geom type="box" size="0.1 0.1 0.1"/>'
+        '<body name="lid" pos="0 0 0.15"><joint name="hinge" axis="0 1 0"/><geom type="box" size="0.1 0.1 0.02"/>'
+        "</body></body></worldbody></mujoco>"
+    )
+    env = EnvBase(
+        env_options=EnvOptions(num_envs=2, sim_dt=0.01, mochi_options=MochiOptions(n_newton_iterations=4)),
+        scene_options=SceneOptions(
+            plane=PlaneOptions(material=MochiRigidMaterialOptions(**SOFT_CONTACT)),
+            stand=EntityOptions(
+                file=str(path),
+                is_fixed_base=True,
+                default_root_pos=(0.3, 0.0, 0.0),
+                material=MochiRigidMaterialOptions(**SOFT_CONTACT),
+            ),
+        ),
+    )
+    env.build()
+    stand = env.entities["stand"]
+    assert capture_reset_states(env, ["stand"]).entities["stand"].joints_name == ("hinge",)
+    stand.set_pos(torch.tensor([[1.0, 0.0, 0.0]], device=env.device), envs_idx=torch.tensor([1], device=env.device))
+    with pytest.raises(ValueError, match=r"entity 'stand' .*env 1 at pos \(1, 0, 0\) quat \(1, 0, 0, 0\), 0\.7 m"):
+        capture_reset_states(env, ["stand"])
+
+
+@pytest.mark.requires_genesis
+@pytest.mark.slow
 def test_verify_build_rejects_a_massless_mochi_body():
     """Mochi link masses are fixed at build, so ``_verify_build`` raises instead of patching the mass."""
     env = EnvBase(

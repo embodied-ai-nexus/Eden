@@ -841,10 +841,14 @@ frame-alignment correction a hand with non-default `up` / `front` needs.
   per env, on the rigid solver and on Mochi. That check covers a base link with collision geoms.
   A base link without geoms, such as the `world` root link Genesis gives an MJCF whose top bodies have no joint,
   takes a per-env pose anyway (from the setters or from `place_on_to`). Reset states store no root for either
-  kind, so a restored row finds the entity at the pose the scene reset gives it, and `capture_reset_states` raises
-  when a captured env holds it elsewhere: moved after the build, or left out of a partial `env.reset(envs_idx=...)`.
+  kind, so a restored row finds the entity where the scene reset puts it (`env.reset_state`), and
+  `capture_reset_states` raises when a captured env holds it elsewhere: moved after the build, or left out of a
+  partial `env.reset(envs_idx=...)`. A RESET event that moves it counts too, even one that repeats the same pose
+  every reset, since the capture compares with the reset state alone. `ResetFromStateBuffer` does not check the
+  pose.
 - `material=KinematicMaterialOptions()` puts the entity in Genesis' kinematic solver: it is posed but not
-  simulated and has **no collision geometry**. Use it for goal ghosts and markers. `vis_mode="collision"` or
+  simulated and has **no collision geometry**. Use it for goal ghosts and markers. A fixed one therefore takes a
+  per-env pose without `batch_fixed_verts=True`, and the reset-state rule above applies to it. `vis_mode="collision"` or
   `"sdf"` on a kinematic entity falls back to its visual mesh with a warning, and `collision_link_patterns` and
   `is_support_enabled` are ignored on it.
 - `visualization=False` hides an entity from rendering while it still collides.

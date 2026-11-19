@@ -7,7 +7,8 @@ ball joint and a hinge (``floppy``), a box (``cube``), and a fixed box posed per
 bodies no row can store: two in one entity (``twins``), and one
 inside a per-env fixed base that also carries a hinge (``rack``). ``stand`` is a fixed base without
 ``batch_fixed_verts`` whose base link (the MJCF world body) carries no geom, so Genesis lets it be posed per env.
-``stands`` groups two such variants authored at different poses, one per env block.
+``stands`` groups two such variants authored at different poses, one per env block. ``marker`` is a fixed
+kinematic box, which has no collision geometry and so takes a per-env pose too.
 The oracles are Genesis' own getters: the authored frame through ``relative=True``, and the raw generalized
 coordinates and DOF velocities.
 """
@@ -63,6 +64,7 @@ STAND_MJCF = """<mujoco model="stand"><worldbody>
 STAND_POS = (0.0, -0.4, 0.0)
 #: The authored pose of each ``stands`` variant: envs 0-1 hold the first, envs 2-3 the second.
 STANDS_POS = ((0.4, 0.4, 0.0), (0.8, 0.4, 0.0))
+MARKER_POS = (-0.4, 0.0, 0.8)
 
 
 def _yaw_pitch(yaw: float, pitch: float) -> list[float]:
@@ -115,6 +117,7 @@ def _authored_buffer() -> ResetStateBuffer:
 @pytest.fixture(scope="module")
 def env(tmp_path_factory):
     from eden.options import BoxOptions, EntityOptions, EnvOptions, SceneOptions
+    from eden.options.materials import KinematicMaterialOptions
     from eden.options.entities import GroupedEntityOptions
     from eden.utils.configs import EdenConfig, EventManagerOptions
 
@@ -150,6 +153,12 @@ def env(tmp_path_factory):
                     default_root_pos=(0.6, 0, 0.1),
                 ),
                 stand=EntityOptions(file=str(assets / "stand.xml"), is_fixed_base=True, default_root_pos=STAND_POS),
+                marker=BoxOptions(
+                    size=(0.05, 0.05, 0.05),
+                    fixed=True,
+                    default_root_pos=MARKER_POS,
+                    material=KinematicMaterialOptions(),
+                ),
                 stands=GroupedEntityOptions(
                     is_fixed_base=True,
                     grouped_entities=[
@@ -469,18 +478,21 @@ def test_capture_refuses_a_fixed_base_without_a_stored_root_away_from_its_reset_
     message = str(raised.value)
     assert f"In {envs_away} captured env(s) it sits elsewhere" in message
     assert "Fix: set batch_fixed_verts=True on 'stand'" in message
+    assert "Moving it back to the reset pose just before capturing is not a fix" in message
 
 
 def test_capture_quotes_each_env_away_from_its_reset_pose(env, stand, monkeypatch):
-    """The pose found and the reset pose, side by side; past the cap, a count."""
+    """The pose found (authored frame) and its distance from the reset pose; past the cap, a count."""
     import eden.utils.buffers.reset_states as reset_states
 
     _move_in_env_2(stand)
     with pytest.raises(ValueError) as raised:
         capture_reset_states(env, ["stand"])
-    assert "env 2 at pos (1, -0.4, 0) quat (1, 0, 0, 0), reset pose pos (0, -0.4, 0) quat (1, 0, 0, 0)." in str(
-        raised.value
-    )
+    assert "env 2 at pos (1, -0.4, 0) quat (1, 0, 0, 0), 1 m and 0 rad from its reset pose." in str(raised.value)
+    stand.set_pos(torch.tensor(STAND_POS, device=env.device), relative=True)
+    _turn_in_every_env(stand)
+    with pytest.raises(ValueError, match=r"env 0 at pos \(0, -0\.4, 0\) quat \(.*\), 0 m and 0\.3 rad"):
+        capture_reset_states(env, ["stand"])
     monkeypatch.setattr(reset_states, "_SHOWN_ENVS", 1)
     _move_in_every_env(stand)
     with pytest.raises(ValueError, match=r"env 0 at pos \(0\.5, -0\.4, 0\) .*; and 3 more env\(s\)\."):
@@ -508,10 +520,23 @@ def test_capture_takes_each_variant_of_a_fixed_group_at_its_own_reset_pose(env):
     assert not capture_reset_states(env, ["stands"]).entities["stands"].has_root
     stands.set_pos(torch.tensor([[0.8, 0.6, 0.0]], device=env.device), envs_idx=torch.tensor([3], device=env.device))
     try:
-        with pytest.raises(ValueError, match=r"env 3 at pos \(0\.8, 0\.6, 0\) .*, reset pose pos \(0\.8, 0\.4, 0\)"):
+        with pytest.raises(ValueError, match=r"env 3 at pos \(0\.8, 0\.6, 0\) quat \(1, 0, 0, 0\), 0\.2 m and 0 rad"):
             capture_reset_states(env, ["stands"])
     finally:
         stands.set_pos(authored.to(env.device), relative=True)
+
+
+def test_capture_refuses_a_fixed_kinematic_marker_away_from_its_reset_pose(env):
+    """A kinematic body has no collision geometry, so Genesis takes a per-env pose of it as of a geom-less base."""
+    marker = env.entities["marker"]
+    marker.set_pos(torch.tensor([[0.0, 0.0, 0.8]], device=env.device), envs_idx=torch.tensor([1], device=env.device))
+    try:
+        with pytest.raises(
+            ValueError, match=r"entity 'marker' .* In 1 captured env\(s\) .*env 1 at pos \(0, 0, 0\.8\)"
+        ):
+            capture_reset_states(env, ["marker"])
+    finally:
+        marker.set_pos(torch.tensor(MARKER_POS, device=env.device), relative=True)
 
 
 def test_capture_reads_only_the_envs_a_mask_selects(env):

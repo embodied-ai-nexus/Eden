@@ -20,10 +20,9 @@ Frames and orders, the part a hand-written buffer gets wrong:
   angular velocity. Neither is the free joint's DOF velocity, whose angular half is in the body frame.
 - A **fixed base** has a root pose to store only when it is built with ``batch_fixed_verts=True``: Genesis then
   keeps its pose per env (a robot base or fixture placed differently in each row), otherwise one pose for every
-  env. It never has a root velocity. :func:`stores_root_pose` is the rule. A row without a root restores such a base
-  at whatever pose the scene reset gives it, so :func:`capture_reset_states` raises when a captured env holds it
-  elsewhere: moved after the build (Genesis takes even a per-env pose when its base link carries no collision geom,
-  such as an MJCF world body), or left out of a partial reset. A restore does not check the pose.
+  env. It never has a root velocity. :func:`stores_root_pose` is the rule. A restored row finds a base without a root
+  where the scene reset puts it, so :func:`capture_reset_states` refuses one that a captured env holds elsewhere
+  (``docs/guides/entities.md``, "Fixed, kinematic and invisible entities").
 - DOFs are stored **per joint name**, joint-major, for every non-free joint that carries DOFs
   (:attr:`RigidEntity.joints`). That is not ``dofs_name``, which is the *controlled* subset and omits a
   closed-loop gripper's passive followers. Values are the DOF state as Genesis holds it (``get_dofs_pos``):
@@ -562,8 +561,7 @@ def stores_root_pose(entity: RigidEntity) -> bool:
     """Whether a reset-state row carries ``entity``'s root pose: a free base, or a fixed one posed per env.
 
     A fixed base is posed per env only when built with ``batch_fixed_verts=True``; one welded onto another entity
-    follows its parent link and has no root of its own. A row without a root restores the base at its reset pose, so
-    :func:`capture_reset_states` refuses to capture one that sits elsewhere.
+    follows its parent link and has no root of its own.
     """
     if not entity.has_immobile_base:
         return True
@@ -572,7 +570,7 @@ def stores_root_pose(entity: RigidEntity) -> bool:
     return not entity.is_attached and bool(entity.entity.main_morph.batch_fixed_verts)
 
 
-#: How far, per component, a fixed base without a stored root may sit from its reset pose and still count as there.
+#: How far a fixed base without a stored root may sit from its reset pose, in metres and in radians, and count as there.
 _RESET_POSE_ATOL = 1e-5
 #: How many envs :func:`_check_at_reset_pose` quotes before it counts the rest.
 _SHOWN_ENVS = 4
@@ -581,20 +579,15 @@ _SHOWN_ENVS = 4
 def _check_at_reset_pose(env: EnvBase, entity: RigidEntity, envs_idx: torch.Tensor) -> None:
     """Raise when a fixed base that a row stores no root for sits away from its reset pose in a captured env.
 
-    A restore writes no pose for it, so a restored row finds it where the scene reset put it: the pose in
-    ``env.reset_state``, the state taken after the build, which holds each env's own pose (a group variant's
-    included). Compared in the solver frame (``get_pos()`` / ``get_quat()``); ``q`` and ``-q`` are one orientation.
+    The reset pose is the one in ``env.reset_state``, which the scene reset restores per env, a group variant's
+    included. RESET events are not run, so one that moves the base is refused even when it repeats the same pose.
     """
-    checkpoint = env.reset_state.solvers[type(entity.solver).__name__]
-    i_l = entity.entity.base_link_idx
+    from eden.utils.geom import quat_error_magnitude
+
+    reset_pos, reset_quat = entity.get_base_pose_in_state(env.reset_state, envs_idx)
     pos, quat = entity.get_pos(envs_idx=envs_idx), entity.get_quat(envs_idx=envs_idx)
-    reset_pos, reset_quat = (
-        torch.as_tensor(checkpoint.arrays[f"dyn_state.links.{field}"][i_l], device=pos.device)[envs_idx].to(pos.dtype)
-        for field in ("pos", "quat")
-    )
-    pos_off = (pos - reset_pos).abs().amax(dim=-1)
-    quat_off = torch.minimum((quat - reset_quat).abs().amax(dim=-1), (quat + reset_quat).abs().amax(dim=-1))
-    away = torch.nonzero((pos_off > _RESET_POSE_ATOL) | (quat_off > _RESET_POSE_ATOL)).flatten().tolist()
+    shift, turn = torch.linalg.norm(pos - reset_pos, dim=-1), quat_error_magnitude(quat, reset_quat)
+    away = torch.nonzero((shift > _RESET_POSE_ATOL) | (turn > _RESET_POSE_ATOL)).flatten().tolist()
     if not away:
         return
 
@@ -602,21 +595,24 @@ def _check_at_reset_pose(env: EnvBase, entity: RigidEntity, envs_idx: torch.Tens
         return f"({', '.join(f'{x:.6g}' for x in values.tolist())})"
 
     env_ids = envs_idx.tolist()
+    authored_pos = entity.get_pos(envs_idx=envs_idx, relative=True)
+    authored_quat = entity.get_quat(envs_idx=envs_idx, relative=True)
     shown = "; ".join(
-        f"env {env_ids[k]} at pos {fmt(pos[k])} quat {fmt(quat[k])}, reset pose pos {fmt(reset_pos[k])} "
-        f"quat {fmt(reset_quat[k])}"
+        f"env {env_ids[k]} at pos {fmt(authored_pos[k])} quat {fmt(authored_quat[k])}, {shift[k].item():.6g} m and "
+        f"{turn[k].item():.6g} rad from its reset pose"
         for k in away[:_SHOWN_ENVS]
     )
     more = f"; and {len(away) - _SHOWN_ENVS} more env(s)" if len(away) > _SHOWN_ENVS else ""
     raise ValueError(
         f"capture_reset_states: entity '{entity.name}' is fixed-base without batch_fixed_verts=True, so a reset-state "
-        "row stores no root pose for it and a restored row finds it at the pose the scene reset gives it "
-        f"(env.reset_state, taken after the build). In {len(away)} captured env(s) it sits elsewhere (solver frame): "
-        f"{shown}{more}. It leaves that pose when set_pos / set_quat or RigidEntity.place_on_to move it after the "
-        "build, a RESET event included; Genesis takes a per-env pose when its base link carries no collision geom, "
-        "and a partial env.reset(envs_idx=...) puts back only the envs it resets. "
+        "row stores no root pose for it and a restored row finds it where the scene reset puts it (env.reset_state). "
+        f"In {len(away)} captured env(s) it sits elsewhere (pose as get_pos / get_quat(relative=True)): "
+        f"{shown}{more}. It leaves the reset pose when set_pos / set_quat or RigidEntity.place_on_to move it after "
+        "the build, in a RESET event too, and when a partial env.reset(envs_idx=...) leaves its env out. "
         f"Fix: set batch_fixed_verts=True on '{entity.name}' so rows store and restore its pose, or author the pose "
-        "with default_root_pos / default_root_quat instead of moving the entity after the build."
+        "with default_root_pos / default_root_quat. Moving it back to the reset pose just before capturing is not a "
+        "fix: the captured joints and objects were set up against the moved entity, and a row would restore them "
+        "against the reset pose."
     )
 
 
@@ -634,9 +630,8 @@ def capture_reset_states(
     tensor passed in (a command's buffer) does not drag the captured rows along when the env steps on. Not for the
     hot path: it reads Genesis state with ordinary getters.
 
-    Raises for a fixed-base entity whose row stores no root (:func:`stores_root_pose`) when a captured env holds it
-    away from the pose the scene reset gives it: a restore writes no pose for it, so the row would come back with
-    the entity somewhere else.
+    Raises for a fixed base without a stored root that a captured env holds away from its reset pose (see the module
+    docstring).
     """
     from eden.entities.rigid import RigidEntity
     from eden.utils.geom import transform_by_quat
