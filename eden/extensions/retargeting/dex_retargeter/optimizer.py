@@ -19,16 +19,103 @@ welded onto an arm) with mimic constraints already baked into the URDF.
 from __future__ import annotations
 
 from abc import abstractmethod
-from typing import TYPE_CHECKING, List, Optional
+from typing import TYPE_CHECKING, List, Literal, Optional
 
-import nlopt
 import numpy as np
 import torch
 
 import eden as en
 
+try:
+    import nlopt
+except ImportError:
+    nlopt = None
+
 if TYPE_CHECKING:
     from eden.entities.rigid import RigidEntity
+
+SolverBackend = Literal["auto", "nlopt", "scipy"]
+_VALID_BACKENDS: tuple[str, ...] = ("auto", "nlopt", "scipy")
+
+
+class _ScipySlsqpOpt:
+    """Drop-in ``nlopt.opt(nlopt.LD_SLSQP, n)`` adapter backed by ``scipy.optimize.minimize``."""
+
+    def __init__(self, n: int) -> None:
+        self.n = int(n)
+        self._lower: list[float] | None = None
+        self._upper: list[float] | None = None
+        self._ftol_abs: float = 1e-6
+        self._objective = None
+
+    def set_lower_bounds(self, bounds: list[float]) -> None:
+        self._lower = [float(v) for v in bounds]
+
+    def set_upper_bounds(self, bounds: list[float]) -> None:
+        self._upper = [float(v) for v in bounds]
+
+    def set_ftol_abs(self, ftol: float) -> None:
+        self._ftol_abs = float(ftol)
+
+    def set_min_objective(self, fn) -> None:
+        self._objective = fn
+
+    def optimize(self, x0: np.ndarray) -> np.ndarray:
+        from scipy.optimize import OptimizeResult, minimize
+
+        if self._objective is None:
+            raise RuntimeError("SLSQP objective was not set before optimize().")
+        x_init = np.asarray(x0, dtype=np.float64)
+        bounds = None
+        if self._lower is not None and self._upper is not None:
+            bounds = list(zip(self._lower, self._upper, strict=True))
+            x_init = np.clip(x_init, self._lower, self._upper)
+
+        prev_f: list[float] = []
+
+        def fun_and_grad(x: np.ndarray) -> tuple[float, np.ndarray]:
+            grad = np.zeros_like(x, dtype=np.float64)
+            val = float(self._objective(x.astype(np.float32), grad))
+            if not prev_f:
+                prev_f.append(val)
+            return val, grad
+
+        def stop_on_ftol_abs(intermediate_result: OptimizeResult) -> None:
+            cur_f = float(intermediate_result.fun)
+            # Check |f_{k-1} - f_k| <= ftol_abs only after the first BFGS secant update (k >= 2),
+            # matching NLopt's LD_SLSQP wrapper rather than Kraft's unscaled iteration-0 |g^T d| <= acc check.
+            if len(prev_f) >= 2 and abs(prev_f[-1] - cur_f) <= self._ftol_abs:
+                raise StopIteration
+            prev_f.append(cur_f)
+
+        res = minimize(
+            fun_and_grad,
+            x_init,
+            method="SLSQP",
+            jac=True,
+            bounds=bounds,
+            callback=stop_on_ftol_abs,
+            options={"ftol": min(self._ftol_abs * 1e-3, 1e-9), "maxiter": 60, "disp": False},
+        )
+        if not np.all(np.isfinite(res.x)):
+            raise RuntimeError(f"scipy SLSQP returned non-finite iterate: {res.message}")
+        return np.asarray(res.x, dtype=np.float32)
+
+
+def _make_slsqp_backend(n: int, solver_backend: SolverBackend = "auto"):
+    if solver_backend not in _VALID_BACKENDS:
+        raise ValueError(f"Unknown solver_backend={solver_backend!r}; choose one of {_VALID_BACKENDS}.")
+    if solver_backend == "nlopt":
+        if nlopt is None:
+            raise ImportError(
+                "solver_backend='nlopt' requires `nlopt`, which is not installed. "
+                'Install it with `pip install "eden-world[dex-retargeter]"`, or pass '
+                "`solver_backend='scipy'` (or `'auto'`) to use SciPy's built-in SLSQP solver."
+            )
+        return nlopt.opt(nlopt.LD_SLSQP, n)
+    if solver_backend == "scipy" or nlopt is None:
+        return _ScipySlsqpOpt(n)
+    return nlopt.opt(nlopt.LD_SLSQP, n)
 
 
 # DexPilot's secondary projection gate: when two non-thumb fingertips are
@@ -53,6 +140,7 @@ class Optimizer:
         entity: "RigidEntity",
         target_joint_names: List[str],
         target_link_human_indices: Optional[np.ndarray],
+        solver_backend: SolverBackend = "auto",
     ) -> None:
         # The requirement is that the optimised qpos carries no base DOFs — true for a fixed
         # base and equally for a hand welded onto an arm (``attach`` removes its root joint),
@@ -78,7 +166,8 @@ class Optimizer:
         self.idx_target = np.array(idx_target, dtype=int)
         self.idx_fixed = np.array([i for i in range(self.num_joints) if i not in target_set], dtype=int)
 
-        self.opt = nlopt.opt(nlopt.LD_SLSQP, len(idx_target))
+        self.solver_backend: SolverBackend = solver_backend
+        self.opt = _make_slsqp_backend(len(idx_target), solver_backend=solver_backend)
         self.opt_dof = len(idx_target)
 
         self.target_link_human_indices = target_link_human_indices
@@ -215,8 +304,9 @@ class PositionOptimizer(Optimizer):
         target_link_human_indices: np.ndarray,
         huber_delta: float = 0.02,
         norm_delta: float = 4e-3,
+        solver_backend: SolverBackend = "auto",
     ) -> None:
-        super().__init__(entity, target_joint_names, target_link_human_indices)
+        super().__init__(entity, target_joint_names, target_link_human_indices, solver_backend=solver_backend)
         self.huber_loss = torch.nn.SmoothL1Loss(beta=huber_delta)
         self.norm_delta = norm_delta
         self._target_links = self._cache_links(target_link_names)
@@ -268,8 +358,9 @@ class VectorOptimizer(Optimizer):
         huber_delta: float = 0.02,
         norm_delta: float = 4e-3,
         scaling: float = 1.0,
+        solver_backend: SolverBackend = "auto",
     ) -> None:
-        super().__init__(entity, target_joint_names, target_link_human_indices)
+        super().__init__(entity, target_joint_names, target_link_human_indices, solver_backend=solver_backend)
         self.huber_loss = torch.nn.SmoothL1Loss(beta=huber_delta, reduction="mean")
         self.norm_delta = norm_delta
         self.scaling = scaling
@@ -335,6 +426,7 @@ class DexPilotOptimizer(Optimizer):
         eta1: float = 1e-4,
         eta2: float = 3e-2,
         scaling: float = 1.0,
+        solver_backend: SolverBackend = "auto",
     ) -> None:
         if not (2 <= len(finger_tip_link_names) <= 5):
             raise ValueError(f"DexPilot supports 2..5 fingertips; got {len(finger_tip_link_names)}.")
@@ -348,7 +440,7 @@ class DexPilotOptimizer(Optimizer):
         origin_names = [links_name[i] for i in origin_link_index]
         task_names = [links_name[i] for i in task_link_index]
 
-        super().__init__(entity, target_joint_names, target_link_human_indices)
+        super().__init__(entity, target_joint_names, target_link_human_indices, solver_backend=solver_backend)
         self.scaling = scaling
         self.huber_loss = torch.nn.SmoothL1Loss(beta=huber_delta, reduction="none")
         self.norm_delta = norm_delta

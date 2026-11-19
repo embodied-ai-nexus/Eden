@@ -75,13 +75,17 @@ class DexRetargeter(RetargetingBase):
     project_dist, escape_dist : float
         DexPilot fingertip projection thresholds.
     has_joint_limits : bool
-        Pass entity DOF limits to ``nlopt`` as bound constraints.
+        Pass entity DOF limits to SLSQP as bound constraints.
     low_pass_alpha : float
         Output smoothing in ``[0, 1]``. 1 = passthrough, 0 = freeze; a value outside ``[0, 1]`` disables it.
+    solver_backend : {"auto", "nlopt", "scipy"}
+        SLSQP implementation to use. ``"auto"`` selects ``nlopt`` when installed and falls back to
+        ``scipy.optimize.minimize(..., method="SLSQP")`` otherwise.
     """
 
     # --- algorithm selection ---
     type: Literal["position", "vector", "dexpilot"] = "vector"
+    solver_backend: Literal["auto", "nlopt", "scipy"] = "auto"
     target_joint_names: Optional[list[str]] = None
     target_link_human_indices: Optional[np.ndarray] = None
 
@@ -156,6 +160,7 @@ class DexRetargeter(RetargetingBase):
             target_link_human_indices=human_idx,
             huber_delta=self.huber_delta,
             norm_delta=self.normal_delta,
+            solver_backend=self.solver_backend,
         )
 
     def _build_vector_optimizer(self, joint_names: list[str]) -> VectorOptimizer:
@@ -185,6 +190,7 @@ class DexRetargeter(RetargetingBase):
             huber_delta=self.huber_delta,
             norm_delta=self.normal_delta,
             scaling=self.scaling_factor,
+            solver_backend=self.solver_backend,
         )
 
     def _build_dexpilot_optimizer(self, joint_names: list[str]) -> DexPilotOptimizer:
@@ -202,6 +208,7 @@ class DexRetargeter(RetargetingBase):
             project_dist=self.project_dist,
             escape_dist=self.escape_dist,
             scaling=self.scaling_factor,
+            solver_backend=self.solver_backend,
         )
 
     # ------------------------------------------------------------------
