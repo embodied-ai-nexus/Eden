@@ -386,6 +386,7 @@ The algorithms that ship with Eden (API reference: [eden.learning](../api/learni
 | `RslRlMuonPpoAlgorithmOptions` | `eden.learning.wrappers.rsl_rl.muon_ppo` | `algorithm` (Muon + AdamW optimizers) | `weave_hoi` |
 | `RslRlFlashSacRunnerOptions` | `eden.learning.wrappers.rsl_rl.flashsac` | `runner_options` (off-policy FlashSAC) | `flashdexretarget` |
 | `RslRlContrackRunnerOptions` | `eden.learning.wrappers.rsl_rl_contrack` | `runner_options` (constrained-MDP PPO, external fork) | `contrack` |
+| `SuperMimicRunnerOptions` | `eden.learning.wrappers.rsl_rl.supermimic` | `runner_options` (policy learning through a learned, differentiable world model) | `supermimic` |
 
 FlashSAC's backend is not on PyPI; in a checkout install it with
 `uv sync --inexact --extra flashsac --group flashsac-git`. The ConTrack runner needs its rsl_rl fork, which the
