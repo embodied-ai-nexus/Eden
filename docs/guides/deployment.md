@@ -492,7 +492,8 @@ last reading, so the switched-in slot does not read history another slot drove.
 
 ## Safety
 
-Every mechanism below is on by default; this list is the place to check before a first run.
+Every mechanism in the list below is on by default; this list is the place to check before a first run. The
+safety layer after it (`--safety`) is off until a file is given.
 
 - **Boot in STOP, INIT, then START.** Nothing moves until the operator says so, and a hardware run
   with no operator input holds in STOP forever. See [The operator state machine](#the-operator-state-machine).
@@ -525,6 +526,77 @@ Every mechanism below is on by default; this list is the place to check before a
     was commanded with, until the process goes away. This matches what the vendor references do.
     The loop warns when the held command goes stale; the soft shutdown in `close()` is the only
     orderly way down, so stop the process (KILL, Ctrl-C) or hit the e-stop.
+
+### Limits from a file: `--safety`
+
+`eden deploy --safety limits.yaml` adds a safety layer that every backend runs inside the one control loop,
+composite rigs and `--mujoco` included. It is off unless the flag is given. The file holds the fields of
+`DeploySafetyOptions` (YAML, or JSON for a `.json` file); a misspelled field is an error that lists the
+valid ones.
+
+On each tick the policy drives, before the command is sent, the layer:
+
+- caps how far a target may move from the target sent on the previous tick (`max_dofs_step_from_sent`),
+  then how far it may be from the joint's measured position (`max_dofs_step_from_measured`);
+- clamps the result into the built robot's joint range, shrunk by `dofs_pos_margin` at each end;
+- counts the consecutive ticks on which the policy's raw target was more than `limit_excess_tolerance` past a
+  joint's range.
+
+After each reading, which the deployment has synced onto the robot's scene entity, it checks:
+
+- each joint's distance from the target sent that tick (`max_dofs_tracking_error`);
+- the time since the previous reading (`max_read_interval_s`);
+- each link box in `link_boxes`, against the links' positions from forward kinematics of the measured joints;
+- the count above, against `limit_excess_steps`.
+
+On a tick where the INIT ramp or the policy moves the robot, any limit crossed stops the run: the loop raises
+`DeployStop` with every limit crossed on that tick, and `close()` settles the robot as it does after KILL. In
+the STOP hold the layer stops nothing, so a robot that boots outside a box can be moved back by hand; INIT from
+outside a box stops on its first tick. The hold, the INIT ramp, the START tick and the `on_motion_end=stand`
+ramp are the state machine's own commands and are not filtered.
+
+Each bound in the filter applies to the result of the one before, so where two disagree the later one wins: a
+target is always inside the shrunk range, and is inside the measured band unless that band reaches past the
+range. When the robot lags far behind its last target, the measured cap holds the target near the robot and
+the send cap gives way.
+
+Every limit except the clamp into the joint range is off until it is set. A per-joint field takes one value
+for every joint, or a map from joint names, globs or regexes to values; a joint that no key matches is not
+limited, and a key that matches no joint is an error at construction. So is a box on a link the entity does
+not have, or on an entity the deployment does not sync from its readings (only the deployed robot, or a rig's
+parts, move with the reading). On a floating base, the yaw that `auto_yaw_align` removes is captured at START,
+so before START a box's x and y bounds turn with the IMU's own heading; bound z alone there unless the robot
+boots facing the trained heading. For `FrankaXHand`, whose parts are `robot` and `hand`, a file could read (the numbers
+are an example, not a recommendation):
+
+```yaml
+max_dofs_step_from_measured: {"joint[1-7]": 0.006}
+max_dofs_step_from_sent: {"left_hand_.*": 0.04}
+limit_excess_steps: 5
+max_dofs_tracking_error: {"joint[1-7]": 0.05}
+max_read_interval_s: 0.1
+link_boxes:
+  flange:
+    entity_name: robot
+    links: [attachment]
+    lower: [0.25, -0.40, 0.10]
+    upper: [0.75, 0.40, 0.60]
+  fingertips:
+    entity_name: hand
+    links: ["left_hand_.*_tip"]
+    lower: [null, null, 0.01]
+```
+
+With `--debug_record`, each tick's values are recorded as `x_safety.target_raw` (the policy's targets before
+the clamp, NaN on ticks it did not drive), `x_safety.tracking_error`, `x_safety.read_interval_s`,
+`x_safety.box.<name>` (metres inside the box, negative outside) and `x_safety.stopped`. To set a limit, run
+with it off, in MuJoCo first (`eden deploy --mujoco --safety limits.yaml --mujoco_seconds 20 --debug_record`),
+and read how close the robot came. A limit that stops a run it should not is changed in the file; a
+`try`/`except DeployStop` around the loop would run the robot past it.
+
+The layer only knows what a `RobotState` carries. A check that needs the hardware (motor temperature, an
+external force estimate, a firmware fault) belongs in that backend's `_before_step` or `read_state`, raising
+`DeployStop` as the Wuji hand does on stale feedback.
 
 ## Timing and diagnostics
 

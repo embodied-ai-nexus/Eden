@@ -1599,6 +1599,22 @@ def test_on_motion_end_stand_ramps_to_the_default_stance_and_holds(deploy):
     np.testing.assert_allclose(dep.sent[-1].dofs_pos, policy)
 
 
+def test_the_safety_filter_caps_the_policy_and_leaves_the_stand_ramp_alone(deploy):
+    """The stand ramp is the state machine's own command, as INIT is: it reaches the stance at its own pace."""
+    from eden.options.extensions.deployment import DeploySafetyOptions
+
+    dep = deploy(on_motion_end="stand", stand_steps=2, safety_options=DeploySafetyOptions(max_dofs_step_from_sent=0.05))
+    start_policy(dep)
+    policy = np.full(dep.num_dofs, 0.7)
+
+    _steps(dep, 7, policy)
+
+    sent = np.array([s.dofs_pos for s in dep.sent[-7:]])
+    assert np.abs(np.diff(sent[:4], axis=0)).max() <= 0.05 + 1e-6, "the policy's ticks are capped"
+    assert np.abs(sent[5] - sent[4]).max() > 0.05, "the ramp's second tick moves further than the cap"
+    np.testing.assert_allclose(sent[5], dep.default_dof_pos, atol=1e-6)
+
+
 def test_on_motion_end_switch_queues_one_handover(deploy):
     dep = deploy(on_motion_end="switch", motion_end_slot=2)
     start_policy(dep)  # the operator hands control to the policy

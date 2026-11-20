@@ -12,12 +12,13 @@ import torch
 
 import eden as en
 from eden.options.entities import CompositeEntityOptions, RobotOptions
-from eden.options.extensions.deployment import DeploymentOptions
+from eden.options.extensions.deployment import DeploymentOptions, DeploySafetyOptions
 from eden.utils.common import ConfigurableMixin
 from eden.utils.registry import Registry
 from eden.utils.string import first_few, resolve_matching_names_values
 from eden.extensions.deployment.utils.rate import RateLimiter
 from eden.extensions.deployment.utils.record import StreamingRecorder
+from eden.extensions.deployment.utils.safety import SafetyLayer
 from eden.extensions.deployment.utils.state import RobotCommand, RobotState, RobotStateEntity
 
 
@@ -45,6 +46,17 @@ class DeployStop(RuntimeError):
     ends with a traceback whose last line is the message. A backend that has a stop action of its own (an arm
     controller to stop, a hand to make compliant) takes it before raising.
     """
+
+
+#: What sent a tick's command, by the key ``DeploymentBase._operator_payload`` notes in ``_tick_phase``; a safety
+#: stop names it.
+_TICK_PHASE_LABELS = {
+    "hold": "the STOP hold",
+    "init": "the INIT ramp",
+    "handover": "the START handover",
+    "stand": "the stand ramp after the clip",
+    "policy": "the policy",
+}
 
 
 def bind_deployment(robot_cls: type, deployment_name: str) -> None:
@@ -761,6 +773,13 @@ class DeploymentBase(ConfigurableMixin[DeploymentOptions], ABC):
         policy drove count -- not STOP's or INIT's, nor START's handover hold -- and a STOP starts
         the count afresh. Only a simulator (:attr:`allow_unattended_start`) takes it; on a robot the
         operator ends the run. ``None`` (default): until the operator ends it.
+    safety_options : DeploySafetyOptions | None
+        Limits the deployment enforces on every control tick (``eden deploy --safety FILE``): the policy's joint
+        targets are clamped into the built robot's range and capped per tick before they are sent, and a reading
+        that crosses a limit while the robot is moved (INIT or the policy) stops the run with :class:`DeployStop`.
+        Each tick's values are recorded under ``safety.*`` with ``debug_record``. A dict is read as
+        :class:`~eden.options.extensions.deployment.DeploySafetyOptions`. ``None`` (default): no layer. See
+        :mod:`eden.extensions.deployment.utils.safety`.
     """
 
     entity_name: str = "robot"
@@ -791,6 +810,13 @@ class DeploymentBase(ConfigurableMixin[DeploymentOptions], ABC):
     target_lpf: float = 1.0
     operator_keyboard: bool = True
     policy_seconds: float | None = None
+    safety_options: DeploySafetyOptions | None = None
+
+    # The layer ``safety_options`` builds in ``__init__``, and the branch of the operator state machine that sent this
+    # tick's command. Declared at class level too, for the reason ``_hold_pos`` is: a test may build an instance
+    # through ``__new__``. Unannotated, so the options machinery does not read them as fields.
+    _safety = None
+    _tick_phase = "hold"
 
     def __init__(self, env: RLEnvBase, options: DeploymentOptions) -> None:
         super().__init__(options)
@@ -885,6 +911,8 @@ class DeploymentBase(ConfigurableMixin[DeploymentOptions], ABC):
             self._sending_hold = False
             self._lin_vel_warned = False
             self._lin_vel_estimator = self._make_lin_vel_estimator(sim_entity)
+            # After the swap: the layer resolves its link boxes on the entities the readings are synced onto.
+            self._safety = self._build_safety_layer()
 
             # Command-term substitution, last: a substitute may open an input device, and
             # everything that can still raise has run by now.
@@ -1178,6 +1206,59 @@ class DeploymentBase(ConfigurableMixin[DeploymentOptions], ABC):
             f"[deploy] Repointed {len(repointed)} cached term-entity reference(s) to real robot state"
             + (f": {repointed}" if repointed else " (all terms resolve the entity lazily).")
         )
+
+    def dofs_pos_limits(self) -> tuple[np.ndarray, np.ndarray]:
+        """The built robot's joint position range over :attr:`dofs_name`, as ``(lower, upper)``.
+
+        Read off the simulated entity, so it is the range of the asset the policy was trained on, ``-inf`` / ``inf``
+        on a joint that has none. A backend whose hardware allows less overrides it; a composite joins its parts'.
+        """
+        # The state entity forwards both to the simulated entity it wraps.
+        columns = self._state_entity.find_named_dofs(self.dofs_name).columns
+        lower, upper = self._state_entity.get_dofs_limit()
+        return (
+            lower[0, columns].detach().cpu().numpy().astype(np.float64),
+            upper[0, columns].detach().cpu().numpy().astype(np.float64),
+        )
+
+    def _build_safety_layer(self) -> SafetyLayer | None:
+        """The :class:`SafetyLayer` the ``safety_options`` ask for, every name in them resolved; ``None`` without any."""
+        options = self.safety_options
+        if options is None:
+            return None
+        if isinstance(options, dict):
+            options = DeploySafetyOptions(**options)
+        if not isinstance(options, DeploySafetyOptions):
+            raise TypeError(
+                f"{type(self).__name__}: safety_options must be a DeploySafetyOptions, a dict of its fields, or None; "
+                f"got {type(options).__name__}. `eden deploy --safety FILE` reads one from a YAML or JSON file."
+            )
+        layer = SafetyLayer.resolve(
+            options,
+            dofs_name=self.dofs_name,
+            dofs_pos_limits=self.dofs_pos_limits(),
+            entities=self._env.entities,
+            synced_entity_names=self._synced_entity_names(),
+        )
+        en.logger.info(f"[deploy] Safety layer on: {options!r}")
+        return layer
+
+    def _synced_entity_names(self) -> list[str]:
+        """The scene entities this deployment syncs from its readings, the deployed robot first: what a box can watch."""
+        return [self.entity_name]
+
+    def _check_safety(self, phase: str, *, filtered: bool) -> None:
+        """Run the safety layer's check on this tick's synced reading; raise :class:`DeployStop` if a limit was crossed."""
+        crossed = self._safety.check(self.state, moving=phase != "hold", filtered=filtered)
+        if not crossed:
+            return
+        message = (
+            f"Safety stop while {_TICK_PHASE_LABELS[phase]} moved the robot: {'; '.join(crossed)}. The run ends here and close() "
+            "settles the robot. With --debug_record, the x_safety.* channels hold every tick's values. A limit that "
+            "stops a run it should not is changed in the --safety file; catching DeployStop to carry on would run the "
+            "robot past it."
+        )
+        raise DeployStop(message)  # _deploy_control_loop logs it before close()
 
     def _resolve_control_dt(self) -> float:
         if self.control_dt is not None:
@@ -1940,17 +2021,23 @@ class DeploymentBase(ConfigurableMixin[DeploymentOptions], ABC):
             self._handle_init()
 
     def _operator_payload(self, action) -> RobotCommand | None:
-        """The command the operator state machine wants sent this tick, or ``None`` for nothing."""
+        """The command the operator state machine wants sent this tick, or ``None`` for nothing.
+
+        Notes which branch sent it in ``_tick_phase`` (a key of :data:`_TICK_PHASE_LABELS`), for the safety layer.
+        """
         for inp in self._inputs:
             for cmd in inp.poll():
                 self._dispatch_command(cmd)
         if not self._inputs:
             self._auto_advance()
         if self._get_ready:
+            self._tick_phase = "init"
             return self._init_target_payload()
         if not self._use_policy:
+            self._tick_phase = "hold"
             return self._hold_payload()
         if self._handover_pending:
+            self._tick_phase = "handover"
             # The START tick keeps sending what it was -- the INIT target, or the hold's latch --
             # and its read is the policy's first observation (the windows cleared, the clock at 0,
             # the clip at frame 0): the deploy loop re-arms the slot and acts on that, so the
@@ -1959,7 +2046,9 @@ class DeploymentBase(ConfigurableMixin[DeploymentOptions], ABC):
         # End-of-clip handover takes precedence over the policy's action.
         payload = self._motion_end_payload()
         if payload is not None:
+            self._tick_phase = "stand"
             return payload
+        self._tick_phase = "policy"
         if action is None and not self._direct_targets_written:
             return None  # nothing to send yet; see :meth:`step`
         return self.action_to_payload(action)
@@ -2128,12 +2217,22 @@ class DeploymentBase(ConfigurableMixin[DeploymentOptions], ABC):
         # at frame 0, as after an env reset.
         driven = self._use_policy and not self._handover_pending
         self._handover_pending = False
+        # The safety filter takes the policy's own targets: not the hold's, INIT's, the START tick's or the stand ramp's.
+        filtered = payload is not None and self._tick_phase == "policy" and self._safety is not None
+        if filtered:
+            # A new array: ``action_to_payload`` hands out a view of the deployment's own target buffer.
+            payload.dofs_pos = self._safety.filter(
+                payload.dofs_pos, None if self.state is None else self.state.dofs_pos
+            )
         if payload is not None:
             self._sending_hold = not driven
             try:
                 self.send_payload(payload)
             finally:
                 self._sending_hold = False
+            if self._safety is not None:
+                # As the backend left it: low-passed on a backend that writes its low-pass back into the payload.
+                self._safety.sent(payload.dofs_pos)
         else:
             self._idle_tick()
         if not self._use_policy:
@@ -2162,8 +2261,12 @@ class DeploymentBase(ConfigurableMixin[DeploymentOptions], ABC):
         # got as far as (``_record_step`` pads the rest).
         try:
             if self.sync_before_commands:  # synced above, once: sync_scene must not run twice a tick
-                return self._observe(self.state, post_physics_refresh=True)
-            return self.state_to_observation(self.state, post_physics_refresh=True)
+                obs = self._observe(self.state, post_physics_refresh=True)
+            else:
+                obs = self.state_to_observation(self.state, post_physics_refresh=True)
+            if self._safety is not None:
+                self._check_safety(self._tick_phase, filtered=filtered)  # on the synced reading: link boxes read FK
+            return obs
         finally:
             if payload is not None:
                 self._record_step(payload, self.state)
@@ -2219,6 +2322,8 @@ class DeploymentBase(ConfigurableMixin[DeploymentOptions], ABC):
         # target_lpf == 1).
         self._lpf_prev = None
         self._policy_ticks = 0
+        if self._safety is not None:
+            self._safety.reset()
         # A new episode: its first read starts every observation window afresh, as an env reset does.
         self._observations_stale = True
         self._enter_boot_hold()

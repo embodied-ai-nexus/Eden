@@ -887,6 +887,15 @@ def deploy_task(extra_args: list[str]) -> None:
         "eden.extensions.deployment.utils.record.load_deploy_record.",
     )
     parser.add_argument(
+        "--safety",
+        type=str,
+        default=None,
+        metavar="FILE",
+        help="YAML or JSON file of DeploySafetyOptions. The policy's joint targets are clamped into the robot's range "
+        "and capped per tick before each send, and a reading that crosses a limit while INIT or the policy moves the "
+        "robot stops the run. Runs under --mujoco too. See 'Limits from a file' in docs/guides/deployment.md.",
+    )
+    parser.add_argument(
         "--target_lpf",
         type=float,
         default=1.0,
@@ -1331,6 +1340,7 @@ def deploy_task(extra_args: list[str]) -> None:
         debug_record_path=args.debug_record_path,
         debug_record_flush_steps=args.debug_record_flush_steps,
         target_lpf=args.target_lpf,
+        safety=args.safety,
         power_protect_factor=args.power_protect_factor,
         publish_rate=args.publish_rate,
         mujoco=args.mujoco,
@@ -3117,6 +3127,34 @@ def _check_rig_backend(deployment_cls: type | None, robot_options, entity_name: 
     )
 
 
+def _load_safety_options(path: str):
+    """The :class:`~eden.options.extensions.deployment.DeploySafetyOptions` in ``path`` (``.json``, else YAML)."""
+    import json
+
+    import yaml
+
+    from eden.options.extensions.deployment import DeploySafetyOptions
+
+    if not os.path.isfile(path):
+        sys.exit(f"--safety {path}: no such file.")
+    with open(path) as f:
+        try:
+            data = json.load(f) if path.endswith(".json") else yaml.safe_load(f)
+        except (json.JSONDecodeError, yaml.YAMLError) as exc:
+            sys.exit(
+                f"--safety {path}: the file does not parse as {'JSON' if path.endswith('.json') else 'YAML'}: {exc}"
+            )
+    if not isinstance(data, dict):
+        sys.exit(
+            f"--safety {path}: the file holds a {type(data).__name__}, not a mapping of DeploySafetyOptions fields "
+            "(dofs_pos_margin, max_dofs_step_from_measured, link_boxes, ...)."
+        )
+    try:
+        return DeploySafetyOptions(**data)
+    except ValueError as exc:
+        sys.exit(f"--safety {path}: {exc}")
+
+
 def _run_deploy(
     config,
     *,
@@ -3163,6 +3201,7 @@ def _run_deploy(
     rig_opts: dict | None = None,
     deployment_cls: type | None = None,
     control_loop: Callable[..., None] | None = None,
+    safety: str | None = None,
 ) -> None:
     """Build the deploy env, the deployment and the policy slots, then run the control loop.
 
@@ -3192,6 +3231,8 @@ def _run_deploy(
             f"_run_deploy got deployment_cls={deployment_cls!r}; it takes a DeploymentBase subclass, the class "
             "itself. For a DEPLOYMENT_REGISTRY key, pass DEPLOYMENT_REGISTRY.get(key)."
         )
+    # Read before anything is built, so a bad file fails without a robot connected.
+    safety_options = None if safety is None else _load_safety_options(safety)
     if mujoco and deployment_cls is not None:
         raise ValueError(
             f"_run_deploy got deployment_cls={deployment_cls.__name__} and mujoco=True; --mujoco picks the MuJoCo "
@@ -3334,6 +3375,7 @@ def _run_deploy(
         debug_record_path=debug_record_path,
         **({} if debug_record_flush_steps is None else {"debug_record_flush_steps": debug_record_flush_steps}),
         target_lpf=target_lpf,
+        **({} if safety_options is None else {"safety_options": safety_options}),
     )
     # The MuJoCo backend renders in its own viewer window; route --vis to it.
     if mujoco and "show_viewer" in deployment_cls.get_parameter_names():

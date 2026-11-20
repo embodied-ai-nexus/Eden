@@ -109,6 +109,7 @@ PART_HOOKS: frozenset[str] = frozenset(
         "_motion_start_dofs",
         "programmed_gains",
         "command_gain_dofs",
+        "dofs_pos_limits",
         "blocks_for_the_period",
         "provides_base_lin_vel",
         "_publishes_base_lin_vel",
@@ -843,6 +844,15 @@ class CompositeDeployment(DeploymentBase):
     @property
     def provides_base_lin_vel(self) -> bool:
         return self._base.provides_base_lin_vel
+
+    def _synced_entity_names(self) -> list[str]:
+        """Every deployed part, the primary first: each syncs its own entity from its slice of the reading."""
+        return [self._base_name, *(name for name in self.parts if name != self._base_name)]
+
+    def dofs_pos_limits(self) -> tuple[np.ndarray, np.ndarray]:
+        """Each part's joint range, end to end in :attr:`dofs_name` order."""
+        limits = [part.dofs_pos_limits() for part in self.parts.values()]
+        return np.concatenate([lower for lower, _ in limits]), np.concatenate([upper for _, upper in limits])
 
     def command_gain_dofs(self) -> np.ndarray:
         """Each part's own answer on its slice: a body that takes each command's gains next to hands that do not."""
