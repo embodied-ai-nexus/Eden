@@ -535,9 +535,9 @@ valid ones.
 
 On each tick the policy drives, before the command is sent, the layer:
 
-- clamps every joint target into the built robot's joint range, shrunk by `dofs_pos_margin` at each end;
-- caps how far a target may be from the joint's measured position (`max_dofs_step_from_measured`) and from
-  the target sent on the previous tick (`max_dofs_step_from_sent`);
+- caps how far a target may move from the target sent on the previous tick (`max_dofs_step_from_sent`),
+  then how far it may be from the joint's measured position (`max_dofs_step_from_measured`);
+- clamps the result into the built robot's joint range, shrunk by `dofs_pos_margin` at each end;
 - counts the consecutive ticks on which the policy's raw target was more than `limit_excess_tolerance` past a
   joint's range.
 
@@ -551,13 +551,21 @@ After each reading, which the deployment has synced onto the robot's scene entit
 On a tick where the INIT ramp or the policy moves the robot, any limit crossed stops the run: the loop raises
 `DeployStop` with every limit crossed on that tick, and `close()` settles the robot as it does after KILL. In
 the STOP hold the layer stops nothing, so a robot that boots outside a box can be moved back by hand; INIT from
-outside a box stops on its first tick. The hold, the INIT ramp and the START tick are the state machine's own
-commands and are not filtered.
+outside a box stops on its first tick. The hold, the INIT ramp, the START tick and the `on_motion_end=stand`
+ramp are the state machine's own commands and are not filtered.
+
+Each bound in the filter applies to the result of the one before, so where two disagree the later one wins: a
+target is always inside the shrunk range, and is inside the measured band unless that band reaches past the
+range. When the robot lags far behind its last target, the measured cap holds the target near the robot and
+the send cap gives way.
 
 Every limit except the clamp into the joint range is off until it is set. A per-joint field takes one value
 for every joint, or a map from joint names, globs or regexes to values; a joint that no key matches is not
-limited, and a key that matches no joint is an error at construction, as is a link or entity a box names that
-the scene does not have. For `FrankaXHand`, whose parts are `robot` and `hand`, a file could read (the numbers
+limited, and a key that matches no joint is an error at construction. So is a box on a link the entity does
+not have, or on an entity the deployment does not sync from its readings (only the deployed robot, or a rig's
+parts, move with the reading). On a floating base, the yaw that `auto_yaw_align` removes is captured at START,
+so before START a box's x and y bounds turn with the IMU's own heading; bound z alone there unless the robot
+boots facing the trained heading. For `FrankaXHand`, whose parts are `robot` and `hand`, a file could read (the numbers
 are an example, not a recommendation):
 
 ```yaml

@@ -845,6 +845,10 @@ class CompositeDeployment(DeploymentBase):
     def provides_base_lin_vel(self) -> bool:
         return self._base.provides_base_lin_vel
 
+    def _synced_entity_names(self) -> list[str]:
+        """Every deployed part: each syncs its own entity from its slice of the reading."""
+        return list(self.parts)
+
     def dofs_pos_limits(self) -> tuple[np.ndarray, np.ndarray]:
         """Each part's joint range, end to end in :attr:`dofs_name` order."""
         limits = [part.dofs_pos_limits() for part in self.parts.values()]

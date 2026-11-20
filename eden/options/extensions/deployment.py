@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import math
+
 from pydantic import model_validator
 
 from eden.options.options import ConfigurableOptions, DynamicConfigurableOptions
@@ -49,7 +51,10 @@ class LinkBoxOptions(ConfigurableOptions):
     The positions are those of the links on the robot's scene entity, which the deployment syncs from each
     reading, so they are forward kinematics of the measured joints in the frame the task was trained in. For a
     fixed-base arm that is the training scene's world frame. A floating base without a ``base_pos`` reading keeps
-    its spawn position on that entity and turns with the measured orientation.
+    its spawn position on that entity and turns with the measured orientation. The yaw that ``auto_yaw_align``
+    removes from that orientation is captured at START, so before START (the hold and the INIT ramp) x and y turn
+    with the IMU's own heading, which on hardware is arbitrary. On a floating base, bound z alone unless the robot
+    boots facing the trained heading.
 
     Attributes
     ----------
@@ -73,6 +78,8 @@ class LinkBoxOptions(ConfigurableOptions):
         if not self.links:
             raise ValueError("LinkBoxOptions.links is empty, so the box would check nothing. Name at least one link.")
         for axis, low, high in zip("xyz", self.lower, self.upper):
+            if any(v is not None and math.isnan(v) for v in (low, high)):
+                raise ValueError(f"LinkBoxOptions: {axis} bound is NaN (lower {low}, upper {high}); use None for open.")
             if low is not None and high is not None and low > high:
                 raise ValueError(
                     f"LinkBoxOptions: lower {axis} = {low} is above upper {axis} = {high}, so no position is inside."
@@ -86,6 +93,10 @@ class DeploySafetyOptions(ConfigurableOptions):
     The layer (:mod:`eden.extensions.deployment.utils.safety`) clamps the policy's joint targets before each send
     and checks each reading against the limits below. Every limit is off until it is set, except the clamp into the
     built robot's joint range, which always applies. Joint values are in radians (metres on a prismatic joint).
+
+    The filter applies the send cap, then the measured cap, then the clamp into the range, each to the result of the
+    one before, so a later bound wins where two disagree: a target is always inside the (shrunk) range, and is
+    inside the measured band unless that band reaches past the range.
 
     A per-joint field takes a float, which applies to every joint, or a dict from joint names, globs or regexes to
     values. A joint that no key matches is not limited by that field, and a key that matches no joint is an error.
@@ -127,9 +138,9 @@ class DeploySafetyOptions(ConfigurableOptions):
 
     @model_validator(mode="after")
     def _check_limits(self) -> DeploySafetyOptions:
-        if self.dofs_pos_margin < 0.0:
+        if not self.dofs_pos_margin >= 0.0:  # NaN fails this too
             raise ValueError(f"DeploySafetyOptions.dofs_pos_margin must be >= 0, got {self.dofs_pos_margin}.")
-        if self.limit_excess_tolerance < 0.0:
+        if not self.limit_excess_tolerance >= 0.0:
             raise ValueError(
                 f"DeploySafetyOptions.limit_excess_tolerance must be >= 0, got {self.limit_excess_tolerance}."
             )

@@ -4,9 +4,9 @@
 is set (``eden deploy --safety FILE``, a :class:`~eden.options.extensions.deployment.DeploySafetyOptions`), and
 calls it from :meth:`~eden.extensions.deployment.base.DeploymentBase.step` on every control tick:
 
-1. Before the send, on the ticks the policy drives, :meth:`SafetyLayer.filter` clamps each joint target into the
-   built robot's joint range (shrunk by ``dofs_pos_margin``) and caps how far it may move from the joint's measured
-   position and from the target sent on the previous tick. It also counts the consecutive ticks on which the
+1. Before the send, on the ticks the policy drives, :meth:`SafetyLayer.filter` caps how far each joint target may
+   move from the target sent on the previous tick and from the joint's measured position, then clamps it into the
+   built robot's joint range (shrunk by ``dofs_pos_margin``). It also counts the consecutive ticks on which the
    policy's raw target was past a joint limit.
 2. After the reading has been synced onto the scene, :meth:`SafetyLayer.check` compares it with the limits: each
    joint's tracking error, the interval since the previous reading, each link box, and the count from step 1. On a
@@ -131,12 +131,15 @@ class SafetyLayer:
     def for_deployment(cls, dep: DeploymentBase, options: DeploySafetyOptions) -> SafetyLayer:
         """The layer for ``dep``: its joints and their built range, and each link box resolved on its scene."""
         entities = dep._env.entities
+        synced = dep._synced_entity_names()
         boxes = []
         for name, box in options.link_boxes.items():
-            if box.entity_name not in entities:
+            if box.entity_name not in synced:
+                where = "is in the scene" if box.entity_name in entities else "the scene does not have"
                 raise ValueError(
-                    f"DeploySafetyOptions.link_boxes['{name}'] names entity_name='{box.entity_name}', which the scene "
-                    f"does not have. Its entities: {sorted(entities.keys())}."
+                    f"DeploySafetyOptions.link_boxes['{name}'] names entity_name='{box.entity_name}', which {where} "
+                    f"but is not one the deployment syncs from its readings, so on the robot its links would never "
+                    f"move. The deployment syncs: {synced}."
                 )
             entity = entities[box.entity_name]
             try:
@@ -168,23 +171,25 @@ class SafetyLayer:
     # -- before the send --------------------------------------------------------------------------
 
     def filter(self, target: np.ndarray, measured: np.ndarray | None) -> np.ndarray:
-        """The policy's ``target`` as it may be sent: clamped into range, then capped against ``measured`` and the last send.
+        """The policy's ``target`` as it may be sent: capped against the last send and ``measured``, then clamped into range.
 
-        Call it on the ticks the policy drives, and only then: the hold, the INIT ramp and the START tick send the
-        state machine's own commands. Returns a new array; ``target`` is left as it was.
+        Each bound applies to the result of the one before, so the range clamp wins over both caps and the measured
+        cap over the send cap. Call it on the ticks the policy drives, and only then: the hold, the INIT ramp, the
+        START tick and the stand ramp send the state machine's own commands. Returns a new array; ``target`` is left
+        as it was.
         """
         raw = np.array(target, dtype=np.float64)
         self._raw = raw
         self._excess = np.maximum(np.maximum(self.lower - raw, raw - self.upper), 0.0)
         past = bool((self._excess > self.options.limit_excess_tolerance).any())
         self._excess_ticks = self._excess_ticks + 1 if past else 0
-        out = np.clip(raw, self.clamp_lower, self.clamp_upper)
+        out = raw
+        if self.step_from_sent is not None and self._last_sent is not None:
+            out = np.clip(out, self._last_sent - self.step_from_sent, self._last_sent + self.step_from_sent)
         if self.step_from_measured is not None and measured is not None:
             measured = np.asarray(measured, dtype=np.float64)
             out = np.clip(out, measured - self.step_from_measured, measured + self.step_from_measured)
-        if self.step_from_sent is not None and self._last_sent is not None:
-            out = np.clip(out, self._last_sent - self.step_from_sent, self._last_sent + self.step_from_sent)
-        return out
+        return np.clip(out, self.clamp_lower, self.clamp_upper)
 
     def sent(self, dofs_pos: np.ndarray) -> None:
         """Note the joint targets that went out this tick, whoever sent them (hold, INIT ramp or policy)."""

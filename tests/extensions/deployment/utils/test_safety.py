@@ -121,6 +121,31 @@ def test_a_target_moves_at_most_its_cap_from_the_previous_send_when_the_robot_la
     assert dep.sent[-2].dofs_pos[0] == pytest.approx(0.15)
 
 
+def test_when_the_two_caps_disagree_the_target_stays_near_the_measured_pose(deploy):
+    """A robot pushed back from its last target: the send cap would allow 0.08, the measured cap holds it to 0.05."""
+    dep = deploy(max_dofs_step_from_measured=0.05, max_dofs_step_from_sent=0.02)
+    start_policy(dep)
+    drive(dep, *[[0.1, 0.0]] * 5)  # the send cap ramps j1 to 0.1 and the loopback robot follows
+    dep.readings.append(robot_state(2, dofs_pos=[0.0, 0.0]))  # read after the next send
+
+    drive(dep, [0.1, 0.0])
+    (sent,) = drive(dep, [0.1, 0.0])
+
+    np.testing.assert_allclose(sent, [0.05, 0.0], atol=1e-6)
+
+
+def test_the_range_clamp_holds_over_the_measured_cap(deploy):
+    """A joint read past the shrunk range is not followed there: the target goes to the range's end."""
+    dep = deploy(dofs_pos_margin=0.1, max_dofs_step_from_measured=0.02)
+    start_policy(dep)
+    dep.readings.append(robot_state(2, dofs_pos=[1.0, 0.0]))
+    drive(dep, [0.0, 0.0])
+
+    (sent,) = drive(dep, [2.0, 0.0])
+
+    np.testing.assert_allclose(sent, [0.9, 0.0], atol=1e-6)
+
+
 def test_the_hold_is_not_filtered(deploy):
     """The STOP hold is the state machine's own command; the filter acts on the policy's alone."""
     dep = deploy(dofs_pos_margin=0.3)
@@ -244,7 +269,7 @@ def test_every_limit_crossed_on_the_stopping_tick_is_named(deploy, arm_env):
         ({"max_dofs_step_from_sent": {"elbow": 0.1}}, "elbow"),
         (
             {"link_boxes": {"b": LinkBoxOptions(entity_name="hand", links=("palm",))}},
-            r"entity_name='hand'.*\['robot'\]",
+            r"entity_name='hand', which the scene does not have.*The deployment syncs: \['robot'\]",
         ),
         ({"link_boxes": {"b": LinkBoxOptions(links=("palm",))}}, "palm"),
         ({"dofs_pos_margin": 0.6}, r"leaves no range on joint\(s\) \['j2'\]"),
@@ -253,6 +278,20 @@ def test_every_limit_crossed_on_the_stopping_tick_is_named(deploy, arm_env):
 def test_a_name_or_margin_the_robot_cannot_take_raises_at_construction(arm_env, safety, match):
     with deployments(arm_env) as make, pytest.raises(ValueError, match=match):
         make(safety=DeploySafetyOptions(**safety))
+
+
+@pytest.mark.parametrize(
+    "build, match",
+    [
+        (lambda: DeploySafetyOptions(dofs_pos_margin=float("nan")), "dofs_pos_margin must be >= 0, got nan"),
+        (lambda: DeploySafetyOptions(limit_excess_tolerance=float("nan")), "limit_excess_tolerance must be >= 0"),
+        (lambda: LinkBoxOptions(links=("link2",), upper=(None, None, float("nan"))), "z bound is NaN"),
+    ],
+)
+def test_a_nan_limit_is_refused(build, match):
+    """NaN compares False both ways, so a check written as ``< 0`` would let it through to the clamp."""
+    with pytest.raises(ValueError, match=match):
+        build()
 
 
 def test_a_dict_is_read_as_safety_options_and_a_misspelled_field_is_refused(arm_env):
