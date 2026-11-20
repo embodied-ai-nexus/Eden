@@ -14,7 +14,7 @@ import pytest
 import torch
 
 from eden.extensions.deployment.object_pose import PoseSample, PoseSource, TrackedObjectMixin
-from eden.extensions.deployment.object_pose.backend import ObjectPoseLost
+from eden.extensions.deployment.object_pose.tracked_object import ObjectPoseLost
 from eden.options.entities import BoxOptions
 from eden.utils.geom import transform_by_quat
 from tests.extensions.deployment.conftest import two_link_robot

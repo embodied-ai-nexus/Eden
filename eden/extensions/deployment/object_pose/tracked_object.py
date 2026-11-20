@@ -50,7 +50,7 @@ import torch
 from pydantic import BaseModel, ConfigDict, field_validator
 
 import eden as en
-from eden.extensions.deployment.object_pose.sources import PoseSample, PoseSource, wait_for_pose
+from eden.extensions.deployment.object_pose.pose_source import PoseSample, PoseSource, wait_for_pose
 from eden.utils.common import ConfigurableMixin
 from eden.utils.geom import transform_pos_quat_by_trans_quat
 

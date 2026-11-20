@@ -23,7 +23,7 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from eden.extensions.deployment.object_pose.sources import CameraFrame, PoseEstimator
+from eden.extensions.deployment.object_pose.pose_source import CameraFrame, PoseEstimator
 from eden.utils.geom import R_to_quat, inv_transform_pos_quat_by_trans_quat, transform_pos_quat_by_trans_quat
 
 _ORIGIN, _IDENTITY = np.zeros(3), np.array([1.0, 0.0, 0.0, 0.0])
