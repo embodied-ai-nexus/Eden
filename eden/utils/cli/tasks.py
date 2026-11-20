@@ -1301,12 +1301,7 @@ def deploy_task(extra_args: list[str]) -> None:
         config = _config_from_checkpoint(args) or get_task_config_from_args(args, run_name=args.run_name)
         if _is_rl_games(config):
             sys.exit("'eden deploy' currently supports rsl_rl checkpoints only.")
-        _strip_training_randomization(config)
-        config.env_options.num_envs = 1
-        config.env_options.episode_length_s = 1e9
-        if hasattr(config.runner_options, "logger"):
-            config.runner_options.logger = "tensorboard"
-        # The deploy config snapshot is saved inside _run_deploy, after the
+        # _run_deploy strips the training randomization and sets one env. The deploy config snapshot is saved inside _run_deploy, after the
         # extension policies' command terms are merged in.
     else:
         # Task-less deploy: the env is built from the env-owning extension policy's
@@ -2696,6 +2691,7 @@ def _deploy_control_loop(
     import torch
 
     import eden as en
+    from eden.extensions.deployment.base import DeployStop
 
     active = 0
     en.logger.info(f"[deploy] Loaded {len(slots)} policy slot(s); boot-active: {slots[0].label}")
@@ -2757,6 +2753,11 @@ def _deploy_control_loop(
                 env.unwrapped.scene.visualizer.update()
     except KeyboardInterrupt:
         en.logger.info("[deploy] Interrupted — closing deployment.")
+    except DeployStop as exc:
+        # A backend's guard ended the run. Logged before close() for the reason SystemExit is, below: the
+        # operator needs the message, and the traceback lands after Genesis' teardown output.
+        en.logger.error(f"[deploy] {exc} Closing deployment.")
+        raise
     except SystemExit as exc:
         # A slot refusing its own policy's action on the first control step
         # (:func:`_validate_step_action`). Logged here because ``sys.exit``'s own message
@@ -3080,6 +3081,20 @@ def _rig_option_kwargs(rig_opts: dict | None, deployment_cls: type, entity_name:
     return kwargs
 
 
+def _prepare_deploy_config(config) -> None:
+    """Make a task config a deploy config, in place: training randomization off, one env, no episode end.
+
+    In :func:`_run_deploy` rather than in its CLI caller, so a Python caller of ``_run_deploy`` gets it too: a
+    domain-randomization term left on can reach the robot (``RandomizeDofsPosOffset`` adds its draw to every
+    position target sent).
+    """
+    _strip_training_randomization(config)
+    config.env_options.num_envs = 1
+    config.env_options.episode_length_s = 1e9
+    if hasattr(config.runner_options, "logger"):
+        config.runner_options.logger = "tensorboard"
+
+
 def _check_rig_backend(deployment_cls: type | None, robot_options, entity_name: str) -> None:
     """Refuse a caller's backend class that cannot drive a composite rig, before the policies are built.
 
@@ -3176,6 +3191,9 @@ def _run_deploy(
             f"_run_deploy got deployment_cls={deployment_cls.__name__} and mujoco=True; --mujoco picks the MuJoCo "
             "backend itself, so the given class would not run. Pass one of them."
         )
+
+    if config is not None:
+        _prepare_deploy_config(config)
 
     # In sim-to-sim mode the robot's physics run in-process, so the Genesis env is only
     # ever a state mirror; drive the viewer from the sim backend (MuJoCo's own window)

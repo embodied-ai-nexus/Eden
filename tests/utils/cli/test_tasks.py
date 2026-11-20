@@ -1314,14 +1314,53 @@ def test_every_key_deploy_stripped_before_is_still_stripped(task):
 
 @pytest.mark.requires_genesis
 def test_eden_deploy_strips_the_task_config_before_building(tmp_path, monkeypatch, restore_run_globals):
+    """Stripped inside ``_run_deploy``, so a Python caller of it gets the same config as ``eden deploy``."""
     monkeypatch.chdir(tmp_path)
     deployed = []
-    monkeypatch.setattr(tasks, "_run_deploy", lambda config, **_: deployed.append(config))
 
-    tasks.deploy_task(["--task", "velocity_tracking_flat", "--cpu", "--checkpoint", str(tmp_path / "model_0.pt")])
+    class _Built(Exception):
+        pass
+
+    def build(config, *args, **kwargs):
+        deployed.append(config)
+        raise _Built
+
+    monkeypatch.setattr(tasks, "_build_deploy_env", build)
+
+    with pytest.raises(_Built):
+        tasks.deploy_task(["--task", "velocity_tracking_flat", "--cpu", "--checkpoint", str(tmp_path / "model_0.pt")])
 
     (config,) = deployed
     assert not _KEYS_DEPLOY_STRIPPED_BY_NAME & set(config.event_options.term_keys())
+    assert (config.env_options.num_envs, config.env_options.episode_length_s) == (1, 1e9)
+
+
+@pytest.mark.requires_genesis
+def test_run_deploy_called_from_python_strips_the_task_config_too(tmp_path, monkeypatch, restore_run_globals):
+    en.init(debug=True, initialize_genesis=False, log_root_path=str(tmp_path))
+    config = TASK_REGISTRY.build("velocity_tracking_flat")
+    assert _KEYS_DEPLOY_STRIPPED_BY_NAME & set(config.event_options.term_keys())
+
+    class _Built(Exception):
+        pass
+
+    def build(*args, **kwargs):
+        raise _Built
+
+    monkeypatch.setattr(tasks, "_build_deploy_env", build)
+
+    with pytest.raises(_Built):
+        tasks._run_deploy(
+            config,
+            checkpoints=[str(tmp_path / "model_0.pt")],
+            show_viewer=False,
+            entity_name="robot",
+            deploy_kp_kd_scale=1.0,
+            control_loop=lambda *args, **kwargs: None,
+        )
+
+    assert not _KEYS_DEPLOY_STRIPPED_BY_NAME & set(config.event_options.term_keys())
+    assert config.env_options.num_envs == 1
 
 
 @pytest.mark.requires_genesis
