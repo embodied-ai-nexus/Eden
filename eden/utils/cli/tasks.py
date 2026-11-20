@@ -3818,14 +3818,15 @@ def _check_rsl_rl_runner(config, checkpoint: str | None) -> None:
       carry (:func:`_check_rsl_rl_algorithm`);
     - the algorithm options' own ``preflight()``, when they define one (AMP-PPO loads its expert clips there).
 
-    FlashSAC's ``OffPolicyRunner`` is not checked here: :func:`_rsl_rl_env_and_runner` builds it through its own
-    factory, never through ``rsl_rl_runner_class``, which would refuse its bare non-stock name.
+    FlashSAC's ``OffPolicyRunner`` and the SuperMimic runner are not checked here: :func:`_rsl_rl_env_and_runner`
+    builds each through its own factory, never through ``rsl_rl_runner_class``, which would refuse a non-stock name.
     """
     from eden.envs.wrappers.rsl_rl_env import STOCK_RUNNER_NAMES, import_class_path, rsl_rl_runner_class
     from eden.learning.wrappers.rsl_rl.flashsac.options import RslRlFlashSacRunnerOptions
+    from eden.learning.wrappers.rsl_rl.supermimic.options import SuperMimicRunnerOptions
 
     options = config.runner_options
-    if isinstance(options, RslRlFlashSacRunnerOptions):
+    if isinstance(options, (RslRlFlashSacRunnerOptions, SuperMimicRunnerOptions)):
         return
     class_name = getattr(options, "class_name", None) or "OnPolicyRunner"
     runner_cls = rsl_rl_runner_class(class_name)
@@ -3922,19 +3923,26 @@ def _accepted_keywords(cls) -> tuple[set[str] | None, set[str]]:
 def _rsl_rl_env_and_runner(config, checkpoint: str | None, *, inference: bool = False, **env_kwargs):
     """The rsl_rl env wrapper and runner ``config.runner_options`` names: rsl_rl_flashsac's ``OffPolicyRunner`` for
     :class:`RslRlFlashSacRunnerOptions` (on a wrapper that also hands it the action bounds and the pre-reset
-    observation of timed-out envs), else rsl_rl's on-policy / distillation runner.
+    observation of timed-out envs), the SuperMimic runner for :class:`SuperMimicRunnerOptions`, else rsl_rl's
+    on-policy / distillation runner.
 
     ``inference`` builds a runner only to run the policy (no FlashSAC replay buffer); ``env_kwargs`` go to
     ``from_config``.
     """
     from eden.envs.wrappers.rsl_rl_env import RslRlVecEnvWrapper, make_rsl_rl_runner
     from eden.learning.wrappers.rsl_rl.flashsac.options import RslRlFlashSacRunnerOptions
+    from eden.learning.wrappers.rsl_rl.supermimic.options import SuperMimicRunnerOptions
 
     if isinstance(config.runner_options, RslRlFlashSacRunnerOptions):
         from eden.learning.wrappers.rsl_rl.flashsac.runner import FlashSacVecEnvWrapper, make_flashsac_runner
 
         env = FlashSacVecEnvWrapper.from_config(config, **env_kwargs)
         return env, make_flashsac_runner(env, checkpoint=checkpoint, inference=inference)
+    if isinstance(config.runner_options, SuperMimicRunnerOptions):
+        from eden.learning.wrappers.rsl_rl.supermimic.runner import make_supermimic_runner
+
+        env = RslRlVecEnvWrapper.from_config(config, **env_kwargs)
+        return env, make_supermimic_runner(env, checkpoint=checkpoint)
     env = RslRlVecEnvWrapper.from_config(config, **env_kwargs)
     return env, make_rsl_rl_runner(env, checkpoint=checkpoint, for_inference=inference)
 

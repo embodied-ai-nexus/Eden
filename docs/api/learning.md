@@ -112,6 +112,18 @@ Off-policy SAC from the external `rsl-rl-flashsac` package, which is not on PyPI
     options:
       show_root_heading: false
 
+### SuperMimic
+
+A motion tracker trained through one learned, differentiable world model (the `supermimic` task).
+
+::: eden.learning.wrappers.rsl_rl.supermimic.options
+    options:
+      show_root_heading: false
+
+::: eden.learning.wrappers.rsl_rl.supermimic.runner
+    options:
+      show_root_heading: false
+
 ## ConTrack CMDP-PPO
 
 Constrained-MDP PPO trained through the external `rsl_rl_contrack` fork of rsl_rl.
