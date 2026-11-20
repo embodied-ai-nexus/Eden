@@ -225,6 +225,14 @@ sonic-viz = [
 wuji = [
   "wuji-sdk>=2026.8.17; sys_platform == 'linux'"
 ]
+# Intel RealSense camera (`eden/utils/devices/realsense`): colour, and depth aligned to it.
+# pyrealsense2 publishes Linux (x86_64, aarch64) and Windows wheels, no macOS wheel and no sdist, and
+# `tool.uv.required-environments` below demands the whole resolution stay installable on darwin-arm64,
+# so the marker is load-bearing (see `wuji` above). On macOS the extra installs nothing and
+# `RealSenseCamera` raises its install hint when it opens.
+realsense = [
+  "pyrealsense2>=2.55; sys_platform != 'darwin'"
+]
 vis = [
   "plyfile",
   # Gaussian-splat rendering (SplatEnvBase / SplatRLEnvBase) goes through gsplat.
