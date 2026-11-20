@@ -13,7 +13,7 @@ from eden.options.options import ConfigurableOptions
 class WorldModelOptions(ConfigurableOptions):
     """The dynamics model and its supervised fit on replay-buffer windows.
 
-    Parameters
+    Attributes
     ----------
     hidden_dims : tuple[int, ...]
         MLP widths.
@@ -43,7 +43,7 @@ class WorldModelOptions(ConfigurableOptions):
 class PolicyOptions(ConfigurableOptions):
     """The actor, the critic and their update through imagined rollouts of the world model.
 
-    Parameters
+    Attributes
     ----------
     algorithm : {"actor_critic", "bptt"}
         ``"actor_critic"`` bootstraps the imagined return with a critic fit to TD(lambda) targets of the same
@@ -115,7 +115,7 @@ class PolicyOptions(ConfigurableOptions):
 class VelocityGoalOptions(ConfigurableOptions):
     """The velocity-command goal interface.
 
-    Parameters
+    Attributes
     ----------
     lin_vel_x_range, lin_vel_y_range, ang_vel_z_range : tuple[float, float]
         Command ranges, body frame.
@@ -135,7 +135,7 @@ class VelocityGoalOptions(ConfigurableOptions):
 class ReturnSamplerOptions(ConfigurableOptions):
     """Reset sampling that concentrates resets on the motion bins where the policy earns a low return.
 
-    Parameters
+    Attributes
     ----------
     enabled : bool
         Drive the motion term's reset distribution; ``False`` leaves it uniform.
@@ -173,7 +173,7 @@ class ReturnSamplerOptions(ConfigurableOptions):
 class SimContextOptions(ConfigurableOptions):
     """The randomized parameters the world model is conditioned on, named by the task's event terms.
 
-    Parameters
+    Attributes
     ----------
     foot_friction_event : str | None
         A ``RandomizeFrictionRatio`` event; its first link's friction is read (one draw shared by the feet).
@@ -196,7 +196,7 @@ class SuperMimicRunnerOptions(RslRlBaseRunnerOptions):
     steps on average, the world model fits replay-buffer windows and the policy improves on rollouts imagined by the
     frozen world model from replay-buffer states.
 
-    Parameters
+    Attributes
     ----------
     class_name : str
         The runner.
