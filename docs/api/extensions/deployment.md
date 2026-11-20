@@ -100,7 +100,7 @@ The MuJoCo world itself (`MujocoSim`, `MujocoRig`, the `MujocoFloor` both add), 
 the built env (`mujoco_scene.py`), the offscreen recording (`MujocoVideo`, `mujoco_video.py`), the
 Eden-robot-to-Menagerie map (`menagerie_path_for`), the
 state and command dataclasses (`RobotState`, `RobotCommand`) and the loop helpers (`RateLimiter`,
-`StreamingRecorder`, `LinVelKalmanEstimator`) live in `eden/extensions/deployment/utils/`, which has no
+`StreamingRecorder`, `LinVelKalmanEstimator`, the `--safety` layer's `SafetyLayer`) live in `eden/extensions/deployment/utils/`, which has no
 `__init__.py`, so they are not rendered here; read them in the source.
 
 ## See also

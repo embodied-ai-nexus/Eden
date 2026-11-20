@@ -11,13 +11,14 @@ import pytest
 import torch
 
 import eden.extensions.deployment.base as deployment_base
-from eden.extensions.deployment.base import DEPLOYMENT_REGISTRY, bind_deployment, resolve_deployment_for
+from eden.extensions.deployment.base import DEPLOYMENT_REGISTRY, DeployStop, bind_deployment, resolve_deployment_for
 from eden.extensions.deployment.base import DeploymentBase
 from eden.extensions.deployment.composite import PART_HOOKS, CompositeDeployment
 from eden.extensions.deployment.utils.operator_input import CMD_INIT, CMD_START
 from eden.extensions.deployment.utils.record import load_deploy_record
 from eden.extensions.deployment.utils.state import RobotStateEntity
 from eden.options.entities import RobotOptions
+from eden.options.extensions.deployment import DeploySafetyOptions, LinkBoxOptions
 from eden.options.robots.composite.base import DexManipulatorOptions, HumanoidOptions
 from eden.utils.cli.tasks import (
     _check_composite_deploy,
@@ -352,6 +353,33 @@ def test_one_action_reaches_each_part_as_its_own_targets(rig_env, deploy):
     np.testing.assert_allclose(hand.sent[-1].dofs_pos, terms["hand"].processed_action[0].numpy()[::-1], atol=1e-6)
     np.testing.assert_array_equal(arm.sent[-1].dofs_kp, [50.0, 50.0])
     np.testing.assert_array_equal(hand.sent[-1].dofs_kp, [5.0, 5.0])
+
+
+def test_the_rigs_safety_layer_caps_each_parts_slice_of_the_policys_targets(rig_env, deploy):
+    """``safety`` is the composite's own option: one layer over the rig's joints, end to end."""
+    dep = deploy(safety=DeploySafetyOptions(max_dofs_step_from_measured={"finger_.*": 0.05}))
+    dep.connect()
+    dep.reset()
+    dep.request_start()
+    dep.step(None)  # the START tick holds
+
+    dep.write_dofs_targets(torch.tensor([0.2, -0.3, 0.6, 0.7]), dep.dofs_name)
+    dep.step(None)
+
+    assert [limit.shape for limit in dep.dofs_pos_limits()] == [(4,), (4,)]
+    np.testing.assert_allclose(dep.parts["robot"].sent[-1].dofs_pos, [0.2, -0.3], atol=1e-6)
+    np.testing.assert_allclose(dep.parts["hand"].sent[-1].dofs_pos, [HAND_DEFAULT + 0.05] * 2, atol=1e-6)
+
+
+def test_a_link_box_on_a_parts_entity_stops_the_rig(rig_env, deploy):
+    box = LinkBoxOptions(entity_name="hand", links=("f1",), upper=(None, None, -5.0))
+    dep = deploy(safety=DeploySafetyOptions(link_boxes={"pit": box}))
+    dep.connect()
+    dep.reset()
+    dep.request_init()
+
+    with pytest.raises(DeployStop, match="link 'f1' of 'hand' at .* is outside box 'pit'"):
+        dep.step(None)
 
 
 def test_observations_read_every_parts_reading(rig_env, deploy):

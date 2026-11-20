@@ -348,6 +348,25 @@ def test_policy_seconds_ends_a_single_robots_run_too(deploy_two_link):
     assert driven == ticks
 
 
+def test_the_safety_layer_stops_a_mujoco_rollout_whose_link_leaves_its_box(two_link_env, deploy_two_link):
+    """The layer runs in the base loop, so ``--mujoco --safety`` checks a policy on MuJoCo's physics first."""
+    from eden.extensions.deployment import DeployStop
+    from eden.options.extensions.deployment import DeploySafetyOptions, LinkBoxOptions
+
+    robot = two_link_env.entities["robot"]
+    _, (link2,) = robot.find_named_links_idx_local(["link2"])
+    z = float(robot.get_links_pos([link2])[0, 0, 2])
+    band = LinkBoxOptions(links=("link2",), lower=(None, None, z - 0.05), upper=(None, None, z + 0.05))
+    dep = _connected(deploy_two_link, init_steps=2, safety=DeploySafetyOptions(link_boxes={"band": band}))
+    dep.reset()
+
+    with pytest.raises(DeployStop, match="link 'link2' of 'robot' at .* is outside box 'band'"):
+        for _ in range(200):  # headless: the backend presses INIT, holds its two cycles, then START
+            dep.write_dofs_targets(torch.tensor([0.6, 0.0]), ["j1", "j2"])  # 0.3 m from j1: link2 moves 0.17 m in z
+            dep.step(None)
+    assert dep.policy_active, "the policy moved it out, not the INIT ramp"
+
+
 def test_the_rollout_is_recorded_from_start_on_in_lockstep_only(two_link_env, tmp_path):
     with deployments(two_link_env) as make, pytest.raises(ValueError, match="record_video.*async_physics"):
         make(MujocoDeployment, record_video=str(tmp_path / "async.mp4"), async_physics=True)
