@@ -31,10 +31,11 @@ what the source measures to what the scene holds::
   authored frame in the frame the source tracks (a mesh origin that differs from the URDF root, an
   axis convention that differs from the task's).
 
-Mapping the Wuji rig onto it (``examples/projects/manipulation/wuji/deploy``): reorient's cube is
-``parent_link`` = the wrist-tag link with the source in that tag's frame; pen spin's pen is
-``parent_link`` = the palm with ``parent_offset`` = ``TAG_IN_PALM[side]`` and ``object_offset`` the
-shaft-axis rotation and offset. The left-hand mirroring is Wuji's alone: a subclass overrides
+A Wuji hand rig whose camera observer reports in a wrist-tag frame fits this chain as follows. A cube
+tracked in that tag's frame is ``parent_link`` = the wrist-tag link. A pen lifted into the palm is
+``parent_link`` = the palm, ``parent_offset`` = the tag's calibrated pose in the palm, and
+``object_offset`` = the shaft-axis rotation and offset. Mirroring a right-hand policy onto a left
+hand is specific to that rig; its subclass overrides
 :meth:`TrackedObjectMixin._source_pose`.
 """
 
