@@ -1498,7 +1498,7 @@ class _StoppingDeployment(OperatorLoopbackDeployment):
         super().close()
 
 
-def test_a_safety_stop_ends_the_run_with_its_message_after_the_deployment_closes(g1_env):
+def test_a_safety_stop_ends_the_run_with_its_message_after_the_deployment_closes(g1_env, eden_caplog):
     with deployments(g1_env) as make:
         dep = make(_StoppingDeployment, gain_ramp_steps=0)
         slot = _knee_slot(g1_env, dep, "extension:knees", None)
@@ -1508,6 +1508,7 @@ def test_a_safety_stop_ends_the_run_with_its_message_after_the_deployment_closes
 
         assert dep.closed == 1
         assert len(dep.sent) == 2, "nothing is sent on the tick that stopped"
+        assert "[deploy] Stopped: hand feedback lost: feed stale -- closing the deployment." in eden_caplog.text
 
 
 def test_run_deploy_runs_the_given_backend_class_through_the_given_loop(tmp_path, monkeypatch, restore_run_globals):

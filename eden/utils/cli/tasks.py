@@ -2756,7 +2756,7 @@ def _deploy_control_loop(
     except DeployStop as exc:
         # A backend's guard ended the run. Logged before close() for the reason SystemExit is, below: the
         # operator needs the message, and the traceback lands after Genesis' teardown output.
-        en.logger.error(f"[deploy] {exc} Closing deployment.")
+        en.logger.error(f"[deploy] Stopped: {exc} -- closing the deployment.")
         raise
     except SystemExit as exc:
         # A slot refusing its own policy's action on the first control step
@@ -3176,6 +3176,9 @@ def _run_deploy(
     define connecting a deployment again after ``close()``. Both default to plain
     ``eden deploy``. They let an application that drives the operator state machine itself, from a UI of its
     own, reuse the env, slot and entity-swap wiring here.
+
+    A task ``config`` is made a deploy config in place (:func:`_prepare_deploy_config`) before anything else reads
+    it, so pass a copy to keep the caller's.
     """
     import eden as en
     from eden.extensions.deployment import DEPLOYMENT_REGISTRY, DeploymentBase, resolve_deployment_for
