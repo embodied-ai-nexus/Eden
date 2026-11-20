@@ -357,7 +357,7 @@ def test_one_action_reaches_each_part_as_its_own_targets(rig_env, deploy):
 
 def test_the_rigs_safety_layer_caps_each_parts_slice_of_the_policys_targets(rig_env, deploy):
     """``safety`` is the composite's own option: one layer over the rig's joints, end to end."""
-    dep = deploy(safety=DeploySafetyOptions(max_dofs_step_from_measured={"finger_.*": 0.05}))
+    dep = deploy(safety_options=DeploySafetyOptions(max_dofs_step_from_measured={"finger_.*": 0.05}))
     dep.connect()
     dep.reset()
     dep.request_start()
@@ -373,7 +373,7 @@ def test_the_rigs_safety_layer_caps_each_parts_slice_of_the_policys_targets(rig_
 
 def test_a_link_box_on_a_parts_entity_stops_the_rig(rig_env, deploy):
     box = LinkBoxOptions(entity_name="hand", links=("f1",), upper=(None, None, -5.0))
-    dep = deploy(safety=DeploySafetyOptions(link_boxes={"pit": box}))
+    dep = deploy(safety_options=DeploySafetyOptions(link_boxes={"pit": box}))
     dep.connect()
     dep.reset()
     dep.request_init()
@@ -435,6 +435,16 @@ def test_a_single_robot_backend_deploys_the_part_its_entity_name_names(rig_env, 
         assert [isinstance(rig_env.entities[name], RobotStateEntity) for name in ("robot", "hand")] == [
             name == entity_name for name in ("robot", "hand")
         ]
+
+
+def test_a_link_box_on_a_part_another_backend_deploys_is_refused(rig_env, bindings):
+    """Deployed alone, the hand's backend syncs the hand only: the arm's links would never move with its readings."""
+    box = LinkBoxOptions(entity_name="robot", links=(".*",), upper=(None, None, 5.0))
+    with (
+        deployments(rig_env) as make,
+        pytest.raises(ValueError, match=r"entity_name='robot', which is in the scene but .* syncs: \['hand'\]"),
+    ):
+        make(LoopbackDeployment, entity_name="hand", safety_options=DeploySafetyOptions(link_boxes={"b": box}))
 
 
 def test_the_composite_backend_refuses_a_part_that_is_not_a_rig(rig_env, bindings):

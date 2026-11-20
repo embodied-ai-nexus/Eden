@@ -58,8 +58,10 @@ class LinkBoxOptions(ConfigurableOptions):
 
     Attributes
     ----------
-    entity_name : str
-        The scene entity the links belong to. In a composite rig, a part's name (``"robot"``, ``"hand"``).
+    entity_name : str | None
+        The scene entity the links belong to: one the deployment syncs from its readings. In a composite rig, a
+        part's name (``"robot"``, ``"hand"``). ``None`` (default): the deployed robot (the deployment's
+        ``entity_name``; a rig's primary part).
     links : tuple[str, ...]
         Link names, globs or regexes of that entity. Every link they match is checked.
     lower : tuple[float | None, float | None, float | None]
@@ -68,7 +70,7 @@ class LinkBoxOptions(ConfigurableOptions):
         The box's upper corner (x, y, z). ``None`` leaves that axis open above.
     """
 
-    entity_name: str = "robot"
+    entity_name: str | None = None
     links: tuple[str, ...]
     lower: tuple[float | None, float | None, float | None] = (None, None, None)
     upper: tuple[float | None, float | None, float | None] = (None, None, None)
@@ -95,8 +97,11 @@ class DeploySafetyOptions(ConfigurableOptions):
     built robot's joint range, which always applies. Joint values are in radians (metres on a prismatic joint).
 
     The filter applies the send cap, then the measured cap, then the clamp into the range, each to the result of the
-    one before, so a later bound wins where two disagree: a target is always inside the (shrunk) range, and is
-    inside the measured band unless that band reaches past the range.
+    one before, so a later bound wins where two disagree: the filtered target is always inside the (shrunk) range,
+    and is inside the measured band unless that band reaches past the range. The backend's own filters run after
+    it, in ``send_payload`` (``target_lpf``, the Franka's velocity clamp, the Oli's torque clamp). The send cap and
+    the tracking error measure from the target the backend leaves in the payload, which on the Go1 is before its
+    low-pass and on the Franka before its velocity clamp.
 
     A per-joint field takes a float, which applies to every joint, or a dict from joint names, globs or regexes to
     values. A joint that no key matches is not limited by that field, and a key that matches no joint is an error.

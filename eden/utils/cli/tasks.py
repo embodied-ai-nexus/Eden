@@ -893,7 +893,7 @@ def deploy_task(extra_args: list[str]) -> None:
         metavar="FILE",
         help="YAML or JSON file of DeploySafetyOptions. The policy's joint targets are clamped into the robot's range "
         "and capped per tick before each send, and a reading that crosses a limit while INIT or the policy moves the "
-        "robot stops the run. Runs under --mujoco too. See 'Safety layer' in docs/guides/deployment.md.",
+        "robot stops the run. Runs under --mujoco too. See 'Limits from a file' in docs/guides/deployment.md.",
     )
     parser.add_argument(
         "--target_lpf",
@@ -3141,7 +3141,9 @@ def _load_safety_options(path: str):
         try:
             data = json.load(f) if path.endswith(".json") else yaml.safe_load(f)
         except (json.JSONDecodeError, yaml.YAMLError) as exc:
-            sys.exit(f"--safety {path}: the file does not parse as {'JSON' if path.endswith('.json') else 'YAML'}: {exc}")
+            sys.exit(
+                f"--safety {path}: the file does not parse as {'JSON' if path.endswith('.json') else 'YAML'}: {exc}"
+            )
     if not isinstance(data, dict):
         sys.exit(
             f"--safety {path}: the file holds a {type(data).__name__}, not a mapping of DeploySafetyOptions fields "
@@ -3373,7 +3375,7 @@ def _run_deploy(
         debug_record_path=debug_record_path,
         **({} if debug_record_flush_steps is None else {"debug_record_flush_steps": debug_record_flush_steps}),
         target_lpf=target_lpf,
-        **({} if safety_options is None else {"safety": safety_options}),
+        **({} if safety_options is None else {"safety_options": safety_options}),
     )
     # The MuJoCo backend renders in its own viewer window; route --vis to it.
     if mujoco and "show_viewer" in deployment_cls.get_parameter_names():

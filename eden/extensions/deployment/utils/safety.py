@@ -1,6 +1,6 @@
 """The deployment safety layer: a filter on the policy's joint targets before each send, and a guard on each reading.
 
-:class:`~eden.extensions.deployment.base.DeploymentBase` builds one :class:`SafetyLayer` when its ``safety`` option
+:class:`~eden.extensions.deployment.base.DeploymentBase` builds one :class:`SafetyLayer` when its ``safety_options``
 is set (``eden deploy --safety FILE``, a :class:`~eden.options.extensions.deployment.DeploySafetyOptions`), and
 calls it from :meth:`~eden.extensions.deployment.base.DeploymentBase.step` on every control tick:
 
@@ -25,7 +25,7 @@ runs on the robot.
 from __future__ import annotations
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any
+from typing import Any
 import time
 
 import numpy as np
@@ -33,9 +33,6 @@ import numpy as np
 from eden.extensions.deployment.utils.state import RobotState
 from eden.options.extensions.deployment import DeploySafetyOptions
 from eden.utils.string import resolve_matching_names_values
-
-if TYPE_CHECKING:
-    from eden.extensions.deployment.base import DeploymentBase
 
 
 def _per_dof(value: float | dict[str, float] | None, dofs_name: Sequence[str], field: str) -> np.ndarray | None:
@@ -75,8 +72,8 @@ class _LinkBox:
 class SafetyLayer:
     """Clamp a deployment's policy targets and stop the run when a reading crosses a limit.
 
-    Build it with :meth:`for_deployment`, which resolves every joint and link name against the built robot, so a
-    misnamed one raises when the deployment is constructed rather than on the robot.
+    Build it with :meth:`resolve`, which resolves every joint and link name against the built robot, so a misnamed
+    one raises when the deployment is constructed rather than on the robot.
 
     Parameters
     ----------
@@ -128,20 +125,33 @@ class SafetyLayer:
         self.reset()
 
     @classmethod
-    def for_deployment(cls, dep: DeploymentBase, options: DeploySafetyOptions) -> SafetyLayer:
-        """The layer for ``dep``: its joints and their built range, and each link box resolved on its scene."""
-        entities = dep._env.entities
-        synced = dep._synced_entity_names()
+    def resolve(
+        cls,
+        options: DeploySafetyOptions,
+        *,
+        dofs_name: Sequence[str],
+        dofs_pos_limits: tuple[np.ndarray, np.ndarray],
+        entities: Any,
+        synced_entity_names: Sequence[str],
+    ) -> SafetyLayer:
+        """The layer for a deployment's joints and their built range, with each link box resolved on the scene.
+
+        ``entities`` is the scene's (``env.entities``), and ``synced_entity_names`` the entities among them that the
+        deployment syncs from its readings: the first is the deployed robot, which a box with no ``entity_name``
+        watches.
+        """
+        synced = list(synced_entity_names)
         boxes = []
         for name, box in options.link_boxes.items():
-            if box.entity_name not in synced:
-                where = "is in the scene" if box.entity_name in entities else "the scene does not have"
+            entity_name = synced[0] if box.entity_name is None else box.entity_name
+            if entity_name not in synced:
+                where = "is in the scene" if entity_name in entities else "the scene does not have"
                 raise ValueError(
-                    f"DeploySafetyOptions.link_boxes['{name}'] names entity_name='{box.entity_name}', which {where} "
+                    f"DeploySafetyOptions.link_boxes['{name}'] names entity_name='{entity_name}', which {where} "
                     f"but is not one the deployment syncs from its readings, so on the robot its links would never "
                     f"move. The deployment syncs: {synced}."
                 )
-            entity = entities[box.entity_name]
+            entity = entities[entity_name]
             try:
                 links_name, links_idx_local = entity.find_named_links_idx_local(list(box.links))
             except ValueError as exc:
@@ -150,14 +160,14 @@ class SafetyLayer:
             boxes.append(
                 _LinkBox(
                     name=name,
-                    entity_name=box.entity_name,
+                    entity_name=entity_name,
                     links_name=links_name,
                     links_idx_local=links_idx_local,
                     lower=np.array([-np.inf if v is None else v for v in box.lower], dtype=np.float64),
                     upper=np.array([np.inf if v is None else v for v in box.upper], dtype=np.float64),
                 )
             )
-        return cls(options, dep.dofs_name, dep.dofs_pos_limits(), boxes, entities)
+        return cls(options, dofs_name, dofs_pos_limits, boxes, entities)
 
     def reset(self) -> None:
         """Forget the previous ticks: the last target sent, the last reading's time, the count past a limit."""
@@ -167,6 +177,7 @@ class SafetyLayer:
         self._excess_ticks = 0
         self._excess = np.zeros(len(self.dofs_name))
         self._raw: np.ndarray | None = None
+        self._filtered = False  # whether filter() ran since the last check()
 
     # -- before the send --------------------------------------------------------------------------
 
@@ -180,6 +191,7 @@ class SafetyLayer:
         """
         raw = np.array(target, dtype=np.float64)
         self._raw = raw
+        self._filtered = True
         self._excess = np.maximum(np.maximum(self.lower - raw, raw - self.upper), 0.0)
         past = bool((self._excess > self.options.limit_excess_tolerance).any())
         self._excess_ticks = self._excess_ticks + 1 if past else 0
@@ -197,12 +209,12 @@ class SafetyLayer:
 
     # -- after the reading ------------------------------------------------------------------------
 
-    def check(self, state: RobotState, *, moving: bool, driven: bool) -> list[str]:
+    def check(self, state: RobotState, *, moving: bool) -> list[str]:
         """Compare this tick's reading, already synced onto the scene, with the limits; return what was crossed.
 
-        ``moving`` is whether the state machine moves the robot this tick (the INIT ramp or the policy), and only
-        then is a crossed limit returned. ``driven`` is whether :meth:`filter` ran this tick. Writes this tick's
-        values into ``state.extra`` under ``safety.*`` either way.
+        ``moving`` is whether the state machine moves the robot this tick (anything but the STOP hold), and only
+        then is a crossed limit returned. A tick on which :meth:`filter` did not run restarts the count past a limit.
+        Writes this tick's values into ``state.extra`` under ``safety.*`` either way.
         """
         crossed: list[str] = []
         nan_dofs = np.full(len(self.dofs_name), np.nan)
@@ -227,9 +239,10 @@ class SafetyLayer:
                         f"{self.max_tracking_error[worst]:g}; {over.size} joint(s) over)"
                     )
 
-        if not driven:
+        if not self._filtered:
             self._excess_ticks = 0
             self._raw = None
+        self._filtered = False
         steps = self.options.limit_excess_steps
         if moving and steps is not None and self._excess_ticks >= steps:
             worst = int(np.argmax(self._excess))

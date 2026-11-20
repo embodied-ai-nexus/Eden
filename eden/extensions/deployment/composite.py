@@ -846,8 +846,8 @@ class CompositeDeployment(DeploymentBase):
         return self._base.provides_base_lin_vel
 
     def _synced_entity_names(self) -> list[str]:
-        """Every deployed part: each syncs its own entity from its slice of the reading."""
-        return list(self.parts)
+        """Every deployed part, the primary first: each syncs its own entity from its slice of the reading."""
+        return [self._base_name, *(name for name in self.parts if name != self._base_name)]
 
     def dofs_pos_limits(self) -> tuple[np.ndarray, np.ndarray]:
         """Each part's joint range, end to end in :attr:`dofs_name` order."""

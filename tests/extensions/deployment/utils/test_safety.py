@@ -60,7 +60,7 @@ def deploy(arm_env):
     with deployments(arm_env) as make:
 
         def build(**safety):
-            dep = make(safety=DeploySafetyOptions(**safety), connect=True)
+            dep = make(safety_options=DeploySafetyOptions(**safety), connect=True)
             dep.reset()
             return dep
 
@@ -277,7 +277,7 @@ def test_every_limit_crossed_on_the_stopping_tick_is_named(deploy, arm_env):
 )
 def test_a_name_or_margin_the_robot_cannot_take_raises_at_construction(arm_env, safety, match):
     with deployments(arm_env) as make, pytest.raises(ValueError, match=match):
-        make(safety=DeploySafetyOptions(**safety))
+        make(safety_options=DeploySafetyOptions(**safety))
 
 
 @pytest.mark.parametrize(
@@ -296,10 +296,10 @@ def test_a_nan_limit_is_refused(build, match):
 
 def test_a_dict_is_read_as_safety_options_and_a_misspelled_field_is_refused(arm_env):
     with deployments(arm_env) as make:
-        dep = make(safety={"dofs_pos_margin": 0.1})
-        assert dep.safety == DeploySafetyOptions(dofs_pos_margin=0.1)
+        dep = make(safety_options={"dofs_pos_margin": 0.1})
+        assert dep._safety.options == DeploySafetyOptions(dofs_pos_margin=0.1)
         with pytest.raises(ValueError, match="Did you mean 'dofs_pos_margin'"):
-            make(safety={"dofs_pos_margins": 0.1})
+            make(safety_options={"dofs_pos_margins": 0.1})
 
 
 def test_the_layer_reads_the_built_robots_joint_range(deploy):

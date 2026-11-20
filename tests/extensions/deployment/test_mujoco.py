@@ -357,7 +357,7 @@ def test_the_safety_layer_stops_a_mujoco_rollout_whose_link_leaves_its_box(two_l
     _, (link2,) = robot.find_named_links_idx_local(["link2"])
     z = float(robot.get_links_pos([link2])[0, 0, 2])
     band = LinkBoxOptions(links=("link2",), lower=(None, None, z - 0.05), upper=(None, None, z + 0.05))
-    dep = _connected(deploy_two_link, init_steps=2, safety=DeploySafetyOptions(link_boxes={"band": band}))
+    dep = _connected(deploy_two_link, init_steps=2, safety_options=DeploySafetyOptions(link_boxes={"band": band}))
     dep.reset()
 
     with pytest.raises(DeployStop, match="link 'link2' of 'robot' at .* is outside box 'band'"):
