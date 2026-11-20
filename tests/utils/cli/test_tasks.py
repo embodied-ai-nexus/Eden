@@ -1439,7 +1439,7 @@ class _StoppingDeployment(OperatorLoopbackDeployment):
 
     def __init__(self, env, options) -> None:
         super().__init__(env, options)
-        self.steps = 0
+        self.ticks = 0
         self.closed = 0
 
     def reset(self):
@@ -1447,11 +1447,11 @@ class _StoppingDeployment(OperatorLoopbackDeployment):
         self.operator.press(CMD_START)
         return obs
 
-    def step(self, action=None):
-        self.steps += 1
-        if self.steps == 3:
+    def _before_step(self) -> None:
+        super()._before_step()
+        self.ticks += 1
+        if self.ticks == 3:
             raise DeployStop("hand feedback lost: feed stale")
-        return super().step(action)
 
     def close(self) -> None:
         self.closed += 1
@@ -1490,14 +1490,15 @@ def test_run_deploy_runs_the_given_backend_class_through_the_given_loop(tmp_path
         control_loop=loop,
     )
 
-    ((env, dep, labels, entity_name),) = looped
     try:
+        ((_, dep, labels, entity_name),) = looped
         assert type(dep) is LoopbackDeployment
         assert (labels, entity_name) == (["extension:knees"], "robot")
         assert dep.sent == [], "eden deploy's own loop would have stepped the deployment"
     finally:
-        dep.close()
-        env.destroy()
+        for env, dep, *_ in looped:
+            dep.close()
+            env.destroy()
 
 
 def test_run_deploy_refuses_a_backend_class_under_mujoco():
@@ -1512,6 +1513,32 @@ def test_run_deploy_refuses_a_backend_class_under_mujoco():
             mujoco=True,
             deployment_cls=LoopbackDeployment,
         )
+
+
+@pytest.mark.parametrize("given", ["loopback_deployment", dict])
+def test_run_deploy_refuses_a_backend_that_is_not_a_deployment_class(given):
+    """A registry key, or a class that is not a deployment, is refused before anything is built."""
+    with pytest.raises(TypeError, match=r"takes a DeploymentBase subclass.*DEPLOYMENT_REGISTRY\.get\(key\)"):
+        tasks._run_deploy(
+            None,
+            checkpoints=[],
+            show_viewer=False,
+            entity_name="robot",
+            deploy_kp_kd_scale=1.0,
+            deployment_cls=given,
+        )
+
+
+def test_a_single_robot_backend_is_refused_for_a_composite_rig():
+    from eden.extensions.deployment.composite import CompositeDeployment
+    from eden.options.robots import FrankaXHand
+
+    with pytest.raises(
+        ValueError, match=r"deployment_cls=LoopbackDeployment for 'robot', a composite rig \(FrankaXHand\)"
+    ):
+        tasks._check_rig_backend(LoopbackDeployment, FrankaXHand(), "robot")
+    tasks._check_rig_backend(CompositeDeployment, FrankaXHand(), "robot")
+    tasks._check_rig_backend(LoopbackDeployment, G1Dofs29(), "robot")
 
 
 def test_a_pinned_gain_map_that_leaves_out_a_joint_is_refused_before_any_deployment_exists():

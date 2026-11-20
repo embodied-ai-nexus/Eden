@@ -3080,6 +3080,28 @@ def _rig_option_kwargs(rig_opts: dict | None, deployment_cls: type, entity_name:
     return kwargs
 
 
+def _check_rig_backend(deployment_cls: type | None, robot_options, entity_name: str) -> None:
+    """Refuse a caller's backend class that cannot drive a composite rig, before the policies are built.
+
+    A rig's deployment hands each part to that part's own backend (``CompositeDeployment.part_backends``), which a
+    single-robot backend has no way to do.
+    """
+    from eden.extensions.deployment.composite import CompositeDeployment
+    from eden.options.entities import CompositeEntityOptions
+
+    if (
+        deployment_cls is None
+        or not isinstance(robot_options, CompositeEntityOptions)
+        or issubclass(deployment_cls, CompositeDeployment)
+    ):
+        return
+    raise ValueError(
+        f"_run_deploy got deployment_cls={deployment_cls.__name__} for '{entity_name}', a composite rig "
+        f"({type(robot_options).__name__}). A rig deploys through CompositeDeployment or a subclass of it, which "
+        "runs each part on that part's own backend. Pass one of those, or leave deployment_cls unset."
+    )
+
+
 def _run_deploy(
     config,
     *,
@@ -3129,16 +3151,26 @@ def _run_deploy(
 ) -> None:
     """Build the deploy env, the deployment and the policy slots, then run the control loop.
 
-    ``deployment_cls`` replaces the backend that :func:`resolve_deployment_for` would pick for the robot, and
-    ``control_loop`` replaces :func:`_deploy_control_loop` (same signature). Both default to plain ``eden
-    deploy``. They let an application that drives the operator state machine itself, from a UI of its own,
-    reuse the env, slot and entity-swap wiring here.
+    ``deployment_cls`` replaces the backend that :func:`resolve_deployment_for` would pick for the robot; for a
+    composite rig it must be a :class:`CompositeDeployment` subclass. ``control_loop`` replaces
+    :func:`_deploy_control_loop` and is called with the same arguments. It then owns what that loop does at
+    either end: ``dep.connect()`` before the first step, and ``dep.close()`` and ``operator.close()`` in a
+    ``finally`` (``close()`` settles the robot and puts the simulated entity back). Both default to plain
+    ``eden deploy``. They let an application that drives the operator state machine itself, from a UI of its
+    own, reuse the env, slot and entity-swap wiring here.
     """
     import eden as en
-    from eden.extensions.deployment import DEPLOYMENT_REGISTRY, resolve_deployment_for
+    from eden.extensions.deployment import DEPLOYMENT_REGISTRY, DeploymentBase, resolve_deployment_for
     from eden.extensions.deployment.base import scene_entity_options
     from eden.options.entities import CompositeEntityOptions
 
+    if deployment_cls is not None and not (
+        isinstance(deployment_cls, type) and issubclass(deployment_cls, DeploymentBase)
+    ):
+        raise TypeError(
+            f"_run_deploy got deployment_cls={deployment_cls!r}; it takes a DeploymentBase subclass, the class "
+            "itself. For a DEPLOYMENT_REGISTRY key, pass DEPLOYMENT_REGISTRY.get(key)."
+        )
     if mujoco and deployment_cls is not None:
         raise ValueError(
             f"_run_deploy got deployment_cls={deployment_cls.__name__} and mujoco=True; --mujoco picks the MuJoCo "
@@ -3201,6 +3233,7 @@ def _run_deploy(
     robot_options = getattr(scene_options, entity_name, None)
     if not isinstance(robot_options, CompositeEntityOptions):
         robot_options = scene_entity_options(scene_options, entity_name)
+    _check_rig_backend(deployment_cls, robot_options, entity_name)
 
     # Resolve each slot's pinned robot now, while the env still holds the sim entity: this calls
     # into policy code, and the deployment constructed below swaps that entity, after which a
