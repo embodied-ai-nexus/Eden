@@ -197,6 +197,17 @@ def test_the_init_ramp_is_checked(deploy):
         dep.step(None)
 
 
+def test_a_stop_on_the_start_tick_names_the_handover(deploy):
+    """The START tick still sends the hold's target, and the policy has not acted yet: the message says so."""
+    dep = deploy(max_dofs_tracking_error=0.1)
+    dep.step(None)
+    dep.request_start()
+    dep.readings.append(robot_state(2, dofs_pos=[0.4, 0.0]))
+
+    with pytest.raises(DeployStop, match="^Safety stop while the START handover moved the robot: joint 'j1'"):
+        dep.step(None)
+
+
 def test_a_policy_that_keeps_asking_past_a_limit_stops_the_run_on_the_count(deploy):
     dep = deploy(limit_excess_steps=3, limit_excess_tolerance=0.05)
     start_policy(dep)

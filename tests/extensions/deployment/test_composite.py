@@ -371,6 +371,12 @@ def test_the_rigs_safety_layer_caps_each_parts_slice_of_the_policys_targets(rig_
     np.testing.assert_allclose(dep.parts["hand"].sent[-1].dofs_pos, [HAND_DEFAULT + 0.05] * 2, atol=1e-6)
 
 
+def test_a_link_box_without_an_entity_watches_the_rigs_primary_part(rig_env, deploy):
+    dep = deploy(safety_options=DeploySafetyOptions(link_boxes={"reach": LinkBoxOptions(links=(".*",))}))
+
+    assert [box.entity_name for box in dep._safety.link_boxes] == ["robot"]
+
+
 def test_a_link_box_on_a_parts_entity_stops_the_rig(rig_env, deploy):
     box = LinkBoxOptions(entity_name="hand", links=("f1",), upper=(None, None, -5.0))
     dep = deploy(safety_options=DeploySafetyOptions(link_boxes={"pit": box}))

@@ -177,7 +177,6 @@ class SafetyLayer:
         self._excess_ticks = 0
         self._excess = np.zeros(len(self.dofs_name))
         self._raw: np.ndarray | None = None
-        self._filtered = False  # whether filter() ran since the last check()
 
     # -- before the send --------------------------------------------------------------------------
 
@@ -191,7 +190,6 @@ class SafetyLayer:
         """
         raw = np.array(target, dtype=np.float64)
         self._raw = raw
-        self._filtered = True
         self._excess = np.maximum(np.maximum(self.lower - raw, raw - self.upper), 0.0)
         past = bool((self._excess > self.options.limit_excess_tolerance).any())
         self._excess_ticks = self._excess_ticks + 1 if past else 0
@@ -209,12 +207,13 @@ class SafetyLayer:
 
     # -- after the reading ------------------------------------------------------------------------
 
-    def check(self, state: RobotState, *, moving: bool) -> list[str]:
+    def check(self, state: RobotState, *, moving: bool, filtered: bool) -> list[str]:
         """Compare this tick's reading, already synced onto the scene, with the limits; return what was crossed.
 
         ``moving`` is whether the state machine moves the robot this tick (anything but the STOP hold), and only
-        then is a crossed limit returned. A tick on which :meth:`filter` did not run restarts the count past a limit.
-        Writes this tick's values into ``state.extra`` under ``safety.*`` either way.
+        then is a crossed limit returned. ``filtered`` is whether :meth:`filter` ran this tick; a tick on which it
+        did not restarts the count past a limit. Writes this tick's values into ``state.extra`` under ``safety.*``
+        either way.
         """
         crossed: list[str] = []
         nan_dofs = np.full(len(self.dofs_name), np.nan)
@@ -239,10 +238,9 @@ class SafetyLayer:
                         f"{self.max_tracking_error[worst]:g}; {over.size} joint(s) over)"
                     )
 
-        if not self._filtered:
+        if not filtered:
             self._excess_ticks = 0
             self._raw = None
-        self._filtered = False
         steps = self.options.limit_excess_steps
         if moving and steps is not None and self._excess_ticks >= steps:
             worst = int(np.argmax(self._excess))

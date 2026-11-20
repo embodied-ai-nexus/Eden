@@ -1247,13 +1247,13 @@ class DeploymentBase(ConfigurableMixin[DeploymentOptions], ABC):
         """The scene entities this deployment syncs from its readings, the deployed robot first: what a box can watch."""
         return [self.entity_name]
 
-    def _check_safety(self, phase: str) -> None:
+    def _check_safety(self, phase: str, *, filtered: bool) -> None:
         """Run the safety layer's check on this tick's synced reading; raise :class:`DeployStop` if a limit was crossed."""
-        crossed = self._safety.check(self.state, moving=phase != "hold")
+        crossed = self._safety.check(self.state, moving=phase != "hold", filtered=filtered)
         if not crossed:
             return
         message = (
-            f"[deploy] Safety stop while {_TICK_PHASE_LABELS[phase]} moved the robot: {'; '.join(crossed)}. The run ends here and close() "
+            f"Safety stop while {_TICK_PHASE_LABELS[phase]} moved the robot: {'; '.join(crossed)}. The run ends here and close() "
             "settles the robot. With --debug_record, the x_safety.* channels hold every tick's values. A limit that "
             "stops a run it should not is changed in the --safety file; catching DeployStop to carry on would run the "
             "robot past it."
@@ -2218,7 +2218,8 @@ class DeploymentBase(ConfigurableMixin[DeploymentOptions], ABC):
         driven = self._use_policy and not self._handover_pending
         self._handover_pending = False
         # The safety filter takes the policy's own targets: not the hold's, INIT's, the START tick's or the stand ramp's.
-        if payload is not None and self._tick_phase == "policy" and self._safety is not None:
+        filtered = payload is not None and self._tick_phase == "policy" and self._safety is not None
+        if filtered:
             # A new array: ``action_to_payload`` hands out a view of the deployment's own target buffer.
             payload.dofs_pos = self._safety.filter(
                 payload.dofs_pos, None if self.state is None else self.state.dofs_pos
@@ -2264,7 +2265,7 @@ class DeploymentBase(ConfigurableMixin[DeploymentOptions], ABC):
             else:
                 obs = self.state_to_observation(self.state, post_physics_refresh=True)
             if self._safety is not None:
-                self._check_safety(self._tick_phase)  # on the synced reading: link boxes read FK
+                self._check_safety(self._tick_phase, filtered=filtered)  # on the synced reading: link boxes read FK
             return obs
         finally:
             if payload is not None:

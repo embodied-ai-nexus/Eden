@@ -61,7 +61,7 @@ class LinkBoxOptions(ConfigurableOptions):
     entity_name : str | None
         The scene entity the links belong to: one the deployment syncs from its readings. In a composite rig, a
         part's name (``"robot"``, ``"hand"``). ``None`` (default): the deployed robot (the deployment's
-        ``entity_name``; a rig's primary part).
+        ``entity_name``; a rig's primary part, or its first part with joints when the primary has none).
     links : tuple[str, ...]
         Link names, globs or regexes of that entity. Every link they match is checked.
     lower : tuple[float | None, float | None, float | None]
@@ -113,7 +113,9 @@ class DeploySafetyOptions(ConfigurableOptions):
         clamps to the range itself.
     max_dofs_step_from_measured : float | dict[str, float] | None
         The most a policy target may differ from the joint's measured position on that tick. It bounds the PD
-        error, and so the force, that one target can ask for.
+        error, and so the force, that one target can ask for, except on a joint read within ``dofs_pos_margin`` of a
+        limit or past it: there the clamp into the shrunk range runs after the cap and may pull the target further,
+        by up to the margin plus how far past it the joint was read.
     max_dofs_step_from_sent : float | dict[str, float] | None
         The most a policy target may move from the target sent on the previous tick.
     limit_excess_tolerance : float
