@@ -235,7 +235,9 @@ class MoveForwardRunnerMod(TaskMod):
 _GO2 = en.robots.Go2()
 
 
-@TASK_REGISTRY.register(modifiers=(MoveForwardRobotMod, MoveForwardControllerMod, MoveForwardRunnerMod))
+@TASK_REGISTRY.register(
+    modifiers=(MoveForwardRobotMod, MoveForwardControllerMod, MoveForwardRunnerMod), tags=("locomotion",)
+)
 class MoveForwardConfig(EdenRLConfig):
     env_options: EnvOptions = EnvOptions(
         num_envs=4096,

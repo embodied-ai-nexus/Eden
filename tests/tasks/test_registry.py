@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import importlib
 import pathlib
+import re
 import sys
 import time
 import types
@@ -14,7 +15,7 @@ import pytest
 
 import eden
 from eden.__main__ import main as eden_main
-from eden.tasks import TASK_REGISTRY
+from eden.tasks import TASK_REGISTRY, TASK_TAGS
 from eden.tasks.benchmark.move_forward.config import MoveForwardConfig
 from eden.tasks.registry import (
     TaskMod,
@@ -373,6 +374,15 @@ def test_register_refuses_a_duplicate_name_unless_overriding():
     assert reg.get("my_task") is _ChildConfig
 
 
+def test_an_override_carries_only_the_tags_it_passes():
+    reg = TaskRegistry()
+    reg.register(_Cfg, name="my_task", tags=("manipulation", "dexterous"))
+    reg.register(_ChildConfig, name="my_task", override=True, tags=("locomotion",))
+    assert reg.task_tags("my_task") == ("locomotion",)
+    reg.register(_Cfg, name="my_task", override=True)
+    assert reg.task_tags("my_task") == ()
+
+
 def test_register_refuses_anything_but_a_class():
     """Every lookup reads the class's module and name, so a factory must fail here, not at its first lookup."""
     with pytest.raises(TypeError, match=r"takes a config class; got <function .*> \(function\)"):
@@ -584,11 +594,11 @@ def test_installed_entry_point_task_is_listed_and_builds(
     task_package("acme_tasks", {"reach.py": _ACME_TASK})
     _install_distribution(tmp_path, monkeypatch, "acme-robots", {"acme": "acme_tasks"})
 
-    monkeypatch.setenv("EDEN_LOG_THEME", "agent")  # one "name | source | modifiers" line per task
+    monkeypatch.setenv("EDEN_LOG_THEME", "agent")  # one "name | source | tags | modifiers" line per task
     monkeypatch.setattr(sys, "argv", ["eden", "list"])
     eden_main()
     cells = {row[0]: row[1:] for row in _table_rows(capsys.readouterr().out)}
-    assert cells["acme_reach"] == ["acme-robots", "SpeedMod"]
+    assert cells["acme_reach"] == ["acme-robots", "—", "SpeedMod"]
     assert cells["reacher"][0] == "eden"
     assert "acme_tasks.reach" not in sys.modules, "listing must read the task file, not import it"
 
@@ -820,8 +830,10 @@ def test_a_rescan_that_ends_a_clash_gives_the_name_to_the_class_the_scan_still_f
     """A set-aside class the rescan still finds is registered, since its import will not run again; one
     whose plugin left is not, imported or not.
     """
-    task_package("keep_pkg", {"k.py": _IMPORT + _task_class("dup", "KeepConfig")})
-    task_package("plug_pkg", {"p.py": _IMPORT + _task_class("dup", "PlugConfig")})
+    keep = "@TASK_REGISTRY.register(name='dup', tags=('locomotion',))\nclass KeepConfig:\n    pass\n"
+    plug = "@TASK_REGISTRY.register(name='dup', tags=('manipulation',))\nclass PlugConfig:\n    pass\n"
+    task_package("keep_pkg", {"k.py": _IMPORT + keep})
+    task_package("plug_pkg", {"p.py": _IMPORT + plug})
     _install_distribution(tmp_path, monkeypatch, "plug-robots", {"plug": "plug_pkg"})
     reg = isolated_task_registry
     reg.add_search_path("keep_pkg")
@@ -834,6 +846,7 @@ def test_a_rescan_that_ends_a_clash_gives_the_name_to_the_class_the_scan_still_f
     importlib.invalidate_caches()
     reg._invalidate_discovery_cache()
     assert reg.get("dup") is importlib.import_module("keep_pkg.k").KeepConfig
+    assert reg.task_tags("dup") == ("locomotion",)  # the tags of the class that got the name, kept while set aside
 
 
 def test_entry_point_task_reusing_a_built_in_name_fails_only_that_name(tmp_path, monkeypatch, task_package):
@@ -1354,3 +1367,150 @@ def test_no_task_mod_default_points_into_the_source_checkout(task_name):
                     "ships only in a source checkout. Fetch it through the dataset/asset HuggingFace mechanism, or "
                     "default to a per-user cache path, instead of deriving one from the repo layout."
                 )
+
+
+# ── tags ────────────────────────────────────────────────────────────────────
+
+
+def test_tags_are_stored_per_registration_and_not_inherited():
+    reg = TaskRegistry()
+    reg.register(_Cfg, name="parent", tags=("manipulation", "dexterous"))
+    reg.register(_ChildConfig, name="child")
+
+    assert reg.task_tags("parent") == ("manipulation", "dexterous")
+    assert reg.task_tags("child") == ()
+
+
+def test_list_tasks_keeps_the_tasks_carrying_every_tag():
+    reg = TaskRegistry()
+    reg.register(_Cfg, name="arm", tags=("manipulation",))
+    reg.register(_ChildConfig, name="hand", tags=("manipulation", "dexterous"))
+    reg.register(_LeafConfig, name="legs", tags=("locomotion",))
+
+    assert {"arm", "hand"} <= set(reg.list_tasks(tags=("manipulation",)))
+    assert "legs" not in reg.list_tasks(tags=("manipulation",))
+    assert "hand" in reg.list_tasks(tags=("manipulation", "dexterous"))
+    assert "arm" not in reg.list_tasks(tags=("manipulation", "dexterous"))
+    assert "legs" in reg.list_tasks()
+
+
+@pytest.mark.parametrize(
+    ("tags", "error", "expected"),
+    [
+        (
+            ("locomtion", "dexterous"),
+            ValueError,
+            "Task 'bad' (_Cfg): 'locomtion' (did you mean 'locomotion'?) is not a task tag",
+        ),
+        (("locomtion", "dexterous"), ValueError, "Fix: tags=('locomotion', 'dexterous')."),
+        (("vision",), ValueError, "Fix: replace each unknown tag with the tag above whose rule applies"),
+        # Spelled like 'locomotion', meant as 'motion_tracking': no suggestion at all.
+        (("motion",), ValueError, "Task 'bad' (_Cfg): 'motion' is not a task tag."),
+        (("motion",), ValueError, "Fix: replace each unknown tag with the tag above whose rule applies"),
+        (("vision", "vision"), ValueError, "'vision' is not a task tag."),
+        (("locomotion", "locomotion"), ValueError, "names ['locomotion'] more than once. Fix: tags=('locomotion',)."),
+        (
+            "locomotion",
+            TypeError,
+            "tags= takes a tuple (or list) of tag names, e.g. tags=('manipulation',); got 'locomotion'",
+        ),
+    ],
+)
+def test_a_bad_tag_raises_at_registration_and_registers_nothing(tags, error, expected):
+    reg = TaskRegistry()
+    with pytest.raises(error) as excinfo:
+        reg.register(_Cfg, name="bad", tags=tags)
+    assert expected in str(excinfo.value)
+    assert "bad" not in reg
+
+
+def test_an_unknown_tag_error_lists_every_tag():
+    with pytest.raises(ValueError) as excinfo:
+        TaskRegistry().register(_Cfg, name="bad", tags=("vision",))
+    assert f"Tags: {', '.join(sorted(TASK_TAGS))}." in str(excinfo.value)
+
+
+def test_a_typo_gets_its_fix_without_the_advice_for_a_tag_eden_lacks():
+    with pytest.raises(ValueError) as excinfo:
+        TaskRegistry().register(_Cfg, name="bad", tags=("locomtion",))
+    assert str(excinfo.value).endswith("Fix: tags=('locomotion',).")
+
+
+def test_the_tag_vocabulary_cannot_be_extended_at_run_time():
+    """A tag added from plugin code would pass ``register`` while the scan and ``--tag``'s choices never see it."""
+    with pytest.raises(TypeError):
+        TASK_TAGS["vision"] = "the policy observes camera pixels"  # type: ignore[index]
+
+
+def test_a_filter_on_an_unknown_tag_raises_instead_of_listing_nothing():
+    with pytest.raises(ValueError, match=r"list_tasks\(tags=...\): 'dextrous' \(did you mean 'dexterous'\?\)"):
+        TaskRegistry().list_tasks(tags=("dextrous",))
+
+
+def test_a_repeated_filter_tag_means_the_same_as_one():
+    reg = TaskRegistry()
+    assert reg.list_tasks(tags=("dexterous", "dexterous")) == reg.list_tasks(tags=("dexterous",))
+
+
+def test_task_tags_of_an_unknown_task_raises_with_the_close_match():
+    with pytest.raises(KeyError) as excinfo:
+        TaskRegistry().task_tags("reachr")
+    assert "Did you mean 'reacher'?" in excinfo.value.args[0]
+
+
+def test_tags_are_read_from_the_decorator_without_importing_the_module(task_package):
+    task_package(
+        "tagged_pkg",
+        {
+            "task.py": _IMPORT
+            + "@TASK_REGISTRY.register(name='tagged', tags=('locomotion',))\nclass TaggedConfig:\n    pass\n"
+        },
+    )
+    reg = TaskRegistry()
+    reg.add_search_path("tagged_pkg")
+
+    assert reg.task_tags("tagged") == ("locomotion",)
+    assert "tagged" in reg.list_tasks(tags=("locomotion",))
+    assert "tagged_pkg.task" not in sys.modules
+
+
+@pytest.mark.parametrize(
+    ("tags_source", "warning"),
+    [
+        ("TAGS", "is 'TAGS', which the scan cannot read without importing the module"),
+        (
+            "'locomotion'",
+            "is 'locomotion', where a tuple of tag names belongs, so importing the module raises TypeError",
+        ),
+        ("'locomtion'", "Write tags=('locomotion',)."),  # the fix offered is a valid tag, not the typo wrapped
+        ("{'locomotion'}", "where a tuple of tag names belongs, so importing the module raises TypeError"),
+        ("None", "is None, where a tuple of tag names belongs, so importing the module raises TypeError"),
+        ("('manipulation', 3)", "holds [3], which are not tag names, so importing the module raises TypeError"),
+        ("('locomtion',)", "'locomtion' (did you mean 'locomotion'?) is not a task tag"),
+    ],
+)
+def test_the_scan_warns_on_tags_it_cannot_list(task_package, tags_source, warning):
+    """A non-literal or unknown tag would otherwise read as an untagged task in ``eden list``, with no reason given."""
+    task_package(
+        "badtag_pkg",
+        {
+            "task.py": _IMPORT
+            + "TAGS = ('locomotion',)\n"
+            + f"@TASK_REGISTRY.register(name='badtag', tags={tags_source})\nclass BadTagConfig:\n    pass\n"
+        },
+    )
+    reg = TaskRegistry()
+    reg.add_search_path("badtag_pkg")
+    with pytest.warns(UserWarning, match=re.escape(warning)):
+        assert reg.task_tags("badtag") == ()
+
+
+@pytest.mark.parametrize("task_name", sorted(TASK_REGISTRY._ensure_discovered()))
+def test_scanned_tags_match_the_live_registration(task_name):
+    """``eden list`` reads tags from the decorator; ``register`` receives them at import. The two must agree."""
+    scanned = TaskRegistry().task_tags(task_name)
+    try:
+        TASK_REGISTRY.get(task_name)  # imports the module, so the answer below is the live registration's
+    except ModuleNotFoundError as e:
+        pytest.skip(f"'{task_name}' needs optional dependency '{e.name}'")
+    assert scanned == TASK_REGISTRY.task_tags(task_name)

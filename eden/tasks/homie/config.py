@@ -140,7 +140,7 @@ _OBSERVATIONS = dict(
 )
 
 
-@TASK_REGISTRY.register(name="homie")
+@TASK_REGISTRY.register(name="homie", tags=("locomotion",))
 class HomieLocomotionConfig(EdenRLConfig):
     """OpenHomie G1 velocity + base-height tracking controller (12-DOF legs, HIMLoco learner)."""
 

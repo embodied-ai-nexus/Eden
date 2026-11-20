@@ -25,7 +25,7 @@ from eden.tasks import TASK_REGISTRY
 from eden.tasks.polaris.rubric import put_in, rubric
 
 
-@TASK_REGISTRY.register()
+@TASK_REGISTRY.register(tags=("manipulation", "benchmark_suite"))
 class PolarisFoodBussingConfig(DroidBaseConfig):
     splat_options: SplatOptions = make_polaris_splat(
         path="food_bussing/assets/g60_corner_charuco_static/splat.ply",
@@ -81,7 +81,7 @@ class PolarisFoodBussingConfig(DroidBaseConfig):
     )
 
 
-@TASK_REGISTRY.register()
+@TASK_REGISTRY.register(tags=("manipulation", "benchmark_suite"))
 class PolarisFoodBussingBatchedConfig(DroidBatchBaseConfig):
     """Batched (Madrona + gsplat) variant of :class:`PolarisFoodBussingConfig`."""
 

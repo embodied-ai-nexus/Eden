@@ -160,7 +160,7 @@ _TERRAIN_SCENE = SceneOptions(
 )
 
 
-@TASK_REGISTRY.register(modifiers=(VelocityTrackingRobotMod, VelocityTrackingObsMod))
+@TASK_REGISTRY.register(modifiers=(VelocityTrackingRobotMod, VelocityTrackingObsMod), tags=("locomotion",))
 class VelocityTrackingTerrainConfig(VelocityTrackingBaseConfig):
     """Velocity tracking for a bipedal humanoid on rough terrain.
 

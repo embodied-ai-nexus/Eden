@@ -134,7 +134,7 @@ class ReacherDifficultyMod(TaskMod):
         return config
 
 
-@TASK_REGISTRY.register(modifiers=(ReacherDifficultyMod,))
+@TASK_REGISTRY.register(modifiers=(ReacherDifficultyMod,), tags=("manipulation",))
 class ReacherConfig(EdenRLConfig):
     env_options: EnvOptions = EnvOptions(
         num_envs=4096,

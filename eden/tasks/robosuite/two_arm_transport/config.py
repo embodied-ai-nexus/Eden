@@ -184,7 +184,10 @@ def _above(name: str, height: float) -> MetricTermOptions:
     )
 
 
-@TASK_REGISTRY.register(modifiers=(RobosuiteRobotMod, TwoArmArrangementMod(placements=NARROW_TABLE_PLACEMENTS)))
+@TASK_REGISTRY.register(
+    modifiers=(RobosuiteRobotMod, TwoArmArrangementMod(placements=NARROW_TABLE_PLACEMENTS)),
+    tags=("manipulation", "benchmark_suite"),
+)
 class RobosuiteTwoArmTransportConfig(RobosuiteTaskConfig):
     robot_slots: ClassVar[tuple[str, ...]] = ("robot0", "robot1")
 

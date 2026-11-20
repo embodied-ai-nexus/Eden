@@ -419,7 +419,7 @@ class OmniResetRobotMod(TaskMod):
         return config
 
 
-@TASK_REGISTRY.register(name="omnireset", modifiers=(OmniResetRobotMod,))
+@TASK_REGISTRY.register(name="omnireset", modifiers=(OmniResetRobotMod,), tags=("manipulation",))
 class OmniResetConfig(EdenRLConfig):
     env_options: EnvOptions = _DEFAULT_OPTIONS["env_options"]
     scene_options: SceneOptions = _DEFAULT_OPTIONS["scene_options"]

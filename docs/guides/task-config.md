@@ -33,7 +33,7 @@ from eden.terms import DoneTerm, RewardTerm
 from eden.utils.configs import EdenRLConfig
 
 
-@TASK_REGISTRY.register(modifiers=(ReacherDifficultyMod,))  # key "reacher", one TaskMod
+@TASK_REGISTRY.register(modifiers=(ReacherDifficultyMod,), tags=("manipulation",))  # key "reacher", one TaskMod
 class ReacherConfig(EdenRLConfig):
     env_options: EnvOptions = EnvOptions(num_envs=4096, episode_length_s=9.0, sim_dt=0.01, sim_substeps=2, decimation=1)
 
@@ -200,18 +200,19 @@ from eden.tasks import TASK_REGISTRY
 from eden.utils.configs import EdenRLConfig
 
 
-@TASK_REGISTRY.register()  # key "my_reach", derived from the class name
+@TASK_REGISTRY.register(tags=("manipulation",))  # key "my_reach", derived from the class name
 class MyReachConfig(EdenRLConfig):
     ...
 ```
 
 The key is the class name in snake case with a trailing `_config` removed: `ReacherConfig` registers as
-`reacher`, and `PolarisPanCleanConfig` as `polaris_pan_clean`. `register()` takes three keyword
+`reacher`, and `PolarisPanCleanConfig` as `polaris_pan_clean`. `register()` takes four keyword
 arguments:
 
 - `name=` sets the key explicitly. Use it only when no class name produces the key you want (see
   [Task Package Layout](#task-package-layout)).
 - `modifiers=` attaches [TaskMods](task-mods.md), the task's variants and CLI flags.
+- `tags=` files the task under categories (see [Tags](#tags)).
 - `override=True` replaces an existing registration with the same name. It is for a script that
   registers a class at run time, for example
   `TASK_REGISTRY.register(MyReacher, name="reacher", override=True)`. It does not resolve a clash between
@@ -314,6 +315,48 @@ blocks the tasks it has nothing to do with. Each also warns once when the scan r
   raise `RuntimeError` naming the distribution, the value and the fix. A task found elsewhere still
   resolves. Entry points are re-read on every rescan.
 
+### Tags
+
+A tag files a task under a category, so `eden list --tag <tag>` (or `TASK_REGISTRY.list_tasks(tags=...)`) can find
+it. A task carries every tag whose rule applies to it:
+
+| Tag | A task carries it when |
+|---|---|
+| `locomotion` | the policy moves or balances a legged robot's base toward a commanded velocity, pose or goal: walk, recover from a fall, hold a pose, ride (a base that follows a reference clip is `motion_tracking`) |
+| `motion_tracking` | the policy follows a recorded or retargeted motion clip: whole-body, hand, or hand-object (a planned tool path, as in calligraphy, is not a clip) |
+| `manipulation` | the policy drives an arm, gripper or hand to a target, or to grasp, move or use objects (another agent's body is not an object) |
+| `dexterous` | the robot manipulates with a hand of three or more articulated fingers |
+| `deformable` | the physics solver simulates a deformable body: cloth, cable, foam |
+| `benchmark_suite` | the task reproduces one task of a published multi-task suite that others evaluate on (a benchmark or a demo set), with the success check or score the suite reports, so results compare; the robot and assets may differ |
+
+```python
+@TASK_REGISTRY.register(modifiers=(ContrackDataMod(),), tags=("motion_tracking", "manipulation", "dexterous"))
+class ContrackConfig(EdenMimicConfig):
+    ...
+```
+
+Tags group tasks without moving them. A task's package path is recorded in every `config.json` it saves, so it
+cannot be reorganized by category, and a task such as ConTrack belongs to three categories at once.
+
+- **The set is closed.** The tags are the keys of `TASK_TAGS` (`eden/tasks/registry.py`), a read-only mapping, and an
+  unknown tag raises `ValueError` at registration with the closest match. To add a category, add it to `TASK_TAGS`
+  and to the table above with its rule, and tag every task it applies to.
+- **A plugin that uses a newer tag needs the newer Eden.** An out-of-tree task's unknown tag raises when its module
+  is imported, as a built-in's does, so a plugin that tags a task with a tag added in a later Eden release must
+  require that release (`eden-world>=<version>` in its `pyproject.toml`).
+- **Write them as a literal tuple of strings.** `eden list` reads the tags off the decorator without importing the
+  module, as it does the task name; the scan warns on a variable or an expression, and the task lists as untagged.
+- **A port is not by itself a `benchmark_suite` task.** `piano` carries the tag because it reproduces RoboPianist's
+  key-press F1; `mujoco_playground_getup` and `_handstand` do not, because MuJoCo Playground defines their rewards
+  and no success check or score. `omnireset` reproduces one task from the OmniReset paper, which is not a suite. The
+  `art_*` tasks are graded by RoboPaint's rules but copy Eden's own works and skip RoboPaint's registration step, so
+  their scores do not compare with RoboPaint's, and they do not carry it either.
+- **Tags are not inherited.** Modifiers pass from a registered base class to a subclass, but a tag describes the
+  task a registration names: `manipulation_lift_box_rgb` declares its own tags although it subclasses
+  `ManipulationLiftBoxConfig`.
+
+`TASK_REGISTRY.task_tags(name)` returns a task's tags without importing it.
+
 ## Task Package Layout
 
 The rules to follow when you add a task to `eden/tasks`. `tests/tasks/test_init.py` checks the naming,
@@ -349,6 +392,11 @@ file and `__init__.py` rules across every built-in task.
   import to find a task. A `custom_terms/__init__.py` may re-export its terms.
   `eden/tasks/libero/__init__.py` is the one exception, because it is a documented API surface.
 - **Variants are TaskMods.** See [A TaskMod or a separate task?](task-mods.md#a-taskmod-or-a-separate-task)
+- **Every task is tagged, and its family table agrees.** A built-in task carries at least one [tag](#tags), and the
+  family tables of [the task index](../tasks/index.md) list a task only under a family whose tag it carries
+  (Locomotion → `locomotion`, Motion tracking → `motion_tracking`, Manipulation and dexterous hands →
+  `manipulation`, Ported benchmarks → `benchmark_suite`), and every task appears in one of those tables (a PolaRiS
+  `_batched` variant through its base task).
 
 ## Strict fields
 

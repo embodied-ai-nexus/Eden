@@ -504,7 +504,7 @@ class ContrackDataMod(TaskMod):
         return config
 
 
-@TASK_REGISTRY.register(modifiers=(ContrackDataMod(),))
+@TASK_REGISTRY.register(modifiers=(ContrackDataMod(),), tags=("motion_tracking", "manipulation", "dexterous"))
 class ContrackConfig(EdenMimicConfig):
     """ConTrack hand-object tracking (xArm7 + XHand, CMDP-PPO).
 

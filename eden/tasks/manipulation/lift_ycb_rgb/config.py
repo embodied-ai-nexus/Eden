@@ -335,7 +335,9 @@ _YCB_LIFT_REWARDS = dict(
 )
 
 
-@TASK_REGISTRY.register(name="manipulation_lift_ycb_rgb", modifiers=(LiftYCBObjectPropertiesMod,))
+@TASK_REGISTRY.register(
+    name="manipulation_lift_ycb_rgb", modifiers=(LiftYCBObjectPropertiesMod,), tags=("manipulation",)
+)
 class ManipulationLiftYCBRGBConfig(ManipulationLiftBoxRGBConfig):
     """Every field is a declarative default — nothing is built in ``__init__``.
 

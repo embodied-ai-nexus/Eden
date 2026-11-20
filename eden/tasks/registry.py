@@ -21,12 +21,11 @@ import inspect
 import textwrap
 import types
 import warnings
+from collections.abc import Mapping
 from importlib.metadata import EntryPoint, entry_points
 from importlib.util import find_spec
 from pathlib import Path
 from typing import Annotated, Any, Literal, NamedTuple, Union, get_args, get_origin, get_type_hints
-
-from eden.utils.misc import to_snake_case
 
 #: The entry-point group an installed distribution names its task packages under. Each entry
 #: point's value is a package, AST-scanned like ``eden.tasks`` (see :class:`TaskRegistry`)::
@@ -41,6 +40,36 @@ OUT_OF_TREE_TASK_HINT = (
     f'{TASK_ENTRY_POINT_GROUP}"] in its pyproject.toml (docs/guides/task-config.md)'
 )
 
+#: The tags a task registration may carry (``@TASK_REGISTRY.register(tags=(...))``), each with the rule for when a
+#: task carries it. A task carries every tag whose rule applies, so a hand-object tracking task is
+#: ``motion_tracking``, ``manipulation`` and ``dexterous`` at once. The set is closed (and read-only) so that a typo
+#: raises at registration rather than founding a one-task category; to add a tag, add it here with its rule, add it
+#: to the Tags table of ``docs/guides/task-config.md``, and tag the tasks it applies to. ``eden list --tag <tag>``
+#: filters on them, and ``tests/tasks/test_init.py`` keeps the family tables of ``docs/tasks/index.md`` in step.
+TASK_TAGS: Mapping[str, str] = types.MappingProxyType(
+    {
+        "locomotion": (
+            "the policy moves or balances a legged robot's base toward a commanded velocity, pose or goal: walk, "
+            "recover from a fall, hold a pose, ride (a base that follows a reference clip is motion_tracking)"
+        ),
+        "motion_tracking": (
+            "the policy follows a recorded or retargeted motion clip: whole-body, hand, or hand-object (a planned "
+            "tool path, as in calligraphy, is not a clip)"
+        ),
+        "manipulation": (
+            "the policy drives an arm, gripper or hand to a target, or to grasp, move or use objects (another agent's "
+            "body is not an object)"
+        ),
+        "dexterous": "the robot manipulates with a hand of three or more articulated fingers",
+        "deformable": "the physics solver simulates a deformable body: cloth, cable, foam",
+        "benchmark_suite": (
+            "the task reproduces one task of a published multi-task suite that others evaluate on (a benchmark or a "
+            "demo set), with the success check or score the suite reports, so results compare; the robot and assets "
+            "may differ"
+        ),
+    }
+)
+
 
 def _default_task_name(class_name: str) -> str:
     """Canonical task name from a config class name.
@@ -49,6 +78,10 @@ def _default_task_name(class_name: str) -> str:
     ``ReacherConfig`` → ``reacher`` (not ``reacher_config``), matching the
     convention used across ``eden/tasks/**/config.py``.
     """
+    # Imported here: eden.utils.misc imports torch, and the eden CLI imports this module (for TASK_TAGS) while it
+    # builds the parser of every command, `eden --help` included.
+    from eden.utils.misc import to_snake_case
+
     snake = to_snake_case(class_name)
     return snake.removesuffix("_config") or snake
 
@@ -371,10 +404,13 @@ class TaskRegistry:
         # Packages add_search_path added to the scan (eden.tasks always), each mapped to the source
         # task_source() reports for its tasks.
         self._search_packages: dict[str, str] = {"eden.tasks": "eden"}
+        # Tags attached at registration time. Unlike modifiers they are not inherited: a tag describes
+        # the task a registration names, and a subclass registered under its own name declares its own.
+        self._tags: dict[str, tuple[str, ...]] = {}
         # The registrations _do_register set aside because their name clashes, by "module:Class",
-        # as (name, class, modifiers entry): the class answers to no name, but a subclass still
+        # as (name, class, modifiers entry, tags): the class answers to no name, but a subclass still
         # inherits its modifiers through it, and a rescan that ends the clash registers it.
-        self._clashing_registrations: dict[str, tuple[str, Any, tuple[TaskMod, ...] | _Inherited]] = {}
+        self._clashing_registrations: dict[str, tuple[str, Any, tuple[TaskMod, ...] | _Inherited, tuple[str, ...]]] = {}
 
         # What the scan found. _ensure_discovered recomputes all of it, entry points included, so a
         # rescan sees a plugin fixed or installed since; nothing else writes it.
@@ -382,6 +418,8 @@ class TaskRegistry:
         self._discovered: dict[str, str] | None = None
         # name -> modifier display-names, read from the decorators.
         self._discovered_modifiers: dict[str, list[str]] = {}
+        # name -> the tags its decorator declares, read from the decorators.
+        self._discovered_tags: dict[str, tuple[str, ...]] = {}
         # Every package scanned, eden.tasks first, mapped to its source label (task_source()).
         self._package_sources: dict[str, str] = {}
         # What the scan could not answer, kept so that only a lookup it could change raises it (one
@@ -402,6 +440,7 @@ class TaskRegistry:
         name: str | None = None,
         override: bool = False,
         modifiers: tuple[ModifierEntry, ...] | None = None,
+        tags: tuple[str, ...] | list[str] = (),
     ) -> Any:
         """Register a config class eagerly. Can be used as a decorator or function call.
 
@@ -429,9 +468,20 @@ class TaskRegistry:
             subclass keeps the built-in's mods; that one is a snapshot, since the
             registration it came from no longer exists. ``()`` opts out; a class
             with no registered ancestor gets none either way.
+        tags: tuple[str, ...]
+            The task's categories, each a key of :data:`TASK_TAGS`; ``eden list
+            --tag`` filters on them. Write them as a literal tuple of strings: the
+            AST scan reads them from the decorator without importing the module, and
+            warns on anything else. Not inherited: a subclass registered under its own
+            name declares its own, and a registration that replaces a task with
+            ``override=True`` carries only the tags it passes.
 
         Raises
         ------
+        TypeError
+            If ``tags`` is not a tuple or list of strings.
+        ValueError
+            If a tag is not a key of :data:`TASK_TAGS`, or appears twice.
         ValueError
             If ``modifiers`` is ``None`` and the nearest registered ancestor is
             registered under several names with different modifiers, none of them
@@ -450,7 +500,14 @@ class TaskRegistry:
                     f"TASK_REGISTRY.register() takes a config class; got {cls!r} ({type(cls).__name__}). "
                     "Register the class itself, and apply what a factory would set through modifiers=(...)."
                 )
-            self._do_register(name or _default_task_name(cls.__name__), cls, override=override, modifiers=modifiers)
+            task_name = name or _default_task_name(cls.__name__)
+            self._do_register(
+                task_name,
+                cls,
+                override=override,
+                modifiers=modifiers,
+                tags=_validate_tags(tags, f"Task '{task_name}' ({cls.__name__})", registering=True),
+            )
             return cls
 
         return deco if obj is None else deco(obj)
@@ -561,6 +618,30 @@ class TaskRegistry:
         self._ensure_discovered()  # populates self._discovered_modifiers
         return list(self._discovered_modifiers.get(name, []))
 
+    def task_tags(self, name: str) -> tuple[str, ...]:
+        """The tags ``name`` is registered with (keys of :data:`TASK_TAGS`), **without importing** its module.
+
+        A registration already made answers with what it passed; a task found only by the AST scan
+        answers with the literal ``tags=`` of its decorator. ``()`` for a task registered without tags.
+        Unlike :meth:`modifier_names` and :meth:`task_source`, which render a listing and return an empty
+        answer for an unknown name, this raises: a filter on a mistyped name must not read as "no tags".
+
+        Raises
+        ------
+        KeyError
+            If no registered or discoverable task is named ``name``.
+        ValueError
+            If ``name`` is registered in several scanned files.
+        RuntimeError
+            If ``name`` is not found and an installed :data:`TASK_ENTRY_POINT_GROUP` entry point names no
+            scannable package, which could hold it.
+        """
+        if name not in self:
+            raise KeyError(self.missing_task_message(name))
+        if name in self._registry:
+            return self._tags.get(name, ())
+        return self._discovered_tags.get(name, ())
+
     def build(self, name: str, **modifier_kwargs: Any) -> Any:
         """Instantiate the config and apply registered TaskMods.
 
@@ -641,22 +722,31 @@ class TaskRegistry:
             config = applied.apply(config)
         return config
 
-    def list_tasks(self) -> list[str]:
-        """List all registered task names (eager + discovered).
+    def list_tasks(self, *, tags: tuple[str, ...] = ()) -> list[str]:
+        """List all registered task names (eager + discovered), or those carrying every one of ``tags``.
+
+        Import-free, like :meth:`task_tags`, which the filter reads.
 
         Raises
         ------
+        TypeError
+            If ``tags`` is not a tuple or list of strings.
         ValueError
-            If a task name is registered in several scanned files.
+            If a task name is registered in several scanned files, or a tag is not a key of
+            :data:`TASK_TAGS` (a filter on it could only ever come back empty).
         RuntimeError
             If an installed :data:`TASK_ENTRY_POINT_GROUP` entry point names no scannable package
             — the list would be missing that package's tasks.
         """
+        wanted = set(_validate_tags(tags, "list_tasks(tags=...)", registering=False))
         discovered = self._ensure_discovered()
         if self._collisions:
             raise ValueError("\n".join(_collision_message(n, where) for n, where in sorted(self._collisions.items())))
         self._raise_if_scan_incomplete("Cannot list every task.")
-        return sorted(set(self._registry) | set(discovered))
+        names = sorted(set(self._registry) | set(discovered))
+        if not wanted:
+            return names
+        return [name for name in names if wanted <= set(self.task_tags(name))]
 
     def config_qualname_for_task(self, name: str) -> str | None:
         """The ``module.Class`` of the config ``name`` builds, or ``None`` if no such task.
@@ -792,6 +882,7 @@ class TaskRegistry:
         *,
         override: bool = False,
         modifiers: tuple[ModifierEntry, ...] | None = None,
+        tags: tuple[str, ...] = (),
     ) -> None:
         # The scan found this name on several classes, this one among them. Registering whichever
         # module happens to be imported first would make the answer depend on import order, and
@@ -817,10 +908,10 @@ class TaskRegistry:
             if not clashing and name in self._registry and self._snapshot_on_replace(name, obj, inherited):
                 entry = inherited
         if clashing:
-            self._clashing_registrations[_class_key(obj)] = (name, obj, entry)
+            self._clashing_registrations[_class_key(obj)] = (name, obj, entry, tags)
             self._resolved_modifiers.clear()
         else:
-            self._write_registration(name, obj, entry)
+            self._write_registration(name, obj, entry, tags)
 
     def _snapshot_on_replace(self, name: str, obj: Any, inherited: tuple[TaskMod, ...]) -> bool:
         """Whether the mods ``obj`` inherits as ``name`` have to be frozen rather than left live.
@@ -841,10 +932,13 @@ class TaskRegistry:
             return True
         return _modifier_signature(live) != _modifier_signature(inherited)
 
-    def _write_registration(self, name: str, obj: Any, entry: tuple[TaskMod, ...] | _Inherited) -> None:
+    def _write_registration(
+        self, name: str, obj: Any, entry: tuple[TaskMod, ...] | _Inherited, tags: tuple[str, ...]
+    ) -> None:
         """Record one registration and drop the memo, which any registration can invalidate."""
         self._registry[name] = obj
         self._modifiers[name] = entry
+        self._tags[name] = tags
         self._resolved_modifiers.clear()
 
     def _resolve_modifiers(self, name: str) -> tuple[TaskMod, ...]:
@@ -980,7 +1074,7 @@ class TaskRegistry:
                 package: dist for package, dist in entry_point_packages.items() if package not in self._search_packages
             }
             scan = _scan_packages_for_tasks(list(self._package_sources))
-            self._discovered, self._discovered_modifiers, self._collisions = scan
+            self._discovered, self._discovered_modifiers, self._discovered_tags, self._collisions = scan
             self._register_resolved_clashes()
             for name, where in sorted(self._collisions.items()):
                 # Every other task still resolves; say so now, since only a lookup of this name raises.
@@ -996,12 +1090,12 @@ class TaskRegistry:
         left the scan (its plugin uninstalled, say) stays set aside: the name belongs to the class
         the scan still finds, and a subclass still inherits through it.
         """
-        for key, (name, obj, entry) in list(self._clashing_registrations.items()):
+        for key, (name, obj, entry, tags) in list(self._clashing_registrations.items()):
             if self._is_colliding_class(name, obj) or self._discovered.get(name, key) != key:
                 continue
             del self._clashing_registrations[key]
             if name not in self._registry:
-                self._write_registration(name, obj, entry)
+                self._write_registration(name, obj, entry, tags)
 
     def _lookup(self, name: str) -> str | None:
         """The ``module:Class`` that ``name`` resolves to, registered or only discovered; ``None`` if neither.
@@ -1068,6 +1162,13 @@ class TaskRegistry:
     def _invalidate_discovery_cache(self) -> None:
         """For tests: force the next lookup to re-scan the filesystem."""
         self._discovered = None
+
+    def _unregister(self, name: str) -> None:
+        """For tests: undo a registration of ``name``, in every dict :meth:`_write_registration` writes."""
+        self._registry.pop(name, None)
+        self._modifiers.pop(name, None)
+        self._tags.pop(name, None)
+        self._resolved_modifiers.clear()
 
 
 def _load_entry_points() -> tuple[dict[str, str], list[tuple[str, str, BaseException | None]]]:
@@ -1169,6 +1270,72 @@ def _modifier_names_from_decorator(cls_def: ast.ClassDef, aliases: set[str] | fr
     return []
 
 
+def _tags_from_decorator(cls_def: ast.ClassDef, aliases: set[str] | frozenset[str], file_path: Path) -> tuple[str, ...]:
+    """The tags a class's ``@<alias>.register(tags=...)`` decorator declares, read without importing it.
+
+    Warns, and records none, when the value is not a literal tuple or list of strings (the scan cannot
+    evaluate it) or names a tag :data:`TASK_TAGS` does not define (importing the module raises on it):
+    either way ``eden list`` would otherwise show the task as untagged with no reason given.
+    """
+    dec = _register_decorator(cls_def, aliases=aliases)
+    value = None if dec is None else _decorator_keyword(dec, "tags")
+    if value is None:
+        return ()
+    where = f"@{dec.func.value.id}.register(tags=...) on '{cls_def.name}' in '{file_path}'"
+    if isinstance(value, ast.Constant):
+        tag = (
+            value.value
+            if value.value in TASK_TAGS
+            else _tag_typo_fix(value.value)
+            if isinstance(value.value, str)
+            else None
+        )
+        fix = f"tags=({tag!r},)" if tag else "tags=('manipulation', 'dexterous')"
+        warnings.warn(
+            f"TaskRegistry auto-discovery: {where} is {value.value!r}, where a tuple of tag names belongs, so "
+            f"importing the module raises TypeError and `eden list` shows the task untagged. Write {fix}.",
+            stacklevel=2,
+        )
+        return ()
+    if isinstance(value, (ast.Tuple, ast.List)) and all(isinstance(elt, ast.Constant) for elt in value.elts):
+        others = [elt.value for elt in value.elts if not isinstance(elt.value, str)]
+        if others:
+            warnings.warn(
+                f"TaskRegistry auto-discovery: {where} holds {others!r}, which are not tag names, so importing the "
+                "module raises TypeError and `eden list` shows the task untagged. Write tag names only, e.g. "
+                "tags=('manipulation', 'dexterous').",
+                stacklevel=2,
+            )
+            return ()
+    literal = isinstance(value, (ast.Tuple, ast.List)) and all(
+        isinstance(elt, ast.Constant) and isinstance(elt.value, str) for elt in value.elts
+    )
+    if not literal and isinstance(
+        value, (ast.Set, ast.Dict, ast.ListComp, ast.SetComp, ast.DictComp, ast.GeneratorExp)
+    ):
+        warnings.warn(
+            f"TaskRegistry auto-discovery: {where} is {ast.unparse(value)!r}, where a tuple of tag names belongs, so "
+            "importing the module raises TypeError and `eden list` shows the task untagged. Write the tags out as "
+            "a literal tuple of strings, e.g. tags=('manipulation', 'dexterous').",
+            stacklevel=2,
+        )
+        return ()
+    if not literal:
+        warnings.warn(
+            f"TaskRegistry auto-discovery: {where} is {ast.unparse(value)!r}, which the scan cannot read without "
+            "importing the module, so `eden list` shows the task untagged. Write the tags out as a literal "
+            "tuple of strings, e.g. tags=('manipulation', 'dexterous').",
+            stacklevel=2,
+        )
+        return ()
+    tags = tuple(elt.value for elt in value.elts)
+    try:
+        return _validate_tags(tags, where, registering=True)
+    except ValueError as exc:
+        warnings.warn(f"TaskRegistry auto-discovery: {exc}", stacklevel=2)
+        return ()
+
+
 def _base_class_names(cls_def: ast.ClassDef) -> list[str]:
     """The simple names of a class's bases (``Foo`` for both ``Foo`` and ``pkg.Foo``), in order."""
     out = []
@@ -1238,6 +1405,8 @@ class _TaskScan(NamedTuple):
     tasks: dict[str, str]
     # name -> the modifier display-names its decorator declares or inherits, for listing without imports.
     modifiers: dict[str, list[str]]
+    # name -> the tags its decorator declares, for listing and filtering without imports.
+    tags: dict[str, tuple[str, ...]]
     # name -> [("module:Class", file path), ...], for every name several scanned classes register.
     collisions: dict[str, list[tuple[str, str]]]
 
@@ -1264,6 +1433,7 @@ def _scan_packages_for_tasks(packages: list[str]) -> _TaskScan:
     # For resolving inherited modifier names once every file is read (see
     # _resolve_inherited_modifier_names): each task's class name, and every scanned class's bases.
     found_modifiers: dict[str, list[str] | None] = {}
+    found_tags: dict[str, tuple[str, ...]] = {}
     task_classes: dict[str, str] = {}
     class_bases: dict[str, list[list[str]]] = {}
     for package in packages:
@@ -1300,10 +1470,12 @@ def _scan_packages_for_tasks(packages: list[str]) -> _TaskScan:
                     where.append((qualname, str(file_path)))
                 task_classes[registered_name] = node.name
                 found_modifiers[registered_name] = _modifier_names_from_decorator(node, aliases)
+                found_tags[registered_name] = _tags_from_decorator(node, aliases, file_path)
     _resolve_inherited_modifier_names(found_modifiers, task_classes, class_bases)
     return _TaskScan(
         tasks={name: where[0][0] for name, where in found.items() if len(where) == 1},
         modifiers=found_modifiers,
+        tags=found_tags,
         collisions={name: where for name, where in found.items() if len(where) > 1},
     )
 
@@ -1506,6 +1678,60 @@ def _describe_value(value: Any) -> str:
         return text
     keep = _MODIFIER_VALUE_REPR_LIMIT // 2
     return f"{text[:keep]}...<{len(text) - 2 * keep} chars elided>...{text[-keep:]}"
+
+
+def _tag_typo_fix(tag: str) -> str | None:
+    """The key of :data:`TASK_TAGS` that ``tag`` is a clear misspelling of, or ``None``."""
+    match = difflib.get_close_matches(tag, list(TASK_TAGS), n=1, cutoff=0.9)
+    return match[0] if match else None
+
+
+def _validate_tags(tags: Any, where: str, *, registering: bool) -> tuple[str, ...]:
+    """``tags`` as a tuple, once every entry is a key of :data:`TASK_TAGS`; ``where`` opens the error.
+
+    ``registering`` picks the reading: a registration's tags must be distinct, while a filter's repeats
+    mean the same as one and are dropped. The fix each error gives differs to match.
+
+    Raises
+    ------
+    TypeError
+        If ``tags`` is not a tuple or list of strings (a bare string would otherwise be read as its letters).
+    ValueError
+        If a tag is not a key of :data:`TASK_TAGS`, or a registration names one twice.
+    """
+    valid = ", ".join(sorted(TASK_TAGS))
+    if not isinstance(tags, (tuple, list)) or not all(isinstance(tag, str) for tag in tags):
+        raise TypeError(
+            f"{where}: tags= takes a tuple (or list) of tag names, e.g. tags=('manipulation',); got "
+            f"{_describe_value(tags)}. Tags: {valid}."
+        )
+    unknown = list(dict.fromkeys(tag for tag in tags if tag not in TASK_TAGS))
+    if unknown:
+        # Suggest a tag only for a clear typo: difflib matches spelling, and 'motion' is closer to 'locomotion'
+        # than to 'motion_tracking', so a looser match would point an author at the wrong category.
+        typos = {tag: _tag_typo_fix(tag) for tag in unknown}
+        hints = ", ".join(f"'{tag}'" + (f" (did you mean '{fix}'?)" if fix else "") for tag, fix in typos.items())
+        problem = (
+            f"{where}: {hints} {'is not a task tag' if len(unknown) == 1 else 'are not task tags'}. Tags: {valid}."
+        )
+        if not registering:
+            raise ValueError(f"{problem} Fix: filter on the tags above.")
+        if all(typos.values()):
+            fixed = tuple(dict.fromkeys(typos.get(tag) or tag for tag in tags))
+            fix = f"Fix: tags={fixed!r}."
+        else:
+            fix = (
+                "Fix: replace each unknown tag with the tag above whose rule applies (`eden list --help` prints each "
+                "rule). If the tag comes from a newer Eden, require that release (eden-world>=<version>) in your "
+                "pyproject.toml; a new category is added to TASK_TAGS in eden/tasks/registry.py, in Eden itself."
+            )
+        raise ValueError(f"{problem} {fix}")
+    if not registering:
+        return tuple(dict.fromkeys(tags))
+    repeated = sorted({tag for tag in tags if tags.count(tag) > 1})
+    if repeated:
+        raise ValueError(f"{where}: tags= names {repeated} more than once. Fix: tags={tuple(dict.fromkeys(tags))!r}.")
+    return tuple(tags)
 
 
 def _normalize_modifier_entries(entries: tuple[ModifierEntry, ...]) -> tuple[TaskMod, ...]:

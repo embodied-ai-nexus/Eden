@@ -401,7 +401,7 @@ def _lift_rewards(
     return RewardManagerOptions(**terms)
 
 
-@TASK_REGISTRY.register(modifiers=(LiftBoxManipulatorMod, LiftBoxResetBufferMod))
+@TASK_REGISTRY.register(modifiers=(LiftBoxManipulatorMod, LiftBoxResetBufferMod), tags=("manipulation",))
 class ManipulationLiftBoxConfig(EdenRLConfig):
     env_options: EnvOptions = _lift_env_options()
 

@@ -264,7 +264,7 @@ class LiberoTaskMod(TaskMod):
         return config
 
 
-@TASK_REGISTRY.register(modifiers=(LiberoTaskMod(),))
+@TASK_REGISTRY.register(modifiers=(LiberoTaskMod(),), tags=("manipulation", "benchmark_suite"))
 class LiberoConfig(EdenRLConfig):
     """Shared production configuration for data-driven LIBERO tasks."""
 

@@ -108,7 +108,7 @@ Track it with `squeue -j <id>` / `sacct -j <id>` and read `slurm/eden_<id>.out`;
 Three facts worth having before you open any of them:
 
 - **Config ↔ env pairing.** `EdenConfig`→`EnvBase`, `EdenRLConfig`→`RLEnvBase`, `EdenMimicConfig`→`MimicRLEnvBase`, and the leaf must match — a mismatch raises `TypeError` (e.g. `RLEnvBase.from_config(mimic_cfg)` would otherwise build with no motion reference). Construct with `from_config` (not `from_cfg`); use `env_class_for_config(cfg).from_config(cfg)` when the class isn't statically known. The env classes **construct only** — call `build()` and `reset()` yourself; the training wrappers (`RslRlVecEnvWrapper`, `RlGamesVecEnvWrapper`) build and reset inside `from_config`. → `docs/guides/environments.md`
-- **Task configs** follow `eden/tasks/benchmark/reacher/config.py`. Tasks self-register with `@TASK_REGISTRY.register()` at the definition site; there is no central index to update.
+- **Task configs** follow `eden/tasks/benchmark/reacher/config.py`. Tasks self-register with `@TASK_REGISTRY.register()` at the definition site; there is no central index to update. A built-in task passes `tags=` (keys of `TASK_TAGS`) and gets a row in a family table of `docs/tasks/index.md` matching one of its tags; `tests/tasks/test_init.py` checks both.
 - **Terms are resolved by registry key, never by object identity.** A class term that was never `@REGISTRY.register()`-ed configures fine, then fails to build. The key is always `to_snake_case(__name__)`, so a term registry's `register()` takes no `name=` — rename the term to change its key. (Asset/robot/task registries are looked up only by key, so `name=` there is a normal alias.)
 
 ## Critical Invariants

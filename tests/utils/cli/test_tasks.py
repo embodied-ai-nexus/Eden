@@ -240,8 +240,7 @@ def reacher_registered_with_hard_default():
         TASK_REGISTRY.get("reacher"), name=name, modifiers=(ReacherDifficultyMod(difficulty="hard"),)
     )
     yield name
-    TASK_REGISTRY._registry.pop(name, None)
-    TASK_REGISTRY._modifiers.pop(name, None)
+    TASK_REGISTRY._unregister(name)
 
 
 def test_a_mod_flag_is_explicit_only_away_from_the_registered_default(reacher_registered_with_hard_default):

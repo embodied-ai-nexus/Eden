@@ -424,7 +424,11 @@ def _events(common: dict, object_entities: list[str]) -> EventManagerOptions:
     return EventManagerOptions(**events)
 
 
-@TASK_REGISTRY.register(name="flashdexretarget", modifiers=(FlashDexRetargetDataMod(),))
+@TASK_REGISTRY.register(
+    name="flashdexretarget",
+    modifiers=(FlashDexRetargetDataMod(),),
+    tags=("motion_tracking", "manipulation", "dexterous"),
+)
 class FlashDexRetargetConfig(EdenMimicConfig):
     """FlashDexRetarget: robot hands track the human hand-object demos of a ``motion.pt``, objects in the loop.
 

@@ -16,4 +16,4 @@ How a task package is named and laid out (``<package>_<task>`` from ``<Package><
 section of ``docs/guides/task-config.md``; ``tests/tasks/test_init.py`` enforces it.
 """
 
-from eden.tasks.registry import TASK_REGISTRY, TaskMod, TaskRegistry  # noqa: F401
+from eden.tasks.registry import TASK_REGISTRY, TASK_TAGS, TaskMod, TaskRegistry  # noqa: F401
