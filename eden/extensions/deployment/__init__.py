@@ -18,6 +18,7 @@ A composite rig (an arm with a hand welded on) resolves to the
 
 from eden.extensions.deployment.base import (
     DEPLOYMENT_REGISTRY,
+    DeployStop,
     DeploymentBase,
     bind_deployment,
     resolve_deployment_for,
@@ -71,6 +72,7 @@ except ImportError:
 
 __all__ = [
     "DEPLOYMENT_REGISTRY",
+    "DeployStop",
     "DeploymentBase",
     "bind_deployment",
     "resolve_deployment_for",

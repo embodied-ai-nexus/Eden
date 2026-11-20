@@ -5,6 +5,7 @@ from __future__ import annotations
 import importlib
 import os
 import sys
+from collections.abc import Callable
 from typing import Any, Literal, NamedTuple
 import numpy as np
 
@@ -3123,11 +3124,26 @@ def _run_deploy(
     mujoco_props: list[str] | None = None,
     imu_opts: dict | None = None,
     rig_opts: dict | None = None,
+    deployment_cls: type | None = None,
+    control_loop: Callable[..., None] | None = None,
 ) -> None:
+    """Build the deploy env, the deployment and the policy slots, then run the control loop.
+
+    ``deployment_cls`` replaces the backend that :func:`resolve_deployment_for` would pick for the robot, and
+    ``control_loop`` replaces :func:`_deploy_control_loop` (same signature). Both default to plain ``eden
+    deploy``. They let an application that drives the operator state machine itself, from a UI of its own,
+    reuse the env, slot and entity-swap wiring here.
+    """
     import eden as en
     from eden.extensions.deployment import DEPLOYMENT_REGISTRY, resolve_deployment_for
     from eden.extensions.deployment.base import scene_entity_options
     from eden.options.entities import CompositeEntityOptions
+
+    if mujoco and deployment_cls is not None:
+        raise ValueError(
+            f"_run_deploy got deployment_cls={deployment_cls.__name__} and mujoco=True; --mujoco picks the MuJoCo "
+            "backend itself, so the given class would not run. Pass one of them."
+        )
 
     # In sim-to-sim mode the robot's physics run in-process, so the Genesis env is only
     # ever a state mirror; drive the viewer from the sim backend (MuJoCo's own window)
@@ -3235,9 +3251,13 @@ def _run_deploy(
         rig = isinstance(robot_options, CompositeEntityOptions)
         deployment_cls = DEPLOYMENT_REGISTRY.get("mujoco_composite_deployment" if rig else "mujoco_deployment")
         en.logger.info(f"[deploy] sim-to-sim via {deployment_cls.__name__} (robot binding overridden by --mujoco).")
-    else:
+    elif deployment_cls is None:
         deployment_cls = resolve_deployment_for(robot_options)
         en.logger.info(f"[deploy] Using {deployment_cls.__name__} for {type(robot_options).__name__}")
+    else:
+        en.logger.info(
+            f"[deploy] Using {deployment_cls.__name__} (given by the caller) for {type(robot_options).__name__}"
+        )
     # Backend-specific options are only accepted by the backends that declare them
     # (configure() rejects unknown params), so include them conditionally.
     configure_kwargs = dict(
@@ -3377,7 +3397,7 @@ def _run_deploy(
         _warn_on_task_robot_gains(dep, pinned_robots)
     _warn_on_unswitchable_slot_gains(dep, slots)
 
-    _deploy_control_loop(env, dep, slots, entity_name, genesis_show_viewer, operator=operator)
+    (control_loop or _deploy_control_loop)(env, dep, slots, entity_name, genesis_show_viewer, operator=operator)
 
 
 def _route_backend_flag(

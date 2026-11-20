@@ -80,6 +80,7 @@ from eden.utils.cli.tasks import (
 from eden.utils.configs import EdenConfig, EdenRLConfig
 from eden.utils.warning import warn_once
 
+from eden.extensions.deployment import DeployStop
 from eden.extensions.deployment.utils.operator_input import CMD_START
 from tests.support.deploy import (
     FirmwareGainsLoopbackDeployment,
@@ -1426,6 +1427,91 @@ def test_the_slot_switched_in_acts_first_on_observations_restarted_after_the_swi
     assert len(dep.restarted) == 1, "one switch, one restart"
     assert seen[holosoma.label][0] is dep.restarted[0]
     assert all(obs is not dep.restarted[0] for obs in seen[sonic.label])
+
+
+# ---------------------------------------------------------------------------
+# a safety stop ends the run; _run_deploy takes the backend class and the loop
+# ---------------------------------------------------------------------------
+
+
+class _StoppingDeployment(OperatorLoopbackDeployment):
+    """An operator who presses START at boot, and a backend whose guard stops the run on the third control step."""
+
+    def __init__(self, env, options) -> None:
+        super().__init__(env, options)
+        self.steps = 0
+        self.closed = 0
+
+    def reset(self):
+        obs = super().reset()
+        self.operator.press(CMD_START)
+        return obs
+
+    def step(self, action=None):
+        self.steps += 1
+        if self.steps == 3:
+            raise DeployStop("hand feedback lost: feed stale")
+        return super().step(action)
+
+    def close(self) -> None:
+        self.closed += 1
+        super().close()
+
+
+def test_a_safety_stop_ends_the_run_with_its_message_after_the_deployment_closes(g1_env):
+    with deployments(g1_env) as make:
+        dep = make(_StoppingDeployment, gain_ramp_steps=0)
+        slot = _knee_slot(g1_env, dep, "extension:knees", None)
+
+        with pytest.raises(DeployStop, match="feed stale"):
+            tasks._deploy_control_loop(g1_env, dep, [slot], "robot", False)
+
+        assert dep.closed == 1
+        assert len(dep.sent) == 2, "nothing is sent on the tick that stopped"
+
+
+def test_run_deploy_runs_the_given_backend_class_through_the_given_loop(tmp_path, monkeypatch, restore_run_globals):
+    en.init(debug=True, initialize_genesis=False, log_root_path=str(tmp_path))
+    monkeypatch.setattr(tasks, "_resolve_extension_policy", lambda name: _policy("Knees"))
+    looped = []
+
+    def loop(env, dep, slots, entity_name, show_viewer, *, operator=None):
+        looped.append((env, dep, [slot.label for slot in slots], entity_name))
+
+    tasks._run_deploy(
+        None,
+        checkpoints=[],
+        show_viewer=False,
+        entity_name="robot",
+        deploy_kp_kd_scale=1.0,
+        extension_policies=["knees"],
+        robot_name="G1Dofs29",
+        deployment_cls=LoopbackDeployment,
+        control_loop=loop,
+    )
+
+    ((env, dep, labels, entity_name),) = looped
+    try:
+        assert type(dep) is LoopbackDeployment
+        assert (labels, entity_name) == (["extension:knees"], "robot")
+        assert dep.sent == [], "eden deploy's own loop would have stepped the deployment"
+    finally:
+        dep.close()
+        env.destroy()
+
+
+def test_run_deploy_refuses_a_backend_class_under_mujoco():
+    """``--mujoco`` picks its own backend, so a given class would be dropped without a word."""
+    with pytest.raises(ValueError, match="deployment_cls=LoopbackDeployment and mujoco=True"):
+        tasks._run_deploy(
+            None,
+            checkpoints=[],
+            show_viewer=False,
+            entity_name="robot",
+            deploy_kp_kd_scale=1.0,
+            mujoco=True,
+            deployment_cls=LoopbackDeployment,
+        )
 
 
 def test_a_pinned_gain_map_that_leaves_out_a_joint_is_refused_before_any_deployment_exists():

@@ -36,6 +36,7 @@ import numpy as np
 import eden as en
 from eden.extensions.deployment.base import (
     DEPLOYMENT_REGISTRY,
+    DeployStop,
     DeploymentBase,
     bind_deployment,
     resolve_dof_index_map,
@@ -102,10 +103,6 @@ def sdk_index_map(names: Sequence[str], owner: str) -> np.ndarray:
             f"have no joint and {twice} have several (SDK index: joint names). {_NAMING_HINT}"
         )
     return np.asarray(index)
-
-
-class DeployStop(RuntimeError):
-    """A safety guard ended the run (hardware fault, stale feedback, lost tracking); the message says which."""
 
 
 # --------------------------------------------------------------------------------------------- #
