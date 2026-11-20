@@ -1327,8 +1327,9 @@ def test_eden_deploy_strips_the_task_config_before_building(tmp_path, monkeypatc
 
     monkeypatch.setattr(tasks, "_build_deploy_env", build)
 
+    argv = ["--task", "velocity_tracking_flat", "--cpu", "--checkpoint", str(tmp_path / "model_0.pt")]
     with pytest.raises(_Built):
-        tasks.deploy_task(["--task", "velocity_tracking_flat", "--cpu", "--checkpoint", str(tmp_path / "model_0.pt")])
+        tasks.deploy_task(argv)
 
     (config,) = deployed
     assert not _KEYS_DEPLOY_STRIPPED_BY_NAME & set(config.event_options.term_keys())

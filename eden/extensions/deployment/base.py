@@ -41,9 +41,9 @@ class DeployStop(RuntimeError):
     """A safety guard ended the run (hardware fault, stale feedback, lost tracking); the message says which.
 
     A backend raises it from a per-tick hook (``_before_step``, ``send_payload``, ``read_state``). The deploy
-    loop does not catch it: the run ends, ``close()`` settles every part of the robot, and the process exits
-    with the message. A backend that has a stop action of its own (an arm controller to stop, a hand to make
-    compliant) takes it before raising.
+    loop logs the message, ``close()`` settles every part of the robot, and the loop re-raises it, so the run
+    ends with a traceback whose last line is the message. A backend that has a stop action of its own (an arm
+    controller to stop, a hand to make compliant) takes it before raising.
     """
 
 

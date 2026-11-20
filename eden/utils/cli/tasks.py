@@ -1301,8 +1301,8 @@ def deploy_task(extra_args: list[str]) -> None:
         config = _config_from_checkpoint(args) or get_task_config_from_args(args, run_name=args.run_name)
         if _is_rl_games(config):
             sys.exit("'eden deploy' currently supports rsl_rl checkpoints only.")
-        # _run_deploy strips the training randomization and sets one env. The deploy config snapshot is saved inside _run_deploy, after the
-        # extension policies' command terms are merged in.
+        # _run_deploy strips the training randomization and sets one env. The deploy config snapshot is saved
+        # inside _run_deploy, after the extension policies' command terms are merged in.
     else:
         # Task-less deploy: the env is built from the env-owning extension policy's
         # own spec methods inside _run_deploy (_env_owning_slot).
@@ -3169,8 +3169,11 @@ def _run_deploy(
     ``deployment_cls`` replaces the backend that :func:`resolve_deployment_for` would pick for the robot; for a
     composite rig it must be a :class:`CompositeDeployment` subclass. ``control_loop`` replaces
     :func:`_deploy_control_loop` and is called with the same arguments. It then owns what that loop does at
-    either end: ``dep.connect()`` before the first step, and ``dep.close()`` and ``operator.close()`` in a
-    ``finally`` (``close()`` settles the robot and puts the simulated entity back). Both default to plain
+    either end. Before ``dep.connect()``, when ``dep.sends_command_gains``, it sets the boot slot's gains
+    (``dep.set_gains(*slots[0].gains, ramp_steps=0)``), so the robot is never commanded at others. After the last
+    step it calls ``dep.close()`` and ``operator.close()`` in a ``finally``; ``close()`` settles the robot,
+    restores the command terms the deployment substituted and flushes the debug record. This function does not
+    define connecting a deployment again after ``close()``. Both default to plain
     ``eden deploy``. They let an application that drives the operator state machine itself, from a UI of its
     own, reuse the env, slot and entity-swap wiring here.
     """
