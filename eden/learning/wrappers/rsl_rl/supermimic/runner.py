@@ -149,6 +149,11 @@ class _SuperMimicRunner:
     """
 
     def __init__(self, env: RslRlVecEnvWrapper, train_cfg: Any, log_dir: str | None = None, device: str = "cuda"):
+        if en.distributed.is_distributed():
+            raise RuntimeError(
+                "The SuperMimic runner trains on one GPU; under torchrun every rank would train its own copy. "
+                "Launch `eden train --task supermimic` without torchrun."
+            )
         options = train_cfg if isinstance(train_cfg, SuperMimicRunnerOptions) else SuperMimicRunnerOptions(**train_cfg)
         self.env = env
         self.options = options
