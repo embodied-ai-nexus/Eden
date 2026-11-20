@@ -6,7 +6,7 @@ Three layers, each replaceable on its own:
   :class:`CameraFrame` (RGB, optional metric depth, intrinsics, capture time).
 - :class:`PoseEstimator`: one frame -> the object's pose in the estimator's *report frame* (the
   camera, or an anchor the estimator itself detects), or ``None`` when the object is not found.
-  AprilTag and FoundationPose are the two shipped (:mod:`.apriltag`, :mod:`.foundation_pose`).
+  AprilTag ships (:mod:`.apriltag`).
 - :class:`PoseSource`: what the deployment reads. :meth:`~PoseSource.latest` returns the newest
   :class:`PoseSample` without blocking. :class:`EstimatorPoseSource` runs a camera and an estimator
   on a thread of this process; :class:`ZmqPoseSource` subscribes to one running in another process
@@ -94,7 +94,7 @@ class PoseSource(ABC):
         return {}
 
     def request_reset(self) -> None:
-        """Ask the estimator to drop its tracking state (FoundationPose re-registers). No-op by default.
+        """Ask the estimator to drop its tracking state (a model-based tracker registers again). No-op by default.
 
         Nothing calls it automatically: a re-registration takes long enough to trip a tight
         ``max_age_s``. Call it from an operator hook when a tracker has drifted.

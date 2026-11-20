@@ -11,11 +11,10 @@ Where the pose comes from is the source's business, and the mixin knows none of 
 
 - :class:`~eden.extensions.deployment.object_pose.apriltag.AprilTagEstimator`: fiducials on the
   object, optionally relative to an anchor tag on the robot or the table (no camera extrinsic then);
-- :class:`~eden.extensions.deployment.object_pose.foundation_pose.FoundationPoseEstimator`:
-  model-based 6D pose from RGB-D and the object's mesh (NVlabs FoundationPose), registered once from
-  a mask and tracked frame to frame;
-- :class:`~eden.extensions.deployment.object_pose.sources.ZmqPoseSource`: either of them, or anything
-  else, running in another process (a GPU-heavy estimator should not share the control loop's GIL).
+- any other :class:`~eden.extensions.deployment.object_pose.sources.PoseEstimator`, such as a
+  model-based tracker working from RGB-D and the object's mesh;
+- :class:`~eden.extensions.deployment.object_pose.sources.ZmqPoseSource`: any estimator running in
+  another process (a GPU-heavy estimator should not share the control loop's GIL).
 
 An estimator turns one camera frame into a pose; :class:`~eden.extensions.deployment.object_pose.sources.EstimatorPoseSource`
 runs one on its own thread over a :class:`~eden.extensions.deployment.object_pose.sources.FrameSource`
