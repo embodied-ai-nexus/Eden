@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
+from eden.learning.wrappers.rsl_rl.supermimic.motion import SuperMimicMotion
 from eden.learning.wrappers.rsl_rl.supermimic.representation import RewardSpec
 
 if TYPE_CHECKING:
@@ -29,7 +30,72 @@ REWARD_TERM_KINDS: dict[str, str] = {
     "action_rate": "action_rate_l2",
     "joint_limit": "dofs_pos_limits",
 }
+#: Tolerance (s) on the reference frame interval against the env dt.
+_FRAME_INTERVAL_TOLERANCE_S = 1e-9
 _TRACKING_ROLES = ("anchor_pos", "anchor_ori", "body_pos", "body_ori", "body_lin_vel", "body_ang_vel")
+
+
+def check_motion_term(env: RLEnvBase, term_name: str) -> SuperMimicMotion:
+    """The task's motion term ``term_name``, checked to play one library frame per control step on every env."""
+    motion = env.motion_manager.get_term(term_name)
+    if not isinstance(motion, SuperMimicMotion):
+        raise TypeError(
+            f"runner_options.motion_term={term_name!r} is a {type(motion).__name__}, but the SuperMimic runner "
+            "needs a SuperMimicMotion term (eden.learning.wrappers.rsl_rl.supermimic.motion): it reads the term's "
+            "motion library and forward kinematics and sets its reset distribution. Configure the task's motion "
+            "term with SuperMimicMotion.configure(...)."
+        )
+    manager_options = env.motion_options
+    frame_interval = tuple(manager_options.frame_interval_s_range)
+    problems = []
+    if motion.num_assigned_envs != env.num_envs:
+        problems.append(
+            f"motion term {term_name!r} plays {motion.num_assigned_envs} of the {env.num_envs} envs (motion terms: "
+            f"{env.motion_manager.active_terms}); give the task one motion term"
+        )
+    if manager_options.data_start_from != "current_time":
+        problems.append(f"motion_options.data_start_from={manager_options.data_start_from!r}; set it to 'current_time'")
+    if motion.freeze_at_timestep_zero_prob > 0.0:
+        problems.append(
+            f"motion term {term_name!r} has freeze_at_timestep_zero_prob={motion.freeze_at_timestep_zero_prob}, "
+            "which holds some envs on their first frame; set it to 0"
+        )
+    if manager_options.resync_on_motion_end:
+        problems.append(
+            "motion_options.resync_on_motion_end=True, which restarts a finished clip from the base term's start "
+            "sampling instead of the reset distribution; set it to False"
+        )
+    if any(abs(value - env.dt) > _FRAME_INTERVAL_TOLERANCE_S for value in frame_interval):
+        problems.append(
+            f"motion_options.frame_interval_s_range={frame_interval}; set both ends to the env dt {env.dt:g}"
+        )
+    if problems:
+        raise ValueError(
+            "The world model grades a predicted state against the library frame at each env's clock, one frame per "
+            "control step, and the simulator's reward must read the same frame: " + "; ".join(problems) + "."
+        )
+    return motion
+
+
+def check_joint_and_anchor_order(controller, robot, motion: SuperMimicMotion, action_term: str, motion_term: str):
+    """Raise unless the controller, the motion term and the robot list the joints in one order and the motion
+    term's first link is the robot's base link.
+    """
+    robot_joints = list(robot.dofs_name)
+    if list(controller.dofs_name) != robot_joints or list(motion.fk.joint_names) != robot_joints:
+        raise ValueError(
+            f"SuperMimic reads the robot's joints in one order: the controller {action_term!r} "
+            f"({list(controller.dofs_name)}), the motion term's joints ({motion.fk.joint_names}) and the robot "
+            f"({robot_joints}) must all list every joint in the robot's dofs_name order."
+        )
+    links = motion.fk.link_names
+    if links[0] != robot.base_link_name:
+        raise ValueError(
+            f"The world model anchors its reward and termination on the robot's root pose, so motion term "
+            f"{motion_term!r} must list the base link {robot.base_link_name!r} first in target_links_name, got "
+            f"{links[0]!r} (links: {list(links)}). Put {robot.base_link_name!r} first and use it as the "
+            "anchor_link_name of the task's reward and termination terms."
+        )
 
 
 def term_params(manager, term_name: str, option: str) -> dict[str, Any]:

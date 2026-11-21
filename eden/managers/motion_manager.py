@@ -659,11 +659,8 @@ class MotionTerm(ConfigurableTermBase[MotionTermOptions]):
         self._copy_frame_data(data, data_buffer, envs_idx, motion_ids, frame_idx, validity, origin_offset)
         self.derive_reference_fields(motion_sequence_key, envs_idx, data_buffer)
 
-    # ------------------------------------------------------------------------------------------------------------
-    # Extension points. A subclass changes how a term samples its starts or which fields it fills by overriding
-    # derives_links, derive_reference_fields and sample_starts, never the private helpers above and below them
-    # (docs/guides/motion-tracking.md, "Extending a motion term").
-    # ------------------------------------------------------------------------------------------------------------
+    # Extension points: a subclass overrides derives_links, derive_reference_fields and sample_starts, never the
+    # private helpers (docs/guides/motion-tracking.md, "Extending a motion term").
 
     def derives_links(self, motion_sequence_key: str) -> bool:
         """Whether this term computes the link fields of ``motion_sequence_key`` in :meth:`derive_reference_fields`.
@@ -1345,10 +1342,8 @@ class MotionTerm(ConfigurableTermBase[MotionTermOptions]):
         return self._metrics.per_motion_tensors() if self._metrics is not None else {}
 
 
-# ``MotionTerm`` itself is registered in ``eden.managers.terms.motions``, with the other built-in motion terms: a
-# registration at module scope here would fill the registry (import every module in ``populated_by``) while this
-# module is still importing, which fails when ``eden.managers`` is itself mid-import. This module stays in
-# ``populated_by`` because it defines that term, and the catalog checks each term's defining module against the list.
+# ``MotionTerm`` is registered in ``eden.managers.terms.motions``: registering it here would import every module in
+# ``populated_by`` while ``eden.managers`` is mid-import. This module stays listed because it defines the term.
 MOTION_TERM_REGISTRY = TermRegistry(
     "MOTION_TERM", MotionTerm, populated_by=("eden.managers.motion_manager", "eden.managers.terms.motions")
 )

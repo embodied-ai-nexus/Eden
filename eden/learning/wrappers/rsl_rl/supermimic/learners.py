@@ -105,7 +105,6 @@ def load_optimizer_state(optimizer: torch.optim.Optimizer, saved: dict) -> None:
             if key == "params":
                 continue
             if torch.is_tensor(group.get(key)):
-                # A tensor hyperparameter (the capturable Adam's learning rate) is read in place too.
                 group[key].copy_(torch.as_tensor(value))
             else:
                 group[key] = value
@@ -285,7 +284,7 @@ class PolicyLearner:
         self.wm_env = wm_env
         self.options = options
         self.gamma = options.gamma if critic is not None else 1.0
-        #: The largest discounted return; ``None`` without a critic, which is the only reader.
+        #: The largest discounted return, which bounds the critic.
         self.v_max = max_step_reward / (1.0 - options.gamma) if critic is not None else None
         self.actor_params = list(actor.parameters())
         self.actor_optimizers = build_optimizers([actor], options.lr, betas=(0.9, options.beta2), device=device)
@@ -353,8 +352,7 @@ class PolicyLearner:
             self.options.lam,
         ).clamp(max=self.v_max)
         obs, returns = steps["critic"].flatten(0, 1), returns.flatten(0, 1)
-        # A device-side shuffle: below 30000 elements torch.randperm draws on the CPU and copies, which a captured
-        # CUDA graph would replay as one frozen permutation.
+        # Not torch.randperm: it draws small permutations on the CPU, which a captured CUDA graph would freeze.
         perm = torch.rand(len(returns) // 4 * 4, device=returns.device).argsort()
         self.critic.requires_grad_(True)
         losses = []

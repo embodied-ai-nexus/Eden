@@ -88,7 +88,9 @@ def small_matmul(a: torch.Tensor, b: torch.Tensor) -> torch.Tensor:
 def anchor_window(
     root_pos: torch.Tensor, root_quat: torch.Tensor, target_pos: torch.Tensor, target_quat: torch.Tensor
 ) -> tuple[torch.Tensor, torch.Tensor]:
-    """Reference root poses ``(E, N, ·)`` in the robot's root frame ``(E, ·)``: positions ``(E, 3N)``, rot6d ``(E, 6N)``."""
+    """Reference root poses ``(E, N, ·)`` in the robot's root frame ``(E, ·)``: positions ``(E, 3N)`` and rot6d
+    ``(E, 6N)``.
+    """
     num_envs, num_frames = target_pos.shape[:2]
     rel_pos, rel_quat = subtract_frame_transforms(
         root_pos[:, None].expand(num_envs, num_frames, 3).reshape(-1, 3),

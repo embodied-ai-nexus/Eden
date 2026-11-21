@@ -254,9 +254,9 @@ class SuperMimicRunnerOptions(RslRlBaseRunnerOptions):
     the frozen world model from replay-buffer states.
 
     The runner owns its loop. Of the base runner options it reads ``check_for_nan`` (the running statistics of the
-    collected state, action and reward are checked once per iteration) and ``logger`` (``"tensorboard"`` or ``"wandb"``); ``obs_groups``, ``clip_actions``,
-    ``resume``, ``load_run`` and ``load_checkpoint`` must keep their defaults. Resume a run with
-    ``eden train --checkpoint``.
+    collected state, action and reward are checked once per iteration) and ``logger`` (``"tensorboard"`` or
+    ``"wandb"``); ``obs_groups``, ``clip_actions``, ``resume``, ``load_run`` and ``load_checkpoint`` must keep their
+    defaults. Resume a run with ``eden train --checkpoint``.
 
     Attributes
     ----------

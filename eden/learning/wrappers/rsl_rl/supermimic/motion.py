@@ -10,6 +10,7 @@ A task trained by the SuperMimic runner configures this term; the runner reads i
 
 from __future__ import annotations
 
+import math
 from typing import TYPE_CHECKING, Literal
 
 import torch
@@ -27,6 +28,8 @@ if TYPE_CHECKING:
 
 #: ``torch.multinomial`` takes at most this many categories.
 _MAX_RESET_BINS = 2**24
+#: Tolerance on ``dataset rate * env dt`` being 1.
+_RATE_TOLERANCE = 1e-6
 
 
 @MOTION_TERM_REGISTRY.register()
@@ -67,21 +70,21 @@ class SuperMimicMotion(KinematicLinksMotion):
             f"reset_bin_length_s={self.reset_bin_length_s})"
         )
         rates = self.data_source.motion_sequences[self.sequence_key].framerate.unique()
-        if rates.numel() != 1 or abs(float(rates[0]) * env.dt - 1.0) > 1e-6:
+        if rates.numel() != 1 or abs(float(rates[0]) * env.dt - 1.0) > _RATE_TOLERANCE:
             raise ValueError(
                 f"{name} reads one dataset frame per control step, so the dataset must run at "
                 f"{1.0 / env.dt:g} Hz (1 / env dt), got {rates.tolist()} Hz. Set the dataset's target_framerate."
             )
-        #: The dataset rate (Hz), which is the control rate.
         self.fps = float(rates[0])
-        if round(self.reset_bin_length_s * self.fps) < 1:
+        #: Frames in one reset bin.
+        self.bin_frames = round(self.reset_bin_length_s * self.fps)
+        if self.bin_frames < 1:
             raise ValueError(
                 f"{name}: reset_bin_length_s={self.reset_bin_length_s} is shorter than half a frame "
                 f"({0.5 / self.fps:g} s at {self.fps:g} Hz), so a reset bin would hold no frame. Set it to at least "
                 f"one frame period, {1.0 / self.fps:g} s."
             )
-        #: The enabled clips as one timeline, and the number of reset bins laid over it. Set by
-        #: ``enable_trajectories``, which the manager calls once the term is assigned its envs.
+        #: The enabled clips as one timeline and its number of reset bins, set by ``enable_trajectories``.
         self.library: MotionLibrary | None = None
         self.bin_count = 0
 
@@ -96,8 +99,7 @@ class SuperMimicMotion(KinematicLinksMotion):
                 f"{self.fps:g} Hz. A reset starts before a clip's last frame, so every clip needs at least two. "
                 "Remove them from the dataset's clip list."
             )
-        # ceil(frames / frames per bin): every bin holds at least one frame.
-        self.bin_count = -(-self.library.num_frames // round(self.reset_bin_length_s * self.fps))
+        self.bin_count = math.ceil(self.library.num_frames / self.bin_frames)
         if self.bin_count > _MAX_RESET_BINS:
             shortest = self.library.num_frames / _MAX_RESET_BINS / self.fps
             raise ValueError(
@@ -125,10 +127,9 @@ class SuperMimicMotion(KinematicLinksMotion):
         if self.reset_sampling == "uniform":
             frames = torch.randint(0, num_frames - 1, (n,), device=self.device)
         else:
-            bins = torch.multinomial(self._reset_probs, n, replacement=True).clamp_(max=self.bin_count - 1)
+            bins = torch.multinomial(self._reset_probs, n, replacement=True)
             first, end = bin_frame_range(bins, self.bin_count, num_frames)
-            span = (end - first).clamp_(min=1)
-            frames = (first + (torch.rand(n, device=self.device) * span).long()).clamp_(max=num_frames - 1)
+            frames = first + (torch.rand(n, device=self.device) * (end - first)).long()
         on_last = frames == self.library.last_frame(frames)
         return torch.where(on_last, frames - 1, frames)
 

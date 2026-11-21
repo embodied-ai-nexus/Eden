@@ -1450,8 +1450,6 @@ class DatasetBase(ConfigurableMixin[DatasetOptions], FilterMixin):
         if meta["target_framerate"] != self.target_framerate:
             raise ValueError(f"Target framerate mismatch: {meta['target_framerate']} != {self.target_framerate}")
         semantics, cached = type(self)._cache_semantics, meta.get("cache_semantics")
-        # Either side declaring semantics the other lacks is a mismatch: a cache written by a dataset class that
-        # declares some (another class sharing the path) is as wrong for a class without as the reverse.
         if cached != semantics:
             raise ValueError(
                 f"Cache at {data_path} was prepared by an earlier {type(self).__name__} or by another dataset class "

@@ -16,13 +16,17 @@ from eden.envs.wrappers.rsl_rl_env import EDEN_RUNNER_MIXINS
 from eden.learning.wrappers.rsl_rl.supermimic.goals import motion_goal_spec, velocity_goal_spec
 from eden.learning.wrappers.rsl_rl.supermimic.learners import PolicyLearner, WorldModelLearner, load_optimizer_state
 from eden.learning.wrappers.rsl_rl.supermimic.models import Dynamics, MultiEncoderActor, build_mlp
-from eden.learning.wrappers.rsl_rl.supermimic.motion import SuperMimicMotion
 from eden.learning.wrappers.rsl_rl.supermimic.options import SuperMimicRunnerOptions
 from eden.learning.wrappers.rsl_rl.supermimic.replay_buffer import FieldSpec, ReplayBuffer
 from eden.learning.wrappers.rsl_rl.supermimic.representation import GenCoordRepresentation, GoalWindow
 from eden.learning.wrappers.rsl_rl.supermimic.reset_sampler import ReturnSampler
 from eden.learning.wrappers.rsl_rl.supermimic.sim_context import SimContext
-from eden.learning.wrappers.rsl_rl.supermimic.task_terms import task_reward_spec, termination_threshold
+from eden.learning.wrappers.rsl_rl.supermimic.task_terms import (
+    check_joint_and_anchor_order,
+    check_motion_term,
+    task_reward_spec,
+    termination_threshold,
+)
 from eden.learning.wrappers.rsl_rl.supermimic.world_model_env import WorldModelEnv, actor_input, sample_starts
 
 if TYPE_CHECKING:
@@ -188,69 +192,34 @@ class _SuperMimicRunner:
         self.current_learning_iteration = 0
         base = env.unwrapped
         self.num_envs = env.num_envs
-
-        self.motion = base.motion_manager.get_term(options.motion_term)
-        if not isinstance(self.motion, SuperMimicMotion):
-            raise TypeError(
-                f"runner_options.motion_term={options.motion_term!r} is a {type(self.motion).__name__}, but the "
-                "SuperMimic runner needs a SuperMimicMotion term (eden.learning.wrappers.rsl_rl.supermimic.motion): it reads the "
-                "term's motion library and forward kinematics and sets its reset distribution. Configure the "
-                "task's motion term with SuperMimicMotion.configure(...)."
-            )
-        motions = base.motion_manager
-        motion_options = base.motion_options
-        owned, frame_s = self.motion.num_assigned_envs, tuple(motion_options.frame_interval_s_range)
-        problems = []
-        if owned != self.num_envs:
-            problems.append(
-                f"motion term {options.motion_term!r} plays {owned} of the {self.num_envs} envs (motion terms: "
-                f"{motions.active_terms}); give the task one motion term"
-            )
-        if motion_options.data_start_from != "current_time":
-            problems.append(
-                f"motion_options.data_start_from={motion_options.data_start_from!r}; set it to 'current_time'"
-            )
-        if self.motion.freeze_at_timestep_zero_prob > 0.0:
-            problems.append(
-                f"motion term {options.motion_term!r} has freeze_at_timestep_zero_prob="
-                f"{self.motion.freeze_at_timestep_zero_prob}, which holds some envs on their first frame; set it to 0"
-            )
-        if motion_options.resync_on_motion_end:
-            problems.append(
-                "motion_options.resync_on_motion_end=True, which restarts a finished clip from the base term's "
-                "start sampling instead of the reset distribution; set it to False"
-            )
-        if any(abs(value - base.dt) > 1e-9 for value in frame_s):
-            problems.append(f"motion_options.frame_interval_s_range={frame_s}; set both ends to the env dt {base.dt:g}")
-        if problems:
-            raise ValueError(
-                "The world model grades a predicted state against the library frame at each env's clock, one "
-                "frame per control step, and the simulator's reward must read the same frame: "
-                + "; ".join(problems)
-                + "."
-            )
-        self.library = self.motion.library
+        self.motion = check_motion_term(base, options.motion_term)
         controller = base.action_manager.get_term(options.action_term)
         robot = base.entities[controller.entity_name]
+        check_joint_and_anchor_order(controller, robot, self.motion, options.action_term, options.motion_term)
+        if options.clip_end_termination not in base.termination_manager.active_terms:
+            raise ValueError(
+                f"runner_options.clip_end_termination={options.clip_end_termination!r}, but the task has no such "
+                f"termination term. Its terms: {list(base.termination_manager.active_terms)}."
+            )
+
+        self._build_world_model(base, controller, robot)
+        self._build_policy(base)
+        self.sampler = self._build_return_sampler()
+
+        self._stores_sensor = options.policy.observation == "proprio" and options.policy.history_length > 1
+        #: Allocated by :meth:`learn`; a runner built to replay a checkpoint holds no transitions.
+        self.replay_buffer: ReplayBuffer | None = None
+        self._history: torch.Tensor | None = None
+        self._pending: list[tuple[torch.Tensor, torch.Tensor, TensorDict]] = []
+        #: Reset bins of a loaded checkpoint whose return sampler does not fit this run's library (:meth:`load`).
+        self._stale_sampler_bins: int | None = None
+        self.logger = _Logger(log_dir, options, self.num_envs, self.device)
+
+    def _build_world_model(self, base, controller, robot) -> None:
+        """The state representation, the simulation context and the dynamics model with its learner."""
+        options, num_actions = self.options, self.env.num_actions
         dofs = robot.find_named_dofs(list(controller.dofs_name))
-        if list(controller.dofs_name) != list(robot.dofs_name) or list(self.motion.fk.joint_names) != list(
-            robot.dofs_name
-        ):
-            raise ValueError(
-                f"SuperMimic reads the robot's joints in one order: the controller {options.action_term!r} "
-                f"({list(controller.dofs_name)}), the motion term's joints ({self.motion.fk.joint_names}) and the robot "
-                f"({list(robot.dofs_name)}) must all list every joint in the robot's dofs_name order."
-            )
-        num_actions = env.num_actions
-        links_name = self.motion.fk.link_names
-        if links_name[0] != robot.base_link_name:
-            raise ValueError(
-                f"The world model anchors its reward and termination on the robot's root pose, so motion term "
-                f"{options.motion_term!r} must list the base link {robot.base_link_name!r} first in "
-                f"target_links_name, got {links_name[0]!r} (links: {list(links_name)}). Put {robot.base_link_name!r} "
-                "first and use it as the anchor_link_name of the task's reward and termination terms."
-            )
-        reward = task_reward_spec(base, options.reward_terms, links_name)
+        reward = task_reward_spec(base, options.reward_terms, self.motion.fk.link_names)
         self.representation = GenCoordRepresentation(
             fk=self.motion.fk,
             default_joint_pos=robot.get_default_dofs_pos(dofs)[0],
@@ -263,25 +232,12 @@ class _SuperMimicRunner:
         ).to(self.device)
         self.sim_context = SimContext(base, options.sim_context, options.action_term)
         self.max_step_reward = base.dt * reward.max_step_rate
-        thresholds = [
-            termination_threshold(
-                base, getattr(options, f"{option}_termination"), f"{option}_termination", kind, links_name[0]
-            )
-            for option, kind in (("anchor_pos", "bad_anchor_pos_z_only"), ("anchor_ori", "bad_anchor_ori"))
-        ]
-        if options.clip_end_termination not in base.termination_manager.active_terms:
-            raise ValueError(
-                f"runner_options.clip_end_termination={options.clip_end_termination!r}, but the task has no such "
-                f"termination term. Its terms: {list(base.termination_manager.active_terms)}."
-            )
-
-        scale = controller.effective_scale
-        scale = torch.as_tensor(scale, device=self.device, dtype=torch.float).expand(1, num_actions)[0]
+        action_scale = torch.as_tensor(controller.effective_scale, device=self.device, dtype=torch.float)
         self.dynamics = Dynamics(
             self.representation,
             num_actions,
             self.sim_context.dim,
-            scale,
+            action_scale.expand(1, num_actions)[0],
             self.representation.default_joint_pos,
             options.world_model.hidden_dims,
         ).to(self.device)
@@ -289,74 +245,73 @@ class _SuperMimicRunner:
             self.dynamics, self.representation, options.world_model, str(self.device)
         )
 
-        p = options.policy
-        window = GoalWindow(p.goal_frames, p.goal_frame_stride)
+    def _build_policy(self, base) -> None:
+        """The actor, the critic (``actor_critic`` only), the imagination env and the policy learner."""
+        options, policy, representation = self.options, self.options.policy, self.representation
+        anchor = self.motion.fk.link_names[0]
+        window = GoalWindow(policy.goal_frames, policy.goal_frame_stride)
         specs = [
-            motion_goal_spec(self.representation.num_joints, window),
+            motion_goal_spec(representation.num_joints, window),
             velocity_goal_spec(options.velocity_goal, self.device),
         ]
         self.actor = MultiEncoderActor(
-            obs_dim=self.representation.rep_state_dim if p.observation == "state" else self.representation.proprio_dim,
-            action_dim=num_actions,
+            obs_dim=representation.rep_state_dim if policy.observation == "state" else representation.proprio_dim,
+            action_dim=self.env.num_actions,
             goal_specs=specs,
-            slot_mix=p.slot_mix,
-            latent_dim=p.latent_dim,
-            hidden_dims=p.actor_hidden_dims,
-            latent_bc_weight=p.latent_bc_weight,
-            history_length=p.history_length,
+            slot_mix=policy.slot_mix,
+            latent_dim=policy.latent_dim,
+            hidden_dims=policy.actor_hidden_dims,
+            latent_bc_weight=policy.latent_bc_weight,
+            history_length=policy.history_length,
         ).to(self.device)
-        self.active_specs = [s for s in specs if p.slot_mix.get(s.name, 0.0) > 0.0]
-        critic_dim = (
-            self.representation.rep_state_dim + window.dims(self.representation.num_joints)[0] + self.sim_context.dim
-        )
-        self.critic = (
-            build_mlp(critic_dim, p.critic_hidden_dims, 1).to(self.device) if p.algorithm == "actor_critic" else None
-        )
+        self.active_specs = [spec for spec in specs if policy.slot_mix.get(spec.name, 0.0) > 0.0]
+        self.critic = None
+        if policy.algorithm == "actor_critic":
+            critic_dim = representation.rep_state_dim + window.dims(representation.num_joints)[0] + self.sim_context.dim
+            self.critic = build_mlp(critic_dim, policy.critic_hidden_dims, 1).to(self.device)
         self.wm_env = WorldModelEnv(
-            self.dynamics,
-            self.representation,
-            self.library,
-            self.motion.fk,
-            self.active_specs,
-            window,
-            p.observation,
-            p.history_length,
-            *thresholds,
-            p.termination_softness,
-            self.sim_context.encoder_bias,
+            dynamics=self.dynamics,
+            representation=representation,
+            library=self.motion.library,
+            fk=self.motion.fk,
+            goal_specs=self.active_specs,
+            goal_window=window,
+            observation=policy.observation,
+            history_length=policy.history_length,
+            anchor_pos_threshold=termination_threshold(
+                base, options.anchor_pos_termination, "anchor_pos_termination", "bad_anchor_pos_z_only", anchor
+            ),
+            anchor_ori_threshold=termination_threshold(
+                base, options.anchor_ori_termination, "anchor_ori_termination", "bad_anchor_ori", anchor
+            ),
+            termination_softness=policy.termination_softness,
+            encoder_bias=self.sim_context.encoder_bias,
         )
         if self.device.type == "cuda":
             self.wm_env.step = torch.compile(self.wm_env.step)
             self.wm_env.reset = torch.compile(self.wm_env.reset)
         self.policy_learner = PolicyLearner(
-            self.actor, self.critic, self.wm_env, p, self.max_step_reward, str(self.device)
+            self.actor, self.critic, self.wm_env, policy, self.max_step_reward, str(self.device)
         )
 
-        self.sampler = None
-        if options.return_sampler.enabled:
-            if self.motion.reset_sampling != "external":
-                raise ValueError(
-                    f"The return sampler sets the reset distribution of motion term {options.motion_term!r}, which "
-                    f"samples resets with reset_sampling={self.motion.reset_sampling!r}. Set its reset_sampling to "
-                    "'external', or disable the sampler (runner_options.return_sampler.enabled=False)."
-                )
-            self.sampler = ReturnSampler(
-                options.return_sampler,
-                self.motion.bin_count,
-                self.library.num_frames,
-                self.num_envs,
-                self.max_step_reward,
-                self.device,
+    def _build_return_sampler(self) -> ReturnSampler | None:
+        options = self.options
+        if not options.return_sampler.enabled:
+            return None
+        if self.motion.reset_sampling != "external":
+            raise ValueError(
+                f"The return sampler sets the reset distribution of motion term {options.motion_term!r}, which "
+                f"samples resets with reset_sampling={self.motion.reset_sampling!r}. Set its reset_sampling to "
+                "'external', or disable the sampler (runner_options.return_sampler.enabled=False)."
             )
-
-        self._stores_sensor = p.observation == "proprio" and p.history_length > 1
-        #: Allocated by :meth:`learn`: a runner built to replay a checkpoint holds no transitions.
-        self.replay_buffer: ReplayBuffer | None = None
-        self._history: torch.Tensor | None = None
-        self._pending: list[tuple[torch.Tensor, torch.Tensor, TensorDict]] = []
-        #: Reset bins of a loaded checkpoint whose return sampler does not fit this run's library; see :meth:`load`.
-        self._stale_sampler_bins: int | None = None
-        self.logger = _Logger(log_dir, options, self.num_envs, self.device)
+        return ReturnSampler(
+            options.return_sampler,
+            self.motion.bin_count,
+            self.motion.library.num_frames,
+            self.num_envs,
+            self.max_step_reward,
+            self.device,
+        )
 
     def _make_replay_buffer(self) -> ReplayBuffer:
         num_actions = self.env.num_actions
@@ -397,7 +352,7 @@ class _SuperMimicRunner:
         """
         aux = self.representation.aux_state(state)
         specs = self.active_specs if training else [s for s in self.active_specs if s.name == "motion"]
-        goals = {spec.name: spec.goal(self.library, frames, aux) for spec in specs}
+        goals = {spec.name: spec.goal(self.motion.library, frames, aux) for spec in specs}
         if self.options.policy.observation == "state":
             history = self.representation.represent(state).unsqueeze(1)
         elif self.options.policy.history_length == 1:
@@ -491,11 +446,11 @@ class _SuperMimicRunner:
         puts them, so ``init_at_random_ep_len`` has no effect.
         """
         del init_at_random_ep_len
-        o, wm, p = self.options, self.options.world_model, self.options.policy
+        options, world_model, policy = self.options, self.options.world_model, self.options.policy
         if self._stale_sampler_bins is not None:
             raise ValueError(
                 f"The loaded checkpoint's return sampler holds {self._stale_sampler_bins} reset bins, but this "
-                f"run's motion library has {self.sampler.bin_count} ({self.library.num_frames} frames): the "
+                f"run's motion library has {self.sampler.bin_count} ({self.motion.library.num_frames} frames): the "
                 "checkpoint was trained on another library, clip list or reset_bin_length_s. Resume on the library "
                 "it was trained on, or set runner_options.return_sampler.enabled=False to continue with uniform "
                 "resets."
@@ -503,8 +458,7 @@ class _SuperMimicRunner:
         if self.replay_buffer is None:
             self.replay_buffer = self._make_replay_buffer()
         else:
-            # A second call on one runner: the env reset below starts new episodes, so the steps already stored
-            # end theirs, and the return sampler's half-filled horizon starts over.
+            # A second call: the env reset below ends the episodes of the steps already stored.
             self.replay_buffer.end_episodes()
             if self.sampler is not None:
                 self.sampler.restart_horizon()
@@ -512,40 +466,44 @@ class _SuperMimicRunner:
         try:
             obs, _ = self.env.reset()
             self._seed_history(obs)
-            updates_due = _Ratio(self.num_envs / wm.num_batches / wm.batch_size / wm.horizon * o.replay_ratio)
+            updates_due = _Ratio(
+                self.num_envs
+                / (world_model.num_batches * world_model.batch_size * world_model.horizon)
+                * options.replay_ratio
+            )
             start = self.current_learning_iteration
             total = start + num_learning_iterations
-            step = start * o.num_steps_per_env
+            step = start * options.num_steps_per_env
             for it in range(start, total):
                 t0, learn_time = time.time(), 0.0
-                # This iteration's losses: an iteration without an update logs none.
                 losses: dict[str, torch.Tensor] = {}
-                for _ in range(o.num_steps_per_env):
+                for _ in range(options.num_steps_per_env):
                     obs = self._collect(obs)
                     for _ in range(updates_due(step)):
-                        # With few envs every stored window may hold an episode end; the update waits for one that
-                        # does not.
-                        if not self.replay_buffer.has_window(wm.horizon):
+                        # With few envs, every stored window may hold an episode end.
+                        if not self.replay_buffer.has_window(world_model.horizon):
                             continue
                         t1 = time.time()
-                        windows = (self.replay_buffer.sample(wm.horizon, wm.batch_size) for _ in range(wm.num_batches))
+                        windows = (
+                            self.replay_buffer.sample(world_model.horizon, world_model.batch_size)
+                            for _ in range(world_model.num_batches)
+                        )
                         losses.update(self.world_model_learner.update(windows))
                         starts = (
-                            sample_starts(self.replay_buffer, p.history_length, p.batch_size)
-                            for _ in range(p.num_batches)
+                            sample_starts(self.replay_buffer, policy.history_length, policy.batch_size)
+                            for _ in range(policy.num_batches)
                         )
                         losses.update(self.policy_learner.update(starts))
                         learn_time += time.time() - t1
                     step += 1
-                if o.check_for_nan:
+                if options.check_for_nan:
                     self._raise_if_not_finite()
                 self.current_learning_iteration = it + 1
                 if self.sampler is not None:
                     losses["reset_sampler/top1_prob"] = self.motion.reset_distribution.max()
-                self.logger.log(
-                    it, total, o.num_steps_per_env * self.num_envs, time.time() - t0 - learn_time, learn_time, losses
-                )
-                if self.log_dir is not None and (it + 1) % o.save_interval == 0:
+                env_steps = options.num_steps_per_env * self.num_envs
+                self.logger.log(it, total, env_steps, time.time() - t0 - learn_time, learn_time, losses)
+                if self.log_dir is not None and (it + 1) % options.save_interval == 0:
                     self.save(os.path.join(self.log_dir, f"model_{it + 1}.pt"))
             if self.log_dir is not None:
                 self.save(os.path.join(self.log_dir, f"model_{self.current_learning_iteration}.pt"))

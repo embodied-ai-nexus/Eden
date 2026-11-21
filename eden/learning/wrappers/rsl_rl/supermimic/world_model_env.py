@@ -97,8 +97,7 @@ class WorldModelEnv:
         self.anchor_ori_threshold = anchor_ori_threshold
         self.termination_softness = termination_softness
         self.encoder_bias = encoder_bias
-        # Gravity's direction, on the model's device: created inside a step it would be a host-to-device copy in the
-        # captured CUDA graph of the policy update.
+        # Built here, not in a step: a captured CUDA graph refuses a host-to-device copy.
         self._down = torch.tensor([0.0, 0.0, -1.0], device=representation.default_joint_pos.device)
 
     def reference_bodies(self, frames: torch.Tensor) -> tuple[torch.Tensor, ...]:

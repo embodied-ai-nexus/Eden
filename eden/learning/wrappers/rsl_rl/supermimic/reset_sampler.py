@@ -26,6 +26,7 @@ def bin_frame_range(bins: torch.Tensor, bin_count: int, frame_count: int) -> tup
     The motion term draws a reset frame from this range and the return sampler credits the frame's return with
     :func:`frame_bins`, so a bin's value is measured on the frames its resets start from.
     """
+    # Ceiling division: the first frame f with f * bin_count // frame_count == bin.
     first = -((-bins * frame_count) // bin_count)
     end = -((-(bins + 1) * frame_count) // bin_count)
     return first, end

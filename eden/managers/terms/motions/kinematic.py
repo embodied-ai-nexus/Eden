@@ -42,7 +42,6 @@ class KinematicLinksMotion(MotionTerm):
         if len(self.entities_map) != 1:
             raise ValueError(f"{name} tracks one entity, got entities_map={self.entities_map}.")
         ((entity_name, key),) = self.entities_map.items()
-        #: The dataset key of the tracked entity's sequence.
         self.sequence_key: str = key
         entity_options = getattr(env.scene_options, entity_name, None)
         if entity_options is None:
@@ -55,7 +54,7 @@ class KinematicLinksMotion(MotionTerm):
                 f"{name} reads the kinematic tree from the entity's asset file, and entity {entity_name!r} "
                 f"({type(entity_options).__name__}) has none. Track an entity loaded from an MJCF or a URDF."
             )
-        #: The kinematics, ``(root pose, root twist, joints) -> link poses and twists`` in ``target_links_name`` order.
+        #: ``(root pose, root twist, joints) -> link poses and twists``, in ``target_links_name`` order.
         self.fk = ForwardKinematics(
             entity_options.fetch_asset(), self.target_dofs_name[key], self.target_links_name[key]
         ).to(self.device)

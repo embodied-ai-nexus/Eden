@@ -50,8 +50,7 @@ def velocity_goal_spec(options: VelocityGoalOptions, device: str | torch.device)
     command ranges. The window clamps to the concatenated library, not to the clip, so a frame within half a window
     of a clip's end averages in the neighbouring clip's velocity.
     """
-    # On the training device from the start: a CPU tensor moved inside the goal would be a host-to-device copy in
-    # the captured CUDA graph of the policy update, which PyTorch refuses.
+    # On the device from the start: a captured CUDA graph refuses a host-to-device copy inside the goal.
     lo = torch.tensor(
         [options.lin_vel_x_range[0], options.lin_vel_y_range[0], options.ang_vel_z_range[0]], device=device
     )
