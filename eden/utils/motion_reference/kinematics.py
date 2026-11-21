@@ -3,12 +3,18 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
+from typing import TypeAlias
 
 import mujoco
 import numpy as np
 import torch
 
-Vec = tuple[torch.Tensor, ...]
+#: A vector or a wxyz quaternion as a tuple of its per-component ``(..., L)`` tensors. The pass keeps this form, which
+#: ``torch.compile`` fuses into few kernels, so ``_cross``, ``_rotate`` and ``_mul`` below are written per component
+#: instead of calling ``eden.utils.geom`` on stacked ``(..., L, 3)`` / ``(..., L, 4)`` tensors.
+#: ``tests/utils/motion_reference/test_kinematics.py`` pins ``_mul`` and ``_rotate`` to ``quat_mul`` and
+#: ``transform_by_quat``.
+_Components: TypeAlias = tuple[torch.Tensor, ...]
 
 
 class ForwardKinematics(torch.nn.Module):
@@ -130,10 +136,10 @@ class ForwardKinematics(torch.nn.Module):
         """
         joint_pos, joint_vel = (torch.nn.functional.pad(x, (0, 1)) for x in (joint_pos, joint_vel))
         zero, one = root_pos.new_zeros(()), root_pos.new_ones(())
-        pos: Vec = (zero, zero, zero)
-        quat: Vec = (one, zero, zero, zero)
-        lin: Vec = (zero, zero, zero)
-        ang: Vec = (zero, zero, zero)
+        pos: _Components = (zero, zero, zero)
+        quat: _Components = (one, zero, zero, zero)
+        lin: _Components = (zero, zero, zero)
+        ang: _Components = (zero, zero, zero)
         for col, qpos0, consts in zip(self.col, self.qpos0, self.consts, strict=True):
             c = consts.unbind(-1)
             half = (joint_pos[..., col] - qpos0) / 2
@@ -159,31 +165,25 @@ class ForwardKinematics(torch.nn.Module):
         return pos_w, quat_w, lin_vel_w, ang_vel_w
 
 
-# The pass keeps every vector and quaternion as a tuple of ``(..., L)`` components, so the products below are written
-# per component instead of calling ``eden.utils.geom`` on stacked ``(..., L, 3)`` / ``(..., L, 4)`` tensors.
-# ``tests/utils/motion_reference/test_kinematics.py`` pins ``_mul`` and ``_rotate`` to ``quat_mul`` and
-# ``transform_by_quat``.
-
-
-def _add(a: Vec, b: Vec) -> Vec:
+def _add(a: _Components, b: _Components) -> _Components:
     return tuple(x + y for x, y in zip(a, b, strict=True))
 
 
-def _sub(a: Vec, b: Vec) -> Vec:
+def _sub(a: _Components, b: _Components) -> _Components:
     return tuple(x - y for x, y in zip(a, b, strict=True))
 
 
-def _cross(a: Vec, b: Vec) -> Vec:
+def _cross(a: _Components, b: _Components) -> _Components:
     return (a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0])
 
 
-def _rotate(q: Vec, v: Vec) -> Vec:
+def _rotate(q: _Components, v: _Components) -> _Components:
     """``v`` turned by the unit wxyz quaternion ``q``."""
     t = tuple(2 * x for x in _cross(q[1:], v))
     return _add(_add(v, tuple(q[0] * x for x in t)), _cross(q[1:], t))
 
 
-def _mul(a: Vec, b: Vec) -> Vec:
+def _mul(a: _Components, b: _Components) -> _Components:
     """The Hamilton product of wxyz quaternions."""
     aw, ax, ay, az = a
     bw, bx, by, bz = b
