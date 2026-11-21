@@ -147,7 +147,7 @@ def _rewards(torque_reduction_weight: float | None = None) -> RewardManagerOptio
     )
 
 
-@TASK_REGISTRY.register(name="assistmimic")
+@TASK_REGISTRY.register(name="assistmimic", tags=("motion_tracking",))
 class AssistMimicConfig(EdenRLConfig):
     """AssistMimic help-up on Inter-X with PHC's SMPL humanoid (no fingers)."""
 
@@ -203,7 +203,7 @@ BED_SIZE = (1.905, 0.9906, 0.42)
 BED_POS = (0.3, 0.19, 0.2286)
 
 
-@TASK_REGISTRY.register(name="assistmimic_bed")
+@TASK_REGISTRY.register(name="assistmimic_bed", tags=("motion_tracking",))
 class AssistMimicBedConfig(AssistMimicConfig):
     """AssistMimic's HHI-Assist task: helping a recipient out of bed (``env_im_hhi-assist.yaml``)."""
 

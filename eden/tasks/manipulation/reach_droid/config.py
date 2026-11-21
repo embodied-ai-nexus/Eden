@@ -80,7 +80,7 @@ _Observations = dict(
 )
 
 
-@TASK_REGISTRY.register()
+@TASK_REGISTRY.register(tags=("manipulation",))
 class ManipulationReachDroidConfig(EdenRLConfig):
     env_options: EnvOptions = EnvOptions(
         num_envs=4096,

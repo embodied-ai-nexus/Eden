@@ -165,7 +165,7 @@ _CriticObs = ObservationGroupOptions(
 _GO1 = en.robots.Go1()
 
 
-@TASK_REGISTRY.register()
+@TASK_REGISTRY.register(tags=("locomotion",))
 class MujocoPlaygroundHandstandConfig(EdenRLConfig):
     """Go1 handstand task configuration."""
 

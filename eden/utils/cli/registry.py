@@ -25,7 +25,7 @@ class Command:
       parse itself (the task commands build their flags from the task's config
       schema). ``--help`` is left to the handler, so argparse auto-help is off.
     * **self-parsed** (``configure`` set, or neither) — declares flags via
-      ``configure(parser)`` (omitted for no-arg commands like ``list``); the
+      ``configure(parser)`` (omitted for no-arg commands like ``clean``); the
       parsed namespace goes to ``handler(args)``.
     * **group** (``subcommands`` set) — a parent like ``gello`` that dispatches
       to one of its children. Children may be any shape (``_dispatch`` recurses).

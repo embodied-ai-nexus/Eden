@@ -13,7 +13,7 @@ from eden.tasks.velocity_tracking.base_config import (
 from eden.options.learning.rsl_rl import RslRlOnPolicyRunnerOptions
 
 
-@TASK_REGISTRY.register(modifiers=(VelocityTrackingRobotMod, VelocityTrackingObsMod))
+@TASK_REGISTRY.register(modifiers=(VelocityTrackingRobotMod, VelocityTrackingObsMod), tags=("locomotion",))
 class VelocityTrackingFlatConfig(VelocityTrackingBaseConfig):
     """Velocity tracking for a bipedal humanoid on flat terrain.
 

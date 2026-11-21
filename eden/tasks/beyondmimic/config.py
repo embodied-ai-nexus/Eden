@@ -221,7 +221,7 @@ _CommonObservations = dict(
 )
 
 
-@TASK_REGISTRY.register(name="beyondmimic", modifiers=(BeyondMimicDataMod(),))
+@TASK_REGISTRY.register(name="beyondmimic", modifiers=(BeyondMimicDataMod(),), tags=("motion_tracking",))
 class BeyondMimicConfig(EdenMimicConfig):
     """Configuration for the MimicRLEnvBase-based BeyondMimic tracking policy.
 

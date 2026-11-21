@@ -18,7 +18,7 @@ Eden is installed.
 
 | Command | What it does |
 |---|---|
-| [`eden list`](#eden-list) | List every registered task, its source and its task mods |
+| [`eden list`](#eden-list) | List every registered task, or those carrying a tag, with its source, tags and task mods |
 | [`eden terms`](#eden-terms) | List registered terms and the parameters they accept |
 | [`eden train`](#eden-train) | Train a registered task |
 | [`eden inference`](#eden-inference) | Roll out a trained checkpoint, or a published policy, in simulation |
@@ -82,11 +82,16 @@ config already decides it.
 
 ```bash
 eden list
+eden list --tag manipulation --tag dexterous
 ```
 
 Prints every registered task with its source (`eden` for a built-in task, otherwise the distribution or module it
-comes from) and the task mods that give it variant flags. Takes no flags, and imports no task module, so it is fast
-and needs no network.
+comes from), its tags and the task mods that give it variant flags. It imports no task module, so it is fast and
+needs no network.
+
+| Flag | Meaning |
+|---|---|
+| `--tag TAG` | Show only the tasks that carry `TAG`. Repeat it to require several. The tags and their rules are in `eden list --help` and under [Tags](../guides/task-config.md#tags). |
 
 ### `eden terms`
 

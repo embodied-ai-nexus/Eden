@@ -87,7 +87,8 @@ eden export --task <task> --checkpoint model.pt             # ONNX / TorchScript
 ### A task is one config
 
 ```python
-@TASK_REGISTRY.register(modifiers=(ReacherDifficultyMod,))  # → eden train --task reacher --difficulty hard
+# → eden train --task reacher --difficulty hard; eden list --tag manipulation
+@TASK_REGISTRY.register(modifiers=(ReacherDifficultyMod,), tags=("manipulation",))
 class ReacherConfig(EdenRLConfig):
     env_options = EnvOptions(num_envs=4096, episode_length_s=9.0, sim_dt=0.01, ...)
     scene_options = en.scenes.Empty(robot=en.robots.Yam())

@@ -24,7 +24,7 @@ from eden.tasks import TASK_REGISTRY
 from eden.tasks.polaris.rubric import put_in, rubric
 
 
-@TASK_REGISTRY.register()
+@TASK_REGISTRY.register(tags=("manipulation", "benchmark_suite"))
 class PolarisMoveLatteCupConfig(DroidBaseConfig):
     splat_options: SplatOptions = make_polaris_splat(
         path="move_latte_cup/assets/princeton_env_1/splat.ply",
@@ -68,7 +68,7 @@ class PolarisMoveLatteCupConfig(DroidBaseConfig):
     metric_options: MetricManagerOptions = rubric(put_in("latte_art_cup", "cutting_board", lift_height=0.04))
 
 
-@TASK_REGISTRY.register()
+@TASK_REGISTRY.register(tags=("manipulation", "benchmark_suite"))
 class PolarisMoveLatteCupBatchedConfig(DroidBatchBaseConfig):
     """Batched (Madrona + gsplat) variant of :class:`PolarisMoveLatteCupConfig`."""
 

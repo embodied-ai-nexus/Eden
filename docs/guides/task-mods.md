@@ -80,7 +80,7 @@ class ReacherDifficultyMod(TaskMod):
         return config
 
 
-@TASK_REGISTRY.register(modifiers=(ReacherDifficultyMod,))
+@TASK_REGISTRY.register(modifiers=(ReacherDifficultyMod,), tags=("manipulation",))
 class ReacherConfig(EdenRLConfig):
     ...
 ```
@@ -405,7 +405,7 @@ the problem. `VelocityTrackingBaseConfig.check_bindings` is the worked example.
 from the command line first, so `--help` shows only the flags of the task you named:
 
 ```bash
-eden list                                       # every task, its source and its modifiers
+eden list                                       # every task, its source, tags and modifiers
 eden train --task reacher --help                # includes --difficulty {easy,medium,hard}
 eden train --task reacher --difficulty hard
 eden smoke --task move_forward --robot go1      # build the variant and step it twice

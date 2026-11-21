@@ -90,7 +90,7 @@ class BridgeTableBaseConfig(SimplerBridgeBaseConfig):
     )
 
 
-@TASK_REGISTRY.register()
+@TASK_REGISTRY.register(tags=("manipulation", "benchmark_suite"))
 class SimplerPutSpoonOnTableClothConfig(BridgeTableBaseConfig):
     scene_options: SceneOptions = en.scenes.Empty(
         is_support_enabled=True,
@@ -105,7 +105,7 @@ class SimplerPutSpoonOnTableClothConfig(BridgeTableBaseConfig):
     language_instructions: list[str] = ["put spoon on table cloth"]
 
 
-@TASK_REGISTRY.register()
+@TASK_REGISTRY.register(tags=("manipulation", "benchmark_suite"))
 class SimplerPutCarrotOnPlateConfig(BridgeTableBaseConfig):
     scene_options: SceneOptions = en.scenes.Empty(
         is_support_enabled=True,
@@ -120,7 +120,7 @@ class SimplerPutCarrotOnPlateConfig(BridgeTableBaseConfig):
     language_instructions: list[str] = ["put carrot on plate"]
 
 
-@TASK_REGISTRY.register()
+@TASK_REGISTRY.register(tags=("manipulation", "benchmark_suite"))
 class SimplerStackGreenCubeOnYellowCubeConfig(BridgeTableBaseConfig):
     scene_options: SceneOptions = en.scenes.Empty(
         is_support_enabled=True,

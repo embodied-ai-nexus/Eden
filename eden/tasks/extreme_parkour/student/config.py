@@ -145,7 +145,7 @@ def _depth_camera_quat(pitch_down_deg: float) -> tuple[float, float, float, floa
 # ---------------------------------------------------------------------------
 
 
-@TASK_REGISTRY.register()
+@TASK_REGISTRY.register(tags=("locomotion",))
 class ExtremeParkourStudentConfig(ExtremeParkourTeacherConfig):
     """Extreme Parkour student (teacher env + depth camera; see module docstring).
 

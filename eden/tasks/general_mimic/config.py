@@ -575,7 +575,7 @@ _CommonObservations = dict(
 )
 
 
-@TASK_REGISTRY.register(modifiers=(GeneralMimicDataMod(), GeneralMimicArchMod()))
+@TASK_REGISTRY.register(modifiers=(GeneralMimicDataMod(), GeneralMimicArchMod()), tags=("motion_tracking",))
 class GeneralMimicConfig(EdenMimicConfig):
     """Multi-motion G1 tracking policy.
 

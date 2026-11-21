@@ -23,7 +23,7 @@ from eden.tasks import TASK_REGISTRY
 from eden.tasks.polaris.rubric import put_in, rubric
 
 
-@TASK_REGISTRY.register()
+@TASK_REGISTRY.register(tags=("manipulation", "benchmark_suite"))
 class PolarisTapeIntoContainerConfig(DroidBaseConfig):
     splat_options: SplatOptions = make_polaris_splat(
         path="tape_into_container/assets/lab_bench/splat.ply",
@@ -59,7 +59,7 @@ class PolarisTapeIntoContainerConfig(DroidBaseConfig):
     metric_options: MetricManagerOptions = rubric(put_in("tape_00", "container_02", lift_height=0.04))
 
 
-@TASK_REGISTRY.register()
+@TASK_REGISTRY.register(tags=("manipulation", "benchmark_suite"))
 class PolarisTapeIntoContainerBatchedConfig(DroidBatchBaseConfig):
     """Batched (Madrona + gsplat) variant of :class:`PolarisTapeIntoContainerConfig`."""
 

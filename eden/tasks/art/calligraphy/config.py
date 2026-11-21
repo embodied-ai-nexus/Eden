@@ -131,7 +131,7 @@ class CalligraphyConfig(EdenRLConfig):
         )
 
 
-@TASK_REGISTRY.register()
+@TASK_REGISTRY.register(tags=("manipulation",))
 class ArtCalligraphyDaiConfig(CalligraphyConfig):
     """Write 大 (big) with the Chinese brush: 3 strokes, kaisho."""
 
@@ -139,7 +139,7 @@ class ArtCalligraphyDaiConfig(CalligraphyConfig):
     metric_options: MetricManagerOptions = _writing_metric("dai")
 
 
-@TASK_REGISTRY.register()
+@TASK_REGISTRY.register(tags=("manipulation",))
 class ArtCalligraphySanConfig(CalligraphyConfig):
     """Write 山 (mountain) with the Chinese brush: 3 strokes, kaisho."""
 
@@ -147,7 +147,7 @@ class ArtCalligraphySanConfig(CalligraphyConfig):
     metric_options: MetricManagerOptions = _writing_metric("san")
 
 
-@TASK_REGISTRY.register()
+@TASK_REGISTRY.register(tags=("manipulation",))
 class ArtCalligraphyEiConfig(CalligraphyConfig):
     """Write 永 (eternity) with the Chinese brush: 5 strokes, kaisho, the "eight principles" character."""
 
@@ -155,7 +155,7 @@ class ArtCalligraphyEiConfig(CalligraphyConfig):
     metric_options: MetricManagerOptions = _writing_metric("ei")
 
 
-@TASK_REGISTRY.register()
+@TASK_REGISTRY.register(tags=("manipulation",))
 class ArtCalligraphyLetteringMinimumConfig(CalligraphyConfig):
     """Write *minimum* in round hand with the pointed pen: 7 letters and 2 dots, 9 strokes."""
 
