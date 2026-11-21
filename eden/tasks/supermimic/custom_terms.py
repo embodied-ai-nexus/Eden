@@ -2,16 +2,12 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
-
 import torch
 
+from eden.constants import ReferenceSource
 from eden.managers.observation_manager import OBSERVATION_TERM_REGISTRY, ObservationTerm
-from eden.managers.termination_manager import TERMINATION_TERM_REGISTRY
+from eden.managers.termination_manager import TERMINATION_TERM_REGISTRY, TerminationTerm
 from eden.utils.string import term_subject
-
-if TYPE_CHECKING:
-    from eden.envs.base import MimicRLEnvBase
 
 
 @OBSERVATION_TERM_REGISTRY.register()
@@ -27,11 +23,19 @@ class RootJointState(ObservationTerm):
     def build(self) -> None:
         entity = self.resolve_entity(self.entity_name)
         self._root = entity.find_named_links_idx_local([entity.base_link_name])[1]
+        if getattr(self._env, "motion_manager", None) is None:
+            raise ValueError(
+                f"{term_subject(self)}: the state is expressed in the motion library's frame, which needs the "
+                f"motion manager of a motion-tracking env, and {type(self._env).__name__} has none. Use the term in "
+                "an EdenMimicConfig task."
+            )
 
     def compute(self) -> torch.Tensor:
         entity = self.resolve_entity(self.entity_name)
         root_pos = entity.get_links_pos(ls_idx_local=self._root)[:, 0]
-        origins = getattr(self._env, "env_origins", None)
+        # The origins the motion manager adds to the reference (None for an env without them), so the state and
+        # the motion library share one frame.
+        origins = self._env.motion_manager.env_origins
         if origins is not None:
             root_pos = root_pos - origins
         return torch.cat(
@@ -75,6 +79,13 @@ class DofsPosBiased(ObservationTerm):
                 f"{term_subject(self)}: action term {self.action_term_name!r} controls {list(term.dofs_name)}, "
                 f"but the encoder reading covers every DOF of {self.entity_name!r} in order: {list(entity.dofs_name)}."
             )
+        source = getattr(term, "reference_source", None)
+        if source != ReferenceSource.DEFAULT:
+            raise ValueError(
+                f"{term_subject(self)}: action term {self.action_term_name!r} has reference_source={source!r}, but "
+                "the encoder reading is q minus the controller's default-pose offset, which leaves out the per-step "
+                "reference of every other mode. Set its reference_source to ReferenceSource.DEFAULT."
+            )
         self._controller = term
 
     def compute(self) -> torch.Tensor:
@@ -82,16 +93,32 @@ class DofsPosBiased(ObservationTerm):
 
 
 @TERMINATION_TERM_REGISTRY.register()
-def reference_clip_end(env: MimicRLEnvBase, *, entity_name: str) -> torch.Tensor:
+class ReferenceClipEnd(TerminationTerm):
     """True on the last frame of each env's reference clip.
 
     Reads the validity of the reference's next frame, so the motion manager must hold at least two frames
     (``num_frames >= 2``).
+
+    Parameters
+    ----------
+    entity_name : str
+        The entity whose reference clip ends the episode.
     """
-    validity = env.motion_manager.data[entity_name].validity
-    if validity.shape[1] < 2:
-        raise ValueError(
-            f"reference_clip_end reads the next reference frame, but the motion manager holds "
-            f"num_frames={validity.shape[1]}. Set motion_options.num_frames >= 2."
-        )
-    return ~validity[:, 1]
+
+    entity_name: str = "robot"
+
+    def build(self) -> None:
+        motion = self._env.motion_manager
+        if self.entity_name not in motion.data:
+            raise ValueError(
+                f"{term_subject(self)}: no motion term tracks entity {self.entity_name!r}. Tracked entities: "
+                f"{sorted(motion.data)}."
+            )
+        if motion.num_frames < 2:
+            raise ValueError(
+                f"{term_subject(self)} reads the next reference frame, but the motion manager holds "
+                f"num_frames={motion.num_frames}. Set motion_options.num_frames >= 2."
+            )
+
+    def compute(self, envs_idx: torch.Tensor | None = None) -> torch.Tensor:
+        return ~self._env.motion_manager.data[self.entity_name].validity[:, 1]

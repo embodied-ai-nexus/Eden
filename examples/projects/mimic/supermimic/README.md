@@ -56,6 +56,9 @@ python examples/projects/mimic/supermimic/evaluate.py --checkpoint logs/supermim
     --processed-data-path /data/lafan1_g1.pt
 ```
 
+Replay (`eden inference` and this script) drives every environment through the motion encoder, whatever `slot_mix`
+the checkpoint trained on, and reads the proprioception without the training sensor noise.
+
 ## Options
 
 `--override` reaches every learner option (`eden/learning/wrappers/rsl_rl/supermimic/options.py`). The ones the
@@ -69,4 +72,5 @@ official implementation exposes as variants:
 | `runner_options.policy.slot_mix` | `{motion: 1.0, velocity: 0.0}` | a share for the velocity-command encoder |
 | `runner_options.return_sampler.enabled` | `true` | `false`: uniform resets |
 
-The official maximal-coordinate world-model state and the ONNX export are not ported.
+The official maximal-coordinate world-model state and the ONNX export are not ported: `eden export` and `eden deploy`
+exit for this task before building anything. Replay a checkpoint with `eden inference --task supermimic`.

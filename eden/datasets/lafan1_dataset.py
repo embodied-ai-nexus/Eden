@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING, ClassVar, Any
 import numpy as np
 
 import eden as en
-from eden.datasets.base import DatasetBase, DATASET_REGISTRY
+from eden.datasets.base import DATASET_REGISTRY, DatasetBase, RootJointsOnlyMixin
 from eden.options.robots.unitree_g1 import G1_DOFS29_NAME, G1_DOFS29_TRACKED_LINKS_NAME
 from eden.utils.geom import xyzw_to_wxyz
 from eden.utils.motion_reference.motion_data import BatchMotionSequence
@@ -60,3 +60,8 @@ class LAFAN1RetargetedG1Dataset(DatasetBase):
             base_quat_w=xyzw_to_wxyz(motion[:, 3:7]),
             dofs_pos=motion[:, 7:],
         )
+
+
+@DATASET_REGISTRY.register()
+class LAFAN1RootJointsG1Dataset(RootJointsOnlyMixin, LAFAN1RetargetedG1Dataset):
+    """LAFAN1 retargeted to the G1 (40 clips, 2.45 h), root and joints only."""

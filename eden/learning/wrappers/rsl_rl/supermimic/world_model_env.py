@@ -8,13 +8,16 @@ import torch
 from tensordict import TensorDict
 
 from eden.learning.wrappers.rsl_rl.supermimic.representation import motion_goal
+from eden.utils.geom import inv_transform_by_quat
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
+
     from eden.learning.wrappers.rsl_rl.supermimic.goals import GoalSpec
     from eden.learning.wrappers.rsl_rl.supermimic.models import Dynamics
     from eden.learning.wrappers.rsl_rl.supermimic.replay_buffer import ReplayBuffer
-    from eden.learning.wrappers.rsl_rl.supermimic.representation import GenCoordRepresentation
-    from eden.tasks.supermimic.motion import MotionLibrary
+    from eden.learning.wrappers.rsl_rl.supermimic.representation import GenCoordRepresentation, GoalWindow
+    from eden.utils.motion_reference.library import MotionLibrary
 
 
 def actor_input(
@@ -32,9 +35,11 @@ def actor_input(
 class WorldModelEnv:
     """Steps the learned dynamics, advances the reference one frame per step and grades the predicted state.
 
-    A step grades the predicted state against the reference frame it advances to, held at the clip's last frame, as
-    the simulator's reward and termination do. Termination is soft: the anchor height and tilt errors relative to
-    the task's termination thresholds pass through a sigmoid of width ``termination_softness``.
+    A step grades the predicted state against the reference frame it advances to, with the reward and termination
+    the simulator computes. Past a clip's end the reference holds the last frame, velocities included; the simulator
+    truncates the episode there instead, so the steps of a rollout after the clip's end have no counterpart in it.
+    Termination is soft: the anchor height and tilt errors relative to the task's termination thresholds pass
+    through a sigmoid of width ``termination_softness``.
 
     Parameters
     ----------
@@ -48,6 +53,8 @@ class WorldModelEnv:
         Forward kinematics of the tracked bodies, the anchor first.
     goal_specs : list[GoalSpec]
         The goal interfaces trained, the motion interface first.
+    goal_window : GoalWindow
+        The reference frames the motion goal holds.
     observation : {"state", "proprio"}
         What the actor reads.
     history_length : int
@@ -56,6 +63,9 @@ class WorldModelEnv:
         The task's anchor height and tilt termination thresholds.
     termination_softness : float
         Width of the termination sigmoid, in units of the thresholds.
+    encoder_bias : Callable[[torch.Tensor], torch.Tensor | None] | None
+        Each joint's encoder bias from a normalized simulation context (``SimContext.encoder_bias``), added to the
+        joint reading of the imagined proprioception. ``None`` for a task without an encoder bias.
     """
 
     def __init__(
@@ -65,11 +75,13 @@ class WorldModelEnv:
         library: MotionLibrary,
         fk: torch.nn.Module,
         goal_specs: list[GoalSpec],
+        goal_window: GoalWindow,
         observation: str,
         history_length: int,
         anchor_pos_threshold: float,
         anchor_ori_threshold: float,
         termination_softness: float,
+        encoder_bias: Callable[[torch.Tensor], torch.Tensor | None] | None = None,
     ):
         if goal_specs[0].name != "motion":
             raise ValueError(f"the first goal interface must be 'motion', got {[s.name for s in goal_specs]}.")
@@ -78,11 +90,16 @@ class WorldModelEnv:
         self.library = library
         self.fk = fk
         self.goal_specs = goal_specs
+        self.goal_window = goal_window
         self.observation = observation
         self.history_length = history_length
         self.anchor_pos_threshold = anchor_pos_threshold
         self.anchor_ori_threshold = anchor_ori_threshold
         self.termination_softness = termination_softness
+        self.encoder_bias = encoder_bias
+        # Gravity's direction, on the model's device: created inside a step it would be a host-to-device copy in the
+        # captured CUDA graph of the policy update.
+        self._down = torch.tensor([0.0, 0.0, -1.0], device=representation.default_joint_pos.device)
 
     def reference_bodies(self, frames: torch.Tensor) -> tuple[torch.Tensor, ...]:
         """World ``(pos, quat, lin_vel, ang_vel)`` of the reference's tracked bodies at ``frames``."""
@@ -134,10 +151,12 @@ class WorldModelEnv:
     def _sense(self) -> torch.Tensor:
         if self.observation == "state":
             return self.rep_state
-        return self.representation.add_proprio_noise(self.representation.proprio(self.rep_state, self.last_action))
+        bias = self.encoder_bias(self.sim_ctx) if self.encoder_bias is not None else None
+        reading = self.representation.proprio(self.rep_state, self.last_action, bias)
+        return self.representation.add_proprio_noise(reading)
 
     def _update_goals(self) -> None:
-        self._wm_goal, actor_goal = motion_goal(self.library, self.frames, self.aux_state)
+        self._wm_goal, actor_goal = motion_goal(self.library, self.frames, self.aux_state, self.goal_window)
         self._goals = {"motion": actor_goal}
         for spec in self.goal_specs[1:]:
             self._goals[spec.name] = spec.goal(self.library, self.frames, self.aux_state)
@@ -146,8 +165,10 @@ class WorldModelEnv:
         ref_pos, ref_quat = target[0][:, 0], target[1][:, 0]
         root_pos, root_quat = self.aux_state[..., :3], self.aux_state[..., 3:7]
         height_error = (ref_pos[..., 2] - root_pos[..., 2]).abs()
-        # The z component of gravity in a body frame with unit quaternion (w, x, y, z) is 2 (x^2 + y^2) - 1.
-        tilt_error = (2 * (ref_quat[..., 1:3] ** 2).sum(-1) - 2 * (root_quat[..., 1:3] ** 2).sum(-1)).abs()
+        down = self._down.expand(*ref_quat.shape[:-1], 3)
+        tilt_error = (
+            inv_transform_by_quat(down, ref_quat)[..., 2] - inv_transform_by_quat(down, root_quat)[..., 2]
+        ).abs()
         error = torch.maximum(height_error / self.anchor_pos_threshold, tilt_error / self.anchor_ori_threshold)
         return torch.sigmoid((error - 1.0) / self.termination_softness)
 

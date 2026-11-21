@@ -25,6 +25,7 @@ from eden.utils.format import format_table
 from eden.managers.base import FlatManagerBase
 from eden.managers.motion import AdaptiveBinSampler, MotionEndResync, MotionOutcomeCurriculum, PerMotionMetrics
 from eden.utils.motion_reference.motion_data import (
+    LINK_FIELDS,
     MotionReferenceData,
     MotionReferenceState,
 )
@@ -296,6 +297,9 @@ class MotionTerm(ConfigurableTermBase[MotionTermOptions]):
             # must permute the columns too, or every name lookup reads the wrong DOF.
             if indices != list(range(len(self.data_source.motion_dofs_name[key]))):
                 target_dofs_idx[key] = indices
+            if self.derives_links(key):
+                self.target_links_name[key] = self._derived_links_name(key)
+                continue
             indices, names = resolve_matching_names(
                 self.target_links_name[key],
                 self.data_source.motion_links_name[key],
@@ -433,11 +437,7 @@ class MotionTerm(ConfigurableTermBase[MotionTermOptions]):
             )
         if self._global_motion_group is not None:
             self._env_group = self._resolve_env_groups(self.env_motion_groups)
-        if self.env_starting_stub_sampling_strategy == "independent":
-            self._sample_assigned_env_motion_selection(assigned_ids)
-            self._sample_env_motion_start_time(assigned_ids)
-        elif self.env_starting_stub_sampling_strategy == "concat_motion_bins":
-            self._sample_as_concat_motion_bins(assigned_ids)
+        self.sample_starts(assigned_ids)
 
         # Allocate the per-motion metric collaborator now that num_assigned_envs
         # is known. Gated on the term option so disabled terms pay nothing.
@@ -657,6 +657,134 @@ class MotionTerm(ConfigurableTermBase[MotionTermOptions]):
         )
         origin_offset = None if env_origins is None else env_origins[envs_idx]
         self._copy_frame_data(data, data_buffer, envs_idx, motion_ids, frame_idx, validity, origin_offset)
+        self.derive_reference_fields(motion_sequence_key, envs_idx, data_buffer)
+
+    # ------------------------------------------------------------------------------------------------------------
+    # Extension points. A subclass changes how a term samples its starts or which fields it fills by overriding
+    # derives_links, derive_reference_fields and sample_starts, never the private helpers above and below them
+    # (docs/guides/motion-tracking.md, "Extending a motion term").
+    # ------------------------------------------------------------------------------------------------------------
+
+    def derives_links(self, motion_sequence_key: str) -> bool:
+        """Whether this term computes the link fields of ``motion_sequence_key`` in :meth:`derive_reference_fields`.
+
+        ``False`` (the default): the reference holds the links the dataset stores, and ``target_links_name`` selects
+        among them. ``True``: the dataset stores no link field for the sequence, and ``target_links_name`` lists
+        the links the term fills, in buffer order, taken as configured. The base ``__init__`` reads this while it
+        resolves the link names, before a subclass ``__init__`` has run, so it may depend on the term's options and
+        nothing a subclass builds later.
+        """
+        return False
+
+    def _derived_links_name(self, key: str) -> list[str]:
+        """``target_links_name[key]`` of a sequence whose links the term derives, checked against the dataset."""
+        name = type(self).__name__
+        stored = [field for field in LINK_FIELDS if getattr(self.data_source.motion_sequences[key], field) is not None]
+        if stored:
+            raise ValueError(
+                f"{name} computes the link fields of {key!r} itself (derives_links), but dataset "
+                f"{type(self.data_source).__name__} stores {stored}, which the fill would copy over them. Use a "
+                "dataset that stores root and joint state only (a RootJointsOnlyMixin dataset; a processed cache "
+                "written with link fields must be rebuilt), or MotionTerm to read the stored links."
+            )
+        links = self.target_links_name.get(key)
+        if not isinstance(links, (list, tuple)) or not links or not all(isinstance(link, str) for link in links):
+            raise ValueError(
+                f"{name} computes the link fields of {key!r} itself, so target_links_name[{key!r}] must list the "
+                f"links to fill by name, got {links!r}. The dataset stores no link to match a pattern against."
+            )
+        return list(links)
+
+    def derive_reference_fields(
+        self,
+        motion_sequence_key: str,
+        envs_idx: slice | Sequence[int] | torch.Tensor,
+        data_buffer: MotionReferenceData,
+    ) -> None:
+        """Fill the fields of ``data_buffer[envs_idx]`` that the dataset does not store. Nothing by default.
+
+        Runs at the end of every :meth:`compute`, after the stored fields of those rows are written: positions carry
+        the env origin, and a frame past its clip's end holds the last frame's pose with zero velocity. A term that
+        answers :meth:`derives_links` computes the link fields here from the root and joint fields.
+        """
+
+    def provides_field(self, motion_sequence_key: str, field_name: str) -> bool:
+        """Whether the reference for ``motion_sequence_key`` holds real values in ``field_name``: the dataset
+        stores it, or it is a link field of a sequence whose links the term derives.
+        """
+        if getattr(self.data_source.motion_sequences[motion_sequence_key], field_name) is not None:
+            return True
+        return field_name in LINK_FIELDS and self.derives_links(motion_sequence_key)
+
+    def require_default_start_options(self, reason: str) -> None:
+        """Raise if an option of the default start sampling is set
+        (:meth:`MotionTermOptions.start_sampling_defaults`).
+
+        For the ``__init__`` of a subclass that overrides :meth:`sample_starts`: the option would be accepted and
+        have no effect. ``reason`` says what draws the starts instead.
+        """
+
+        def comparable(value: object) -> object:
+            # A range option validates as a tuple or a list; the two spell one value.
+            return tuple(value) if isinstance(value, list) else value
+
+        changed = {
+            field: getattr(self, field)
+            for field, default in MotionTermOptions.start_sampling_defaults().items()
+            if comparable(getattr(self, field)) != comparable(default)
+        }
+        if changed:
+            raise ValueError(
+                f"{type(self).__name__} {reason}, so these MotionTerm options would have no effect: {changed}. "
+                "Remove them, or use MotionTerm to keep its start sampling."
+            )
+
+    def sample_starts(self, assigned_ids: torch.Tensor) -> None:
+        """Choose the clip and the start time of the assigned envs ``assigned_ids``, at assignment and every reset.
+
+        ``assigned_ids`` are int ids or a bool mask over the term's envs
+        (:meth:`envs_idx_to_assigned_ids`). The default follows ``env_starting_stub_sampling_strategy``. A subclass
+        with its own start distribution overrides this and writes its draw with :meth:`set_start_frames`.
+        """
+        if self.env_starting_stub_sampling_strategy == "independent":
+            self._sample_assigned_env_motion_selection(assigned_ids)
+            self._sample_env_motion_start_time(assigned_ids)
+        elif self.env_starting_stub_sampling_strategy == "concat_motion_bins":
+            self._sample_as_concat_motion_bins(assigned_ids)
+        else:
+            raise ValueError(
+                f"Unsupported env starting stub sampling method: {self.env_starting_stub_sampling_strategy}"
+            )
+
+    def set_start_frames(self, assigned_ids: torch.Tensor, motion_ids: torch.Tensor, frames: torch.Tensor) -> None:
+        """Start the assigned envs ``assigned_ids`` at frame ``frames`` of clip ``motion_ids``.
+
+        For int ids, ``motion_ids`` and ``frames`` hold one entry per id; for a bool mask, one per assigned env, of
+        which the masked ones are written. The start time stored is the middle of the frame,
+        ``(frame + 0.5) / framerate``: the fill reads ``floor((start + t) * framerate)``, so an env that started on
+        a whole frame reads ``frame + k`` after ``k`` frame periods whatever the float rounding of its clock.
+        """
+        start_times = (frames.to(torch.float) + 0.5) / self.data_source.framerate[motion_ids].to(torch.float)
+        if is_env_mask(assigned_ids):
+            assign_over_envs(self._assigned_env_motion_selection, assigned_ids, motion_ids)
+            assign_over_envs(self._motion_buffer_start_time_s, assigned_ids, start_times)
+        else:
+            self._assigned_env_motion_selection[assigned_ids] = motion_ids
+            self._motion_buffer_start_time_s[assigned_ids] = start_times
+
+    def library_frames(self, timestamp: torch.Tensor) -> torch.Tensor:
+        """Each assigned env's reference frame at ``timestamp``, as a row of the concatenated library.
+
+        ``timestamp`` is the time (s) since each assigned env's start, ``(num_assigned_envs,)``. Clip ``c`` holds
+        the rows ``[first[c], first[c] + buffer_length[c])`` with ``first = cumsum(buffer_length) - buffer_length``,
+        the layout of every field's ``concatenated_tensor``. A frame past the clip's end is held at its last row.
+        Returns ``(num_assigned_envs,)`` long.
+        """
+        lengths = self.data_source.buffer_length.to(torch.long)
+        selection = self._assigned_env_motion_selection
+        frame = torch.floor((self._motion_buffer_start_time_s + timestamp) * self.data_source.framerate[selection])
+        frame = torch.minimum(frame.to(torch.long), lengths[selection] - 1)
+        return (lengths.cumsum(0) - lengths)[selection] + frame
 
     def _select_frames(
         self,
@@ -1038,16 +1166,7 @@ class MotionTerm(ConfigurableTermBase[MotionTermOptions]):
         By "stub", it means the necessary information to sample the motion data for the assigned envs.
         """
         assigned_ids = self.envs_idx_to_assigned_ids(envs_idx)
-
-        if self.env_starting_stub_sampling_strategy == "independent":
-            self._sample_assigned_env_motion_selection(assigned_ids)
-            self._sample_env_motion_start_time(assigned_ids)
-        elif self.env_starting_stub_sampling_strategy == "concat_motion_bins":
-            self._sample_as_concat_motion_bins(assigned_ids)
-        else:
-            raise ValueError(
-                f"Unsupported env starting stub sampling method: {self.env_starting_stub_sampling_strategy}"
-            )
+        self.sample_starts(assigned_ids)
 
         if self.start_at_timestep_zero_prob > 0.0:
             self._apply_start_at_timestep_zero(assigned_ids)
@@ -1226,8 +1345,13 @@ class MotionTerm(ConfigurableTermBase[MotionTermOptions]):
         return self._metrics.per_motion_tensors() if self._metrics is not None else {}
 
 
-MOTION_TERM_REGISTRY = TermRegistry("MOTION_TERM", MotionTerm)
-MOTION_TERM_REGISTRY.register()(MotionTerm)
+# ``MotionTerm`` itself is registered in ``eden.managers.terms.motions``, with the other built-in motion terms: a
+# registration at module scope here would fill the registry (import every module in ``populated_by``) while this
+# module is still importing, which fails when ``eden.managers`` is itself mid-import. This module stays in
+# ``populated_by`` because it defines that term, and the catalog checks each term's defining module against the list.
+MOTION_TERM_REGISTRY = TermRegistry(
+    "MOTION_TERM", MotionTerm, populated_by=("eden.managers.motion_manager", "eden.managers.terms.motions")
+)
 
 
 class MotionManager(FlatManagerBase[MotionManagerOptions], SymmetricAugmentationMixin):
@@ -1701,6 +1825,21 @@ class MotionManager(FlatManagerBase[MotionManagerOptions], SymmetricAugmentation
             return list(names) if names is not None else []
         return None
 
+    def get_library_frame(self, term_name: str) -> torch.Tensor:
+        """Each env's current reference frame as a row of motion term ``term_name``'s concatenated library.
+
+        The frame at the manager's clock, which is frame 0 of the reference window under
+        ``data_start_from="current_time"`` (:meth:`MotionTerm.library_frames`). For a training loop that stores
+        the frame with each transition and reads the library at it later. Shape ``(num_envs,)`` long, like
+        :meth:`get_motion_phase`; an env that another term plays reports -1.
+        """
+        if term_name not in self._terms:
+            raise ValueError(f"No motion term {term_name!r}. Motion terms: {list(self._terms)}.")
+        assigned = self._motion_term_assignment[term_name]
+        frames = torch.full((self.num_envs,), -1, dtype=torch.long, device=self.device)
+        frames[assigned] = self._terms[term_name].library_frames(self._timestamp[assigned])
+        return frames
+
     def get_motion_phase(self, entity_name: str) -> torch.Tensor:
         """Per-env normalized playback phase of the clip tracking ``entity_name``.
 
@@ -2054,17 +2193,16 @@ class MotionManager(FlatManagerBase[MotionManagerOptions], SymmetricAugmentation
             for entity_name, motion_seq_key in term_option.entities_map.items():
                 motion_seq = term.data_source.motion_sequences[motion_seq_key]
                 num_dofs = motion_seq.dofs_pos._data_shape[0] if motion_seq.dofs_pos is not None else 0
-                # The first link field present: a dataset may omit the body-frame ``links_*_b`` fields (no tracking
-                # term reads them) to fit a large library on the GPU, and ``links_pos_b`` is then ``None``.
-                link_field = next(
-                    (
-                        getattr(motion_seq, f)
-                        for f in ("links_pos_w", "links_pos_b", "links_quat_w", "links_quat_b")
-                        if getattr(motion_seq, f) is not None
-                    ),
-                    None,
-                )
-                num_links = link_field._data_shape[0] if link_field is not None else 0
+                if term.derives_links(motion_seq_key):
+                    num_links = len(term.target_links_name[motion_seq_key])
+                else:
+                    # The first link field present: a dataset may omit the body-frame ``links_*_b`` fields (no
+                    # tracking term reads them) to fit a large library on the GPU, and ``links_pos_b`` is then
+                    # ``None``.
+                    link_field = next(
+                        (getattr(motion_seq, f) for f in LINK_FIELDS if getattr(motion_seq, f) is not None), None
+                    )
+                    num_links = link_field._data_shape[0] if link_field is not None else 0
                 # Contact partner axis follows the dataset (e.g. one column per
                 # object link for articulated partners); 1 when absent.
                 num_contact_partners = motion_seq.num_contact_partners

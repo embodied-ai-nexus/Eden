@@ -9,107 +9,80 @@ Prediction: ``[dv_b(3), dw_b(3), dqd(J)]``, velocity changes in the current root
 from __future__ import annotations
 
 import math
+from collections.abc import Sequence
+from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 import torch
 
 from eden.utils.geom import (
+    R_error_magnitude,
     inv_quat,
     inv_transform_by_quat,
+    quat_integrate,
     quat_mul,
     quat_to_R,
+    quat_to_rot6d_cols,
     subtract_frame_transforms,
     transform_by_quat,
     yaw_quat,
 )
 
 if TYPE_CHECKING:
-    from eden.tasks.supermimic.motion import MotionLibrary
-
-#: The goal holds ``NUM_GOAL_FRAMES`` reference frames ``GOAL_FRAME_STRIDE`` control steps apart, from the current one.
-NUM_GOAL_FRAMES = 10
-GOAL_FRAME_STRIDE = 5
-#: Per-frame width of the anchor part of the goal: relative position (world model only) and orientation (rot6d).
-GOAL_REL_POS_DIM = 3 * NUM_GOAL_FRAMES
-GOAL_REL_ORI_DIM = 6 * NUM_GOAL_FRAMES
-
-#: Uniform noise half-widths of the proprioception ``[projected_gravity, base_ang_vel, q - q0, qd, last_action]``.
-PROPRIO_NOISE_HALF_WIDTHS = (0.05, 0.2, 0.01, 0.5, 0.0)
-
-#: The task's reward terms, which :meth:`GenCoordRepresentation.reward` computes on a predicted state:
-#: ``name -> (weight, Gaussian kernel std or None)``. The six tracking terms are in the order the reward lists them.
-REWARD_TERMS: dict[str, tuple[float, float | None]] = {
-    "motion_global_root_pos": (0.5, 0.3),
-    "motion_global_root_ori": (0.5, 0.4),
-    "motion_body_pos": (1.0, 0.3),
-    "motion_body_ori": (1.0, 0.4),
-    "motion_body_lin_vel": (1.0, 1.0),
-    "motion_body_ang_vel": (1.0, 3.14),
-    "action_rate_l2": (-0.1, None),
-    "joint_limit": (-2.0, None),
-}
-_TRACKING = list(REWARD_TERMS.values())[:6]
+    from eden.utils.motion_reference.library import MotionLibrary
 
 
-def check_task_reward(terms: dict[str, tuple[float, float | None]]) -> None:
-    """Raise unless the task's reward terms ``name -> (weight, std or None)`` are the ones the world model computes.
+@dataclass(frozen=True)
+class GoalWindow:
+    """The reference frames a goal holds: ``frames`` of them, ``stride`` control steps apart, from the current one."""
 
-    The world model grades imagined states with :data:`REWARD_TERMS`; a task whose reward differs would train the
-    policy on another objective than the one the simulator logs.
+    frames: int
+    stride: int
+
+    def dims(self, num_joints: int) -> tuple[int, int]:
+        """``(world-model goal width, actor goal width)``; the actor's goal omits the relative root position."""
+        content = 2 * num_joints * self.frames
+        return content + 9 * self.frames, content + 6 * self.frames
+
+    def indices(self, library: MotionLibrary, frames: torch.Tensor) -> torch.Tensor:
+        """``(E, frames)`` library frames ``f, f + stride, ...``, held at the last frame of each env's clip."""
+        offsets = torch.arange(self.frames, device=frames.device) * self.stride
+        return torch.minimum(frames[:, None] + offsets, library.last_frame(frames)[:, None])
+
+
+@dataclass(frozen=True)
+class RewardSpec:
+    """The weights and kernel widths of the task's reward, which :meth:`GenCoordRepresentation.reward` computes on a
+    predicted state. The runner reads them off the task's reward terms
+    (:func:`~eden.learning.wrappers.rsl_rl.supermimic.task_terms.task_reward_spec`).
+
+    Attributes
+    ----------
+    tracking : tuple[tuple[float, float], ...]
+        ``(weight, Gaussian kernel std)`` of the six tracking terms: anchor position, anchor orientation, relative
+        body position, relative body orientation, body linear velocity, body angular velocity.
+    action_rate, joint_limit : float
+        Weights of the action-rate and joint-limit penalties.
     """
-    if terms.keys() != REWARD_TERMS.keys():
-        raise ValueError(
-            f"The world model computes the reward terms {sorted(REWARD_TERMS)}, but the task has {sorted(terms)}. "
-            "Keep the supermimic reward terms, or change REWARD_TERMS and GenCoordRepresentation.reward together."
-        )
-    differ = {
-        name: (terms[name], expected)
-        for name, expected in REWARD_TERMS.items()
-        if any(
-            (a is None) != (b is None) or (a is not None and abs(a - b) > 1e-9)
-            for a, b in zip(terms[name], expected, strict=True)
-        )
-    }
-    if differ:
-        detail = ", ".join(f"{n}: (weight, std) {got} != {want}" for n, (got, want) in differ.items())
-        raise ValueError(f"The task's reward terms differ from the world model's: {detail}.")
 
+    tracking: tuple[tuple[float, float], ...]
+    action_rate: float
+    joint_limit: float
 
-def goal_dims(num_joints: int) -> tuple[int, int]:
-    """``(world-model goal width, actor goal width)``; the actor's goal omits the relative root position."""
-    content = 2 * num_joints * NUM_GOAL_FRAMES
-    return content + GOAL_REL_POS_DIM + GOAL_REL_ORI_DIM, content + GOAL_REL_ORI_DIM
+    def __post_init__(self) -> None:
+        if len(self.tracking) != 6:
+            raise ValueError(f"RewardSpec.tracking holds the six tracking terms, got {len(self.tracking)}.")
 
-
-def rot6d(quat: torch.Tensor) -> torch.Tensor:
-    """The first two columns of the rotation matrix, ``[R00, R01, R10, R11, R20, R21]``."""
-    return quat_to_R(quat)[..., :2].flatten(-2, -1)
+    @property
+    def max_step_rate(self) -> float:
+        """The largest reward rate: every positive weight at a kernel value of 1."""
+        weights = [w for w, _ in self.tracking] + [self.action_rate, self.joint_limit]
+        return sum(w for w in weights if w > 0)
 
 
 def small_matmul(a: torch.Tensor, b: torch.Tensor) -> torch.Tensor:
     """``a @ b`` for small trailing matrices, without TF32 rounding and fusable by ``torch.compile``."""
     return (a.unsqueeze(-1) * b.unsqueeze(-3)).sum(-2)
-
-
-def rotation_angle(mat1: torch.Tensor, mat2: torch.Tensor) -> torch.Tensor:
-    """Angle between two rotation matrices, with ``cos`` kept off +-1 so its gradient stays finite."""
-    cos = ((mat1 * mat2).sum(dim=(-2, -1)) - 1.0) / 2.0
-    return torch.acos(cos.clamp(-1.0 + 1e-7, 1.0 - 1e-7))
-
-
-def quat_integrate(quat: torch.Tensor, ang_vel_w: torch.Tensor, dt: float) -> torch.Tensor:
-    """``quat`` turned by the world-frame angular velocity ``ang_vel_w`` over ``dt``, normalized."""
-    omega = ang_vel_w * dt
-    norm = torch.sqrt((omega * omega).sum(-1, keepdim=True) + 1e-8)
-    delta = torch.cat([torch.cos(norm / 2), torch.sin(norm / 2) * omega / norm], dim=-1)
-    q = quat_mul(delta, quat)
-    return q / torch.norm(q, dim=-1, keepdim=True)
-
-
-def goal_window_indices(library: MotionLibrary, frames: torch.Tensor) -> torch.Tensor:
-    """``(E, NUM_GOAL_FRAMES)`` frames ``f, f + stride, ...``, held at the last frame of each env's clip."""
-    offsets = torch.arange(NUM_GOAL_FRAMES, device=frames.device) * GOAL_FRAME_STRIDE
-    return torch.minimum(frames[:, None] + offsets, library.last_frame(frames)[:, None])
 
 
 def anchor_window(
@@ -123,18 +96,18 @@ def anchor_window(
         target_pos.reshape(-1, 3),
         target_quat.reshape(-1, 4),
     )
-    return rel_pos.reshape(num_envs, -1), rot6d(rel_quat).reshape(num_envs, -1)
+    return rel_pos.reshape(num_envs, -1), quat_to_rot6d_cols(rel_quat).reshape(num_envs, -1)
 
 
 def motion_goal(
-    library: MotionLibrary, frames: torch.Tensor, aux_state: torch.Tensor
+    library: MotionLibrary, frames: torch.Tensor, aux_state: torch.Tensor, window: GoalWindow
 ) -> tuple[torch.Tensor, torch.Tensor]:
     """``(world-model goal, actor goal)`` at ``frames`` for robots at root poses ``aux_state``.
 
     The world-model goal is ``[q, qd per frame, relative root position, relative root rot6d]``; the actor's drops the
     relative root position, which a deployed robot does not know.
     """
-    idx = goal_window_indices(library, frames)
+    idx = window.indices(library, frames)
     content = torch.cat([library.joint_pos[idx], library.joint_vel[idx]], dim=-1).flatten(1)
     rel_pos, rel_ori = anchor_window(
         aux_state[..., :3], aux_state[..., 3:7], library.root_pos_w[idx], library.root_quat_w[idx]
@@ -161,6 +134,11 @@ class GenCoordRepresentation(torch.nn.Module):
         change, as the simulator's substeps compose under constant acceleration.
     num_actions : int
         Width of the action, the last part of the observation.
+    reward : RewardSpec
+        The task's reward weights and kernel widths.
+    proprio_noise : Sequence[float]
+        Uniform noise half-width of each proprioception term ``[projected_gravity, base_ang_vel, q - q0, qd,
+        last_action]``.
     """
 
     def __init__(
@@ -171,9 +149,12 @@ class GenCoordRepresentation(torch.nn.Module):
         dt: float,
         decimation: int,
         num_actions: int,
+        reward: RewardSpec,
+        proprio_noise: Sequence[float],
     ):
         super().__init__()
         self.fk = fk
+        self.reward_spec = reward
         self.num_joints = int(default_joint_pos.shape[0])
         self.num_actions = num_actions
         self.full_state_dim = 13 + 2 * self.num_joints
@@ -186,7 +167,7 @@ class GenCoordRepresentation(torch.nn.Module):
         widths = self.proprio_term_widths()
         self.register_buffer(
             "proprio_noise",
-            torch.cat([torch.full((w,), h) for w, h in zip(widths, PROPRIO_NOISE_HALF_WIDTHS, strict=True)]).to(
+            torch.cat([torch.full((w,), h) for w, h in zip(widths, proprio_noise, strict=True)]).to(
                 default_joint_pos.device
             ),
             persistent=False,
@@ -279,10 +260,19 @@ class GenCoordRepresentation(torch.nn.Module):
     def add_proprio_noise(self, obs: torch.Tensor) -> torch.Tensor:
         return obs + ((torch.rand_like(obs) * 2 - 1) * self.proprio_noise).detach()
 
-    def proprio(self, rep_state: torch.Tensor, last_action: torch.Tensor) -> torch.Tensor:
-        """The proprioception a robot in ``rep_state`` reads, noise-free."""
+    def proprio(
+        self, rep_state: torch.Tensor, last_action: torch.Tensor, encoder_bias: torch.Tensor | None = None
+    ) -> torch.Tensor:
+        """The proprioception a robot in ``rep_state`` reads, noise-free.
+
+        ``encoder_bias`` is each joint's encoder bias, which shifts the joint reading as the task's biased joint
+        observation does; ``None`` reads the joints without one.
+        """
         _, g_b, _, w_b, q, qd = self.split_rep(rep_state)
-        return torch.cat([g_b, w_b, q - self.default_joint_pos, qd, last_action], dim=-1)
+        q_rel = q - self.default_joint_pos
+        if encoder_bias is not None:
+            q_rel = q_rel + encoder_bias
+        return torch.cat([g_b, w_b, q_rel, qd, last_action], dim=-1)
 
     def bodies(self, aux_state: torch.Tensor, rep_state: torch.Tensor) -> tuple[torch.Tensor, ...]:
         """World-frame ``(pos, rot_mat, lin_vel, ang_vel)`` of the tracked bodies."""
@@ -317,16 +307,17 @@ class GenCoordRepresentation(torch.nn.Module):
         anchored_rot = small_matmul(delta_rot, t_rot)
         errors = (
             ((pos[..., 0, :] - t_pos[..., 0, :]) ** 2).sum(-1),
-            rotation_angle(rot[..., 0, :, :], t_rot[..., 0, :, :]) ** 2,
+            R_error_magnitude(rot[..., 0, :, :], t_rot[..., 0, :, :]) ** 2,
             ((pos - anchored_pos) ** 2).sum(-1).mean(-1),
-            (rotation_angle(rot, anchored_rot) ** 2).mean(-1),
+            (R_error_magnitude(rot, anchored_rot) ** 2).mean(-1),
             ((lin - t_lin) ** 2).sum(-1).mean(-1),
             ((ang - t_ang) ** 2).sum(-1).mean(-1),
         )
-        reward = sum(w * torch.exp(-e / std**2) for e, (w, std) in zip(errors, _TRACKING, strict=True))
+        spec = self.reward_spec
+        reward = sum(w * torch.exp(-e / std**2) for e, (w, std) in zip(errors, spec.tracking, strict=True))
         action_rate = ((action - last_action) ** 2).sum(-1)
         q = rep_state[..., 10 : 10 + self.num_joints]
         lo, hi = self.soft_joint_pos_limits.unbind(-1)
         joint_limit = ((lo - q).clamp(min=0) + (q - hi).clamp(min=0)).sum(-1)
-        penalties = REWARD_TERMS["action_rate_l2"][0] * action_rate + REWARD_TERMS["joint_limit"][0] * joint_limit
+        penalties = spec.action_rate * action_rate + spec.joint_limit * joint_limit
         return self.dt * (reward + penalties)

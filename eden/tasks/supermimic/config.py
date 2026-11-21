@@ -30,8 +30,9 @@ from eden.options.managers.motions import MotionManagerOptions
 from eden.options.robots.unitree_g1 import G1_ACTION_SCALE, G1Dofs29
 from eden.tasks import TASK_REGISTRY
 from eden.tasks.registry import TaskMod
-from eden.tasks.supermimic.custom_terms import DofsPosBiased, RootJointState, reference_clip_end
-from eden.tasks.supermimic.motion import LAFAN1RootJointsG1Dataset, SEEDRootJointsG1Dataset, SuperMimicMotion
+from eden.tasks.supermimic.custom_terms import DofsPosBiased, ReferenceClipEnd, RootJointState
+from eden.datasets import LAFAN1RootJointsG1Dataset, SEEDRootJointsG1Dataset
+from eden.learning.wrappers.rsl_rl.supermimic.motion import SuperMimicMotion
 from eden.terms import DoneTerm, ObsTerm, RewardTerm
 from eden.utils.configs import (
     ActionManagerOptions,
@@ -130,9 +131,7 @@ class SuperMimicDataMod(TaskMod):
                 dataset_options=dataset_options,
                 entities_map={"robot": "g1"},
                 target_dofs_name={"g1": _G1.dofs_name},
-                target_links_name={"g1": []},
-                entity_name="robot",
-                links_name=TRACKED_LINKS,
+                target_links_name={"g1": TRACKED_LINKS},
             ),
         )
         return config
@@ -215,7 +214,7 @@ class SuperMimicConfig(EdenMimicConfig):
 
     termination_options: TerminationManagerOptions = TerminationManagerOptions(
         time_out=DoneTerm.configure(func=terminations.time_out, time_out=True),
-        clip_end=DoneTerm.configure(func=reference_clip_end, time_out=True, params={"entity_name": "robot"}),
+        clip_end=ReferenceClipEnd.configure(entity_name="robot", time_out=True),
         anchor_pos=DoneTerm.configure(
             func=bad_anchor_pos_z_only,
             params={"entity_name": "robot", "anchor_link_name": ANCHOR_LINK, "threshold": 0.25},

@@ -2336,3 +2336,26 @@ def test_deploy_refuses_a_task_whose_runner_is_named_by_import_path():
     ):
         _check_deployable_runner(TASK_REGISTRY.build("contrack"))
     _check_deployable_runner(TASK_REGISTRY.build("husky"))  # a stock runner (its AMP algorithm replays as PPO)
+    with pytest.raises(SystemExit, match=r"SuperMimicConfig trains with runner_options\.class_name="):
+        _check_deployable_runner(TASK_REGISTRY.build("supermimic"))
+
+
+def test_export_refuses_a_runner_that_says_its_policy_cannot_be_exported():
+    from eden.utils.cli.tasks import _check_exportable_runner
+
+    with pytest.raises(SystemExit, match=r"eden export does not support the SuperMimic runner.*Nothing was built"):
+        _check_exportable_runner(TASK_REGISTRY.build("supermimic"))
+    _check_exportable_runner(TASK_REGISTRY.build("husky"))  # a stock runner
+
+
+def test_the_supermimic_runner_is_checked_before_the_build_like_any_runner_named_by_import_path(monkeypatch):
+    import eden as en
+    from eden.envs.wrappers.rsl_rl_env import rsl_rl_runner_class
+    from eden.learning.wrappers.rsl_rl.supermimic.runner import SuperMimicRunner
+
+    config = TASK_REGISTRY.build("supermimic")
+    assert rsl_rl_runner_class(config.runner_options.class_name) is SuperMimicRunner
+    _check_rsl_rl_runner(config, checkpoint=None)
+    monkeypatch.setattr(en.distributed, "is_distributed", lambda: True)
+    with pytest.raises(ValueError, match=r"cannot train under a distributed launch: SuperMimicRunner"):
+        _check_rsl_rl_runner(config, checkpoint=None)

@@ -24,7 +24,7 @@ from eden.utils.motion_reference.utils import (
     interpolate_body_model,
     interpolate_motion,
 )
-from eden.utils.motion_reference.motion_data import MotionSequence, BatchMotionSequence
+from eden.utils.motion_reference.motion_data import LINK_FIELDS, MotionSequence, BatchMotionSequence
 from eden.utils.misc import describe_provenance_change, get_eden_provenance, get_package_provenance, to_jsonish
 from eden.utils.registry import Registry
 from eden.utils.torch import numpy_to_tensor
@@ -1449,12 +1449,16 @@ class DatasetBase(ConfigurableMixin[DatasetOptions], FilterMixin):
                 )
         if meta["target_framerate"] != self.target_framerate:
             raise ValueError(f"Target framerate mismatch: {meta['target_framerate']} != {self.target_framerate}")
-        if (semantics := type(self)._cache_semantics) is not None and meta.get("cache_semantics") != semantics:
+        semantics, cached = type(self)._cache_semantics, meta.get("cache_semantics")
+        # Either side declaring semantics the other lacks is a mismatch: a cache written by a dataset class that
+        # declares some (another class sharing the path) is as wrong for a class without as the reverse.
+        if cached != semantics:
             raise ValueError(
-                f"Cache at {data_path} was prepared by an earlier {type(self).__name__} "
-                f"(cache_semantics {meta.get('cache_semantics')!r}); this one prepares {semantics!r}, so the cached "
-                f"motion means something else. Delete it to rebuild, or point processed_data_path at a different "
-                f"file. strict_cache_identity=False does not relax this: no setting makes the old motion right."
+                f"Cache at {data_path} was prepared by an earlier {type(self).__name__} or by another dataset class "
+                f"given the same processed_data_path (cache_semantics {cached!r}); this one prepares {semantics!r}, "
+                f"so the cached motion means something else. Delete it to rebuild, or point processed_data_path at "
+                f"a different file. strict_cache_identity=False does not relax this: no setting makes the cached "
+                f"motion right."
             )
         # Settings that shaped the cached bytes. A cache written before the key existed carries
         # none and loads untouched (the Eden warnings above, a mismatch or no record, are the signal for an old
@@ -2033,3 +2037,36 @@ class DatasetBase(ConfigurableMixin[DatasetOptions], FilterMixin):
                 motion_seq.links_ang_vel_w[envs_idx, i] = links_ang_vel_w
             else:
                 en.logger.warning(f"No link data for batch {envs_idx}, frame {i}")
+
+
+class RootJointsOnlyMixin:
+    """A single-actor dataset that stores root and joint state and no link field.
+
+    Mixed in before a dataset whose ``prepare`` fills the links by forward kinematics at load: the clips are read
+    as they are on disk, every link field is ``None`` and ``motion_links_name`` is empty, so nothing per link is held
+    on the GPU. A motion term that derives its links (``MotionTerm.derives_links``) computes them for the frames the
+    envs read (``eden.managers.terms.motions.KinematicLinksMotion``).
+    """
+
+    #: Tells this layout's cache from the one the dataset it extends writes at the same ``processed_data_path``.
+    _cache_semantics: ClassVar[str | None] = "root and joint state only: no link field is stored"
+
+    def __init_subclass__(cls, **kwargs: Any) -> None:
+        super().__init_subclass__(**kwargs)
+        keys = getattr(cls, "motion_sequence_keys", ())
+        if len(keys) != 1 or not callable(getattr(cls, "_read_single_sequence", None)):
+            raise TypeError(
+                f"{cls.__name__}: RootJointsOnlyMixin goes before a single-actor dataset class that defines "
+                f"_read_single_sequence and one motion sequence key (got motion_sequence_keys={tuple(keys)}), as "
+                "in `class LAFAN1RootJointsG1Dataset(RootJointsOnlyMixin, LAFAN1RetargetedG1Dataset)`."
+            )
+        cls.motion_links_name = {keys[0]: []}
+
+    def prepare(self) -> tuple[dict[str, BatchMotionSequence], dict[str, Any]]:
+        sequences, metadata = self._prepare_single_key(
+            self._read_single_sequence, desc=f"{type(self).__name__}: reading clips"
+        )
+        for sequence in sequences.values():
+            for field in LINK_FIELDS:
+                setattr(sequence, field, None)
+        return sequences, metadata

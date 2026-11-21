@@ -2,7 +2,7 @@
 
 # Term Catalog
 
-Every term registered in Eden (246 of them): registry key, class name for a class term, and summary, under the module that defines it. Parameters are not listed — `eden terms --grep <name>` (or `python -m eden terms --grep <name>`) prints a term's parameters, types and defaults, and marks the required ones.
+Every term registered in Eden (247 of them): registry key, class name for a class term, and summary, under the module that defines it. Parameters are not listed — `eden terms --grep <name>` (or `python -m eden terms --grep <name>`) prints a term's parameters, types and defaults, and marks the required ones.
 
 ## action terms (14)
 
@@ -25,7 +25,7 @@ Every term registered in Eden (246 of them): registry key, class name for a clas
 - `velocity_feedforward_pd_controller` (`VelocityFeedforwardPDController`) — Explicit joint PD controller with velocity feedforward.
 
 `eden.managers.terms.actions.task_space_actions`:
-- `differential_ik_controller` (`DifferentialIKController`) — Action term that maps task-space commands to joint targets via differential IK.
+- `differential_ik_controller` (`DifferentialIKController`) — Maps task-space commands to joint targets via differential IK.
 - `ik_pose_controller` (`IKPoseController`) — Absolute task-space pose controller: solve IK for a base-frame target pose each step.
 - `operational_space_controller` (`OperationalSpaceController`) — Operational-space control to a persistent relative position/pose target.
 
@@ -155,7 +155,7 @@ Every term registered in Eden (246 of them): registry key, class name for a clas
 - `feet_air_time` (`FeetAirTime`) — Legged-gym style feet air-time reward for aperiodic gaits.
 - `feet_clearance` (`FeetClearance`) — Penalize deviation from target clearance height, weighted by foot xy velocity.
 - `feet_contact_balance_penalty` (`FeetContactBalancePenalty`) — Penalize uneven foot usage (a limp) via the variance of per-foot contact duty.
-- `feet_orientation_penalty` (`FeetOrientationPenalty`) — Penalize feet orientation deviation from flat (projected gravity in foot frame).
+- `feet_orientation_penalty` (`FeetOrientationPenalty`) — Penalize feet tilted from flat (projected gravity in foot frame).
 - `feet_phase` (`FeetPhase`) — Reward for tracking desired foot height based on gait phase.
 - `feet_slip` (`FeetSlip`) — Penalize foot sliding (xy velocity while in contact with ground).
 - `flat_orientation_l2` (`FlatOrientationL2`) — Penalize non-flat base orientation (projected gravity deviation in xy).
@@ -208,7 +208,7 @@ Every term registered in Eden (246 of them): registry key, class name for a clas
 - `dofs_torque_limit_exceeded` — Terminate when any applied DOF torque exceeds ``soft_ratio * default_dofs_force_limits``.
 - `dofs_vel_limit_exceeded` — Terminate when any DOF velocity exceeds ``max_vel`` in magnitude.
 - `illegal_contact` — —
-- `illegal_link_contact` (`IllegalLinkContact`) — Terminate when any of the named links carries a net contact force above ``force_threshold``.
+- `illegal_link_contact` (`IllegalLinkContact`) — Terminate when a named link carries a net contact force above ``force_threshold``.
 - `metric_above` (`MetricAbove`) — Terminate the envs in which the named metric's cached value is strictly above ``threshold``.
 - `on_failure` — —
 - `on_metric_success` (`OnMetricSuccess`) — Terminate the envs in which the named metric term reports success this step.
@@ -281,10 +281,10 @@ Every term registered in Eden (246 of them): registry key, class name for a clas
 - `randomize_link_mass_scale` (`RandomizeLinkMassScale`) — Multiplicative per-link mass randomization. Requires `EnvOptions(batch_links_info=True)`.
 - `randomize_mass_shift` (`RandomizeMassShift`) — Add a per-env offset to the named links' masses. Requires `EnvOptions(batch_links_info=True)`.
 - `randomize_motor_strength` (`RandomizeMotorStrength`) — Randomize a `MotorStrength` action modifier's scalar (default factor 0.9 to 1.1).
-- `randomize_startup_dofs_pos` (`RandomizeStartupDofsPos`) — Randomize the absolute joint positions of an entity's DOFs (default mode: reset).
+- `randomize_startup_dofs_pos` (`RandomizeStartupDofsPos`) — Randomize an entity's absolute joint positions (default mode: reset).
 - `randomize_startup_dofs_pos_bias` (`RandomizeStartupDofsPosBias`) — Bake a per-env joint-zero bias into ``entity.default_dofs_pos`` at startup.
 - `randomize_torque_noise` (`RandomizeTorqueNoise`) — Residual Force Injection (RFI) — adds random torque noise to actuated joints.
-- `set_random_dofs_pos` (`SetRandomDofsPos`) — Set the joint positions of an entity's DOFs to a random position (default mode: reset).
+- `set_random_dofs_pos` (`SetRandomDofsPos`) — Set an entity's joint positions to random values (default mode: reset).
 
 `eden.managers.terms.events.motion`:
 - `object_reference_state_initialization` (`ObjectReferenceStateInitialization`) — On reset, set a free rigid object from the motion reference.
@@ -321,10 +321,10 @@ Every term registered in Eden (246 of them): registry key, class name for a clas
 
 `eden.managers.terms.curricula.rewards`:
 - `penalty_curriculum` (`PenaltyCurriculum`) — Curriculum that gradually scales reward weights for a set of reward terms.
-- `stage_reward_weight_curriculum` (`StageRewardWeightCurriculum`) — Curriculum that sets a reward term's weight at given training steps.
+- `stage_reward_weight_curriculum` (`StageRewardWeightCurriculum`) — Sets a reward term's weight at given training steps.
 
 `eden.managers.terms.curricula.success_guided`:
-- `success_guided_sampling` (`SuccessGuidedSampling`) — Draw each resetting env's reset configuration with probability peaked at a target success rate.
+- `success_guided_sampling` (`SuccessGuidedSampling`) — Draw each reset configuration with probability peaked at a target success rate.
 
 `eden.managers.terms.curricula.velocity`:
 - `velocity_command_curriculum` (`VelocityCommandCurriculum`) — Curriculum that progressively expands velocity command ranges.
@@ -392,13 +392,16 @@ Every term registered in Eden (246 of them): registry key, class name for a clas
 `eden.managers.terms.recorders.sysid`:
 - `sys_id_recorder` (`SysIDRecorder`) — Record the proprioceptive trace needed to rebuild a sysid Trajectory.
 
-## motion terms (1)
+## motion terms (2)
 
 - Class terms: `<ClassName>.configure(<field>=...)` — import it from the module its section names
 - Every motion term also accepts: `adaptive_alpha`, `adaptive_failure_rate_max_over_mean`, `adaptive_kernel_size`, `adaptive_lambda`, `adaptive_motion_weights`, `adaptive_sampling`, `adaptive_uniform_ratio`, `compute_per_motion_metrics`, `dataset_options`, `entities_map`, `env_motion_groups`, `env_starting_stub_sampling_strategy`, `freeze_at_timestep_zero_prob`, `log_motion_id_to_filename`, `log_per_motion_metrics`, `metric_anchor_link_name`, `motion_bin_length_s`, `motion_start_from_middle_range`, `motion_weight_failure_amplify`, `motion_weight_failure_rate_max_over_mean`, `motion_weight_floor`, `motion_weight_success_discount`, `motion_weight_uniform_mix`, `motion_weight_update_every_n_iters`, `motion_weight_update_mode`, `motion_weights`, `start_at_timestep_zero_prob`, `target_dofs_name`, `target_links_name`
 
 `eden.managers.motion_manager`:
 - `motion_term` (`MotionTerm`) — —
+
+`eden.managers.terms.motions.kinematic`:
+- `kinematic_links_motion` (`KinematicLinksMotion`) — Reference links by forward kinematics.
 
 ## noise_model terms (3)
 

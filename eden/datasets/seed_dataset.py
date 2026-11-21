@@ -9,7 +9,7 @@ import numpy as np
 import torch
 
 import eden as en
-from eden.datasets.base import DatasetBase, DATASET_REGISTRY
+from eden.datasets.base import DATASET_REGISTRY, DatasetBase, RootJointsOnlyMixin
 from eden.options.robots.unitree_g1 import G1_DOFS29_NAME, G1_DOFS29_TRACKED_LINKS_NAME
 from eden.utils.motion_reference.motion_data import BatchMotionSequence
 
@@ -121,3 +121,8 @@ class SEEDRetargetedG1Dataset(DatasetBase):
             base_quat_w=base_quat_w,
             dofs_pos=dofs_pos,
         )
+
+
+@DATASET_REGISTRY.register()
+class SEEDRootJointsG1Dataset(RootJointsOnlyMixin, SEEDRetargetedG1Dataset):
+    """BONES-SEED retargeted to the G1, root and joints only."""

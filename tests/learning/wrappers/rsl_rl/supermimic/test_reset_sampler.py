@@ -4,7 +4,7 @@ import pytest
 import torch
 
 from eden.learning.wrappers.rsl_rl.supermimic.options import ReturnSamplerOptions
-from eden.learning.wrappers.rsl_rl.supermimic.reset_sampler import ReturnSampler
+from eden.learning.wrappers.rsl_rl.supermimic.reset_sampler import ReturnSampler, bin_frame_range, frame_bins
 
 
 def _sampler(**options) -> ReturnSampler:
@@ -44,3 +44,20 @@ def test_the_value_of_a_bin_is_the_discounted_return_after_a_fall():
 def test_shares_that_leave_no_focus_are_refused():
     with pytest.raises(ValueError, match="must leave a share for the focus"):
         ReturnSamplerOptions(explore=0.6, keep=0.4)
+
+
+@pytest.mark.parametrize("frame_count, bin_count", [(1000, 101), (135, 14), (20, 21), (7, 3)])
+def test_every_frame_lies_in_the_range_of_the_bin_it_is_scored_in(frame_count, bin_count):
+    frames = torch.arange(frame_count)
+    bins = frame_bins(frames, bin_count, frame_count)
+    first, end = bin_frame_range(bins, bin_count, frame_count)
+    assert ((first <= frames) & (frames < end)).all()
+    first, end = bin_frame_range(torch.arange(bin_count), bin_count, frame_count)
+    assert first[0] == 0 and end[-1] == frame_count and torch.equal(first[1:], end[:-1])
+
+
+def test_a_saved_state_with_another_bin_count_names_both_libraries():
+    state = _sampler().state_dict()
+    other = ReturnSampler(ReturnSamplerOptions(horizon=4), 5, 50, num_envs=2, max_step_reward=1.0, device="cpu")
+    with pytest.raises(ValueError, match=r"holds 2 reset bins, but this run's motion library has 5 \(50 frames\)"):
+        other.load_state_dict(state)

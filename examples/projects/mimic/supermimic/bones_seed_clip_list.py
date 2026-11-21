@@ -187,7 +187,6 @@ def main() -> None:
     args = parser.parse_args()
 
     from eden.options.robots.unitree_g1 import G1Dofs29
-    from eden.utils.assets import get_asset_path
 
     root = args.raw_data_path
     clips = sorted(
@@ -199,7 +198,7 @@ def main() -> None:
     print(f"name filter: {len(clips)} -> {len(kept)} clips")
     flagged: dict[str, list[str]] = {}
     if not args.name_filter_only:
-        with Pool(args.workers, initializer=_init_worker, initargs=(get_asset_path(G1Dofs29().file),)) as pool:
+        with Pool(args.workers, initializer=_init_worker, initargs=(G1Dofs29().fetch_asset(),)) as pool:
             flags = pool.map(_check, [os.path.join(root, c) for c in kept], chunksize=64)
         for clip, raised in zip(kept, flags, strict=True):
             for flag in raised:

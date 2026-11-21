@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Literal
+from typing import ClassVar, Literal
 
 from pydantic import model_validator
 
@@ -57,7 +57,8 @@ class PolicyOptions(ConfigurableOptions):
     horizon : int
         Imagined steps per rollout.
     gamma, lam : float
-        Discount and TD(lambda) parameter (``bptt``: ``gamma`` only, default 1).
+        Discount and TD(lambda) parameter of ``actor_critic``, each in ``(0, 1)`` and ``[0, 1]``. ``bptt`` reads
+        neither: it sums the imagined rewards undiscounted.
     survival_masking : bool
         Weight each imagined reward by the probability of not having terminated before it.
     beta2 : float
@@ -79,6 +80,13 @@ class PolicyOptions(ConfigurableOptions):
         Proprioception frames the actor reads; above 1 needs ``observation="proprio"``.
     slot_mix : dict[str, float]
         Share of the batch each goal interface trains on (``"motion"``, ``"velocity"``).
+    goal_frames, goal_frame_stride : int
+        The motion goal holds ``goal_frames`` reference frames ``goal_frame_stride`` control steps apart, from the
+        current one.
+    proprio_noise : tuple[float, float, float, float, float]
+        Uniform noise half-width of each term of the task's proprioception group, in its order
+        ``[projected_gravity, base_ang_vel, q - q0, qd, last_action]``. The runner adds the noise to the simulator's
+        reading and to the world model's, so the task's group carries none.
     """
 
     algorithm: Literal["actor_critic", "bptt"] = "actor_critic"
@@ -99,9 +107,16 @@ class PolicyOptions(ConfigurableOptions):
     observation: Literal["state", "proprio"] = "state"
     history_length: int = 1
     slot_mix: dict[str, float] = {"motion": 1.0, "velocity": 0.0}
+    goal_frames: int = 10
+    goal_frame_stride: int = 5
+    proprio_noise: tuple[float, float, float, float, float] = (0.05, 0.2, 0.01, 0.5, 0.0)
 
     @model_validator(mode="after")
     def _check(self) -> PolicyOptions:
+        if self.goal_frames < 1 or self.goal_frame_stride < 1:
+            raise ValueError(
+                f"goal_frames ({self.goal_frames}) and goal_frame_stride ({self.goal_frame_stride}) must be at least 1."
+            )
         if self.history_length > 1 and self.observation != "proprio":
             raise ValueError(
                 f"history_length={self.history_length} stacks proprioception frames, so it needs "
@@ -109,6 +124,12 @@ class PolicyOptions(ConfigurableOptions):
             )
         if self.termination_softness <= 0.0:
             raise ValueError(f"termination_softness must be positive, got {self.termination_softness}.")
+        if self.algorithm == "actor_critic" and not (0.0 < self.gamma < 1.0 and 0.0 <= self.lam <= 1.0):
+            raise ValueError(
+                f"algorithm='actor_critic' bounds the critic by max_step_reward / (1 - gamma), so it needs "
+                f"0 < gamma < 1 and 0 <= lam <= 1, got gamma={self.gamma}, lam={self.lam}. For an undiscounted "
+                "objective set algorithm='bptt'."
+            )
         return self
 
 
@@ -176,7 +197,7 @@ class SimContextOptions(ConfigurableOptions):
     Attributes
     ----------
     foot_friction_event : str | None
-        A ``RandomizeFrictionRatio`` event; its first link's friction is read (one draw shared by the feet).
+        A ``RandomizeFrictionRatio`` event; the friction of each of its links is read, one context column per link.
     com_event : str | None
         A ``RandomizeComShift`` event on one link.
     encoder_bias_event : str | None
@@ -188,28 +209,72 @@ class SimContextOptions(ConfigurableOptions):
     encoder_bias_event: str | None = "encoder_bias"
 
 
+class RewardTermsOptions(ConfigurableOptions):
+    """The task's reward terms that the world model computes on a predicted state, by name.
+
+    The runner reads each term's weight and kernel width off the task, so the task's reward options are the only
+    place they are set. The task must have these reward terms and no other.
+
+    Attributes
+    ----------
+    anchor_pos, anchor_ori : str
+        ``motion_link_position_tracking_exp`` / ``motion_link_orientation_tracking_exp`` terms on the anchor link.
+    body_pos, body_ori : str
+        ``MotionRelativeBodyPositionErrorExp`` / ``MotionRelativeBodyOrientationErrorExp`` terms on the motion term's
+        links, anchored at the first of them.
+    body_lin_vel, body_ang_vel : str
+        ``MotionGlobalBodyLinearVelocityErrorExp`` / ``MotionGlobalBodyAngularVelocityErrorExp`` terms on the same
+        links.
+    action_rate : str
+        An ``action_rate_l2`` term.
+    joint_limit : str
+        A ``dofs_pos_limits`` term.
+    """
+
+    anchor_pos: str = "motion_global_root_pos"
+    anchor_ori: str = "motion_global_root_ori"
+    body_pos: str = "motion_body_pos"
+    body_ori: str = "motion_body_ori"
+    body_lin_vel: str = "motion_body_lin_vel"
+    body_ang_vel: str = "motion_body_ang_vel"
+    action_rate: str = "action_rate_l2"
+    joint_limit: str = "joint_limit"
+
+
+#: The runner ``eden train`` / ``eden inference`` build for :class:`SuperMimicRunnerOptions`.
+SUPERMIMIC_RUNNER_CLASS_NAME = "eden.learning.wrappers.rsl_rl.supermimic.runner:SuperMimicRunner"
+
+
 class SuperMimicRunnerOptions(RslRlBaseRunnerOptions):
     """SuperMimic: a motion tracker trained through one learned, differentiable world model.
 
     Each iteration steps the simulator ``num_steps_per_env`` times with the deterministic policy, storing every
-    transition in a replay buffer. Every ``num_envs / (num_batches * batch_size * horizon) * replay_ratio`` env
-    steps on average, the world model fits replay-buffer windows and the policy improves on rollouts imagined by the
-    frozen world model from replay-buffer states.
+    transition in a replay buffer. On average ``num_envs / (num_batches * batch_size * horizon) * replay_ratio``
+    times per env step, the world model fits replay-buffer windows and the policy improves on rollouts imagined by
+    the frozen world model from replay-buffer states.
+
+    The runner owns its loop. Of the base runner options it reads ``check_for_nan`` (the running statistics of the
+    collected state, action and reward are checked once per iteration) and ``logger`` (``"tensorboard"`` or ``"wandb"``); ``obs_groups``, ``clip_actions``,
+    ``resume``, ``load_run`` and ``load_checkpoint`` must keep their defaults. Resume a run with
+    ``eden train --checkpoint``.
 
     Attributes
     ----------
     class_name : str
-        The runner.
+        The runner, by import path; leave at the default.
     motion_term : str
-        The task's :class:`~eden.tasks.supermimic.motion.SuperMimicMotion` term.
+        The task's :class:`~eden.learning.wrappers.rsl_rl.supermimic.motion.SuperMimicMotion` term.
     action_term : str
         The joint position controller.
     actor_observation_group : str
         The proprioception group, ``[projected_gravity, base_ang_vel, q - q0 (biased), qd, last_action]``.
     state_observation_group : str
         The group holding the robot's full state ``[root_pos, root_quat, q, root_lin_vel_w, root_ang_vel_w, qd]``.
+    reward_terms : RewardTermsOptions
+        The task's reward terms the world model computes.
     anchor_pos_termination, anchor_ori_termination : str
-        Termination terms whose thresholds set the world model's termination probability.
+        ``bad_anchor_pos_z_only`` / ``bad_anchor_ori`` termination terms, whose thresholds set the world model's
+        termination probability.
     clip_end_termination : str
         Termination term that ends an episode at its clip's last frame.
     buffer_size : int
@@ -218,7 +283,9 @@ class SuperMimicRunnerOptions(RslRlBaseRunnerOptions):
         Replayed world-model transitions per collected one.
     """
 
-    class_name: Literal["SuperMimicRunner"] = "SuperMimicRunner"
+    translates_to_rsl_rl: ClassVar[bool] = False
+
+    class_name: str = SUPERMIMIC_RUNNER_CLASS_NAME
     num_steps_per_env: int = 10
     max_iterations: int = 100_000
     save_interval: int = 100
@@ -229,6 +296,7 @@ class SuperMimicRunnerOptions(RslRlBaseRunnerOptions):
     anchor_pos_termination: str = "anchor_pos"
     anchor_ori_termination: str = "anchor_ori"
     clip_end_termination: str = "clip_end"
+    reward_terms: RewardTermsOptions = RewardTermsOptions()
     buffer_size: int = 1000
     replay_ratio: float = 16.0
     world_model: WorldModelOptions = WorldModelOptions()
@@ -236,3 +304,26 @@ class SuperMimicRunnerOptions(RslRlBaseRunnerOptions):
     velocity_goal: VelocityGoalOptions = VelocityGoalOptions()
     return_sampler: ReturnSamplerOptions = ReturnSamplerOptions()
     sim_context: SimContextOptions = SimContextOptions()
+
+    @model_validator(mode="after")
+    def _check_inherited(self) -> SuperMimicRunnerOptions:
+        fields = type(self).model_fields
+        reasons = {
+            "obs_groups": "the runner reads actor_observation_group and state_observation_group",
+            "clip_actions": "the env wrapper would clamp the action the simulator applies, while the world model "
+            "learns from the action the policy output",
+            "resume": "pass `eden train --checkpoint <path>` to continue a run",
+            "load_run": "pass `eden train --checkpoint <path>` to continue a run",
+            "load_checkpoint": "pass `eden train --checkpoint <path>` to continue a run",
+        }
+        changed = {name: getattr(self, name) for name in reasons if getattr(self, name) != fields[name].default}
+        if self.logger == "neptune":
+            reasons["logger"] = "the runner writes to TensorBoard or W&B; set logger to 'tensorboard' or 'wandb'"
+            changed["logger"] = self.logger
+        if changed:
+            detail = "; ".join(f"{name}={value!r} ({reasons[name]})" for name, value in changed.items())
+            raise ValueError(
+                f"SuperMimicRunnerOptions does not support these runner options, which configure rsl_rl's own "
+                f"runners: {detail}. Leave them at their defaults."
+            )
+        return self

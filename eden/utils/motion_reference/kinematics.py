@@ -19,6 +19,11 @@ class ForwardKinematics(torch.nn.Module):
     convention of MuJoCo ``xpos`` and of Genesis ``get_links_vel(ref="link_origin")``. The pass runs on per-component
     ``(..., L)`` tensors, which ``torch.compile`` fuses into few kernels.
 
+    Use it where link states are needed inside a differentiable or compiled computation, or for frames chosen at run
+    time. A dataset that precomputes the links of every frame at load uses the simulator's own kinematics
+    (``DatasetBase._forward_velocity_kinematics``), which reads any joint type; this module reads a free root and
+    hinges only, and raises on anything else.
+
     Parameters
     ----------
     mjcf_path : str
@@ -152,6 +157,12 @@ class ForwardKinematics(torch.nn.Module):
         state = torch.stack([*pos, *_mul(root, quat), *lin, *ang], dim=-1)
         pos_w, quat_w, lin_vel_w, ang_vel_w = state.split((3, 4, 3, 3), dim=-1)
         return pos_w, quat_w, lin_vel_w, ang_vel_w
+
+
+# The pass keeps every vector and quaternion as a tuple of ``(..., L)`` components, so the products below are written
+# per component instead of calling ``eden.utils.geom`` on stacked ``(..., L, 3)`` / ``(..., L, 4)`` tensors.
+# ``tests/utils/motion_reference/test_kinematics.py`` pins ``_mul`` and ``_rotate`` to ``quat_mul`` and
+# ``transform_by_quat``.
 
 
 def _add(a: Vec, b: Vec) -> Vec:

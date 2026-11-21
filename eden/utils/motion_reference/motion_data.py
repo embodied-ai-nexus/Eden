@@ -284,6 +284,18 @@ class MotionSequence:
             setattr(self, attr, quat / safe)
 
 
+#: The link fields of a motion sequence and of the reference buffer: world frame, then body frame, each as
+#: position, orientation, linear velocity, angular velocity.
+LINK_FIELDS = (
+    "links_pos_w",
+    "links_quat_w",
+    "links_lin_vel_w",
+    "links_ang_vel_w",
+    "links_pos_b",
+    "links_quat_b",
+    "links_lin_vel_b",
+    "links_ang_vel_b",
+)
 #: The ``links_*_b`` fields :func:`~eden.utils.motion_reference.utils.derive_body_frame_link_fields` derives.
 _BODY_FRAME_LINK_FIELDS = frozenset({"links_pos_b", "links_quat_b", "links_lin_vel_b", "links_ang_vel_b"})
 

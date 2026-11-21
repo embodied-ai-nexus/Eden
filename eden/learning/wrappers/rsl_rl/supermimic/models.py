@@ -153,8 +153,16 @@ class MultiEncoderActor(nn.Module):
             lo = hi
         return ranges
 
-    def forward(self, obs: TensorDict) -> torch.Tensor:
-        slots = self.slot_ranges(obs.shape[0])
+    def forward(self, obs: TensorDict, interface: str | None = None) -> torch.Tensor:
+        """Actions for ``obs``. Rows are split among the goal interfaces by the slot mix, or, with ``interface``,
+        all read that one interface's goal (replaying a checkpoint on the motion goal, whatever mix it trained on).
+        """
+        if interface is None:
+            slots = self.slot_ranges(obs.shape[0])
+        elif interface in self._names:
+            slots = [(0, obs.shape[0]) if name == interface else (0, 0) for name in self._names]
+        else:
+            raise ValueError(f"no goal interface {interface!r}; the interfaces are {self._names}.")
         latents = [
             torch.tanh(self.encoders[name](self.goal_normalizers[name](obs[f"goal_{name}"][lo:hi])))
             for name, (lo, hi) in zip(self._names, slots, strict=True)

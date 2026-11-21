@@ -15,6 +15,22 @@ if TYPE_CHECKING:
     from eden.learning.wrappers.rsl_rl.supermimic.options import ReturnSamplerOptions
 
 
+def frame_bins(frames: torch.Tensor, bin_count: int, frame_count: int) -> torch.Tensor:
+    """The reset bin of each frame of a ``frame_count``-frame timeline cut into ``bin_count`` bins."""
+    return frames * bin_count // frame_count
+
+
+def bin_frame_range(bins: torch.Tensor, bin_count: int, frame_count: int) -> tuple[torch.Tensor, torch.Tensor]:
+    """``(first, end)`` of the frames :func:`frame_bins` maps to each of ``bins``; ``first == end`` for an empty bin.
+
+    The motion term draws a reset frame from this range and the return sampler credits the frame's return with
+    :func:`frame_bins`, so a bin's value is measured on the frames its resets start from.
+    """
+    first = -((-bins * frame_count) // bin_count)
+    end = -((-(bins + 1) * frame_count) // bin_count)
+    return first, end
+
+
 class ReturnSampler:
     """Bin values from the simulator's rewards, and the reset distribution they give.
 
@@ -57,8 +73,14 @@ class ReturnSampler:
         self._timed_out = torch.zeros(shape, dtype=torch.bool, device=device)
         self._step = 0
 
+    def restart_horizon(self) -> None:
+        """Discard the steps recorded since the last update. For a caller that resets the envs, after which the
+        buffered steps no longer continue into the next ones.
+        """
+        self._step = 0
+
     def bins(self, frames: torch.Tensor) -> torch.Tensor:
-        return frames * self.bin_count // self.frame_count
+        return frame_bins(frames, self.bin_count, self.frame_count)
 
     def record(
         self,
@@ -129,15 +151,30 @@ class ReturnSampler:
         self.count = self.count.clamp(max=self.options.memory) + new
         self.value = torch.where(new > 0, self.value + (total - new * self.value) / self.count, self.value)
 
+    def _focus(self) -> torch.Tensor:
+        return torch.softmax(-self.options.steepness * self.value / self.v_max, dim=0)
+
     def _distribution(self) -> torch.Tensor:
+        """The reset distribution after an update of the bin values, which adds to the bins' accumulated effort."""
+        self.effort += self._focus().double().square()
+        return self.distribution()
+
+    def distribution(self) -> torch.Tensor:
+        """The reset distribution of the current bin values and accumulated effort (after at least one update)."""
         o = self.options
-        focus = torch.softmax(-o.steepness * self.value / self.v_max, dim=0)
-        self.effort += focus.double().square()
         keep = (self.effort / self.effort.sum()).float()
-        return o.explore / self.bin_count + (1.0 - o.explore - o.keep) * focus + o.keep * keep
+        return o.explore / self.bin_count + (1.0 - o.explore - o.keep) * self._focus() + o.keep * keep
 
     def state_dict(self) -> dict[str, torch.Tensor]:
         return {"value": self.value, "count": self.count, "effort": self.effort}
 
     def load_state_dict(self, state: dict[str, torch.Tensor]) -> None:
+        shapes = {k: tuple(state[k].shape) for k in ("value", "count", "effort")}
+        if any(shape != (self.bin_count,) for shape in shapes.values()):
+            raise ValueError(
+                f"The checkpoint's return sampler holds {shapes['value'][0] if shapes['value'] else 0} reset bins, "
+                f"but this run's motion library has {self.bin_count} ({self.frame_count} frames): the checkpoint "
+                "was trained on another library, clip list or reset_bin_length_s. Resume on the library it was "
+                "trained on, or start a new run."
+            )
         self.value, self.count, self.effort = (state[k].to(self.value.device) for k in ("value", "count", "effort"))

@@ -12,6 +12,9 @@ import torch
 
 import eden as en
 
+# Session fixtures that tests in more than one directory share, defined once in ``tests/support``.
+pytest_plugins = ["tests.support.supermimic"]
+
 # No sys.path manipulation here: with ``tests`` a regular package (see tests/__init__.py),
 # pytest's default prepend import mode puts the repo root on sys.path itself. The manual
 # insert this replaced could not have fixed the shadowing anyway — path order is irrelevant

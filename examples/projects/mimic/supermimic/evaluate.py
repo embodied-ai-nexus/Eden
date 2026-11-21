@@ -45,8 +45,7 @@ def main() -> None:
     args = parser.parse_args()
 
     en.init(backend=gs.cpu if args.cpu else gs.gpu, performance_mode=True)
-    from eden.envs.wrappers.rsl_rl_env import RslRlVecEnvWrapper
-    from eden.learning.wrappers.rsl_rl.supermimic.runner import make_supermimic_runner
+    from eden.envs.wrappers.rsl_rl_env import RslRlVecEnvWrapper, make_rsl_rl_runner
     from eden.tasks import TASK_REGISTRY
     from eden.tasks.supermimic.config import TRACKED_LINKS
 
@@ -70,7 +69,7 @@ def main() -> None:
     num_clips = motion.library.starts.numel()
     if num_clips > env.num_envs:
         raise SystemExit(f"{num_clips} clips need as many envs: pass -b {num_clips}, or split --clip-list.")
-    runner = make_supermimic_runner(env, checkpoint=args.checkpoint, log_dir=None)
+    runner = make_rsl_rl_runner(env, checkpoint=args.checkpoint, for_inference=True)
     results = _play(env, runner.get_inference_policy(), motion, TRACKED_LINKS, num_clips)
 
     failed = [r for r in results if r["failed"]]

@@ -48,3 +48,25 @@ def test_a_causal_window_repeats_the_episodes_first_step_before_it_starts():
 def test_a_window_longer_than_the_buffer_is_refused():
     with pytest.raises(ValueError, match="exceeds buffer_size 16"):
         _filled(steps=4, ends=set()).sample(sequence_length=17, batch_size=1)
+
+
+def test_a_buffer_whose_every_window_holds_an_episode_end_reports_no_window():
+    buffer = _filled(steps=8, ends={2, 5})
+    assert buffer.has_window(3) and not buffer.has_window(4)
+    with pytest.raises(RuntimeError, match=r"no window of 4 steps .* Check has_window\(4\)"):
+        buffer.sample(sequence_length=4, batch_size=2)
+
+
+def test_ending_the_episodes_keeps_windows_from_crossing_the_newest_step():
+    buffer = _filled(steps=6, ends=set())
+    buffer.end_episodes()
+    for t in range(6, 12):
+        buffer.insert(
+            TensorDict(
+                {"t": torch.tensor([t]), "terminated": torch.tensor([False]), "truncated": torch.tensor([False])}, [1]
+            )
+        )
+    t = buffer.sample(sequence_length=3, batch_size=300)["t"]
+    # Step 5 ends its episode: a window may end on it, and none holds it before its last step.
+    assert not (t[:, :-1] == 5).any()
+    assert (t[:, -1] == 5).any() and (t[:, 0] == 6).any()

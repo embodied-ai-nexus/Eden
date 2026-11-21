@@ -124,6 +124,16 @@ A motion tracker trained through one learned, differentiable world model (the `s
     options:
       show_root_heading: false
 
+The motion term the runner trains on, and what it reads off the task's reward and termination terms:
+
+::: eden.learning.wrappers.rsl_rl.supermimic.motion
+    options:
+      show_root_heading: false
+
+::: eden.learning.wrappers.rsl_rl.supermimic.task_terms
+    options:
+      show_root_heading: false
+
 ## ConTrack CMDP-PPO
 
 Constrained-MDP PPO trained through the external `rsl_rl_contrack` fork of rsl_rl.

@@ -274,6 +274,41 @@ By default a clip that runs out holds its last frame with zero velocity, `validi
 the environment instead draws a new start, and every RSI event teleports its entity onto it, without ending the
 episode. The RSI terms are resolved after the build, so enabling resync without one raises at construction.
 
+### Extending a motion term
+
+A `MotionTerm` subclass changes what a reset draws or which fields the reference holds through four methods. They
+are the supported extension points: the helpers they sit on (`_sample_assigned_env_starting_stub`,
+`_frame_index_and_validity`, `_copy_frame_data`, ...) are private and change without notice.
+
+| method | override it to | default |
+|---|---|---|
+| `sample_starts(assigned_ids)` | draw each environment's clip and start from your own distribution. Called at assignment and at every reset, with int ids or a bool mask over the term's environments. A clip restarted by `resync_on_motion_end` keeps its clip and draws a new start time from the base sampling, not from this method. | follows `env_starting_stub_sampling_strategy` |
+| `derives_links(motion_sequence_key)` | return `True` when the term computes the link fields of that sequence itself. `target_links_name` then lists the links to fill, by name and in buffer order, and it is taken as configured: the dataset must store no link field (`RootJointsOnlyMixin`). The base `__init__` reads it before a subclass `__init__` has run, so it may depend on the term's options only. | `False`: `target_links_name` selects among the links the dataset stores |
+| `derive_reference_fields(motion_sequence_key, envs_idx, data_buffer)` | fill the fields the dataset does not store, from the ones it does. Runs at the end of every fill, after the stored fields of those rows are written (origin added, past-end velocities zeroed). | nothing |
+| `enable_trajectories(traj_ids)` | rebuild anything derived from the clip library; call `super()` first | subsets the library |
+
+Three methods are there to be called, not overridden:
+
+- `set_start_frames(assigned_ids, motion_ids, frames)` writes a draw made in `sample_starts`. It starts each
+  environment on a whole frame and stores the middle of that frame as the start time, so the fill's
+  `floor((start + t) * framerate)` reads `frame + k` after `k` frame periods whatever the float rounding of the clock.
+- `require_default_start_options(reason)`, in the `__init__` of a subclass that overrides `sample_starts`, raises
+  if an option of the default sampling is set (`motion_bin_length_s`, `adaptive_sampling`, `motion_weights`, ...).
+  Without it such an option is accepted and has no effect. The options it covers are the `MotionTermOptions` fields
+  annotated with `StartSamplingOption`; annotate a new sampling option the same way where you declare it.
+- `MotionManager.get_library_frame(term_name)` returns each environment's current frame as a row of the term's
+  concatenated library, `(num_envs,)` with -1 for an environment another term plays. It is for a training loop that
+  stores the frame with a transition and reads the library at it later.
+  `eden.utils.motion_reference.library.MotionLibrary.from_sequence` gives that library's root and joint tensors as
+  one timeline.
+
+Two terms are written on these. `KinematicLinksMotion` (`eden/managers/terms/motions/`) reads a dataset that stores
+root and joint state only (`LAFAN1RootJointsG1Dataset`, `SEEDRootJointsG1Dataset`) and fills the link fields by
+forward kinematics (`eden.utils.motion_reference.kinematics.ForwardKinematics`); it keeps the base start sampling,
+so any tracking task can use it to fit a large library on one GPU. `SuperMimicMotion`
+(`eden/learning/wrappers/rsl_rl/supermimic/motion.py`) extends it with starts drawn from per-bin weights that the
+SuperMimic runner sets.
+
 ## Several actors in one reference
 
 A scene with several tracked entities (a humanoid and an object, two hands and an articulated object, two people)

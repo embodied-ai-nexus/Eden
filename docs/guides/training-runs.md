@@ -439,9 +439,27 @@ build that class instead of Eden's `OnPolicyRunner` / `DistillationRunner`:
   stock runner. Write an import path with a colon: `"module.path:ClassName"`.
 - `eden deploy` loads checkpoints into rsl_rl's stock `OnPolicyRunner`, so it refuses a task whose runner is named by
   import path; replay those checkpoints with `eden inference`.
+- `eden export` builds the graph from `runner.alg.get_policy()`, so it works for a runner built on an rsl_rl
+  algorithm (the ConTrack fork) and raises after the build for one that is not. An `export_unsupported` message on
+  the class makes it exit with that message before anything is built.
+- A runner that is not built on an rsl_rl algorithm brings its own options class, a `RslRlBaseRunnerOptions`
+  subclass that sets the class attribute `translates_to_rsl_rl = False`. `runner_dict` is then those options as a
+  dict, with the device resolved and nothing translated for the installed rsl-rl-lib, and a checkpoint is handed
+  straight to the runner's `load(path, map_location=...)`, without the rsl-rl-lib layout handling. Such an options
+  class should raise on the base runner options its runner does not read.
+- `eden inference` builds the runner the same way as `eden train`. Allocate what only training needs (a replay
+  buffer, a log writer) in `learn()`, not in `__init__`.
 
-Examples: `RslRlRmaDepthDistillationRunnerOptions` (`extreme_parkour_student`) and `RslRlContrackRunnerOptions`
-(`contrack`).
+What a custom runner declares, and on which class:
+
+| attribute | on | read by | effect |
+|---|---|---|---|
+| `checkpoint_required` (message) | the runner class | `eden train`, before the build | exit when no checkpoint is given |
+| `export_unsupported` (message) | the runner class | `eden export`, before the build | exit with the message |
+| `translates_to_rsl_rl = False` | the runner options class | the env wrapper and `make_rsl_rl_runner` | plain options dict, the runner's own `load` |
+
+Examples: `RslRlRmaDepthDistillationRunnerOptions` (`extreme_parkour_student`), `RslRlContrackRunnerOptions`
+(`contrack`) and `SuperMimicRunnerOptions` (`supermimic`), whose runner is not built on an rsl_rl algorithm.
 
 ### Data only the algorithm sees
 

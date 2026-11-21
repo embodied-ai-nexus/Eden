@@ -914,6 +914,30 @@ def quat_error_magnitude(q1: torch.Tensor, q2: torch.Tensor) -> torch.Tensor:
     return 2.0 * torch.atan2(torch.linalg.norm(q_diff[..., 1:], dim=-1), q_diff[..., 0].abs())
 
 
+def R_error_magnitude(R1: torch.Tensor, R2: torch.Tensor, eps: float = 1.0e-7) -> torch.Tensor:
+    """Geodesic angle (radians) between two rotation matrices ``(..., 3, 3)``. Shape ``(...)``.
+
+    ``acos((tr(R1ᵀ R2) - 1) / 2)``, the matrix form of :func:`quat_error_magnitude`. The cosine is kept ``eps`` off
+    ``±1``: the derivative of ``acos`` is infinite there, so a loss on the angle of two equal rotations would
+    backpropagate ``nan``. The clamp makes the angle of equal rotations ``sqrt(2 eps)`` instead of 0.
+    """
+    cos = ((R1 * R2).sum(dim=(-2, -1)) - 1.0) / 2.0
+    return torch.acos(cos.clamp(-1.0 + eps, 1.0 - eps))
+
+
+def quat_integrate(quat: torch.Tensor, ang_vel_w: torch.Tensor, dt: float) -> torch.Tensor:
+    """``quat`` (wxyz) turned by the world-frame angular velocity ``ang_vel_w`` held over ``dt``, normalized.
+
+    The exact rotation ``exp(ang_vel_w * dt)`` applied on the left. Differentiable at zero angular velocity, where
+    the rotation axis is undefined: the angle is ``sqrt(|ω dt|² + 1e-8)``.
+    """
+    omega = ang_vel_w * dt
+    angle = torch.sqrt((omega * omega).sum(-1, keepdim=True) + 1e-8)
+    delta = torch.cat([torch.cos(angle / 2), torch.sin(angle / 2) * omega / angle], dim=-1)
+    out = quat_mul(delta, quat)
+    return out / torch.norm(out, dim=-1, keepdim=True)
+
+
 def random_quat_uniform(
     n: int,
     device: torch.device | str | None = None,

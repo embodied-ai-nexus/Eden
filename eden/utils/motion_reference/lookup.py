@@ -261,7 +261,7 @@ def assert_motion_field_present(env: MimicRLEnvBase, entity_name: str, field_nam
         seq = term.data_source.motion_sequences[seq_key]
         if not hasattr(seq, field_name):
             raise ValueError(f"Motion sequence '{seq_key}' (entity '{entity_name}') has no field '{field_name}'.")
-        if getattr(seq, field_name) is None:
+        if not term.provides_field(seq_key, field_name):
             raise ValueError(
                 f"Motion sequence '{seq_key}' (entity '{entity_name}') does not "
                 f"populate '{field_name}'. The tracking term cannot run against "

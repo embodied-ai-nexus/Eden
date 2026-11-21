@@ -676,6 +676,7 @@ def export_task(extra_args: list[str]) -> None:
             "eden export reads rsl_rl checkpoints only: an rl_games checkpoint has no export hooks to build the "
             "graph from. Export it with rl_games' own tooling, or train the task with rsl_rl (its default runner)."
         )
+    _check_exportable_runner(config)
     config.env_options.num_envs = 1
     if hasattr(config.runner_options, "logger"):
         config.runner_options.logger = "tensorboard"  # never wandb-log an export
@@ -2602,6 +2603,23 @@ def _check_deployable_runner(config) -> None:
         )
 
 
+def _check_exportable_runner(config) -> None:
+    """Exit, before anything is built, when the task's runner says its policy cannot be exported.
+
+    A runner named by import path may set ``export_unsupported`` to the reason: its inference policy reads something
+    an exported graph does not have (the SuperMimic policy reads the motion library). Without the attribute the
+    export goes ahead, as it does for the ConTrack runner.
+    """
+    from eden.envs.wrappers.rsl_rl_env import rsl_rl_runner_class
+
+    class_name = getattr(config.runner_options, "class_name", None) or "OnPolicyRunner"
+    if ":" not in class_name:
+        return
+    reason = getattr(rsl_rl_runner_class(class_name), "export_unsupported", None)
+    if reason:
+        sys.exit(f"{reason} Nothing was built.")
+
+
 def _load_checkpoint_slots(env, dep, checkpoints: list[str]) -> list[_DeploySlot]:
     """Load every checkpoint into an independent policy slot, *before* any hardware contact.
 
@@ -3818,15 +3836,14 @@ def _check_rsl_rl_runner(config, checkpoint: str | None) -> None:
       carry (:func:`_check_rsl_rl_algorithm`);
     - the algorithm options' own ``preflight()``, when they define one (AMP-PPO loads its expert clips there).
 
-    FlashSAC's ``OffPolicyRunner`` and the SuperMimic runner are not checked here: :func:`_rsl_rl_env_and_runner`
-    builds each through its own factory, never through ``rsl_rl_runner_class``, which would refuse a non-stock name.
+    FlashSAC's ``OffPolicyRunner`` is not checked here: :func:`_rsl_rl_env_and_runner` builds it through its own
+    factory, never through ``rsl_rl_runner_class``, which would refuse its bare non-stock name.
     """
     from eden.envs.wrappers.rsl_rl_env import STOCK_RUNNER_NAMES, import_class_path, rsl_rl_runner_class
     from eden.learning.wrappers.rsl_rl.flashsac.options import RslRlFlashSacRunnerOptions
-    from eden.learning.wrappers.rsl_rl.supermimic.options import SuperMimicRunnerOptions
 
     options = config.runner_options
-    if isinstance(options, (RslRlFlashSacRunnerOptions, SuperMimicRunnerOptions)):
+    if isinstance(options, RslRlFlashSacRunnerOptions):
         return
     class_name = getattr(options, "class_name", None) or "OnPolicyRunner"
     runner_cls = rsl_rl_runner_class(class_name)
@@ -3923,26 +3940,20 @@ def _accepted_keywords(cls) -> tuple[set[str] | None, set[str]]:
 def _rsl_rl_env_and_runner(config, checkpoint: str | None, *, inference: bool = False, **env_kwargs):
     """The rsl_rl env wrapper and runner ``config.runner_options`` names: rsl_rl_flashsac's ``OffPolicyRunner`` for
     :class:`RslRlFlashSacRunnerOptions` (on a wrapper that also hands it the action bounds and the pre-reset
-    observation of timed-out envs), the SuperMimic runner for :class:`SuperMimicRunnerOptions`, else rsl_rl's
-    on-policy / distillation runner.
+    observation of timed-out envs), else the runner ``runner_options.class_name`` names
+    (:func:`~eden.envs.wrappers.rsl_rl_env.make_rsl_rl_runner`).
 
     ``inference`` builds a runner only to run the policy (no FlashSAC replay buffer); ``env_kwargs`` go to
     ``from_config``.
     """
     from eden.envs.wrappers.rsl_rl_env import RslRlVecEnvWrapper, make_rsl_rl_runner
     from eden.learning.wrappers.rsl_rl.flashsac.options import RslRlFlashSacRunnerOptions
-    from eden.learning.wrappers.rsl_rl.supermimic.options import SuperMimicRunnerOptions
 
     if isinstance(config.runner_options, RslRlFlashSacRunnerOptions):
         from eden.learning.wrappers.rsl_rl.flashsac.runner import FlashSacVecEnvWrapper, make_flashsac_runner
 
         env = FlashSacVecEnvWrapper.from_config(config, **env_kwargs)
         return env, make_flashsac_runner(env, checkpoint=checkpoint, inference=inference)
-    if isinstance(config.runner_options, SuperMimicRunnerOptions):
-        from eden.learning.wrappers.rsl_rl.supermimic.runner import make_supermimic_runner
-
-        env = RslRlVecEnvWrapper.from_config(config, **env_kwargs)
-        return env, make_supermimic_runner(env, checkpoint=checkpoint)
     env = RslRlVecEnvWrapper.from_config(config, **env_kwargs)
     return env, make_rsl_rl_runner(env, checkpoint=checkpoint, for_inference=inference)
 

@@ -1307,3 +1307,24 @@ def test_quat_swing_twist_torch_matches_numpy():
     twist_t, swing_t = geom.quat_swing_twist(torch.from_numpy(quat), torch.from_numpy(_Y))
     np.testing.assert_allclose(twist_t.numpy(), twist_np, atol=1e-12)
     np.testing.assert_allclose(swing_t.numpy(), swing_np, atol=1e-12)
+
+
+def test_R_error_magnitude_is_the_quaternion_error_and_has_a_finite_gradient_at_zero():
+    torch.manual_seed(21)
+    q1, q2 = _rand_quats(64), _rand_quats(64)
+    angle = geom.R_error_magnitude(geom.quat_to_R(q1), geom.quat_to_R(q2))
+    assert torch.allclose(angle, geom.quat_error_magnitude(q1, q2), atol=1e-3)
+    R = geom.quat_to_R(q1).requires_grad_()
+    geom.R_error_magnitude(R, R.detach()).sum().backward()
+    assert torch.isfinite(R.grad).all()
+
+
+def test_quat_integrate_turns_about_the_world_axis_by_the_rate_times_dt():
+    torch.manual_seed(22)
+    q, omega, dt = _rand_quats(32), torch.randn(32, 3), 0.02
+    expected = geom.quat_mul(geom.quat_from_axis_angle(omega * dt), q)
+    out = geom.quat_integrate(q, omega, dt)
+    assert torch.allclose(out.norm(dim=-1), torch.ones(32), atol=ATOL)
+    assert geom.quat_error_magnitude(out, expected).max() < 1e-3
+    still = geom.quat_integrate(q, torch.zeros(32, 3), dt)
+    assert geom.quat_error_magnitude(still, q).max() < 1e-3

@@ -22,6 +22,9 @@ def build_optimizers(
 ) -> list[torch.optim.Optimizer]:
     """Muon on the hidden Linear weights of every ``nn.Sequential`` in ``modules`` (all but the first and last),
     fused capturable Adam on the other parameters, both at ``lr``.
+
+    Not :class:`~eden.learning.wrappers.rsl_rl.muon_ppo.ppo.MuonAdamW`, which splits by parameter rank and decays
+    the weights with AdamW: a captured update needs Adam's ``capturable`` state and a tensor learning rate.
     """
     hidden = [
         linear.weight
@@ -38,6 +41,11 @@ def build_optimizers(
     adam = torch.optim.Adam(rest, lr=adam_lr, betas=betas, fused=on_cuda, capturable=on_cuda)
     if not hidden:
         return [adam]
+    if not hasattr(torch.optim, "Muon"):
+        raise ImportError(
+            f"torch.optim.Muon is unavailable in torch {torch.__version__} ({torch.__file__}); SuperMimic optimizes "
+            "the hidden layers of its networks with it and needs torch >= 2.10. Upgrade torch."
+        )
     return [adam, torch.optim.Muon(hidden, lr=lr, adjust_lr_fn="match_rms_adamw")]
 
 
@@ -74,6 +82,35 @@ def graph_state(modules: Iterable[nn.Module], optimizers: Iterable[torch.optim.O
     return state
 
 
+def load_optimizer_state(optimizer: torch.optim.Optimizer, saved: dict) -> None:
+    """Load an optimizer ``state_dict`` into the state tensors the optimizer already holds.
+
+    ``Optimizer.load_state_dict`` replaces those tensors, which a recorded :class:`CapturedUpdate` would keep
+    reading at their old addresses. An optimizer that has not stepped yet holds no state, and takes the saved one
+    as it is.
+    """
+    if not optimizer.state:
+        optimizer.load_state_dict(saved)
+        return
+    params = [p for group in optimizer.param_groups for p in group["params"]]
+    for index, param in enumerate(params):
+        current = optimizer.state[param]
+        for key, value in saved["state"].get(index, {}).items():
+            if torch.is_tensor(value) and torch.is_tensor(current.get(key)):
+                current[key].copy_(value)
+            else:
+                current[key] = value
+    for group, saved_group in zip(optimizer.param_groups, saved["param_groups"], strict=True):
+        for key, value in saved_group.items():
+            if key == "params":
+                continue
+            if torch.is_tensor(group.get(key)):
+                # A tensor hyperparameter (the capturable Adam's learning rate) is read in place too.
+                group[key].copy_(torch.as_tensor(value))
+            else:
+                group[key] = value
+
+
 @functools.cache
 def _capture_stream_and_pool(device: torch.device):
     return torch.cuda.Stream(device), torch.cuda.graph_pool_handle()
@@ -85,7 +122,8 @@ class CapturedUpdate:
     ``fn`` must be capture-safe: no host syncs, fixed shapes, and every tensor it reads besides its inputs updated in
     place. Python values it reads are fixed at capture, and each replay overwrites the outputs it returns. All
     captured updates on a device record on one stream into one memory pool and replay in the order they were
-    recorded. A replay raises if a tensor in ``state()`` moved. On the CPU ``fn`` always runs eagerly.
+    recorded. A replay raises if a tensor in ``state()`` moved, so a checkpoint's optimizer state is loaded into
+    the existing tensors (:func:`load_optimizer_state`). On the CPU ``fn`` always runs eagerly.
     """
 
     def __init__(
@@ -230,7 +268,7 @@ class PolicyLearner:
     The objective is the rollout's discounted reward, each step weighted by the probability of having survived to it,
     plus, for ``algorithm="actor_critic"``, the critic's value of the last state discounted the same way. The critic
     then fits TD(lambda) targets of the same rollouts (5 epochs of 4 minibatches). Values never exceed ``v_max``, the
-    return of the largest reward every step.
+    return of the largest reward every step. ``algorithm="bptt"`` has no critic and sums the rewards undiscounted.
     """
 
     def __init__(
@@ -247,7 +285,8 @@ class PolicyLearner:
         self.wm_env = wm_env
         self.options = options
         self.gamma = options.gamma if critic is not None else 1.0
-        self.v_max = max_step_reward / (1.0 - options.gamma)
+        #: The largest discounted return; ``None`` without a critic, which is the only reader.
+        self.v_max = max_step_reward / (1.0 - options.gamma) if critic is not None else None
         self.actor_params = list(actor.parameters())
         self.actor_optimizers = build_optimizers([actor], options.lr, betas=(0.9, options.beta2), device=device)
         self.critic_optimizers = build_optimizers([critic], options.lr, device=device) if critic is not None else []
@@ -314,7 +353,9 @@ class PolicyLearner:
             self.options.lam,
         ).clamp(max=self.v_max)
         obs, returns = steps["critic"].flatten(0, 1), returns.flatten(0, 1)
-        perm = torch.randperm(len(returns) // 4 * 4, device=returns.device)
+        # A device-side shuffle: below 30000 elements torch.randperm draws on the CPU and copies, which a captured
+        # CUDA graph would replay as one frozen permutation.
+        perm = torch.rand(len(returns) // 4 * 4, device=returns.device).argsort()
         self.critic.requires_grad_(True)
         losses = []
         for _ in range(5):

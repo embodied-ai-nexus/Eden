@@ -8,6 +8,7 @@ only.
 from eden.learning.wrappers.rsl_rl.supermimic.options import (
     PolicyOptions,
     ReturnSamplerOptions,
+    RewardTermsOptions,
     SimContextOptions,
     SuperMimicRunnerOptions,
     VelocityGoalOptions,
@@ -17,6 +18,7 @@ from eden.learning.wrappers.rsl_rl.supermimic.options import (
 __all__ = [
     "PolicyOptions",
     "ReturnSamplerOptions",
+    "RewardTermsOptions",
     "SimContextOptions",
     "SuperMimicRunnerOptions",
     "VelocityGoalOptions",

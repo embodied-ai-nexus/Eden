@@ -5,13 +5,14 @@ import math
 import pytest
 import torch
 
-from eden.learning.wrappers.rsl_rl.supermimic.representation import (
-    REWARD_TERMS,
-    GenCoordRepresentation,
-    check_task_reward,
-    quat_integrate,
+from eden.learning.wrappers.rsl_rl.supermimic.representation import GenCoordRepresentation, GoalWindow, RewardSpec
+from eden.utils.geom import quat_from_euler_xyz, quat_integrate
+
+REWARD = RewardSpec(
+    tracking=((0.5, 0.3), (0.5, 0.4), (1.0, 0.3), (1.0, 0.4), (1.0, 1.0), (1.0, 3.14)),
+    action_rate=-0.1,
+    joint_limit=-2.0,
 )
-from eden.utils.geom import quat_from_euler_xyz
 
 J = 2
 
@@ -24,6 +25,8 @@ def _representation(decimation: int = 4) -> GenCoordRepresentation:
         dt=0.02,
         decimation=decimation,
         num_actions=J,
+        reward=REWARD,
+        proprio_noise=(0.05, 0.2, 0.01, 0.5, 0.0),
     )
 
 
@@ -72,12 +75,10 @@ def test_the_root_orientation_loss_is_the_squared_angle():
     torch.testing.assert_close(((a - b) ** 2).sum(), torch.tensor(angle**2), rtol=1e-3, atol=0)
 
 
-def test_a_task_reward_the_world_model_does_not_compute_is_refused():
-    terms = dict(REWARD_TERMS)
-    check_task_reward(terms)
-    terms["joint_limit"] = (-10.0, None)
-    with pytest.raises(ValueError, match=r"joint_limit: \(weight, std\) \(-10.0, None\) != \(-2.0, None\)"):
-        check_task_reward(terms)
-    del terms["joint_limit"]
-    with pytest.raises(ValueError, match="but the task has"):
-        check_task_reward(terms)
+def test_the_largest_reward_rate_sums_the_positive_weights():
+    assert REWARD.max_step_rate == pytest.approx(5.0)
+
+
+def test_the_goal_window_sets_the_goal_widths():
+    assert GoalWindow(frames=10, stride=5).dims(29) == (2 * 29 * 10 + 90, 2 * 29 * 10 + 60)
+    assert GoalWindow(frames=2, stride=1).dims(3) == (12 + 18, 12 + 12)
