@@ -79,6 +79,12 @@ def test_a_checkpoint_of_the_other_algorithm_is_refused(runner, tmp_path):
     path = str(tmp_path / "model.pt")
     runner.save(path)
     checkpoint = torch.load(path, weights_only=False)
+    checkpoint["layout"]["runner_options.policy.algorithm"] = "bptt"
+    torch.save(checkpoint, path)
+    with pytest.raises(ValueError, match=r"policy.algorithm: checkpoint 'bptt', this run 'actor_critic'"):
+        runner.load(path)
+    # A checkpoint from before the layout record: the algorithm shows in whether it holds a critic.
+    del checkpoint["layout"]
     checkpoint["critic"] = None
     torch.save(checkpoint, path)
     with pytest.raises(ValueError, match="trained with policy.algorithm='bptt'"):
@@ -116,7 +122,7 @@ def test_the_reward_is_read_off_the_tasks_terms(runner):
 
 def _reward_spec(env, **renamed):
     from eden.learning.wrappers.rsl_rl.supermimic.options import RewardTermsOptions
-    from eden.learning.wrappers.rsl_rl.supermimic.task_terms import task_reward_spec
+    from eden.learning.wrappers.rsl_rl.supermimic.task_contract import task_reward_spec
 
     links = env.unwrapped.motion_manager.get_term("default").fk.link_names
     return task_reward_spec(env.unwrapped, RewardTermsOptions(**renamed), links)
@@ -284,6 +290,24 @@ def _swap_state_term(cfg):
     cfg.observation_options.full_state.root_joint_state = observations.DofsVel.configure(entity_name="robot")
 
 
+def _swap_gravity_and_ang_vel(cfg):
+    policy = cfg.observation_options.policy
+    policy.projected_gravity, policy.base_ang_vel = policy.base_ang_vel, policy.projected_gravity
+
+
+def _absolute_joint_term_without_bias(cfg):
+    from eden.managers.terms import observations
+
+    cfg.runner_options.sim_context.encoder_bias_event = None
+    cfg.observation_options.policy.dofs_pos = observations.DofsPos.configure(entity_name="robot")
+
+
+def _unbiased_joint_term(cfg):
+    from eden.managers.terms import observations
+
+    cfg.observation_options.policy.dofs_pos = observations.DofsVel.configure(entity_name="robot")
+
+
 @pytest.mark.parametrize(
     "change, message",
     [
@@ -293,8 +317,44 @@ def _swap_state_term(cfg):
             lambda cfg: setattr(cfg.runner_options, "actor_observation_group", "actor"),
             r"actor_observation_group='actor', but the task has no such observation group. Its groups: \['policy'",
         ),
+        (
+            lambda cfg: setattr(cfg.runner_options.sim_context, "encoder_bias_event", None),
+            r"term 'dofs_pos' \(joint_pos\) is a DofsPosBiased, which reads the encoder bias, but "
+            r"runner_options.sim_context.encoder_bias_event is None",
+        ),
+        (_unbiased_joint_term, r"term 'dofs_pos' \(joint_pos\) is a 'dofs_vel' term, which reads no encoder bias"),
+        (_swap_gravity_and_ang_vel, r"term 'projected_gravity' \(projected_gravity\) is a 'base_ang_vel' term"),
+        (
+            lambda cfg: cfg.observation_options.policy.base_ang_vel.params.update(frame="world"),
+            r"term 'base_ang_vel' \(base_ang_vel\) has frame='world'; set frame='body'",
+        ),
+        (
+            lambda cfg: setattr(cfg.observation_options.policy.dofs_vel, "scale", 0.25),
+            r"term 'dofs_vel' sets \{'scale': 0.25\}, which the world model does not apply",
+        ),
+        (
+            lambda cfg: setattr(cfg.observation_options.policy, "enable_corruption", True),
+            r"group 'policy' .*the group has enable_corruption=True, which adds the terms' noise in the simulator",
+        ),
+        (
+            lambda cfg: setattr(cfg.observation_options.full_state.root_joint_state, "clip", (-5.0, 5.0)),
+            r"group 'full_state' .* from the raw state: term 'root_joint_state' sets \{'clip':",
+        ),
+        (_absolute_joint_term_without_bias, r"term 'dofs_pos' \(joint_pos\) is a 'dofs_pos' term with "),
     ],
-    ids=["state_term", "actor_terms", "missing_group"],
+    ids=[
+        "state_term",
+        "actor_terms",
+        "missing_group",
+        "bias_without_event",
+        "event_without_bias",
+        "swapped_terms",
+        "world_frame_ang_vel",
+        "scaled_term",
+        "corrupted_group",
+        "clipped_state",
+        "absolute_joints_without_bias",
+    ],
 )
 def test_an_observation_group_the_runner_would_misread_fails_at_construction(library, change, message):
     cfg = _small(supermimic_config(library))
@@ -318,3 +378,16 @@ def test_a_checkpoint_of_other_network_sizes_names_the_options_that_differ(runne
         r"runner_options.world_model.hidden_dims: checkpoint \(32,\), this run \(16,\)",
     ):
         make_rsl_rl_runner(env, checkpoint=path)
+
+
+def test_a_task_without_an_encoder_bias_reads_the_joints_relative_to_the_default_pose(library):
+    from eden.managers.terms import observations
+
+    cfg = _small(supermimic_config(library))
+    cfg.env_options.num_envs = 2
+    cfg.runner_options.sim_context.encoder_bias_event = None
+    cfg.observation_options.policy.dofs_pos = observations.DofsPos.configure(
+        entity_name="robot", offset_from_default=True
+    )
+    runner = make_rsl_rl_runner(RslRlVecEnvWrapper.from_config(cfg))
+    assert not runner.sim_context.has_encoder_bias

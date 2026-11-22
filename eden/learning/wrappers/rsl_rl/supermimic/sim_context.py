@@ -81,6 +81,11 @@ class SimContext(torch.nn.Module):
     def dim(self) -> int:
         return self.centre.numel()
 
+    @property
+    def has_encoder_bias(self) -> bool:
+        """Whether the context carries an encoder bias (an ``encoder_bias_event`` is named)."""
+        return self._bias_columns is not None
+
     def encoder_bias(self, sim_ctx: torch.Tensor) -> torch.Tensor | None:
         """Each joint's encoder bias (rad) in the normalized context ``sim_ctx``; ``None`` without a bias event.
 

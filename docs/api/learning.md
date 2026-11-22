@@ -131,7 +131,7 @@ terms such a task configures:
     options:
       show_root_heading: false
 
-::: eden.learning.wrappers.rsl_rl.supermimic.task_terms
+::: eden.learning.wrappers.rsl_rl.supermimic.task_contract
     options:
       show_root_heading: false
 

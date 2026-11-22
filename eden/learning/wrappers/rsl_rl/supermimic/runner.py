@@ -3,9 +3,7 @@
 from __future__ import annotations
 
 import os
-import statistics
 import time
-from collections import deque
 from typing import TYPE_CHECKING, Any
 
 import torch
@@ -15,13 +13,14 @@ import eden as en
 from eden.envs.wrappers.rsl_rl_env import EDEN_RUNNER_MIXINS
 from eden.learning.wrappers.rsl_rl.supermimic.goals import motion_goal_spec, velocity_goal_spec
 from eden.learning.wrappers.rsl_rl.supermimic.learners import PolicyLearner, WorldModelLearner, load_optimizer_state
+from eden.learning.wrappers.rsl_rl.supermimic.logger import RunLogger
 from eden.learning.wrappers.rsl_rl.supermimic.models import Dynamics, MultiEncoderActor, build_mlp
 from eden.learning.wrappers.rsl_rl.supermimic.options import SuperMimicRunnerOptions
 from eden.learning.wrappers.rsl_rl.supermimic.replay_buffer import FieldSpec, ReplayBuffer
 from eden.learning.wrappers.rsl_rl.supermimic.representation import GenCoordRepresentation, GoalWindow
 from eden.learning.wrappers.rsl_rl.supermimic.reset_sampler import ReturnSampler
 from eden.learning.wrappers.rsl_rl.supermimic.sim_context import SimContext
-from eden.learning.wrappers.rsl_rl.supermimic.task_terms import (
+from eden.learning.wrappers.rsl_rl.supermimic.task_contract import (
     check_joint_and_anchor_order,
     check_motion_term,
     check_observation_groups,
@@ -34,7 +33,7 @@ if TYPE_CHECKING:
     from eden.envs.wrappers.rsl_rl_env import RslRlVecEnvWrapper
 
 
-class _Ratio:
+class _UpdateRatio:
     """How many updates are due at each env step for ``ratio`` updates per step on average."""
 
     def __init__(self, ratio: float):
@@ -58,96 +57,6 @@ def _same_device(a: torch.device, b: torch.device) -> bool:
         return True
     current = torch.cuda.current_device()
     return (current if a.index is None else a.index) == (current if b.index is None else b.index)
-
-
-class _Logger:
-    """Episode statistics of the simulator and the learners' losses, to the console and TensorBoard or W&B.
-
-    Holds what Eden's runner mixins read: ``log_dir``, ``disable_logs``, ``rewbuffer``, ``lenbuffer``,
-    ``tot_timesteps`` and ``tot_time``. The writer opens on :meth:`open`, which only a training run calls.
-    """
-
-    def __init__(self, log_dir: str | None, options: SuperMimicRunnerOptions, num_envs: int, device: torch.device):
-        self.log_dir = log_dir
-        self._options = options
-        self.disable_logs = log_dir is None or en.distributed.get_global_rank() != 0
-        self.rewbuffer: deque[float] = deque(maxlen=100)
-        self.lenbuffer: deque[float] = deque(maxlen=100)
-        self.tot_timesteps = 0
-        self.tot_time = 0.0
-        self._reward_sum = torch.zeros(num_envs, device=device)
-        self._length = torch.zeros(num_envs, device=device)
-        self._episode_logs: list[dict] = []
-        self._writer = None
-        self._wandb = None
-        self._owns_wandb_run = False
-
-    def open(self) -> None:
-        """Open the W&B run or the TensorBoard writer, once."""
-        if self.disable_logs or self._writer is not None or self._wandb is not None:
-            return
-        options = self._options
-        if options.logger == "wandb":
-            import wandb
-
-            run_name = options.run_name or None
-            self._owns_wandb_run = wandb.run is None
-            self._wandb = wandb.run or wandb.init(
-                project=options.wandb_project, name=run_name, dir=self.log_dir, config=options.dict()
-            )
-        else:
-            from torch.utils.tensorboard import SummaryWriter
-
-            self._writer = SummaryWriter(log_dir=self.log_dir, flush_secs=10)
-
-    def process_env_step(self, rewards: torch.Tensor, dones: torch.Tensor, extras: dict) -> None:
-        if self.disable_logs:
-            return
-        if extras.get("log"):
-            self._episode_logs.append(extras["log"])
-        self._reward_sum += rewards
-        self._length += 1
-        done = dones.nonzero(as_tuple=False)[:, 0]
-        if done.numel():
-            self.rewbuffer.extend(self._reward_sum[done].tolist())
-            self.lenbuffer.extend(self._length[done].tolist())
-            self._reward_sum[done] = 0
-            self._length[done] = 0
-
-    def log(self, it: int, total_it: int, steps: int, collect_time: float, learn_time: float, losses: dict) -> None:
-        if self.disable_logs:
-            return
-        self.tot_timesteps += steps
-        self.tot_time += collect_time + learn_time
-        scalars = {f"Loss/{k}": float(v) for k, v in losses.items()}
-        for key in dict.fromkeys(k for log in self._episode_logs for k in log):
-            values = [
-                torch.as_tensor(log[key], dtype=torch.float).reshape(-1) for log in self._episode_logs if key in log
-            ]
-            scalars[key if "/" in key else f"Episode/{key}"] = float(torch.cat(values).mean())
-        self._episode_logs.clear()
-        if self.rewbuffer:
-            scalars["Train/mean_reward"] = statistics.mean(self.rewbuffer)
-            scalars["Train/mean_episode_length"] = statistics.mean(self.lenbuffer)
-        fps = int(steps / max(collect_time + learn_time, 1e-9))
-        scalars |= {"Perf/total_fps": fps, "Perf/collection_time": collect_time, "Perf/learning_time": learn_time}
-        if self._wandb is not None:
-            self._wandb.log(scalars, step=it)
-        else:
-            for key, value in scalars.items():
-                self._writer.add_scalar(key, value, it)
-        width, pad = 80, 40
-        lines = [f"{'#' * width}", f"\033[1m{f' Learning iteration {it}/{total_it} '.center(width)}\033[0m", ""]
-        lines += [f"{f'{key}:':>{pad}} {value:.4f}" for key, value in scalars.items()]
-        print("\n".join(lines))
-
-    def close(self) -> None:
-        if self._writer is not None:
-            self._writer.close()
-        # A run the caller started before the runner (``wandb.run``) is theirs to finish.
-        if self._wandb is not None and self._owns_wandb_run:
-            self._wandb.finish()
-        self._writer = self._wandb = None
 
 
 class _SuperMimicRunner:
@@ -204,7 +113,7 @@ class _SuperMimicRunner:
             )
 
         self._build_world_model(base, controller, robot)
-        check_observation_groups(base, options, controller.entity_name, self.representation)
+        check_observation_groups(base, options, controller.entity_name, self.representation, self.sim_context)
         self._build_policy(base)
         self.sampler = self._build_return_sampler()
 
@@ -215,7 +124,7 @@ class _SuperMimicRunner:
         self._pending: list[tuple[torch.Tensor, torch.Tensor, TensorDict]] = []
         #: Reset bins of a loaded checkpoint whose return sampler does not fit this run's library (:meth:`load`).
         self._stale_sampler_bins: int | None = None
-        self.logger = _Logger(log_dir, options, self.num_envs, self.device)
+        self.logger = RunLogger(log_dir, options, self.num_envs, self.device)
 
     def _build_world_model(self, base, controller, robot) -> None:
         """The state representation, the simulation context and the dynamics model with its learner."""
@@ -466,7 +375,7 @@ class _SuperMimicRunner:
         try:
             obs, _ = self.env.reset()
             self._seed_history(obs)
-            updates_due = _Ratio(
+            updates_due = _UpdateRatio(
                 self.num_envs
                 / (world_model.num_batches * world_model.batch_size * world_model.horizon)
                 * options.replay_ratio
@@ -514,6 +423,7 @@ class _SuperMimicRunner:
         """What fixes the shapes of the networks, stored with a checkpoint and compared when one is loaded."""
         policy, representation = self.options.policy, self.representation
         return {
+            "runner_options.policy.algorithm": policy.algorithm,
             "runner_options.policy.observation": policy.observation,
             "runner_options.policy.history_length": policy.history_length,
             "runner_options.policy.goal_frames": policy.goal_frames,
@@ -554,15 +464,15 @@ class _SuperMimicRunner:
         so the load keeps the networks and leaves the sampler as it is; :meth:`learn` then raises.
         """
         checkpoint = torch.load(path, map_location=map_location or self.device, weights_only=False)
-        if (self.critic is None) != (checkpoint["critic"] is None):
+        saved_layout, layout = checkpoint.get("layout"), self._layout()
+        # A checkpoint written before the layout record existed: the algorithm shows in whether it holds a critic.
+        if saved_layout is None and (self.critic is None) != (checkpoint["critic"] is None):
             trained = "bptt" if checkpoint["critic"] is None else "actor_critic"
             raise ValueError(
                 f"{path} was trained with policy.algorithm={trained!r}, but this runner has "
                 f"policy.algorithm={self.options.policy.algorithm!r}: one has a critic and the other does not. "
                 f"Set runner_options.policy.algorithm={trained!r} to load it."
             )
-        # A checkpoint written before the layout record existed is checked by the state dicts alone.
-        saved_layout, layout = checkpoint.get("layout"), self._layout()
         if saved_layout is not None and saved_layout != layout:
             differ = {
                 key: (saved_layout.get(key), layout.get(key))

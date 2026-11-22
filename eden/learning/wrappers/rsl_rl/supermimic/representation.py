@@ -54,7 +54,7 @@ class GoalWindow:
 class RewardSpec:
     """The weights and kernel widths of the task's reward, which :meth:`GenCoordRepresentation.reward` computes on a
     predicted state. The runner reads them off the task's reward terms
-    (:func:`~eden.learning.wrappers.rsl_rl.supermimic.task_terms.task_reward_spec`).
+    (:func:`~eden.learning.wrappers.rsl_rl.supermimic.task_contract.task_reward_spec`).
 
     Attributes
     ----------
@@ -115,6 +115,12 @@ def motion_goal(
         aux_state[..., :3], aux_state[..., 3:7], library.root_pos_w[idx], library.root_quat_w[idx]
     )
     return torch.cat([content, rel_pos, rel_ori], dim=-1), torch.cat([content, rel_ori], dim=-1)
+
+
+#: The terms of the actor's proprioception, in the order :meth:`GenCoordRepresentation.proprio` builds them and the
+#: task's actor observation group lists them: projected gravity, body-frame angular velocity, ``q - q0``, ``qd`` and
+#: the last action.
+PROPRIO_TERMS = ("projected_gravity", "base_ang_vel", "joint_pos", "joint_vel", "last_action")
 
 
 class GenCoordRepresentation(torch.nn.Module):
@@ -252,7 +258,7 @@ class GenCoordRepresentation(torch.nn.Module):
         return {"root_pos": aux_state[..., :3], "root_ori": rot, "joint_pos": q, "joint_vel": qd}
 
     def proprio_term_widths(self) -> list[int]:
-        """Widths of ``[projected_gravity, base_ang_vel, q - q0, qd, last_action]``."""
+        """Widths of the proprioception terms, in :data:`PROPRIO_TERMS` order."""
         return [3, 3, self.num_joints, self.num_joints, self.num_actions]
 
     @property
