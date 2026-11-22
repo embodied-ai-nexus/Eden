@@ -66,6 +66,8 @@ class WorldModelEnv:
     encoder_bias : Callable[[torch.Tensor], torch.Tensor | None] | None
         Each joint's encoder bias from a normalized simulation context (``SimContext.encoder_bias``), added to the
         joint reading of the imagined proprioception. ``None`` for a task without an encoder bias.
+    compile : bool
+        Run :meth:`reset` and :meth:`step` through ``torch.compile``.
     """
 
     def __init__(
@@ -82,6 +84,7 @@ class WorldModelEnv:
         anchor_ori_threshold: float,
         termination_softness: float,
         encoder_bias: Callable[[torch.Tensor], torch.Tensor | None] | None = None,
+        compile: bool = False,
     ):
         if goal_specs[0].name != "motion":
             raise ValueError(f"the first goal interface must be 'motion', got {[s.name for s in goal_specs]}.")
@@ -99,6 +102,9 @@ class WorldModelEnv:
         self.encoder_bias = encoder_bias
         # Built here, not in a step: a captured CUDA graph refuses a host-to-device copy.
         self._down = torch.tensor([0.0, 0.0, -1.0], device=representation.default_joint_pos.device)
+        if compile:
+            self.reset = torch.compile(self.reset)
+            self.step = torch.compile(self.step)
 
     def reference_bodies(self, frames: torch.Tensor) -> tuple[torch.Tensor, ...]:
         """World ``(pos, quat, lin_vel, ang_vel)`` of the reference's tracked bodies at ``frames``."""

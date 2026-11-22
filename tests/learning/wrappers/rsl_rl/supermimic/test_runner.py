@@ -272,3 +272,49 @@ def test_a_second_learn_call_ends_the_stored_episodes_before_it_resets_the_envs(
     runner.learn(num_learning_iterations=1)
     # The last step of the first call is followed by a reset, so no sampled window may run across it.
     assert buffer._storage["truncated"][:, newest].all()
+
+
+def _drop_actor_term(cfg):
+    del cfg.observation_options.policy.last_action
+
+
+def _swap_state_term(cfg):
+    from eden.managers.terms import observations
+
+    cfg.observation_options.full_state.root_joint_state = observations.DofsVel.configure(entity_name="robot")
+
+
+@pytest.mark.parametrize(
+    "change, message",
+    [
+        (_swap_state_term, r"group 'full_state' .* must hold one RootJointState term on that entity, got terms"),
+        (_drop_actor_term, r"group 'policy' .* as the proprioception .* The group holds terms \['projected_gravity'"),
+        (
+            lambda cfg: setattr(cfg.runner_options, "actor_observation_group", "actor"),
+            r"actor_observation_group='actor', but the task has no such observation group. Its groups: \['policy'",
+        ),
+    ],
+    ids=["state_term", "actor_terms", "missing_group"],
+)
+def test_an_observation_group_the_runner_would_misread_fails_at_construction(library, change, message):
+    cfg = _small(supermimic_config(library))
+    cfg.env_options.num_envs = 2
+    change(cfg)
+    env = RslRlVecEnvWrapper.from_config(cfg)
+    with pytest.raises(ValueError, match=message):
+        make_rsl_rl_runner(env)
+
+
+def test_a_checkpoint_of_other_network_sizes_names_the_options_that_differ(runner, library, tmp_path):
+    path = str(tmp_path / "model.pt")
+    runner.save(path)
+    cfg = _small(supermimic_config(library))
+    cfg.runner_options.policy.goal_frames = 4
+    cfg.runner_options.world_model.hidden_dims = (16,)
+    env = RslRlVecEnvWrapper.from_config(cfg)
+    with pytest.raises(
+        ValueError,
+        match=r"runner_options.policy.goal_frames: checkpoint 10, this run 4; "
+        r"runner_options.world_model.hidden_dims: checkpoint \(32,\), this run \(16,\)",
+    ):
+        make_rsl_rl_runner(env, checkpoint=path)

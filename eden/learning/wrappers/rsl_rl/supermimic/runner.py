@@ -24,6 +24,7 @@ from eden.learning.wrappers.rsl_rl.supermimic.sim_context import SimContext
 from eden.learning.wrappers.rsl_rl.supermimic.task_terms import (
     check_joint_and_anchor_order,
     check_motion_term,
+    check_observation_groups,
     task_reward_spec,
     termination_threshold,
 )
@@ -203,6 +204,7 @@ class _SuperMimicRunner:
             )
 
         self._build_world_model(base, controller, robot)
+        check_observation_groups(base, options, controller.entity_name, self.representation)
         self._build_policy(base)
         self.sampler = self._build_return_sampler()
 
@@ -286,10 +288,8 @@ class _SuperMimicRunner:
             ),
             termination_softness=policy.termination_softness,
             encoder_bias=self.sim_context.encoder_bias,
+            compile=self.device.type == "cuda",
         )
-        if self.device.type == "cuda":
-            self.wm_env.step = torch.compile(self.wm_env.step)
-            self.wm_env.reset = torch.compile(self.wm_env.reset)
         self.policy_learner = PolicyLearner(
             self.actor, self.critic, self.wm_env, policy, self.max_step_reward, str(self.device)
         )
@@ -510,6 +510,24 @@ class _SuperMimicRunner:
         finally:
             self.logger.close()
 
+    def _layout(self) -> dict[str, Any]:
+        """What fixes the shapes of the networks, stored with a checkpoint and compared when one is loaded."""
+        policy, representation = self.options.policy, self.representation
+        return {
+            "runner_options.policy.observation": policy.observation,
+            "runner_options.policy.history_length": policy.history_length,
+            "runner_options.policy.goal_frames": policy.goal_frames,
+            "runner_options.policy.goal_frame_stride": policy.goal_frame_stride,
+            "runner_options.policy.latent_dim": policy.latent_dim,
+            "runner_options.policy.actor_hidden_dims": tuple(policy.actor_hidden_dims),
+            "runner_options.policy.critic_hidden_dims": tuple(policy.critic_hidden_dims),
+            "runner_options.world_model.hidden_dims": tuple(self.options.world_model.hidden_dims),
+            "joints": representation.num_joints,
+            "actions": self.env.num_actions,
+            "tracked links": len(self.motion.fk.link_names),
+            "simulation context columns": self.sim_context.dim,
+        }
+
     def save(self, path: str, infos: dict | None = None) -> None:
         if en.distributed.get_global_rank() != 0:
             return
@@ -521,6 +539,7 @@ class _SuperMimicRunner:
             "actor_optimizers": [o.state_dict() for o in self.policy_learner.actor_optimizers],
             "critic_optimizers": [o.state_dict() for o in self.policy_learner.critic_optimizers],
             "return_sampler": None if self.sampler is None else self.sampler.state_dict(),
+            "layout": self._layout(),
             "iter": self.current_learning_iteration,
             "infos": infos,
         }
@@ -541,6 +560,20 @@ class _SuperMimicRunner:
                 f"{path} was trained with policy.algorithm={trained!r}, but this runner has "
                 f"policy.algorithm={self.options.policy.algorithm!r}: one has a critic and the other does not. "
                 f"Set runner_options.policy.algorithm={trained!r} to load it."
+            )
+        # A checkpoint written before the layout record existed is checked by the state dicts alone.
+        saved_layout, layout = checkpoint.get("layout"), self._layout()
+        if saved_layout is not None and saved_layout != layout:
+            differ = {
+                key: (saved_layout.get(key), layout.get(key))
+                for key in saved_layout.keys() | layout.keys()
+                if saved_layout.get(key) != layout.get(key)
+            }
+            detail = "; ".join(f"{key}: checkpoint {a!r}, this run {b!r}" for key, (a, b) in sorted(differ.items()))
+            raise ValueError(
+                f"{path} was trained with other network inputs or sizes than this runner builds ({detail}). The "
+                "runner_options.* entries are options to set; the others follow from the task's robot, tracked "
+                "links and randomization events."
             )
         if (self.sampler is None) != (checkpoint["return_sampler"] is None) and self.sampler is not None:
             en.logger.warning(

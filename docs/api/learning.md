@@ -124,13 +124,18 @@ A motion tracker trained through one learned, differentiable world model (the `s
     options:
       show_root_heading: false
 
-The motion term the runner trains on, and what it reads off the task's reward and termination terms:
+The motion term the runner trains on, what it checks and reads off the task, and the observation and termination
+terms such a task configures:
 
 ::: eden.learning.wrappers.rsl_rl.supermimic.motion
     options:
       show_root_heading: false
 
 ::: eden.learning.wrappers.rsl_rl.supermimic.task_terms
+    options:
+      show_root_heading: false
+
+::: eden.learning.wrappers.rsl_rl.supermimic.terms
     options:
       show_root_heading: false
 

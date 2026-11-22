@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING, Any
 
 from eden.learning.wrappers.rsl_rl.supermimic.motion import SuperMimicMotion
 from eden.learning.wrappers.rsl_rl.supermimic.representation import RewardSpec
+from eden.learning.wrappers.rsl_rl.supermimic.terms import RootJointState
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -95,6 +96,44 @@ def check_joint_and_anchor_order(controller, robot, motion: SuperMimicMotion, ac
             f"{motion_term!r} must list the base link {robot.base_link_name!r} first in target_links_name, got "
             f"{links[0]!r} (links: {list(links)}). Put {robot.base_link_name!r} first and use it as the "
             "anchor_link_name of the task's reward and termination terms."
+        )
+
+
+def check_observation_groups(env: RLEnvBase, options, entity_name: str, representation) -> None:
+    """Raise unless the two observation groups the runner reads hold what it decodes.
+
+    The state group is one :class:`~eden.learning.wrappers.rsl_rl.supermimic.terms.RootJointState` of the
+    controlled entity. The actor group is the proprioception ``[projected_gravity, base_ang_vel, q - q0, qd,
+    last_action]``, flat and without history, which ``policy.proprio_noise`` and the world model's imagined
+    reading follow term by term.
+    """
+    observations = env.observation_manager
+    names, dims = observations.group_term_names, observations.group_obs_term_dim
+    for option in ("state_observation_group", "actor_observation_group"):
+        group = getattr(options, option)
+        if group not in names:
+            raise ValueError(
+                f"runner_options.{option}={group!r}, but the task has no such observation group. Its groups: "
+                f"{list(names)}."
+            )
+    group = options.state_observation_group
+    terms = [term for term_group, _, term in observations.iter_terms() if term_group == group]
+    if len(terms) != 1 or not isinstance(terms[0], RootJointState) or terms[0].entity_name != entity_name:
+        raise ValueError(
+            f"The runner decodes observation group {group!r} (runner_options.state_observation_group) as the "
+            f"generalized state of {entity_name!r}, so the group must hold one RootJointState term on that entity, "
+            f"got terms {names[group]}. Configure it as RootJointState.configure(entity_name={entity_name!r})."
+        )
+    group = options.actor_observation_group
+    widths = [dim[-1] if len(dim) == 1 else dim for dim in dims[group]]
+    expected = representation.proprio_term_widths()
+    if widths != expected or observations.group_obs_dim[group] != (sum(expected),):
+        raise ValueError(
+            f"The runner reads observation group {group!r} (runner_options.actor_observation_group) as the "
+            f"proprioception [projected_gravity, base_ang_vel, q - q0, qd, last_action] with term widths "
+            f"{expected}, concatenated and without history. The group holds terms {names[group]} with shapes "
+            f"{dims[group]} and group shape {observations.group_obs_dim[group]}. policy.proprio_noise and the "
+            "world model's imagined reading follow that order term by term."
         )
 
 

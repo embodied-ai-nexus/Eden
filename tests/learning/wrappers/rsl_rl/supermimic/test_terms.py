@@ -1,4 +1,4 @@
-"""The supermimic observation terms against the robot's own state."""
+"""The observation and termination terms of a SuperMimic task, against the robot's own state."""
 
 import pytest
 import torch

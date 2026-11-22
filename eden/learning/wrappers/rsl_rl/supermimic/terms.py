@@ -1,4 +1,8 @@
-"""SuperMimic observation and termination terms."""
+"""The observation and termination terms a task trained by the SuperMimic runner configures.
+
+The runner decodes the state group as :class:`RootJointState`, reads :class:`DofsPosBiased` as the joint term of the
+actor's proprioception, and takes the clip-end truncation from :class:`ReferenceClipEnd`.
+"""
 
 from __future__ import annotations
 

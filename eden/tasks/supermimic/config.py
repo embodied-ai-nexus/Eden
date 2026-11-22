@@ -13,7 +13,10 @@ from typing import Annotated, Literal
 import eden as en
 from eden import actions, events, observations, rewards, terminations
 from eden.constants import ReferenceSource
+from eden.datasets import LAFAN1RootJointsG1Dataset, SEEDRootJointsG1Dataset
 from eden.learning.wrappers.rsl_rl.supermimic import SuperMimicRunnerOptions
+from eden.learning.wrappers.rsl_rl.supermimic.motion import SuperMimicMotion
+from eden.learning.wrappers.rsl_rl.supermimic.terms import DofsPosBiased, ReferenceClipEnd, RootJointState
 from eden.managers.terms.events.motion import ReferenceStateInitialization
 from eden.managers.terms.rewards.tracking import (
     MotionGlobalBodyAngularVelocityErrorExp,
@@ -30,9 +33,6 @@ from eden.options.managers.motions import MotionManagerOptions
 from eden.options.robots.unitree_g1 import G1_ACTION_SCALE, G1Dofs29
 from eden.tasks import TASK_REGISTRY
 from eden.tasks.registry import TaskMod
-from eden.tasks.supermimic.custom_terms import DofsPosBiased, ReferenceClipEnd, RootJointState
-from eden.datasets import LAFAN1RootJointsG1Dataset, SEEDRootJointsG1Dataset
-from eden.learning.wrappers.rsl_rl.supermimic.motion import SuperMimicMotion
 from eden.terms import DoneTerm, ObsTerm, RewardTerm
 from eden.utils.configs import (
     ActionManagerOptions,
