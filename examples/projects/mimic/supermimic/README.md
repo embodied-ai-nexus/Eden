@@ -45,7 +45,19 @@ eden train --task supermimic --dataset bones_seed --raw_data_path /data/bones_se
 
 The first run prepares the library into `--processed_data_path` (13.5 GB for BONES-SEED, root and joints only;
 link states are computed by forward kinematics when an env reads them); later runs load it. Training takes about
-13 GB of GPU memory on top of the library. One iteration takes about 2 s on an A100.
+13 GB of GPU memory on top of the library. One iteration takes about 2 s on an A100 and about 1.5 s on an L40S
+(28,000 env steps per second, of which 0.4 s is collection and 1.0 s is learning).
+
+Measured on LAFAN1 with the default options, one L40S and one seed:
+
+| Iterations | Training time | Mean episode reward | Mean episode length (of 500 steps) |
+|---|---|---|---|
+| 100 | 2 min | 12.0 | 325 |
+| 500 | 12 min | 37.6 | 480 |
+| 1000 | 24 min | 39.6 | 472 |
+| 2000 | 49 min | 42.1 | 482 |
+
+The run took 53 minutes with startup. The default 20,000 iterations take about 8 hours at that rate.
 
 ## Evaluate
 
