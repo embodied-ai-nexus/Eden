@@ -5,6 +5,7 @@ from __future__ import annotations
 import pytest
 
 from eden.options.actuators import (
+    WujiHand2Actuator,
     DamiaoDM4310,
     DamiaoDM4340,
     LimxOliAnkleWaist,
@@ -69,3 +70,10 @@ def test_the_wuji_hand2_thumb_flexor_matches_upstream():
     """wuji-mjlab pen spin: kt 0.4136 N*m/A, 1.9115 A per MIT unit, so MIT kp 3.0 is 2.3718 N*m/rad."""
     assert WujiHand2Flex.JOINT_GAIN(3.0) == pytest.approx(2.371753, rel=1e-6)
     assert WujiHand2Flex.EFFORT_LIMIT == pytest.approx(0.6204, rel=1e-12)
+
+
+def test_a_wuji_spec_without_a_torque_constant_refuses_to_convert_and_names_the_motors():
+    """The base class has none: converting through it would program 0 or inf on the firmware."""
+    for convert in (WujiHand2Actuator.JOINT_GAIN, WujiHand2Actuator.MIT_GAIN):
+        with pytest.raises(ValueError, match=r"WujiHand2Actuator\.TORQUE_CONSTANT is 0\.0.*WujiHand2Flex"):
+            convert(3.0)

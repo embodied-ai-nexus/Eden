@@ -46,7 +46,7 @@ from eden.extensions.deployment.utils.state import RobotCommand, RobotState
 from eden.options.actuators import WujiHand2Actuator
 from eden.options.robots.wuji_hand1 import _WujiHand1
 from eden.options.robots.wuji_hand2beta2 import _WujiHand2Beta2
-from eden.utils.string import resolve_matching_names_values
+from eden.utils.string import first_few, resolve_matching_names_values
 
 if TYPE_CHECKING:
     from eden.envs.base import EnvBase
@@ -744,7 +744,8 @@ class WujiHandDeployment(DeploymentBase):
     servo_hz : float
         Rate of the interpolated sub-targets.
     effort_limit_a : float | None
-        Joint current limit, A. ``None``: upstream's defaults, 0.5 (Hand 1) / 1.0 (Hand 2).
+        Joint current limit, A. ``None``: 0.5 on Hand 1 (upstream's default); on Hand 2 the robot's
+        ``WujiHand2Actuator.CURRENT_LIMIT`` (1.5, what its force limits were trained at), or 1.0 without specs.
     lowpass_cutoff_hz : float
         Hand 1's target low-pass cutoff.
     mit_kp, mit_kd : float | dict[str, float] | None
@@ -825,11 +826,15 @@ class WujiHandDeployment(DeploymentBase):
                     f"{owner} cannot tell which Wuji generation robot {robot} is. Name it: "
                     f"{owner}.configure(hand='hand1') for wujihandpy, or hand='hand2' for wuji_sdk."
                 )
-        if self.effort_limit_a is None:
-            self.effort_limit_a = 0.5 if self.hand == "hand1" else 1.0
+        if self.effort_limit_a is None and self.hand == "hand1":
+            self.effort_limit_a = 0.5
         self._reject_unforwarded_gain_options()
         if self.hand == "hand2":
-            self._joint_gain_per_mit = self._resolve_joint_gain_per_mit()
+            motors = self._resolve_hand2_motors()
+            self._joint_gain_per_mit = (
+                None if motors is None else np.array([motors[name].JOINT_GAIN(1.0) for name in self.dofs_name])
+            )
+            self._effort_limit_a = self._resolve_hand2_current_limit(motors)
             per_mit = self._joint_gain_per_mit
             self._mit_kp = self._resolve_gain(
                 "mit_kp", self.mit_kp, None if per_mit is None else self.default_dof_kp / per_mit
@@ -898,8 +903,8 @@ class WujiHandDeployment(DeploymentBase):
             return None
         return self._mit_kp * self._joint_gain_per_mit, self._mit_kd * self._joint_gain_per_mit
 
-    def _resolve_joint_gain_per_mit(self) -> np.ndarray | None:
-        """Per deployment DOF, the joint-space gain of one MIT unit, from the robot's ``WujiHand2Actuator`` specs.
+    def _resolve_hand2_motors(self) -> dict[str, type[WujiHand2Actuator]] | None:
+        """Each deployment DOF's ``WujiHand2Actuator`` spec from the robot's ``dofs_spec``.
 
         ``None`` when the robot maps no DOF to one; then only explicit ``mit_kp`` / ``mit_kd`` can be programmed.
         """
@@ -923,7 +928,32 @@ class WujiHandDeployment(DeploymentBase):
                 f"{owner}: robot {robot} maps joints {missing} to no WujiHand2Actuator spec in dofs_spec, while "
                 f"{len(motors)} others have one; map every joint so each gain can be converted to MIT units."
             )
-        return np.array([motors[name].JOINT_GAIN(1.0) for name in self.dofs_name])
+        return motors
+
+    def _resolve_hand2_current_limit(self, motors: dict[str, type[WujiHand2Actuator]] | None) -> np.ndarray:
+        """Per deployment DOF, the current limit [A]: ``effort_limit_a``, else the specs' ``CURRENT_LIMIT``, else 1.0.
+
+        The specs' limit is the one the robot's ``default_dofs_force_limits`` were trained at
+        (``EFFORT_LIMIT = TORQUE_CONSTANT * CURRENT_LIMIT``), so an explicit value that differs from it is logged.
+        """
+        trained = None if motors is None else np.array([motors[name].CURRENT_LIMIT for name in self.dofs_name])
+        if self.effort_limit_a is None:
+            return np.full(self.num_dofs, 1.0) if trained is None else trained
+        limit = np.full(self.num_dofs, float(self.effort_limit_a))
+        if trained is not None and not np.allclose(limit, trained):
+            differs = ~np.isclose(limit, trained)
+            ratio = limit[differs] / trained[differs]
+            reach = (
+                f"{ratio.min():.0%}" if np.isclose(ratio.min(), ratio.max()) else f"{ratio.min():.0%}-{ratio.max():.0%}"
+            )
+            trained_a = ", ".join(f"{a:g} A" for a in sorted(set(trained.tolist())))
+            en.logger.warning(
+                f"[wuji] effort_limit_a={self.effort_limit_a:g} A, but {type(self.robot_options).__name__}'s force "
+                f"limits were trained at its motor specs' CURRENT_LIMIT ({trained_a}), so the hand reaches {reach} of "
+                f"the trained torque ceiling on {first_few(np.asarray(self.dofs_name)[differs].tolist())}. Leave "
+                "effort_limit_a unset to program the specs' limit."
+            )
+        return limit
 
     def _resolve_gain(
         self, name: str, value: float | dict[str, float] | None, nominal: np.ndarray | None
@@ -993,7 +1023,7 @@ class WujiHandDeployment(DeploymentBase):
         gains = Hand2Gains(
             kp=self.to_sdk(self._mit_kp).tolist(),
             kd=self.to_sdk(self._mit_kd).tolist(),
-            effort_limit_a=[float(self.effort_limit_a)] * NUM_JOINTS,
+            effort_limit_a=self.to_sdk(self._effort_limit_a).tolist(),
         )
         return Hand2Transport(
             self.stream,

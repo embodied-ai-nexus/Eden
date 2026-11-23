@@ -352,12 +352,24 @@ class WujiHand2Actuator(ActuatorSpecOptions):
     @classmethod
     def JOINT_GAIN(cls, mit_gain: float) -> float:
         """The joint-space kp [N*m/rad] or kd [N*m*s/rad] of an MIT-unit gain."""
-        return mit_gain * cls.AMPS_PER_MIT_UNIT * cls.TORQUE_CONSTANT
+        return mit_gain * cls._joint_gain_per_mit_unit()
 
     @classmethod
     def MIT_GAIN(cls, joint_gain: float) -> float:
         """The MIT-unit gain of a joint-space kp or kd; the inverse of :meth:`JOINT_GAIN`."""
-        return joint_gain / (cls.AMPS_PER_MIT_UNIT * cls.TORQUE_CONSTANT)
+        return joint_gain / cls._joint_gain_per_mit_unit()
+
+    @classmethod
+    def _joint_gain_per_mit_unit(cls) -> float:
+        if not cls.TORQUE_CONSTANT > 0:
+            motors = ", ".join(sub.__name__ for sub in WujiHand2Actuator.__subclasses__())
+            raise ValueError(
+                f"{cls.__name__}.TORQUE_CONSTANT is {cls.TORQUE_CONSTANT!r}, so no gain converts between MIT units and "
+                f"joint space through it. Map the joint to a Wuji Hand 2 motor ({motors}), or give "
+                f"{cls.__name__} its motor's TORQUE_CONSTANT in N*m/A. Do not skip the conversion: the firmware would "
+                "run the joint at other gains than the policy trained at."
+            )
+        return cls.AMPS_PER_MIT_UNIT * cls.TORQUE_CONSTANT
 
 
 class WujiHand2Flex(WujiHand2Actuator):

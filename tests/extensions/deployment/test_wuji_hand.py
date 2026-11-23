@@ -177,7 +177,24 @@ def test_hand2_programs_the_nominal_gains_in_mit_units_by_default(hand2):
     gains = hand2(deploy_kp_kd_scale=0.5)._make_transport().gains
     np.testing.assert_allclose(gains.kp, 0.5 * MIT_KP)
     np.testing.assert_allclose(gains.kd, 0.5 * MIT_KD)
-    assert gains.effort_limit_a == [1.0] * N
+    assert gains.effort_limit_a == [1.5] * N, "the motor specs' CURRENT_LIMIT, which the force limits trained at"
+
+
+def test_hand2_names_the_torque_an_explicit_current_limit_costs(hand2, eden_caplog):
+    assert hand2(effort_limit_a=1.0)._make_transport().gains.effort_limit_a == [1.0] * N
+    (warning,) = [r.message for r in eden_caplog.records if "effort_limit_a=1 A" in r.message]
+    assert "CURRENT_LIMIT (1.5 A)" in warning and "reaches 67% of the trained torque ceiling" in warning
+
+    eden_caplog.clear()
+    hand2(effort_limit_a=1.5)
+    assert not [r for r in eden_caplog.records if "effort_limit_a=" in r.message]
+
+
+def test_hand2_refuses_specs_that_leave_joints_unconverted(hand2, monkeypatch):
+    partial = {k: v for k, v in WujiHand2Beta2_L.dofs_spec.items() if "pinky" not in k}
+    monkeypatch.setattr(WujiHand2Beta2_L, "dofs_spec", partial)
+    with pytest.raises(ValueError, match=r"maps joints \[.*'l_pinky_dip'.*\] to no WujiHand2Actuator spec"):
+        hand2()
 
 
 def test_hand2_per_joint_gains_reach_the_sdk_in_its_order(hand2):
@@ -220,7 +237,9 @@ def test_a_hand2_robot_without_motor_specs_must_give_mit_gains(hand1):
     with pytest.raises(ValueError, match=r"configure\(mit_kp=3\.0, mit_kd=0\.05\)"):
         hand1(hand="hand2")
     dep = hand1(hand="hand2", mit_kp=3.0, mit_kd=0.05)
-    assert dep._make_transport().gains.kp == [3.0] * N
+    gains = dep._make_transport().gains
+    assert gains.kp == [3.0] * N
+    assert gains.effort_limit_a == [1.0] * N, "no specs say what current the robot trained at"
     assert dep.programmed_gains() is None  # no spec says what 3.0 is in joint space
 
 
