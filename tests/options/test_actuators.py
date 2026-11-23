@@ -1,4 +1,4 @@
-"""Actuator presets: the joint-side armature each derives, and the doubled Unitree linkage."""
+"""Actuator presets: the joint-side armature each derives, the doubled Unitree linkage, and the Wuji MIT units."""
 
 from __future__ import annotations
 
@@ -13,7 +13,24 @@ from eden.options.actuators import (
     LimxOliWristHead,
     Unitree5020_16,
     Unitree5020_16_DOUBLE,
+    WujiHand2Finger,
+    WujiHand2Flex,
+    WujiHand2Pinky,
+    WujiHand2PinkyFlex,
+    WujiHand2ThumbAbd,
+    WujiHand2ThumbIp,
+    WujiHand2ThumbMcp,
 )
+
+_WUJI_HAND2 = [
+    WujiHand2Flex,
+    WujiHand2ThumbAbd,
+    WujiHand2ThumbMcp,
+    WujiHand2ThumbIp,
+    WujiHand2Finger,
+    WujiHand2PinkyFlex,
+    WujiHand2Pinky,
+]
 
 
 @pytest.mark.parametrize(
@@ -40,3 +57,15 @@ def test_double_5020_sums_two_motors_but_keeps_the_single_motor_speeds():
         assert getattr(double, name) == 2 * getattr(single, name), name
     assert double.ARMATURE() == pytest.approx(2 * single.ARMATURE(), rel=1e-12)
     assert (double.FULL_TORQUE_SPEED, double.NO_LOAD_SPEED) == (single.FULL_TORQUE_SPEED, single.NO_LOAD_SPEED)
+
+
+@pytest.mark.parametrize("actuator", _WUJI_HAND2, ids=lambda a: a.__name__)
+def test_a_wuji_hand2_motor_is_limited_by_its_current_and_converts_mit_gains_both_ways(actuator):
+    assert actuator.EFFORT_LIMIT == pytest.approx(1.5 * actuator.TORQUE_CONSTANT, rel=1e-12)
+    assert actuator.MIT_GAIN(actuator.JOINT_GAIN(3.0)) == pytest.approx(3.0, rel=1e-12)
+
+
+def test_the_wuji_hand2_thumb_flexor_matches_upstream():
+    """wuji-mjlab pen spin: kt 0.4136 N*m/A, 1.9115 A per MIT unit, so MIT kp 3.0 is 2.3718 N*m/rad."""
+    assert WujiHand2Flex.JOINT_GAIN(3.0) == pytest.approx(2.371753, rel=1e-6)
+    assert WujiHand2Flex.EFFORT_LIMIT == pytest.approx(0.6204, rel=1e-12)

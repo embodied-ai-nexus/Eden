@@ -51,16 +51,33 @@ def test_every_declared_joint_and_tip_link_resolves(env, name):
     assert set(hand.find_named_links_idx_local(tips, preserve_order=True)[0]) == set(tips)
 
 
-def _table(options, field: str) -> torch.Tensor:
-    """``default_dofs_<field>`` looked up by joint name, in ``dofs_name`` order."""
+# wuji-mjlab v2026.10.22 ``pen_spin/config/wuji_hand2/hand2_constants.py``, in ``dofs_name`` order.
+_TORQUE_CONSTANT = (
+    [0.4136, 0.3545, 0.2216, 0.1329] + [0.4136, 0.1673, 0.1673, 0.1673] * 3 + [0.4461, 0.1115, 0.1115, 0.1115]
+)
+_MIT_KD = [0.075, 0.07, 0.05, 0.05] * 5
+_JOINT_GAIN = [kt * 1.9114709702965849 for kt in _TORQUE_CONSTANT]
+_UPSTREAM = {
+    "kp": [3.0 * g for g in _JOINT_GAIN],
+    "kd": [kd * g for kd, g in zip(_MIT_KD, _JOINT_GAIN)],
+    "force_limits": [1.5 * kt for kt in _TORQUE_CONSTANT],
+}
+
+
+def _per_joint_table(options, field: str) -> list[float]:
+    """A per-joint ``default_dofs_<field>`` dict, looked up by joint name, in ``dofs_name`` order."""
     table = getattr(options, f"default_dofs_{field}")
-    return torch.tensor([table[f".*_{dof.split('_', 1)[1]}"] for dof in options.dofs_name])
+    return [table[f".*_{dof.split('_', 1)[1]}"] for dof in options.dofs_name]
 
 
 @pytest.mark.parametrize("name", _HANDS)
 def test_the_calibration_reaches_the_solver_joint_by_joint(env, name):
+    """kp, kd and the force limit from the motor specs match upstream; the identified tables arrive as written."""
     hand, cls = env.entities[name], _HANDS[name][0]
     lower, upper = hand.get_dofs_force_range()
+    expected = dict(_UPSTREAM)
+    for field in ("armature", "damping", "frictionloss"):
+        expected[field] = _per_joint_table(cls(), field)
     for field, got in (
         ("kp", hand.get_dofs_kp()),
         ("kd", hand.get_dofs_kd()),
@@ -71,25 +88,20 @@ def test_the_calibration_reaches_the_solver_joint_by_joint(env, name):
         ("frictionloss", hand.get_dofs_frictionloss()),
     ):
         got = got.reshape(-1, hand.num_dofs)[0].cpu().double()
-        torch.testing.assert_close(got, _table(cls(), field).double(), atol=1e-7, rtol=1e-5, msg=field)
+        torch.testing.assert_close(got, torch.tensor(expected[field]).double(), atol=1e-7, rtol=1e-5, msg=field)
 
 
 @pytest.mark.parametrize(
     "dof, field, value",
     [
-        ("thumb_cmc_flex", "kp", 2.371753),
-        ("pinky_dip", "kd", 0.01065645),
-        ("pinky_mcp_flex", "force_limits", 0.66915),
         ("middle_finger_mcp_flex", "armature", 2.011048e-4),
         ("thumb_cmc_abd", "damping", 0.0042812198),
         ("index_finger_mcp_abd", "damping", 0.0),
         ("ring_finger_mcp_flex", "frictionloss", 0.0528257763),
     ],
 )
-def test_the_table_matches_the_upstream_pen_spin_calibration(dof, field, value):
-    """Spot values from wuji-mjlab v2026.10.22 ``pen_spin/config/wuji_hand2/hand2_constants.py``."""
-    table = getattr(WujiHand2Beta2_R(), f"default_dofs_{field}")
-    assert table[f".*_{dof}"] == pytest.approx(value, rel=1e-5)
+def test_the_identified_tables_match_upstream(dof, field, value):
+    assert getattr(WujiHand2Beta2_R(), f"default_dofs_{field}")[f".*_{dof}"] == value
 
 
 def _unit(vec):

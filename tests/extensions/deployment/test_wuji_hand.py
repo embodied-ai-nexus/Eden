@@ -20,6 +20,7 @@ from eden.extensions.deployment import wuji_hand as wh
 from eden.extensions.deployment.utils.state import RobotCommand
 from eden.options.robots.wuji_hand1 import WujiHand1_L, WujiHand1_R
 from eden.options.robots.wuji_hand2beta2 import WujiHand2Beta2_L, WujiHand2Beta2_R, WujiHand2Beta2WithMount_L
+from eden.utils.string import resolve_matching_names_values
 from tests.support.deploy import ScriptedHandTransport, assert_dofs_looked_up_by_name, deployments, robot_env
 
 N = wh.NUM_JOINTS
@@ -159,10 +160,11 @@ def test_hand1_refuses_gains_it_cannot_receive(hand1, options):
 
 
 def _nominal_sdk(field: str) -> np.ndarray:
-    """Hand 2's per-joint ``default_dofs_<field>``, looked up by joint name, in SDK order."""
+    """Hand 2's ``default_dofs_<field>`` resolved over its joints, in SDK order (its ``dofs_name`` order)."""
     options = WujiHand2Beta2_L()
-    table = getattr(options, f"default_dofs_{field}")
-    return np.array([table[f".*_{name.removeprefix('l_')}"] for name in options.dofs_name])
+    _, names, values = resolve_matching_names_values(getattr(options, f"default_dofs_{field}"), options.dofs_name)
+    assert names == options.dofs_name
+    return np.array(values)
 
 
 def test_hand2_programs_the_nominal_gains_by_default(hand2):

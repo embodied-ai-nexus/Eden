@@ -10,154 +10,129 @@ dataset, converted from the upstream ``wuji-technology/wuji-description``
 
 from typing import ClassVar
 
+from eden.options.actuators import (
+    ActuatorSpecOptions,
+    WujiHand2Actuator,
+    WujiHand2Finger,
+    WujiHand2Flex,
+    WujiHand2Pinky,
+    WujiHand2PinkyFlex,
+    WujiHand2ThumbAbd,
+    WujiHand2ThumbIp,
+    WujiHand2ThumbMcp,
+)
 from eden.options.catalog import ROBOT_REGISTRY
-from eden.options.entities import RobotOptions, MetadataOptions
+from eden.options.entities import MetadataOptions, RobotOptions
+
+
+_WUJI_HAND2_DOFS_SPEC: dict[str, type[WujiHand2Actuator]] = {
+    ".*_thumb_cmc_flex": WujiHand2Flex,
+    ".*_thumb_cmc_abd": WujiHand2ThumbAbd,
+    ".*_thumb_mcp": WujiHand2ThumbMcp,
+    ".*_thumb_ip": WujiHand2ThumbIp,
+    ".*_(index|middle|ring)_finger_mcp_flex": WujiHand2Flex,
+    ".*_(index|middle|ring)_finger_mcp_abd": WujiHand2Finger,
+    ".*_(index|middle|ring)_finger_(pip|dip)": WujiHand2Finger,
+    ".*_pinky_mcp_flex": WujiHand2PinkyFlex,
+    ".*_pinky_mcp_abd": WujiHand2Pinky,
+    ".*_pinky_(pip|dip)": WujiHand2Pinky,
+}
+
+# Firmware MIT gains from wuji-mjlab v2026.10.22 ``pen_spin/config/wuji_hand2/hand2_constants.py``:
+# kp 3.0 everywhere, kd by joint position within the finger.
+_MIT_KP = 3.0
+_MIT_KD: dict[str, float] = {
+    ".*_thumb_cmc_flex": 0.075,
+    ".*_thumb_cmc_abd": 0.07,
+    ".*_thumb_mcp": 0.05,
+    ".*_thumb_ip": 0.05,
+    ".*_(index|middle|ring)_finger_mcp_flex": 0.075,
+    ".*_(index|middle|ring)_finger_mcp_abd": 0.07,
+    ".*_(index|middle|ring)_finger_(pip|dip)": 0.05,
+    ".*_pinky_mcp_flex": 0.075,
+    ".*_pinky_mcp_abd": 0.07,
+    ".*_pinky_(pip|dip)": 0.05,
+}
 
 
 class _WujiHand2Beta2(RobotOptions):
+    dofs_spec: ClassVar[dict[str, type[ActuatorSpecOptions]]] = _WUJI_HAND2_DOFS_SPEC
+
     default_dofs_pos: dict[str, float] = {"*": 0.0}
 
-    # Per-joint calibration from wuji-mjlab v2026.10.22 ``pen_spin/config/wuji_hand2/hand2_constants.py``
-    # (identified on a right hand2_2, whose joints match hand2_beta2). Gains are the firmware MIT gains
-    # (kp 3.0, kd 0.075/0.07/0.05/0.05) times kt * 1.9115 A/unit.
-    default_dofs_kp: dict[str, float] = {
-        ".*_thumb_cmc_flex": 2.37175,
-        ".*_thumb_cmc_abd": 2.03285,
-        ".*_thumb_mcp": 1.27075,
-        ".*_thumb_ip": 0.762103,
-        ".*_index_finger_mcp_flex": 2.37175,
-        ".*_index_finger_mcp_abd": 0.959367,
-        ".*_index_finger_pip": 0.959367,
-        ".*_index_finger_dip": 0.959367,
-        ".*_middle_finger_mcp_flex": 2.37175,
-        ".*_middle_finger_mcp_abd": 0.959367,
-        ".*_middle_finger_pip": 0.959367,
-        ".*_middle_finger_dip": 0.959367,
-        ".*_ring_finger_mcp_flex": 2.37175,
-        ".*_ring_finger_mcp_abd": 0.959367,
-        ".*_ring_finger_pip": 0.959367,
-        ".*_ring_finger_dip": 0.959367,
-        ".*_pinky_mcp_flex": 2.55812,
-        ".*_pinky_mcp_abd": 0.639387,
-        ".*_pinky_pip": 0.639387,
-        ".*_pinky_dip": 0.639387,
-    }
+    default_dofs_kp: dict[str, float] = {p: s.JOINT_GAIN(_MIT_KP) for p, s in _WUJI_HAND2_DOFS_SPEC.items()}
+    default_dofs_kd: dict[str, float] = {p: s.JOINT_GAIN(_MIT_KD[p]) for p, s in _WUJI_HAND2_DOFS_SPEC.items()}
+    default_dofs_force_limits: dict[str, float] = {p: s.EFFORT_LIMIT for p, s in _WUJI_HAND2_DOFS_SPEC.items()}
 
-    default_dofs_kd: dict[str, float] = {
-        ".*_thumb_cmc_flex": 0.0592938,
-        ".*_thumb_cmc_abd": 0.0474332,
-        ".*_thumb_mcp": 0.0211791,
-        ".*_thumb_ip": 0.0127017,
-        ".*_index_finger_mcp_flex": 0.0592938,
-        ".*_index_finger_mcp_abd": 0.0223852,
-        ".*_index_finger_pip": 0.0159895,
-        ".*_index_finger_dip": 0.0159895,
-        ".*_middle_finger_mcp_flex": 0.0592938,
-        ".*_middle_finger_mcp_abd": 0.0223852,
-        ".*_middle_finger_pip": 0.0159895,
-        ".*_middle_finger_dip": 0.0159895,
-        ".*_ring_finger_mcp_flex": 0.0592938,
-        ".*_ring_finger_mcp_abd": 0.0223852,
-        ".*_ring_finger_pip": 0.0159895,
-        ".*_ring_finger_dip": 0.0159895,
-        ".*_pinky_mcp_flex": 0.063953,
-        ".*_pinky_mcp_abd": 0.014919,
-        ".*_pinky_pip": 0.0106565,
-        ".*_pinky_dip": 0.0106565,
-    }
-
-    # kt * 1.5 A current limit.
-    default_dofs_force_limits: dict[str, float] = {
-        ".*_thumb_cmc_flex": 0.6204,
-        ".*_thumb_cmc_abd": 0.53175,
-        ".*_thumb_mcp": 0.3324,
-        ".*_thumb_ip": 0.19935,
-        ".*_index_finger_mcp_flex": 0.6204,
-        ".*_index_finger_mcp_abd": 0.25095,
-        ".*_index_finger_pip": 0.25095,
-        ".*_index_finger_dip": 0.25095,
-        ".*_middle_finger_mcp_flex": 0.6204,
-        ".*_middle_finger_mcp_abd": 0.25095,
-        ".*_middle_finger_pip": 0.25095,
-        ".*_middle_finger_dip": 0.25095,
-        ".*_ring_finger_mcp_flex": 0.6204,
-        ".*_ring_finger_mcp_abd": 0.25095,
-        ".*_ring_finger_pip": 0.25095,
-        ".*_ring_finger_dip": 0.25095,
-        ".*_pinky_mcp_flex": 0.66915,
-        ".*_pinky_mcp_abd": 0.16725,
-        ".*_pinky_pip": 0.16725,
-        ".*_pinky_dip": 0.16725,
-    }
-
+    # Identified per joint (same source), so not part of the motor specs.
     # The URDF has no armature; without this Genesis would use 0.1.
     default_dofs_armature: dict[str, float] = {
-        ".*_thumb_cmc_flex": 0.000145716,
-        ".*_thumb_cmc_abd": 0.000136639,
-        ".*_thumb_mcp": 0.000127355,
-        ".*_thumb_ip": 8.7689e-05,
-        ".*_index_finger_mcp_flex": 0.000113047,
-        ".*_index_finger_mcp_abd": 5.12716e-05,
-        ".*_index_finger_pip": 4.84378e-05,
-        ".*_index_finger_dip": 7.90619e-05,
-        ".*_middle_finger_mcp_flex": 0.000201105,
-        ".*_middle_finger_mcp_abd": 7.10665e-05,
-        ".*_middle_finger_pip": 6.05475e-05,
-        ".*_middle_finger_dip": 5.65927e-05,
-        ".*_ring_finger_mcp_flex": 0.00013939,
-        ".*_ring_finger_mcp_abd": 3.54411e-05,
-        ".*_ring_finger_pip": 5.23397e-05,
-        ".*_ring_finger_dip": 6.04795e-05,
-        ".*_pinky_mcp_flex": 9.70626e-05,
-        ".*_pinky_mcp_abd": 3.82605e-05,
-        ".*_pinky_pip": 4.66446e-05,
-        ".*_pinky_dip": 4.74378e-05,
+        ".*_thumb_cmc_flex": 1.457162e-4,
+        ".*_thumb_cmc_abd": 1.366389e-4,
+        ".*_thumb_mcp": 1.273553e-4,
+        ".*_thumb_ip": 8.768902e-5,
+        ".*_index_finger_mcp_flex": 1.130474e-4,
+        ".*_index_finger_mcp_abd": 5.127161e-5,
+        ".*_index_finger_pip": 4.843783e-5,
+        ".*_index_finger_dip": 7.906193e-5,
+        ".*_middle_finger_mcp_flex": 2.011048e-4,
+        ".*_middle_finger_mcp_abd": 7.106655e-5,
+        ".*_middle_finger_pip": 6.054746e-5,
+        ".*_middle_finger_dip": 5.659272e-5,
+        ".*_ring_finger_mcp_flex": 1.393897e-4,
+        ".*_ring_finger_mcp_abd": 3.544108e-5,
+        ".*_ring_finger_pip": 5.233974e-5,
+        ".*_ring_finger_dip": 6.047948e-5,
+        ".*_pinky_mcp_flex": 9.706259e-5,
+        ".*_pinky_mcp_abd": 3.826054e-5,
+        ".*_pinky_pip": 4.664456e-5,
+        ".*_pinky_dip": 4.743778e-5,
     }
 
     default_dofs_damping: dict[str, float] = {
-        ".*_thumb_cmc_flex": 0.0026915,
-        ".*_thumb_cmc_abd": 0.00428122,
-        ".*_thumb_mcp": 0.00141357,
-        ".*_thumb_ip": 0.000513181,
-        ".*_index_finger_mcp_flex": 0.00105109,
+        ".*_thumb_cmc_flex": 0.0026915050,
+        ".*_thumb_cmc_abd": 0.0042812198,
+        ".*_thumb_mcp": 0.0014135711,
+        ".*_thumb_ip": 0.0005131806,
+        ".*_index_finger_mcp_flex": 0.0010510923,
         ".*_index_finger_mcp_abd": 0.0,
-        ".*_index_finger_pip": 0.00103028,
-        ".*_index_finger_dip": 6.63526e-05,
-        ".*_middle_finger_mcp_flex": 0.00215877,
-        ".*_middle_finger_mcp_abd": 0.000884286,
-        ".*_middle_finger_pip": 0.00126105,
-        ".*_middle_finger_dip": 0.000112849,
-        ".*_ring_finger_mcp_flex": 0.00145065,
+        ".*_index_finger_pip": 0.0010302809,
+        ".*_index_finger_dip": 0.0000663526,
+        ".*_middle_finger_mcp_flex": 0.0021587672,
+        ".*_middle_finger_mcp_abd": 0.0008842859,
+        ".*_middle_finger_pip": 0.0012610488,
+        ".*_middle_finger_dip": 0.0001128493,
+        ".*_ring_finger_mcp_flex": 0.0014506542,
         ".*_ring_finger_mcp_abd": 0.0,
-        ".*_ring_finger_pip": 0.000714964,
+        ".*_ring_finger_pip": 0.0007149635,
         ".*_ring_finger_dip": 0.0,
         ".*_pinky_mcp_flex": 0.0,
         ".*_pinky_mcp_abd": 0.0,
-        ".*_pinky_pip": 0.00162465,
+        ".*_pinky_pip": 0.0016246495,
         ".*_pinky_dip": 0.0,
     }
 
     default_dofs_frictionloss: dict[str, float] = {
-        ".*_thumb_cmc_flex": 0.0367355,
-        ".*_thumb_cmc_abd": 0.0342266,
-        ".*_thumb_mcp": 0.0187921,
-        ".*_thumb_ip": 0.0122546,
-        ".*_index_finger_mcp_flex": 0.0377085,
-        ".*_index_finger_mcp_abd": 0.0177933,
-        ".*_index_finger_pip": 0.0297927,
-        ".*_index_finger_dip": 0.0161822,
-        ".*_middle_finger_mcp_flex": 0.0355645,
-        ".*_middle_finger_mcp_abd": 0.0240617,
-        ".*_middle_finger_pip": 0.0127756,
-        ".*_middle_finger_dip": 0.010917,
-        ".*_ring_finger_mcp_flex": 0.0528258,
-        ".*_ring_finger_mcp_abd": 0.0266927,
-        ".*_ring_finger_pip": 0.0148677,
-        ".*_ring_finger_dip": 0.0215947,
-        ".*_pinky_mcp_flex": 0.0338252,
-        ".*_pinky_mcp_abd": 0.0261331,
-        ".*_pinky_pip": 0.0142009,
-        ".*_pinky_dip": 0.0129471,
+        ".*_thumb_cmc_flex": 0.0367355430,
+        ".*_thumb_cmc_abd": 0.0342266392,
+        ".*_thumb_mcp": 0.0187921182,
+        ".*_thumb_ip": 0.0122545518,
+        ".*_index_finger_mcp_flex": 0.0377084683,
+        ".*_index_finger_mcp_abd": 0.0177932607,
+        ".*_index_finger_pip": 0.0297927367,
+        ".*_index_finger_dip": 0.0161822467,
+        ".*_middle_finger_mcp_flex": 0.0355644840,
+        ".*_middle_finger_mcp_abd": 0.0240616629,
+        ".*_middle_finger_pip": 0.0127755677,
+        ".*_middle_finger_dip": 0.0109169800,
+        ".*_ring_finger_mcp_flex": 0.0528257763,
+        ".*_ring_finger_mcp_abd": 0.0266927477,
+        ".*_ring_finger_pip": 0.0148677454,
+        ".*_ring_finger_dip": 0.0215947297,
+        ".*_pinky_mcp_flex": 0.0338251954,
+        ".*_pinky_mcp_abd": 0.0261331247,
+        ".*_pinky_pip": 0.0142008972,
+        ".*_pinky_dip": 0.0129471168,
     }
 
 

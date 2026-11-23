@@ -330,8 +330,12 @@ class Go2(RobotOptions):
 
 The shipped specs cover Unitree motors (`Unitree7520_22`, `Unitree7520_14`, `Unitree5020_16`,
 `Unitree5020_16_DOUBLE`, `Unitree4010_25`, `Unitree8010_6`, `Unitree8010_6Calf`, `UnitreeGo2HV`,
-`UnitreeGo2HVCalf`), DAMIAO motors (`DamiaoDM4310`, `DamiaoDM4340`) and the LimX Oli joint groups
-(`LimxOliHipKnee`, `LimxOliAnkleWaist`, `LimxOliShoulderElbow`, `LimxOliWristHead`).
+`UnitreeGo2HVCalf`), DAMIAO motors (`DamiaoDM4310`, `DamiaoDM4340`), the LimX Oli joint groups
+(`LimxOliHipKnee`, `LimxOliAnkleWaist`, `LimxOliShoulderElbow`, `LimxOliWristHead`) and the Wuji Hand 2
+finger motors (`WujiHand2Flex`, `WujiHand2ThumbAbd`, `WujiHand2ThumbMcp`, `WujiHand2ThumbIp`,
+`WujiHand2Finger`, `WujiHand2PinkyFlex`, `WujiHand2Pinky`). The Wuji specs also carry the motor's
+`TORQUE_CONSTANT` (N·m/A) and convert the firmware's MIT gains: `JOINT_GAIN(mit_gain)` gives the joint-space
+kp or kd, and `MIT_GAIN(joint_gain)` the reverse.
 
 ## Adding a robot
 

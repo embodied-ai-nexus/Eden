@@ -1,4 +1,4 @@
-"""Actuator specification options and motor presets (Unitree, DAMIAO, LimX)."""
+"""Actuator specification options and motor presets (Unitree, DAMIAO, LimX, Wuji)."""
 
 from __future__ import annotations
 from typing import ClassVar
@@ -332,3 +332,78 @@ class LimxOliWristHead(LimxOliActuator):
 
     EFFORT_LIMIT: ClassVar[float] = 19.0
     ROTOR_INERTIA: ClassVar[float] = 0.0153218  # reflected armature [kg*m^2]
+
+
+class WujiHand2Actuator(ActuatorSpecOptions):
+    """Wuji Hand 2 finger actuator base: an MIT-impedance servo driven through ``wuji_sdk``.
+
+    The firmware takes kp / kd in MIT units and a current limit in amperes. One MIT unit is
+    ``AMPS_PER_MIT_UNIT`` A, and ``TORQUE_CONSTANT`` is the joint-side output torque per ampere, so a
+    joint-space gain is the MIT gain times ``AMPS_PER_MIT_UNIT * TORQUE_CONSTANT``. ``EFFORT_LIMIT`` is the
+    torque at ``CURRENT_LIMIT``. Values from wuji-mjlab v2026.10.22
+    ``tasks/pen_spin/config/wuji_hand2/hand2_constants.py``; upstream does not name the motors, so the
+    subclasses are named by the joints they drive.
+    """
+
+    TORQUE_CONSTANT: ClassVar[float] = 0.0  # [N*m/A]
+    CURRENT_LIMIT: ClassVar[float] = 1.5  # [A]
+    AMPS_PER_MIT_UNIT: ClassVar[float] = 1.9114709702965849
+
+    @classmethod
+    def JOINT_GAIN(cls, mit_gain: float) -> float:
+        """The joint-space kp [N*m/rad] or kd [N*m*s/rad] of an MIT-unit gain."""
+        return mit_gain * cls.AMPS_PER_MIT_UNIT * cls.TORQUE_CONSTANT
+
+    @classmethod
+    def MIT_GAIN(cls, joint_gain: float) -> float:
+        """The MIT-unit gain of a joint-space kp or kd; the inverse of :meth:`JOINT_GAIN`."""
+        return joint_gain / (cls.AMPS_PER_MIT_UNIT * cls.TORQUE_CONSTANT)
+
+
+class WujiHand2Flex(WujiHand2Actuator):
+    """Thumb CMC flexion and index / middle / ring MCP flexion."""
+
+    TORQUE_CONSTANT: ClassVar[float] = 0.4136
+    EFFORT_LIMIT: ClassVar[float] = TORQUE_CONSTANT * WujiHand2Actuator.CURRENT_LIMIT
+
+
+class WujiHand2ThumbAbd(WujiHand2Actuator):
+    """Thumb CMC abduction."""
+
+    TORQUE_CONSTANT: ClassVar[float] = 0.3545
+    EFFORT_LIMIT: ClassVar[float] = TORQUE_CONSTANT * WujiHand2Actuator.CURRENT_LIMIT
+
+
+class WujiHand2ThumbMcp(WujiHand2Actuator):
+    """Thumb MCP."""
+
+    TORQUE_CONSTANT: ClassVar[float] = 0.2216
+    EFFORT_LIMIT: ClassVar[float] = TORQUE_CONSTANT * WujiHand2Actuator.CURRENT_LIMIT
+
+
+class WujiHand2ThumbIp(WujiHand2Actuator):
+    """Thumb IP."""
+
+    TORQUE_CONSTANT: ClassVar[float] = 0.1329
+    EFFORT_LIMIT: ClassVar[float] = TORQUE_CONSTANT * WujiHand2Actuator.CURRENT_LIMIT
+
+
+class WujiHand2Finger(WujiHand2Actuator):
+    """Index / middle / ring MCP abduction, PIP and DIP."""
+
+    TORQUE_CONSTANT: ClassVar[float] = 0.1673
+    EFFORT_LIMIT: ClassVar[float] = TORQUE_CONSTANT * WujiHand2Actuator.CURRENT_LIMIT
+
+
+class WujiHand2PinkyFlex(WujiHand2Actuator):
+    """Pinky MCP flexion."""
+
+    TORQUE_CONSTANT: ClassVar[float] = 0.4461
+    EFFORT_LIMIT: ClassVar[float] = TORQUE_CONSTANT * WujiHand2Actuator.CURRENT_LIMIT
+
+
+class WujiHand2Pinky(WujiHand2Actuator):
+    """Pinky MCP abduction, PIP and DIP."""
+
+    TORQUE_CONSTANT: ClassVar[float] = 0.1115
+    EFFORT_LIMIT: ClassVar[float] = TORQUE_CONSTANT * WujiHand2Actuator.CURRENT_LIMIT
