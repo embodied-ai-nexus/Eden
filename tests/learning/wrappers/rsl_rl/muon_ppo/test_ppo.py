@@ -69,7 +69,7 @@ def test_a_ppo_update_moves_both_optimizers_parameters_and_logs_explained_varian
     alg = _muon_ppo(obs, num_mini_batches=2, num_learning_epochs=1)
     before = {n: p.detach().clone() for n, p in [*alg.actor.named_parameters(), *alg.critic.named_parameters()]}
     _collect(alg, obs)
-    losses = alg.update()
+    losses, _ = alg.update()
     assert {"value", "surrogate", "entropy", "explained_variance"} <= set(losses)
     after = dict([*alg.actor.named_parameters(), *alg.critic.named_parameters()])
     moved = {n for n, p in after.items() if not torch.equal(p.detach(), before[n])}
