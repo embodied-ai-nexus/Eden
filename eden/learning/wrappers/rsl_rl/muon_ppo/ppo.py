@@ -162,7 +162,7 @@ class MuonPPO(PPO):
             muon_weight_decay=muon_weight_decay,
         )
 
-    def update(self) -> dict[str, float]:
+    def update(self) -> tuple[dict[str, float], dict[str, float]]:
         """Run the stock PPO update, and log the value function's explained variance (Weave's extra metric).
 
         Returns
@@ -174,6 +174,6 @@ class MuonPPO(PPO):
             values = self.storage.values.flatten()
             returns = self.storage.returns.flatten()
             explained_variance = (1.0 - (returns - values).var() / (returns.var() + 1e-8)).item()
-        loss_dict = super().update()
+        loss_dict, stats_dict = super().update()
         loss_dict["explained_variance"] = explained_variance
-        return loss_dict
+        return loss_dict, stats_dict
