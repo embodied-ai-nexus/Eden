@@ -15,8 +15,8 @@ period, and reads it back. The hand eases from its measured pose to open, then c
 ``--cycles`` times on a cosine profile, and the script prints how closely it tracked each pose.
 
 **Gains.** The hand is programmed with the MIT gains its firmware ships with (kp 3.0, kd 0.05 on
-every joint), not with ``WujiHand2Beta2``'s ``default_dofs_kp`` / ``default_dofs_kd`` (joint-space
-gains in N*m/rad, not MIT units), which the backend programs when ``mit_kp`` / ``mit_kd`` are left unset.
+every joint), not with the pen-spin gains the backend converts from ``WujiHand2Beta2``'s
+``default_dofs_kp`` / ``default_dofs_kd`` when ``mit_kp`` / ``mit_kd`` are left unset.
 
 **Stopping.** Ctrl-C, a fault or lost feedback ends the run and disables the motors, so the
 fingers go limp wherever they are. ``--closure`` scales the fist (0 = open, 1 = full); start low.

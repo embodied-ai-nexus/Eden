@@ -424,16 +424,15 @@ simulator.
   runs its own position loop, so it refuses `deploy_kp_kd_scale` and gains; soften it with
   `effort_limit_a` (default 0.5 A). Both refuse `--disable_joints`.
 
-    !!! warning "Hand 2's default MIT gains are joint-space gains, not MIT units"
+    !!! note "Hand 2's default MIT gains come from the robot's motor specs"
         Left unset, `mit_kp` / `mit_kd` default to the robot's `default_dofs_kp` / `default_dofs_kd`
-        times `deploy_kp_kd_scale`. For `WujiHand2Beta2` those are joint-space gains in N·m/rad
-        (kp 0.64-2.56, kd 0.011-0.064), derived from the MIT gains upstream's pen-spin deploy
-        programs (kp 3.0; kd 0.075 / 0.07 / 0.05 / 0.05 on joints 1-4 of each finger) as
-        MIT gain x 1.9115 A per unit x the joint's torque constant. Programmed as MIT gains, they
-        come out 1.2 to 4.7 times softer than that. The hand's firmware ships with kp 3.0, kd 0.05,
-        which is what `examples/recipes/deployment/real_wuji_hand2.py` programs. Set them
-        explicitly on real hardware, and compare them with what your policy trained at: the deploy
-        warns per slot when the two differ.
+        times `deploy_kp_kd_scale`, converted from N·m/rad to MIT units through each joint's
+        `WujiHand2Actuator` spec in `dofs_spec` (divided by `TORQUE_CONSTANT` x 1.9115 A per unit).
+        For `WujiHand2Beta2` that is upstream pen spin's kp 3.0 and kd 0.075 / 0.07 / 0.05 / 0.05
+        on joints 1-4 of each finger. Explicit values are MIT units. With the specs, the deploy
+        converts the programmed gains back to joint space and warns per slot whose training gains
+        differ. A robot with no such specs must set both explicitly, and its slots are compared with
+        the boot slot instead.
 
 - **Streaming.** `stream_mode="sync"` (default) interpolates `servo_hz` (default 200) sub-targets
   across each control period and blocks until the period's deadline, chained from the previous one,

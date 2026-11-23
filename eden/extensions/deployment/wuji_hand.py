@@ -43,6 +43,7 @@ from eden.extensions.deployment.base import (
     resolve_dofs_values,
 )
 from eden.extensions.deployment.utils.state import RobotCommand, RobotState
+from eden.options.actuators import WujiHand2Actuator
 from eden.options.robots.wuji_hand1 import _WujiHand1
 from eden.options.robots.wuji_hand2beta2 import _WujiHand2Beta2
 from eden.utils.string import resolve_matching_names_values
@@ -705,8 +706,9 @@ class WujiHandDeployment(DeploymentBase):
 
     **Gains are programmed once at connect, never per command.** Hand 2 takes MIT ``kp`` / ``kd``
     (``mit_kp`` / ``mit_kd``, default the payload's nominal gains: the robot's ``default_dofs_kp`` /
-    ``default_dofs_kd`` times ``deploy_kp_kd_scale``). Hand 1 runs its own position loop and has
-    no gain to set. So ``disable_joints`` (which works by zeroing command gains) is refused for
+    ``default_dofs_kd`` times ``deploy_kp_kd_scale``, converted from joint space to MIT units through
+    each joint's :class:`~eden.options.actuators.WujiHand2Actuator` spec). Hand 1 runs its own position
+    loop and has no gain to set. So ``disable_joints`` (which works by zeroing command gains) is refused for
     both, and ``deploy_kp_kd_scale`` / ``mit_kp`` / ``mit_kd`` for Hand 1.
 
     **Loop order.** The base control tick (:meth:`DeploymentBase.step`, the operator state machine
@@ -747,7 +749,8 @@ class WujiHandDeployment(DeploymentBase):
         Hand 1's target low-pass cutoff.
     mit_kp, mit_kd : float | dict[str, float] | None
         Hand 2's MIT gains: one value for every joint, or a pattern-keyed dict covering all 20.
-        ``None``: the payload's nominal gains.
+        ``None``: the payload's nominal gains in MIT units, which needs the robot's ``dofs_spec`` to
+        map every joint to a ``WujiHand2Actuator``.
     require_all_joints : bool
         Hand 2: refuse a hand with fewer than 20 joints online.
     stop_on_fault : bool
@@ -826,8 +829,14 @@ class WujiHandDeployment(DeploymentBase):
             self.effort_limit_a = 0.5 if self.hand == "hand1" else 1.0
         self._reject_unforwarded_gain_options()
         if self.hand == "hand2":
-            self._mit_kp = self._resolve_gain("mit_kp", self.mit_kp, self.default_dof_kp)
-            self._mit_kd = self._resolve_gain("mit_kd", self.mit_kd, self.default_dof_kd)
+            self._joint_gain_per_mit = self._resolve_joint_gain_per_mit()
+            per_mit = self._joint_gain_per_mit
+            self._mit_kp = self._resolve_gain(
+                "mit_kp", self.mit_kp, None if per_mit is None else self.default_dof_kp / per_mit
+            )
+            self._mit_kd = self._resolve_gain(
+                "mit_kd", self.mit_kd, None if per_mit is None else self.default_dof_kd / per_mit
+            )
 
         self.stream = StreamOptions(mode=self.stream_mode, servo_hz=self.servo_hz, interp_s=self.control_dt)
         if self.stream_mode == "sync":
@@ -884,12 +893,41 @@ class WujiHandDeployment(DeploymentBase):
             )
 
     def programmed_gains(self) -> tuple[np.ndarray, np.ndarray] | None:
-        """Hand 2's MIT gains (``mit_kp`` / ``mit_kd``, else the nominal ones), in a policy's units; Hand 1 has none."""
-        if self.hand != "hand2":
+        """Hand 2's MIT gains converted to joint space, a policy's units; ``None`` for Hand 1 or a hand without specs."""
+        if self.hand != "hand2" or self._joint_gain_per_mit is None:
             return None
-        return self._mit_kp, self._mit_kd
+        return self._mit_kp * self._joint_gain_per_mit, self._mit_kd * self._joint_gain_per_mit
 
-    def _resolve_gain(self, name: str, value: float | dict[str, float] | None, nominal: np.ndarray) -> np.ndarray:
+    def _resolve_joint_gain_per_mit(self) -> np.ndarray | None:
+        """Per deployment DOF, the joint-space gain of one MIT unit, from the robot's ``WujiHand2Actuator`` specs.
+
+        ``None`` when the robot maps no DOF to one; then only explicit ``mit_kp`` / ``mit_kd`` can be programmed.
+        """
+        owner, robot = type(self).__name__, type(self.robot_options).__name__
+        motors = {}
+        if spec := getattr(self.robot_options, "dofs_spec", None):
+            _, names, values = resolve_matching_names_values(spec, self.dofs_name)
+            motors = {n: m for n, m in zip(names, values) if isinstance(m, type) and issubclass(m, WujiHand2Actuator)}
+        if not motors:
+            if self.mit_kp is None or self.mit_kd is None:
+                raise ValueError(
+                    f"{owner}: robot {robot} maps no joint to a WujiHand2Actuator spec in dofs_spec, so its "
+                    "default_dofs_kp / default_dofs_kd cannot be converted to the hand's MIT units. Give both gains "
+                    f"in MIT units, e.g. {owner}.configure(mit_kp=3.0, mit_kd=0.05), or map the robot's joints to "
+                    "the eden.options.actuators.WujiHand2* specs. Sending the joint-space gains unconverted would run "
+                    "the hand at other gains than the policy trained at."
+                )
+            return None
+        if missing := [name for name in self.dofs_name if name not in motors]:
+            raise ValueError(
+                f"{owner}: robot {robot} maps joints {missing} to no WujiHand2Actuator spec in dofs_spec, while "
+                f"{len(motors)} others have one; map every joint so each gain can be converted to MIT units."
+            )
+        return np.array([motors[name].JOINT_GAIN(1.0) for name in self.dofs_name])
+
+    def _resolve_gain(
+        self, name: str, value: float | dict[str, float] | None, nominal: np.ndarray | None
+    ) -> np.ndarray:
         """One MIT gain per deployment DOF: ``None`` -> the nominal gains, a float -> every joint, a dict -> by pattern."""
         if value is None:
             return np.asarray(nominal, dtype=np.float64)

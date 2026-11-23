@@ -102,7 +102,7 @@ def test_an_unrecognised_robot_must_name_its_generation(hand1, monkeypatch):
     monkeypatch.setattr(wh, "_WujiHand1", type("NotThisRobot", (), {}))
     with pytest.raises(ValueError, match=r"configure\(hand='hand1'\)"):
         hand1()
-    assert hand1(hand="hand2").hand == "hand2"
+    assert hand1(hand="hand2", mit_kp=3.0, mit_kd=0.05).hand == "hand2"
 
 
 def test_mixed_sides_are_refused_naming_the_joints(hand1, monkeypatch):
@@ -167,10 +167,16 @@ def _nominal_sdk(field: str) -> np.ndarray:
     return np.array(values)
 
 
-def test_hand2_programs_the_nominal_gains_by_default(hand2):
+# Upstream pen spin's firmware gains, SDK order: kp 3.0, kd by joint position within each finger.
+MIT_KP = np.full(N, 3.0)
+MIT_KD = np.array([0.075, 0.07, 0.05, 0.05] * 5)
+
+
+def test_hand2_programs_the_nominal_gains_in_mit_units_by_default(hand2):
+    """The robot's joint-space gains, converted through its motor specs, are upstream's firmware gains."""
     gains = hand2(deploy_kp_kd_scale=0.5)._make_transport().gains
-    np.testing.assert_allclose(gains.kp, 0.5 * _nominal_sdk("kp"))
-    np.testing.assert_allclose(gains.kd, 0.5 * _nominal_sdk("kd"))
+    np.testing.assert_allclose(gains.kp, 0.5 * MIT_KP)
+    np.testing.assert_allclose(gains.kd, 0.5 * MIT_KD)
     assert gains.effort_limit_a == [1.0] * N
 
 
@@ -186,17 +192,36 @@ def test_hand2_per_joint_gains_reach_the_sdk_in_its_order(hand2):
     "options, kp, kd",
     [
         ({"deploy_kp_kd_scale": 0.5}, 0.5 * _nominal_sdk("kp"), 0.5 * _nominal_sdk("kd")),
-        ({"mit_kp": 2.0, "mit_kd": 0.1}, np.full(N, 2.0), np.full(N, 0.1)),
+        (
+            {
+                "mit_kp": 3.0,
+                "mit_kd": {
+                    ".*_(mcp|cmc)_flex": 0.075,
+                    ".*_(mcp|cmc)_abd": 0.07,
+                    ".*_(thumb_mcp|thumb_ip|pip|dip)": 0.05,
+                },
+            },
+            _nominal_sdk("kp"),
+            _nominal_sdk("kd"),
+        ),
     ],
-    ids=["scaled_nominal", "explicit"],
+    ids=["scaled_nominal", "explicit_upstream"],
 )
-def test_hand2_reports_the_gains_it_programs_for_the_deploy_to_compare_slots_with(hand2, options, kp, kd):
-    """``eden deploy`` warns about a slot trained at other gains than these; they are the policy's units."""
+def test_hand2_reports_the_gains_it_programs_in_joint_space(hand2, options, kp, kd):
+    """``eden deploy`` compares slots with these, so they are in the policy's units, not the firmware's."""
     dep = hand2(**options)
     programmed_kp, programmed_kd = dep.programmed_gains()
     np.testing.assert_allclose(dep.to_sdk(programmed_kp), kp)
     np.testing.assert_allclose(dep.to_sdk(programmed_kd), kd)
-    np.testing.assert_allclose(dep.to_sdk(programmed_kp), dep._make_transport().gains.kp)
+
+
+def test_a_hand2_robot_without_motor_specs_must_give_mit_gains(hand1):
+    """A Hand 1 robot run as a Hand 2 has no WujiHand2Actuator specs to convert its joint-space gains through."""
+    with pytest.raises(ValueError, match=r"configure\(mit_kp=3\.0, mit_kd=0\.05\)"):
+        hand1(hand="hand2")
+    dep = hand1(hand="hand2", mit_kp=3.0, mit_kd=0.05)
+    assert dep._make_transport().gains.kp == [3.0] * N
+    assert dep.programmed_gains() is None  # no spec says what 3.0 is in joint space
 
 
 def test_hand1_reports_no_gains_its_position_loop_could_be_compared_by(hand1):

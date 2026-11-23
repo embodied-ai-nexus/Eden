@@ -2379,7 +2379,7 @@ def _warn_on_unswitchable_slot_gains(dep, slots: list[_DeploySlot]) -> None:
     theirs once at connect or run their own loop, so one gain set runs whichever slot is active.
 
     Where the backend can say what that set is in a policy's units
-    (``DeploymentBase.programmed_gains``: Wuji Hand 2's MIT gains), every slot is compared with
+    (``DeploymentBase.programmed_gains``: Wuji Hand 2's MIT gains in joint space), every slot is compared with
     it, a lone one and the boot slot included. Where it cannot (XHand firmware units, Franka
     ``arm_stiffness``, Hand 1's position loop), the slots are compared with the boot slot, since
     of two slots trained at different gains at most one can run at its own.
