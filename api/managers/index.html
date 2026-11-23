@@ -29062,8 +29062,8 @@ answerable from term names alone.</p>
 happen to be imported in the process that generated it, or it would read as stale as often as it
 is right (the test suite alone registers a dozen throwaway terms).</p>
 <p>"Shipped" is the <code>eden.managers</code> namespace — the term modules each registry names in its
-<code>populated_by</code>. <code>eden.tasks.*</code> / <code>eden.extensions.*</code> terms register when their task
-module is imported and would otherwise leak in by import order — they match a plain
+<code>populated_by</code>. <code>eden.tasks.*</code> / <code>eden.extensions.*</code> / <code>eden.learning.*</code> terms register
+when their task or learner module is imported and would otherwise leak in by import order — they match a plain
 <code>startswith("eden.")</code> but not the <code>eden.managers</code> prefix tested here.</p>
 
 
@@ -29093,8 +29093,8 @@ module is imported and would otherwise leak in by import order — they match a 
 </span><span id="eden.managers.catalog.builtin_catalog--source--__span-0-343"><a id="eden.managers.catalog.builtin_catalog--source--__codelineno-0-343" name="eden.managers.catalog.builtin_catalog--source--__codelineno-0-343"></a><span class="sd">    is right (the test suite alone registers a dozen throwaway terms).</span>
 </span><span id="eden.managers.catalog.builtin_catalog--source--__span-0-344"><a id="eden.managers.catalog.builtin_catalog--source--__codelineno-0-344" name="eden.managers.catalog.builtin_catalog--source--__codelineno-0-344"></a>
 </span><span id="eden.managers.catalog.builtin_catalog--source--__span-0-345"><a id="eden.managers.catalog.builtin_catalog--source--__codelineno-0-345" name="eden.managers.catalog.builtin_catalog--source--__codelineno-0-345"></a><span class="sd">    "Shipped" is the ``eden.managers`` namespace — the term modules each registry names in its</span>
-</span><span id="eden.managers.catalog.builtin_catalog--source--__span-0-346"><a id="eden.managers.catalog.builtin_catalog--source--__codelineno-0-346" name="eden.managers.catalog.builtin_catalog--source--__codelineno-0-346"></a><span class="sd">    ``populated_by``. ``eden.tasks.*`` / ``eden.extensions.*`` terms register when their task</span>
-</span><span id="eden.managers.catalog.builtin_catalog--source--__span-0-347"><a id="eden.managers.catalog.builtin_catalog--source--__codelineno-0-347" name="eden.managers.catalog.builtin_catalog--source--__codelineno-0-347"></a><span class="sd">    module is imported and would otherwise leak in by import order — they match a plain</span>
+</span><span id="eden.managers.catalog.builtin_catalog--source--__span-0-346"><a id="eden.managers.catalog.builtin_catalog--source--__codelineno-0-346" name="eden.managers.catalog.builtin_catalog--source--__codelineno-0-346"></a><span class="sd">    ``populated_by``. ``eden.tasks.*`` / ``eden.extensions.*`` / ``eden.learning.*`` terms register</span>
+</span><span id="eden.managers.catalog.builtin_catalog--source--__span-0-347"><a id="eden.managers.catalog.builtin_catalog--source--__codelineno-0-347" name="eden.managers.catalog.builtin_catalog--source--__codelineno-0-347"></a><span class="sd">    when their task or learner module is imported and would otherwise leak in by import order — they match a plain</span>
 </span><span id="eden.managers.catalog.builtin_catalog--source--__span-0-348"><a id="eden.managers.catalog.builtin_catalog--source--__codelineno-0-348" name="eden.managers.catalog.builtin_catalog--source--__codelineno-0-348"></a><span class="sd">    ``startswith("eden.")`` but not the ``eden.managers`` prefix tested here.</span>
 </span><span id="eden.managers.catalog.builtin_catalog--source--__span-0-349"><a id="eden.managers.catalog.builtin_catalog--source--__codelineno-0-349" name="eden.managers.catalog.builtin_catalog--source--__codelineno-0-349"></a><span class="sd">    """</span>
 </span><span id="eden.managers.catalog.builtin_catalog--source--__span-0-350"><a id="eden.managers.catalog.builtin_catalog--source--__codelineno-0-350" name="eden.managers.catalog.builtin_catalog--source--__codelineno-0-350"></a>    <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span>

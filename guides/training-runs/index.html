@@ -5939,6 +5939,12 @@ by using that class:</p>
 <td><code>runner_options</code> (constrained-MDP PPO, external fork)</td>
 <td><code>contrack</code></td>
 </tr>
+<tr>
+<td><code>SuperMimicRunnerOptions</code></td>
+<td><code>eden.learning.wrappers.rsl_rl.supermimic</code></td>
+<td><code>runner_options</code> (policy learning through a learned, differentiable world model)</td>
+<td><code>supermimic</code></td>
+</tr>
 </tbody>
 </table>
 <p>FlashSAC's backend is not on PyPI; in a checkout install it with
@@ -5988,9 +5994,50 @@ build that class instead of Eden's <code>OnPolicyRunner</code> / <code>Distillat
   stock runner. Write an import path with a colon: <code>"module.path:ClassName"</code>.</li>
 <li><code>eden deploy</code> loads checkpoints into rsl_rl's stock <code>OnPolicyRunner</code>, so it refuses a task whose runner is named by
   import path; replay those checkpoints with <code>eden inference</code>.</li>
+<li><code>eden export</code> builds the graph from <code>runner.alg.get_policy()</code>, so it works for a runner built on an rsl_rl
+  algorithm (the ConTrack fork) and raises after the build for one that is not. An <code>export_unsupported</code> message on
+  the class makes it exit with that message before anything is built.</li>
+<li>A runner that is not built on an rsl_rl algorithm brings its own options class, a <code>RslRlBaseRunnerOptions</code>
+  subclass that sets the class attribute <code>translates_to_rsl_rl = False</code>. <code>runner_dict</code> is then those options as a
+  dict, with the device resolved and nothing translated for the installed rsl-rl-lib, and a checkpoint is handed
+  straight to the runner's <code>load(path, map_location=...)</code>, without the rsl-rl-lib layout handling. Such an options
+  class should raise on the base runner options its runner does not read.</li>
+<li><code>eden inference</code> builds the runner the same way as <code>eden train</code>. Allocate what only training needs (a replay
+  buffer, a log writer) in <code>learn()</code>, not in <code>__init__</code>.</li>
 </ul>
-<p>Examples: <code>RslRlRmaDepthDistillationRunnerOptions</code> (<code>extreme_parkour_student</code>) and <code>RslRlContrackRunnerOptions</code>
-(<code>contrack</code>).</p>
+<p>What a custom runner declares, and on which class:</p>
+<table>
+<thead>
+<tr>
+<th>attribute</th>
+<th>on</th>
+<th>read by</th>
+<th>effect</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>checkpoint_required</code> (message)</td>
+<td>the runner class</td>
+<td><code>eden train</code>, before the build</td>
+<td>exit when no checkpoint is given</td>
+</tr>
+<tr>
+<td><code>export_unsupported</code> (message)</td>
+<td>the runner class</td>
+<td><code>eden export</code>, before the build</td>
+<td>exit with the message</td>
+</tr>
+<tr>
+<td><code>translates_to_rsl_rl = False</code></td>
+<td>the runner options class</td>
+<td>the env wrapper and <code>make_rsl_rl_runner</code></td>
+<td>plain options dict, the runner's own <code>load</code></td>
+</tr>
+</tbody>
+</table>
+<p>Examples: <code>RslRlRmaDepthDistillationRunnerOptions</code> (<code>extreme_parkour_student</code>), <code>RslRlContrackRunnerOptions</code>
+(<code>contrack</code>) and <code>SuperMimicRunnerOptions</code> (<code>supermimic</code>), whose runner is not built on an rsl_rl algorithm.</p>
 <h3 id="data-only-the-algorithm-sees">Data only the algorithm sees<a class="headerlink" href="#data-only-the-algorithm-sees" title="Permanent link">&para;</a></h3>
 <p>If the algorithm needs data the actor and critic must not see, publish it as an extra observation group and leave
 that group out of <code>obs_groups</code>:</p>

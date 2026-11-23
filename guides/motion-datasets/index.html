@@ -5293,6 +5293,13 @@ replays one library on a robot in the viewer.</p>
 <td>HuggingFace <code>bones-studio/seed</code>, <strong>gated</strong></td>
 </tr>
 <tr>
+<td><code>LAFAN1RootJointsG1Dataset</code>, <code>SEEDRootJointsG1Dataset</code></td>
+<td><code>lafan1_root_joints_g1_dataset</code>, <code>seed_root_joints_g1_dataset</code></td>
+<td><code>g1</code></td>
+<td>The two above with root and joint state only: no link field is stored (<code>RootJointsOnlyMixin</code>), so a large library fits on one GPU. Read them with a motion term that computes its links, <code>KinematicLinksMotion</code></td>
+<td>as the dataset each extends</td>
+</tr>
+<tr>
 <td><code>PHUMADataset</code></td>
 <td><code>phuma_dataset</code></td>
 <td><code>g1</code></td>

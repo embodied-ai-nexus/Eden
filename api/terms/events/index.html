@@ -13914,7 +13914,7 @@ independence caveat.</p>
 
 
 
-        <p>Set the joint positions of an entity's DOFs to a random position (default mode: reset).</p>
+        <p>Set an entity's joint positions to random values (default mode: reset).</p>
 <p>Defaults to ratio mode, sampling within the first 20% of each DOF's limit range. See
 :class:<code>_RandomizeDofsPosBase</code> for the full parameter description.</p>
 
@@ -14292,7 +14292,7 @@ be a joint position controller on <code>entity_name</code>, and <code>None</code
 
 
 
-        <p>Randomize the absolute joint positions of an entity's DOFs (default mode: reset).</p>
+        <p>Randomize an entity's absolute joint positions (default mode: reset).</p>
 <p>Writes joint positions directly via <code>set_dofs_pos</code> — useful for spawning each episode with a randomized
 initial pose. Despite the name, defaults to <code>mode=_RESET</code> so it fires on every episode reset; override to
 <code>_STARTUP</code> for a one-time draw. Defaults to absolute mode with a small ±1° range. See

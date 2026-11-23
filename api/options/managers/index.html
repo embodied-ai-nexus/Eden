@@ -5196,6 +5196,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#eden.options.managers.motions.StartSamplingOption" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;StartSamplingOption
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#eden.options.managers.motions.MotionTermOptions" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -5532,6 +5543,34 @@
     <span class="md-ellipsis">
       
         <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;env_motion_groups
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#eden.options.managers.motions.MotionTermOptions-functions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Methods:
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Methods:">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#eden.options.managers.motions.MotionTermOptions.start_sampling_defaults" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;start_sampling_defaults
       
     </span>
   </a>
@@ -9150,6 +9189,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#eden.options.managers.motions.StartSamplingOption" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;StartSamplingOption
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#eden.options.managers.motions.MotionTermOptions" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -9486,6 +9536,34 @@
     <span class="md-ellipsis">
       
         <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;env_motion_groups
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#eden.options.managers.motions.MotionTermOptions-functions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Methods:
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Methods:">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#eden.options.managers.motions.MotionTermOptions.start_sampling_defaults" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;start_sampling_defaults
       
     </span>
   </a>
@@ -15041,6 +15119,38 @@ builds <code>grouped_entities</code> so the two cannot drift. Labels may repeat 
 
 
 
+<h3 id="eden.options.managers.motions.StartSamplingOption" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-class"></code>            <span class="doc doc-object-name doc-class-name">StartSamplingOption</span>
+
+
+<a href="#eden.options.managers.motions.StartSamplingOption" class="headerlink" title="Permanent link">&para;</a></h3>
+
+
+    <div class="doc doc-contents ">
+
+
+
+        <p>Marks a :class:<code>MotionTermOptions</code> field that configures how a reset draws a clip and a start time.</p>
+<p><code>MotionTerm.sample_starts</code> reads these options. A motion term that replaces that sampling raises on each of
+them (<code>MotionTerm.require_default_start_options</code>), so an option added to the sampling is annotated with this
+marker where it is declared.</p>
+
+
+
+
+
+
+
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
 <h3 id="eden.options.managers.motions.MotionTermOptions" class="doc doc-heading">
 <code class="doc-symbol doc-symbol-heading doc-symbol-class"></code>            <span class="doc doc-object-name doc-class-name">MotionTermOptions</span>
 
@@ -15699,7 +15809,7 @@ it manipulates. <code>None</code> (the default) samples every env from the whole
   </span>
 
 <a href="#eden.options.managers.motions.MotionTermOptions.motion_weights" class="headerlink" title="Permanent link">&para;</a></h5>
-<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="n">motion_weights</span><span class="p">:</span> <span class="n"><a class="autorefs autorefs-external" href="https://docs.python.org/3/builtins/stdtypes.html#str">str</a></span> <span class="o">|</span> <span class="n"><a class="autorefs autorefs-external" href="https://docs.python.org/3/builtins/stdtypes.html#list">list</a></span><span class="p">[</span><span class="n"><a class="autorefs autorefs-external" href="https://docs.python.org/3/builtins/functions.html#float">float</a></span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="n">motion_weights</span><span class="p">:</span> <span class="n"><a class="autorefs autorefs-external" title="&lt;code&gt;typing.Annotated&lt;/code&gt;" href="https://docs.python.org/3/library/typing.html#typing.Annotated">Annotated</a></span><span class="p">[</span><span class="n"><a class="autorefs autorefs-external" href="https://docs.python.org/3/builtins/stdtypes.html#str">str</a></span> <span class="o">|</span> <span class="n"><a class="autorefs autorefs-external" href="https://docs.python.org/3/builtins/stdtypes.html#list">list</a></span><span class="p">[</span><span class="n"><a class="autorefs autorefs-external" href="https://docs.python.org/3/builtins/functions.html#float">float</a></span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span> <span class="n"><span title="eden.options.managers.motions._START">_START</span></span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>
 </span></code></pre></div>
 
     <div class="doc doc-contents ">
@@ -15722,7 +15832,7 @@ it manipulates. <code>None</code> (the default) samples every env from the whole
   </span>
 
 <a href="#eden.options.managers.motions.MotionTermOptions.env_starting_stub_sampling_strategy" class="headerlink" title="Permanent link">&para;</a></h5>
-<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="n">env_starting_stub_sampling_strategy</span><span class="p">:</span> <span class="n"><a class="autorefs autorefs-external" title="&lt;code&gt;typing.Literal&lt;/code&gt;" href="https://docs.python.org/3/library/typing.html#typing.Literal">Literal</a></span><span class="p">[</span><span class="s1">'independent'</span><span class="p">,</span> <span class="s1">'concat_motion_bins'</span><span class="p">]</span> <span class="o">=</span> <span class="s1">'independent'</span>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="n">env_starting_stub_sampling_strategy</span><span class="p">:</span> <span class="n"><a class="autorefs autorefs-external" title="&lt;code&gt;typing.Annotated&lt;/code&gt;" href="https://docs.python.org/3/library/typing.html#typing.Annotated">Annotated</a></span><span class="p">[</span><span class="n"><a class="autorefs autorefs-external" title="&lt;code&gt;typing.Literal&lt;/code&gt;" href="https://docs.python.org/3/library/typing.html#typing.Literal">Literal</a></span><span class="p">[</span><span class="s1">'independent'</span><span class="p">,</span> <span class="s1">'concat_motion_bins'</span><span class="p">],</span> <span class="n"><span title="eden.options.managers.motions._START">_START</span></span><span class="p">]</span> <span class="o">=</span> <span class="s1">'independent'</span>
 </span></code></pre></div>
 
     <div class="doc doc-contents ">
@@ -15745,7 +15855,7 @@ it manipulates. <code>None</code> (the default) samples every env from the whole
   </span>
 
 <a href="#eden.options.managers.motions.MotionTermOptions.motion_start_from_middle_range" class="headerlink" title="Permanent link">&para;</a></h5>
-<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="n">motion_start_from_middle_range</span><span class="p">:</span> <span class="n"><a class="autorefs autorefs-external" href="https://docs.python.org/3/builtins/stdtypes.html#tuple">tuple</a></span><span class="p">[</span><span class="n"><a class="autorefs autorefs-external" href="https://docs.python.org/3/builtins/functions.html#float">float</a></span><span class="p">,</span> <span class="n"><a class="autorefs autorefs-external" href="https://docs.python.org/3/builtins/functions.html#float">float</a></span><span class="p">]</span> <span class="o">|</span> <span class="n"><a class="autorefs autorefs-external" href="https://docs.python.org/3/builtins/stdtypes.html#list">list</a></span><span class="p">[</span><span class="n"><a class="autorefs autorefs-external" href="https://docs.python.org/3/builtins/functions.html#float">float</a></span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">)</span>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="n">motion_start_from_middle_range</span><span class="p">:</span> <span class="n"><a class="autorefs autorefs-external" title="&lt;code&gt;typing.Annotated&lt;/code&gt;" href="https://docs.python.org/3/library/typing.html#typing.Annotated">Annotated</a></span><span class="p">[</span><span class="n"><a class="autorefs autorefs-external" href="https://docs.python.org/3/builtins/stdtypes.html#tuple">tuple</a></span><span class="p">[</span><span class="n"><a class="autorefs autorefs-external" href="https://docs.python.org/3/builtins/functions.html#float">float</a></span><span class="p">,</span> <span class="n"><a class="autorefs autorefs-external" href="https://docs.python.org/3/builtins/functions.html#float">float</a></span><span class="p">]</span> <span class="o">|</span> <span class="n"><a class="autorefs autorefs-external" href="https://docs.python.org/3/builtins/stdtypes.html#list">list</a></span><span class="p">[</span><span class="n"><a class="autorefs autorefs-external" href="https://docs.python.org/3/builtins/functions.html#float">float</a></span><span class="p">],</span> <span class="n"><span title="eden.options.managers.motions._START">_START</span></span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">)</span>
 </span></code></pre></div>
 
     <div class="doc doc-contents ">
@@ -15768,7 +15878,7 @@ it manipulates. <code>None</code> (the default) samples every env from the whole
   </span>
 
 <a href="#eden.options.managers.motions.MotionTermOptions.motion_bin_length_s" class="headerlink" title="Permanent link">&para;</a></h5>
-<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="n">motion_bin_length_s</span><span class="p">:</span> <span class="n"><a class="autorefs autorefs-external" href="https://docs.python.org/3/builtins/functions.html#float">float</a></span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="n">motion_bin_length_s</span><span class="p">:</span> <span class="n"><a class="autorefs autorefs-external" title="&lt;code&gt;typing.Annotated&lt;/code&gt;" href="https://docs.python.org/3/library/typing.html#typing.Annotated">Annotated</a></span><span class="p">[</span><span class="n"><a class="autorefs autorefs-external" href="https://docs.python.org/3/builtins/functions.html#float">float</a></span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span> <span class="n"><span title="eden.options.managers.motions._START">_START</span></span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>
 </span></code></pre></div>
 
     <div class="doc doc-contents ">
@@ -15791,7 +15901,7 @@ it manipulates. <code>None</code> (the default) samples every env from the whole
   </span>
 
 <a href="#eden.options.managers.motions.MotionTermOptions.adaptive_sampling" class="headerlink" title="Permanent link">&para;</a></h5>
-<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="n">adaptive_sampling</span><span class="p">:</span> <span class="n"><a class="autorefs autorefs-external" href="https://docs.python.org/3/builtins/functions.html#bool">bool</a></span> <span class="o">=</span> <span class="kc">False</span>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="n">adaptive_sampling</span><span class="p">:</span> <span class="n"><a class="autorefs autorefs-external" title="&lt;code&gt;typing.Annotated&lt;/code&gt;" href="https://docs.python.org/3/library/typing.html#typing.Annotated">Annotated</a></span><span class="p">[</span><span class="n"><a class="autorefs autorefs-external" href="https://docs.python.org/3/builtins/functions.html#bool">bool</a></span><span class="p">,</span> <span class="n"><span title="eden.options.managers.motions._START">_START</span></span><span class="p">]</span> <span class="o">=</span> <span class="kc">False</span>
 </span></code></pre></div>
 
     <div class="doc doc-contents ">
@@ -15929,7 +16039,7 @@ it manipulates. <code>None</code> (the default) samples every env from the whole
   </span>
 
 <a href="#eden.options.managers.motions.MotionTermOptions.adaptive_motion_weights" class="headerlink" title="Permanent link">&para;</a></h5>
-<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="n">adaptive_motion_weights</span><span class="p">:</span> <span class="n"><a class="autorefs autorefs-external" href="https://docs.python.org/3/builtins/functions.html#bool">bool</a></span> <span class="o">=</span> <span class="kc">False</span>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="n">adaptive_motion_weights</span><span class="p">:</span> <span class="n"><a class="autorefs autorefs-external" title="&lt;code&gt;typing.Annotated&lt;/code&gt;" href="https://docs.python.org/3/library/typing.html#typing.Annotated">Annotated</a></span><span class="p">[</span><span class="n"><a class="autorefs autorefs-external" href="https://docs.python.org/3/builtins/functions.html#bool">bool</a></span><span class="p">,</span> <span class="n"><span title="eden.options.managers.motions._START">_START</span></span><span class="p">]</span> <span class="o">=</span> <span class="kc">False</span>
 </span></code></pre></div>
 
     <div class="doc doc-contents ">
@@ -16113,7 +16223,7 @@ it manipulates. <code>None</code> (the default) samples every env from the whole
   </span>
 
 <a href="#eden.options.managers.motions.MotionTermOptions.start_at_timestep_zero_prob" class="headerlink" title="Permanent link">&para;</a></h5>
-<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="n">start_at_timestep_zero_prob</span><span class="p">:</span> <span class="n"><a class="autorefs autorefs-external" href="https://docs.python.org/3/builtins/functions.html#float">float</a></span> <span class="o">=</span> <span class="mf">0.0</span>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="n">start_at_timestep_zero_prob</span><span class="p">:</span> <span class="n"><a class="autorefs autorefs-external" title="&lt;code&gt;typing.Annotated&lt;/code&gt;" href="https://docs.python.org/3/library/typing.html#typing.Annotated">Annotated</a></span><span class="p">[</span><span class="n"><a class="autorefs autorefs-external" href="https://docs.python.org/3/builtins/functions.html#float">float</a></span><span class="p">,</span> <span class="n"><span title="eden.options.managers.motions._START">_START</span></span><span class="p">]</span> <span class="o">=</span> <span class="mf">0.0</span>
 </span></code></pre></div>
 
     <div class="doc doc-contents ">
@@ -16251,7 +16361,7 @@ it manipulates. <code>None</code> (the default) samples every env from the whole
   </span>
 
 <a href="#eden.options.managers.motions.MotionTermOptions.env_motion_groups" class="headerlink" title="Permanent link">&para;</a></h5>
-<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="n">env_motion_groups</span><span class="p">:</span> <span class="n"><a class="autorefs autorefs-internal" title="&lt;code class=&quot;doc-symbol doc-symbol-heading doc-symbol-class&quot;&gt;&lt;/code&gt;            &lt;span class=&quot;doc doc-object-name doc-class-name&quot;&gt;MotionGroupOptions&lt;/span&gt; (&lt;code&gt;eden.options.managers.motions.MotionGroupOptions&lt;/code&gt;)" href="#eden.options.managers.motions.MotionGroupOptions">MotionGroupOptions</a></span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="n">env_motion_groups</span><span class="p">:</span> <span class="n"><a class="autorefs autorefs-external" title="&lt;code&gt;typing.Annotated&lt;/code&gt;" href="https://docs.python.org/3/library/typing.html#typing.Annotated">Annotated</a></span><span class="p">[</span><span class="n"><a class="autorefs autorefs-internal" title="&lt;code class=&quot;doc-symbol doc-symbol-heading doc-symbol-class&quot;&gt;&lt;/code&gt;            &lt;span class=&quot;doc doc-object-name doc-class-name&quot;&gt;MotionGroupOptions&lt;/span&gt; (&lt;code&gt;eden.options.managers.motions.MotionGroupOptions&lt;/code&gt;)" href="#eden.options.managers.motions.MotionGroupOptions">MotionGroupOptions</a></span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span> <span class="n"><span title="eden.options.managers.motions._START">_START</span></span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>
 </span></code></pre></div>
 
     <div class="doc doc-contents ">
@@ -16261,7 +16371,50 @@ it manipulates. <code>None</code> (the default) samples every env from the whole
 </div>
 
 
+<h4 id="eden.options.managers.motions.MotionTermOptions-functions">Methods:<a href="#eden.options.managers.motions.MotionTermOptions-functions" class="headerlink" title="Permanent link">&para;</a></h4>
 
+<div class="doc doc-object doc-function">
+
+
+<h5 id="eden.options.managers.motions.MotionTermOptions.start_sampling_defaults" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>            <span class="doc doc-object-name doc-function-name">start_sampling_defaults</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-classmethod"><code>classmethod</code></small>
+  </span>
+
+<a href="#eden.options.managers.motions.MotionTermOptions.start_sampling_defaults" class="headerlink" title="Permanent link">&para;</a></h5>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">start_sampling_defaults</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="n"><a class="autorefs autorefs-external" href="https://docs.python.org/3/builtins/stdtypes.html#dict">dict</a></span><span class="p">[</span><span class="n"><a class="autorefs autorefs-external" href="https://docs.python.org/3/builtins/stdtypes.html#str">str</a></span><span class="p">,</span> <span class="n"><a class="autorefs autorefs-external" href="https://docs.python.org/3/builtins/functions.html#object">object</a></span><span class="p">]</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>The options marked :class:<code>StartSamplingOption</code>, each with its default.</p>
+
+
+            <details class="mkdocstrings-source">
+              <summary>Source code in <code>eden/options/managers/motions.py</code></summary>
+              <div class="language-python highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#eden.options.managers.motions.MotionTermOptions.start_sampling_defaults--source--__codelineno-0-271">271</a></span>
+<span class="normal"><a href="#eden.options.managers.motions.MotionTermOptions.start_sampling_defaults--source--__codelineno-0-272">272</a></span>
+<span class="normal"><a href="#eden.options.managers.motions.MotionTermOptions.start_sampling_defaults--source--__codelineno-0-273">273</a></span>
+<span class="normal"><a href="#eden.options.managers.motions.MotionTermOptions.start_sampling_defaults--source--__codelineno-0-274">274</a></span>
+<span class="normal"><a href="#eden.options.managers.motions.MotionTermOptions.start_sampling_defaults--source--__codelineno-0-275">275</a></span>
+<span class="normal"><a href="#eden.options.managers.motions.MotionTermOptions.start_sampling_defaults--source--__codelineno-0-276">276</a></span>
+<span class="normal"><a href="#eden.options.managers.motions.MotionTermOptions.start_sampling_defaults--source--__codelineno-0-277">277</a></span>
+<span class="normal"><a href="#eden.options.managers.motions.MotionTermOptions.start_sampling_defaults--source--__codelineno-0-278">278</a></span></pre></div></td><td class="code"><div><pre><span></span><code><span id="eden.options.managers.motions.MotionTermOptions.start_sampling_defaults--source--__span-0-271"><a id="eden.options.managers.motions.MotionTermOptions.start_sampling_defaults--source--__codelineno-0-271" name="eden.options.managers.motions.MotionTermOptions.start_sampling_defaults--source--__codelineno-0-271"></a><span class="nd">@classmethod</span>
+</span><span id="eden.options.managers.motions.MotionTermOptions.start_sampling_defaults--source--__span-0-272"><a id="eden.options.managers.motions.MotionTermOptions.start_sampling_defaults--source--__codelineno-0-272" name="eden.options.managers.motions.MotionTermOptions.start_sampling_defaults--source--__codelineno-0-272"></a><span class="k">def</span><span class="w"> </span><span class="nf">start_sampling_defaults</span><span class="p">(</span><span class="bp">cls</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">object</span><span class="p">]:</span>
+</span><span id="eden.options.managers.motions.MotionTermOptions.start_sampling_defaults--source--__span-0-273"><a id="eden.options.managers.motions.MotionTermOptions.start_sampling_defaults--source--__codelineno-0-273" name="eden.options.managers.motions.MotionTermOptions.start_sampling_defaults--source--__codelineno-0-273"></a><span class="w">    </span><span class="sd">"""The options marked :class:`StartSamplingOption`, each with its default."""</span>
+</span><span id="eden.options.managers.motions.MotionTermOptions.start_sampling_defaults--source--__span-0-274"><a id="eden.options.managers.motions.MotionTermOptions.start_sampling_defaults--source--__codelineno-0-274" name="eden.options.managers.motions.MotionTermOptions.start_sampling_defaults--source--__codelineno-0-274"></a>    <span class="k">return</span> <span class="p">{</span>
+</span><span id="eden.options.managers.motions.MotionTermOptions.start_sampling_defaults--source--__span-0-275"><a id="eden.options.managers.motions.MotionTermOptions.start_sampling_defaults--source--__codelineno-0-275" name="eden.options.managers.motions.MotionTermOptions.start_sampling_defaults--source--__codelineno-0-275"></a>        <span class="n">name</span><span class="p">:</span> <span class="n">field</span><span class="o">.</span><span class="n">default</span>
+</span><span id="eden.options.managers.motions.MotionTermOptions.start_sampling_defaults--source--__span-0-276"><a id="eden.options.managers.motions.MotionTermOptions.start_sampling_defaults--source--__codelineno-0-276" name="eden.options.managers.motions.MotionTermOptions.start_sampling_defaults--source--__codelineno-0-276"></a>        <span class="k">for</span> <span class="n">name</span><span class="p">,</span> <span class="n">field</span> <span class="ow">in</span> <span class="bp">cls</span><span class="o">.</span><span class="n">model_fields</span><span class="o">.</span><span class="n">items</span><span class="p">()</span>
+</span><span id="eden.options.managers.motions.MotionTermOptions.start_sampling_defaults--source--__span-0-277"><a id="eden.options.managers.motions.MotionTermOptions.start_sampling_defaults--source--__codelineno-0-277" name="eden.options.managers.motions.MotionTermOptions.start_sampling_defaults--source--__codelineno-0-277"></a>        <span class="k">if</span> <span class="nb">any</span><span class="p">(</span><span class="nb">isinstance</span><span class="p">(</span><span class="n">meta</span><span class="p">,</span> <span class="n">StartSamplingOption</span><span class="p">)</span> <span class="k">for</span> <span class="n">meta</span> <span class="ow">in</span> <span class="n">field</span><span class="o">.</span><span class="n">metadata</span><span class="p">)</span>
+</span><span id="eden.options.managers.motions.MotionTermOptions.start_sampling_defaults--source--__span-0-278"><a id="eden.options.managers.motions.MotionTermOptions.start_sampling_defaults--source--__codelineno-0-278" name="eden.options.managers.motions.MotionTermOptions.start_sampling_defaults--source--__codelineno-0-278"></a>    <span class="p">}</span>
+</span></code></pre></div></td></tr></table></div>
+            </details>
+    </div>
+
+</div>
 
 
 
@@ -16772,11 +16925,11 @@ is not re-synced.</p>
 
             <details class="mkdocstrings-source">
               <summary>Source code in <code>eden/options/managers/motions.py</code></summary>
-              <div class="language-python highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#eden.options.managers.motions.MotionManagerOptions.adaptive_motion_terms--source--__codelineno-0-316">316</a></span>
-<span class="normal"><a href="#eden.options.managers.motions.MotionManagerOptions.adaptive_motion_terms--source--__codelineno-0-317">317</a></span>
-<span class="normal"><a href="#eden.options.managers.motions.MotionManagerOptions.adaptive_motion_terms--source--__codelineno-0-318">318</a></span></pre></div></td><td class="code"><div><pre><span></span><code><span id="eden.options.managers.motions.MotionManagerOptions.adaptive_motion_terms--source--__span-0-316"><a id="eden.options.managers.motions.MotionManagerOptions.adaptive_motion_terms--source--__codelineno-0-316" name="eden.options.managers.motions.MotionManagerOptions.adaptive_motion_terms--source--__codelineno-0-316"></a><span class="k">def</span><span class="w"> </span><span class="nf">adaptive_motion_terms</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]:</span>
-</span><span id="eden.options.managers.motions.MotionManagerOptions.adaptive_motion_terms--source--__span-0-317"><a id="eden.options.managers.motions.MotionManagerOptions.adaptive_motion_terms--source--__codelineno-0-317" name="eden.options.managers.motions.MotionManagerOptions.adaptive_motion_terms--source--__codelineno-0-317"></a><span class="w">    </span><span class="sd">"""The motion terms that mine hard motions (``adaptive_motion_weights``), whose weights a curriculum steps."""</span>
-</span><span id="eden.options.managers.motions.MotionManagerOptions.adaptive_motion_terms--source--__span-0-318"><a id="eden.options.managers.motions.MotionManagerOptions.adaptive_motion_terms--source--__codelineno-0-318" name="eden.options.managers.motions.MotionManagerOptions.adaptive_motion_terms--source--__codelineno-0-318"></a>    <span class="k">return</span> <span class="p">[</span><span class="n">name</span> <span class="k">for</span> <span class="n">name</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">term_keys</span><span class="p">()</span> <span class="k">if</span> <span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">)</span><span class="o">.</span><span class="n">adaptive_motion_weights</span><span class="p">]</span>
+              <div class="language-python highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#eden.options.managers.motions.MotionManagerOptions.adaptive_motion_terms--source--__codelineno-0-337">337</a></span>
+<span class="normal"><a href="#eden.options.managers.motions.MotionManagerOptions.adaptive_motion_terms--source--__codelineno-0-338">338</a></span>
+<span class="normal"><a href="#eden.options.managers.motions.MotionManagerOptions.adaptive_motion_terms--source--__codelineno-0-339">339</a></span></pre></div></td><td class="code"><div><pre><span></span><code><span id="eden.options.managers.motions.MotionManagerOptions.adaptive_motion_terms--source--__span-0-337"><a id="eden.options.managers.motions.MotionManagerOptions.adaptive_motion_terms--source--__codelineno-0-337" name="eden.options.managers.motions.MotionManagerOptions.adaptive_motion_terms--source--__codelineno-0-337"></a><span class="k">def</span><span class="w"> </span><span class="nf">adaptive_motion_terms</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]:</span>
+</span><span id="eden.options.managers.motions.MotionManagerOptions.adaptive_motion_terms--source--__span-0-338"><a id="eden.options.managers.motions.MotionManagerOptions.adaptive_motion_terms--source--__codelineno-0-338" name="eden.options.managers.motions.MotionManagerOptions.adaptive_motion_terms--source--__codelineno-0-338"></a><span class="w">    </span><span class="sd">"""The motion terms that mine hard motions (``adaptive_motion_weights``), whose weights a curriculum steps."""</span>
+</span><span id="eden.options.managers.motions.MotionManagerOptions.adaptive_motion_terms--source--__span-0-339"><a id="eden.options.managers.motions.MotionManagerOptions.adaptive_motion_terms--source--__codelineno-0-339" name="eden.options.managers.motions.MotionManagerOptions.adaptive_motion_terms--source--__codelineno-0-339"></a>    <span class="k">return</span> <span class="p">[</span><span class="n">name</span> <span class="k">for</span> <span class="n">name</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">term_keys</span><span class="p">()</span> <span class="k">if</span> <span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">)</span><span class="o">.</span><span class="n">adaptive_motion_weights</span><span class="p">]</span>
 </span></code></pre></div></td></tr></table></div>
             </details>
     </div>
