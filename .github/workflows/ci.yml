@@ -116,11 +116,11 @@ jobs:
           path: ~/.cache/eden/assets
           key: eden-assets-rsl-rl-${{ hashFiles('eden/utils/assets.py') }}
           restore-keys: eden-assets-rsl-rl-
-      # Building a scene builds Genesis' offscreen rasterizer, which needs OpenGL. The runner has no GPU and no usable
-      # EGL, so it renders through OSMesa, the software rasterizer Genesis falls back to on a headless machine.
-      - name: Install OSMesa
-        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libosmesa6
+      # Building a scene builds Genesis' offscreen rasterizer, which needs an OpenGL context through EGL. The runner has
+      # no GPU, so Mesa's EGL provides a software device. Not OSMesa: PyOpenGL loads it, and with it the system LLVM, as
+      # Genesis is imported, and Triton's libtriton then segfaults while torch imports it. Mesa's EGL loads its driver
+      # only when the first context is made, after torch.
+      - name: Install Mesa EGL
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libegl1 libegl-mesa0 libgl1-mesa-dri
       - name: Run the rsl_rl tests
-        env:
-          PYOPENGL_PLATFORM: osmesa
         run: uv run --no-sync --with rsl-rl-lib==${{ matrix.rsl-rl-lib }} pytest -q ${{ matrix.tests }}
