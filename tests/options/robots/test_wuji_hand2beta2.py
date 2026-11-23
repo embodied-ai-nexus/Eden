@@ -1,9 +1,4 @@
-"""Wuji Hand2 beta2 (both sides, bare and mounted) built: actuator calibration, axis convention, and the mount.
-
-The URDF carries no armature, damping or friction loss, so every one of those, and the gains, comes from the
-class's identified calibration (wuji-mjlab's pen-spin Hand 2 table). Without it every joint would take Genesis'
-0.1 morph armature, 500 to 2800 times the identified rotor inertia.
-"""
+"""Wuji Hand2 beta2 (both sides, bare and mounted) built: actuator calibration, axis convention, and the mount."""
 
 from __future__ import annotations
 
@@ -64,7 +59,6 @@ def _table(options, field: str) -> torch.Tensor:
 
 @pytest.mark.parametrize("name", _HANDS)
 def test_the_calibration_reaches_the_solver_joint_by_joint(env, name):
-    """Full-width ``get_dofs_*`` reads are in ``dofs_name`` order, the order ``_table`` builds."""
     hand, cls = env.entities[name], _HANDS[name][0]
     lower, upper = hand.get_dofs_force_range()
     for field, got in (
@@ -83,11 +77,8 @@ def test_the_calibration_reaches_the_solver_joint_by_joint(env, name):
 @pytest.mark.parametrize(
     "dof, field, value",
     [
-        # MIT kp 3.0 * 1.9115 A/unit * kt 0.4136 N*m/A
         ("thumb_cmc_flex", "kp", 2.371753),
-        # MIT kd 0.05 on a distal joint * 1.9115 * kt 0.1115
         ("pinky_dip", "kd", 0.01065645),
-        # 1.5 A * kt 0.4461
         ("pinky_mcp_flex", "force_limits", 0.66915),
         ("middle_finger_mcp_flex", "armature", 2.011048e-4),
         ("thumb_cmc_abd", "damping", 0.0042812198),

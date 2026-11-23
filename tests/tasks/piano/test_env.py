@@ -127,8 +127,7 @@ def test_each_finger_presses_the_key_it_rests_over_and_only_that_key(env, side, 
         "thumb": {f"{p}_thumb_cmc_abd": -1.0},
         # The knuckle flexes while the middle joint extends: the fingertip goes down rather than back.
         "index_finger": {f"{p}_index_finger_mcp_flex": 1.0, f"{p}_index_finger_pip": -1.0},
-        # The knuckle alone. Under the hand's calibrated gains (kp 0.64 on the middle joint) extending that joint
-        # too leaves the fingertip resting on the key short of the bottom of its stroke.
+        # Knuckle only: under the calibrated gains, extending the middle joint too stops short of the stroke.
         "pinky": {f"{p}_pinky_mcp_flex": 1.5},
     }[finger]
     env.reset()

@@ -14,100 +14,151 @@ from eden.options.catalog import ROBOT_REGISTRY
 from eden.options.entities import RobotOptions, MetadataOptions
 
 
-# --- identified actuator calibration ---------------------------------------- #
-# From wuji-mjlab v2026.10.22, ``tasks/pen_spin/config/wuji_hand2/hand2_constants.py``:
-# the calibration Wuji identified on a right Hand 2 for its pen-spin policy. Upstream
-# loads it onto ``wuji-description`` ``hand2/hand2_2``, the release that replaced
-# ``hand2_beta2``. The two MJCFs declare the same joint names, axes, ranges and actuator
-# limits; only the finger-root placements differ (by about 2 mm), so the table applies to
-# this hand joint by joint. The left hand reuses the right hand's values, since no left
-# hand was identified. Every tuple below is in the SDK's finger-major order, which is
-# also the order of ``dofs_name``.
-_JOINTS = (
-    "thumb_cmc_flex",
-    "thumb_cmc_abd",
-    "thumb_mcp",
-    "thumb_ip",
-    *(
-        f"{finger}_{joint}"
-        for finger in ("index_finger", "middle_finger", "ring_finger", "pinky")
-        for joint in ("mcp_flex", "mcp_abd", "pip", "dip")
-    ),
-)
-
-# The hand runs an MIT impedance loop in firmware. Upstream deploys it at kp 3.0 and the
-# per-position kd below, with a 1.5 A current limit, and converts MIT units to joint torque
-# through each motor's output torque constant (N*m/A) and the SDK's amps per MIT unit.
-_MIT_KP = 3.0
-_MIT_KD = (0.075, 0.07, 0.05, 0.05)  # joints 1-4 of every finger: flexion, abduction, then the two distal joints
-_CURRENT_LIMIT_A = 1.5
-_AMPS_PER_MIT_UNIT = 1.9114709702965849
-_TORQUE_CONSTANT = (
-    0.4136, 0.3545, 0.2216, 0.1329,  # thumb
-    0.4136, 0.1673, 0.1673, 0.1673,  # index
-    0.4136, 0.1673, 0.1673, 0.1673,  # middle
-    0.4136, 0.1673, 0.1673, 0.1673,  # ring
-    0.4461, 0.1115, 0.1115, 0.1115,  # pinky
-)  # fmt: skip
-
-_ARMATURE = (
-    1.457162e-4, 1.366389e-4, 1.273553e-4, 8.768902e-5,
-    1.130474e-4, 5.127161e-5, 4.843783e-5, 7.906193e-5,
-    2.011048e-4, 7.106655e-5, 6.054746e-5, 5.659272e-5,
-    1.393897e-4, 3.544108e-5, 5.233974e-5, 6.047948e-5,
-    9.706259e-5, 3.826054e-5, 4.664456e-5, 4.743778e-5,
-)  # fmt: skip
-
-_DAMPING = (
-    0.0026915050, 0.0042812198, 0.0014135711, 0.0005131806,
-    0.0010510923, 0.0, 0.0010302809, 0.0000663526,
-    0.0021587672, 0.0008842859, 0.0012610488, 0.0001128493,
-    0.0014506542, 0.0, 0.0007149635, 0.0,
-    0.0, 0.0, 0.0016246495, 0.0,
-)  # fmt: skip
-
-_FRICTIONLOSS = (
-    0.0367355430, 0.0342266392, 0.0187921182, 0.0122545518,
-    0.0377084683, 0.0177932607, 0.0297927367, 0.0161822467,
-    0.0355644840, 0.0240616629, 0.0127755677, 0.0109169800,
-    0.0528257763, 0.0266927477, 0.0148677454, 0.0215947297,
-    0.0338251954, 0.0261331247, 0.0142008972, 0.0129471168,
-)  # fmt: skip
-
-
-def _per_joint(values) -> dict[str, float]:
-    """Key one value per joint by a side-agnostic pattern, so both chiralities read one table."""
-    return {f".*_{joint}": float(value) for joint, value in zip(_JOINTS, values, strict=True)}
-
-
 class _WujiHand2Beta2(RobotOptions):
-    """Shared 20-DOF kinematics and the identified actuator calibration (see the tables above)."""
-
     default_dofs_pos: dict[str, float] = {"*": 0.0}
 
-    # Joint-space PD gains equal to the firmware's MIT gains: kp = kt * A/unit * MIT kp, and
-    # kd likewise. kp runs 0.64-2.56 N*m/rad and kd 0.011-0.064 N*m*s/rad.
-    default_dofs_kp: dict[str, float] = _per_joint(kt * _AMPS_PER_MIT_UNIT * _MIT_KP for kt in _TORQUE_CONSTANT)
+    # Per-joint calibration from wuji-mjlab v2026.10.22 ``pen_spin/config/wuji_hand2/hand2_constants.py``
+    # (identified on a right hand2_2, whose joints match hand2_beta2). Gains are the firmware MIT gains
+    # (kp 3.0, kd 0.075/0.07/0.05/0.05) times kt * 1.9115 A/unit.
+    default_dofs_kp: dict[str, float] = {
+        ".*_thumb_cmc_flex": 2.37175,
+        ".*_thumb_cmc_abd": 2.03285,
+        ".*_thumb_mcp": 1.27075,
+        ".*_thumb_ip": 0.762103,
+        ".*_index_finger_mcp_flex": 2.37175,
+        ".*_index_finger_mcp_abd": 0.959367,
+        ".*_index_finger_pip": 0.959367,
+        ".*_index_finger_dip": 0.959367,
+        ".*_middle_finger_mcp_flex": 2.37175,
+        ".*_middle_finger_mcp_abd": 0.959367,
+        ".*_middle_finger_pip": 0.959367,
+        ".*_middle_finger_dip": 0.959367,
+        ".*_ring_finger_mcp_flex": 2.37175,
+        ".*_ring_finger_mcp_abd": 0.959367,
+        ".*_ring_finger_pip": 0.959367,
+        ".*_ring_finger_dip": 0.959367,
+        ".*_pinky_mcp_flex": 2.55812,
+        ".*_pinky_mcp_abd": 0.639387,
+        ".*_pinky_pip": 0.639387,
+        ".*_pinky_dip": 0.639387,
+    }
 
-    default_dofs_kd: dict[str, float] = _per_joint(
-        kt * _AMPS_PER_MIT_UNIT * _MIT_KD[i % 4] for i, kt in enumerate(_TORQUE_CONSTANT)
-    )
+    default_dofs_kd: dict[str, float] = {
+        ".*_thumb_cmc_flex": 0.0592938,
+        ".*_thumb_cmc_abd": 0.0474332,
+        ".*_thumb_mcp": 0.0211791,
+        ".*_thumb_ip": 0.0127017,
+        ".*_index_finger_mcp_flex": 0.0592938,
+        ".*_index_finger_mcp_abd": 0.0223852,
+        ".*_index_finger_pip": 0.0159895,
+        ".*_index_finger_dip": 0.0159895,
+        ".*_middle_finger_mcp_flex": 0.0592938,
+        ".*_middle_finger_mcp_abd": 0.0223852,
+        ".*_middle_finger_pip": 0.0159895,
+        ".*_middle_finger_dip": 0.0159895,
+        ".*_ring_finger_mcp_flex": 0.0592938,
+        ".*_ring_finger_mcp_abd": 0.0223852,
+        ".*_ring_finger_pip": 0.0159895,
+        ".*_ring_finger_dip": 0.0159895,
+        ".*_pinky_mcp_flex": 0.063953,
+        ".*_pinky_mcp_abd": 0.014919,
+        ".*_pinky_pip": 0.0106565,
+        ".*_pinky_dip": 0.0106565,
+    }
 
-    # The torque the 1.5 A current limit allows, kt * 1.5: 0.17-0.67 N*m. Upstream also caps
-    # each joint's total actuator force at the older pen-spin values (0.21-1.06 N*m), but
-    # those are larger on every joint, so this limit is the one that binds.
-    default_dofs_force_limits: dict[str, float] = _per_joint(kt * _CURRENT_LIMIT_A for kt in _TORQUE_CONSTANT)
+    # kt * 1.5 A current limit.
+    default_dofs_force_limits: dict[str, float] = {
+        ".*_thumb_cmc_flex": 0.6204,
+        ".*_thumb_cmc_abd": 0.53175,
+        ".*_thumb_mcp": 0.3324,
+        ".*_thumb_ip": 0.19935,
+        ".*_index_finger_mcp_flex": 0.6204,
+        ".*_index_finger_mcp_abd": 0.25095,
+        ".*_index_finger_pip": 0.25095,
+        ".*_index_finger_dip": 0.25095,
+        ".*_middle_finger_mcp_flex": 0.6204,
+        ".*_middle_finger_mcp_abd": 0.25095,
+        ".*_middle_finger_pip": 0.25095,
+        ".*_middle_finger_dip": 0.25095,
+        ".*_ring_finger_mcp_flex": 0.6204,
+        ".*_ring_finger_mcp_abd": 0.25095,
+        ".*_ring_finger_pip": 0.25095,
+        ".*_ring_finger_dip": 0.25095,
+        ".*_pinky_mcp_flex": 0.66915,
+        ".*_pinky_mcp_abd": 0.16725,
+        ".*_pinky_pip": 0.16725,
+        ".*_pinky_dip": 0.16725,
+    }
 
-    # Identified rotor inertia, 3.5e-5 to 2.0e-4. The URDF carries no armature, so without
-    # this every joint would take Genesis' 0.1 morph default, 500 to 2800 times heavier.
-    # Under ``EnvOptions.integrator="euler"`` only, ``post_build()`` adds ``kd * substep_dt``
-    # to it; at kd 0.06 and a 1 ms substep that is 6e-5, a large fraction of these values.
-    default_dofs_armature: dict[str, float] = _per_joint(_ARMATURE)
+    # The URDF has no armature; without this Genesis would use 0.1.
+    default_dofs_armature: dict[str, float] = {
+        ".*_thumb_cmc_flex": 0.000145716,
+        ".*_thumb_cmc_abd": 0.000136639,
+        ".*_thumb_mcp": 0.000127355,
+        ".*_thumb_ip": 8.7689e-05,
+        ".*_index_finger_mcp_flex": 0.000113047,
+        ".*_index_finger_mcp_abd": 5.12716e-05,
+        ".*_index_finger_pip": 4.84378e-05,
+        ".*_index_finger_dip": 7.90619e-05,
+        ".*_middle_finger_mcp_flex": 0.000201105,
+        ".*_middle_finger_mcp_abd": 7.10665e-05,
+        ".*_middle_finger_pip": 6.05475e-05,
+        ".*_middle_finger_dip": 5.65927e-05,
+        ".*_ring_finger_mcp_flex": 0.00013939,
+        ".*_ring_finger_mcp_abd": 3.54411e-05,
+        ".*_ring_finger_pip": 5.23397e-05,
+        ".*_ring_finger_dip": 6.04795e-05,
+        ".*_pinky_mcp_flex": 9.70626e-05,
+        ".*_pinky_mcp_abd": 3.82605e-05,
+        ".*_pinky_pip": 4.66446e-05,
+        ".*_pinky_dip": 4.74378e-05,
+    }
 
-    # Identified passive joint damping and dry friction. The URDF declares neither.
-    default_dofs_damping: dict[str, float] = _per_joint(_DAMPING)
+    default_dofs_damping: dict[str, float] = {
+        ".*_thumb_cmc_flex": 0.0026915,
+        ".*_thumb_cmc_abd": 0.00428122,
+        ".*_thumb_mcp": 0.00141357,
+        ".*_thumb_ip": 0.000513181,
+        ".*_index_finger_mcp_flex": 0.00105109,
+        ".*_index_finger_mcp_abd": 0.0,
+        ".*_index_finger_pip": 0.00103028,
+        ".*_index_finger_dip": 6.63526e-05,
+        ".*_middle_finger_mcp_flex": 0.00215877,
+        ".*_middle_finger_mcp_abd": 0.000884286,
+        ".*_middle_finger_pip": 0.00126105,
+        ".*_middle_finger_dip": 0.000112849,
+        ".*_ring_finger_mcp_flex": 0.00145065,
+        ".*_ring_finger_mcp_abd": 0.0,
+        ".*_ring_finger_pip": 0.000714964,
+        ".*_ring_finger_dip": 0.0,
+        ".*_pinky_mcp_flex": 0.0,
+        ".*_pinky_mcp_abd": 0.0,
+        ".*_pinky_pip": 0.00162465,
+        ".*_pinky_dip": 0.0,
+    }
 
-    default_dofs_frictionloss: dict[str, float] = _per_joint(_FRICTIONLOSS)
+    default_dofs_frictionloss: dict[str, float] = {
+        ".*_thumb_cmc_flex": 0.0367355,
+        ".*_thumb_cmc_abd": 0.0342266,
+        ".*_thumb_mcp": 0.0187921,
+        ".*_thumb_ip": 0.0122546,
+        ".*_index_finger_mcp_flex": 0.0377085,
+        ".*_index_finger_mcp_abd": 0.0177933,
+        ".*_index_finger_pip": 0.0297927,
+        ".*_index_finger_dip": 0.0161822,
+        ".*_middle_finger_mcp_flex": 0.0355645,
+        ".*_middle_finger_mcp_abd": 0.0240617,
+        ".*_middle_finger_pip": 0.0127756,
+        ".*_middle_finger_dip": 0.010917,
+        ".*_ring_finger_mcp_flex": 0.0528258,
+        ".*_ring_finger_mcp_abd": 0.0266927,
+        ".*_ring_finger_pip": 0.0148677,
+        ".*_ring_finger_dip": 0.0215947,
+        ".*_pinky_mcp_flex": 0.0338252,
+        ".*_pinky_mcp_abd": 0.0261331,
+        ".*_pinky_pip": 0.0142009,
+        ".*_pinky_dip": 0.0129471,
+    }
 
 
 # Finger anatomy (per hand, 4 DOF each): CMC/MCP flexion + abduction, then the two
