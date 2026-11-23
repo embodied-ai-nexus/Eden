@@ -9,9 +9,10 @@ import torch
 from tensordict import TensorDict
 
 from eden.learning.wrappers.rsl_rl import MIN_RSL_RL_VERSION
-from eden.learning.wrappers.rsl_rl.compat import has_stats_api, loss_dict_of
+from eden.envs.wrappers.rsl_rl_compat import loss_dict_of
 from eden.options.learning.rsl_rl.translate import detect_rsl_rl_version, translate_runner_dict
 from eden.tasks import TASK_REGISTRY
+from tests.support.rsl_rl import runner_unpacks_stats
 
 pytestmark = pytest.mark.skipif(detect_rsl_rl_version() < MIN_RSL_RL_VERSION, reason="RmaPPO needs rsl-rl-lib >= 5.5.1")
 
@@ -55,8 +56,8 @@ def _iterate(alg) -> dict[str, float]:
         alg.compute_returns(_obs(seed=NUM_STEPS))
     result = alg.update()
     # The shape the installed OnPolicyRunner unpacks: the loss dict before 6.0, (loss_dict, stats_dict) from 6.0.
-    assert isinstance(result, tuple) == has_stats_api()
-    if has_stats_api():
+    assert isinstance(result, tuple) == runner_unpacks_stats()
+    if runner_unpacks_stats():
         assert set(result[1]) == {"Optimizer/learning_rate", "Model/mean_policy_std"}
     return loss_dict_of(result)
 

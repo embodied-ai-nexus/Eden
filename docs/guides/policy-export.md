@@ -43,7 +43,7 @@ How the env is built:
 What exports:
 
 - Only **rsl_rl** checkpoints. An rl_games checkpoint is refused; export it with rl_games' own tooling.
-- Only under **rsl-rl-lib 4 or newer**, whose models have export hooks. A 3.x checkpoint loads into a 4.x / 5.x
+- Only under **rsl-rl-lib 4 or newer**, whose models have export hooks. A 3.x checkpoint loads into a 4.x to 6.x
   runner, so upgrade rather than export under 3.x.
 
 ## The graph

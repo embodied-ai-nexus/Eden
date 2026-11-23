@@ -43,7 +43,7 @@ from tensordict import TensorDict
 from torch import nn
 
 from eden.envs.wrappers.rsl_rl_env import AgentIterationLogMixin, CheckpointRetentionMixin, ProgressFileMixin
-from eden.learning.wrappers.rsl_rl.compat import log_env_step, log_iteration, raise_if_env_step_nonfinite
+from eden.envs.wrappers.rsl_rl_compat import log_env_step, log_iteration, raise_if_env_step_nonfinite
 from eden.learning.wrappers.rsl_rl.rma.depth_encoder import RecurrentDepthEncoder
 from eden.learning.wrappers.rsl_rl.rma.model import RmaActorModel
 from eden.utils import distributed as eden_dist

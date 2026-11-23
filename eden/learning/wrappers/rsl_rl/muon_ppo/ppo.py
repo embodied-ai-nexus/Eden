@@ -37,7 +37,7 @@ if detect_rsl_rl_major_version() < 5:
 
 from rsl_rl.algorithms import PPO  # noqa: E402  (after the version guard, on purpose)
 
-from eden.learning.wrappers.rsl_rl.compat import UpdateResult, loss_dict_of  # noqa: E402
+from eden.envs.wrappers.rsl_rl_compat import UpdateResult, loss_dict_of  # noqa: E402
 
 #: ``class_name`` string rsl_rl resolves to :class:`MuonPPO`.
 MUON_PPO_CLASS_NAME = "eden.learning.wrappers.rsl_rl.muon_ppo.ppo:MuonPPO"

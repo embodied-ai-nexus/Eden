@@ -426,7 +426,7 @@ Optional hooks Eden reads off these classes:
     rsl-rl-lib 6.0 changed what the runner expects back from an algorithm. `update()` returns
     `(loss_dict, stats_dict)`, where `stats_dict` carries the learning rate and the policy std that older runners read
     off the algorithm, and `process_env_step()` returns the per-env values the logger sums over each episode
-    (`{"Training/mean_reward": rewards}`). `eden.learning.wrappers.rsl_rl.compat` builds both shapes for the
+    (`{"Training/mean_reward": rewards}`). `eden.envs.wrappers.rsl_rl_compat` builds both shapes for the
     installed release. A PPO subclass writes its extra losses into `loss_dict_of(super().update())`, returns that
     result, and returns what `super().process_env_step()` returned. An algorithm written from scratch returns
     `update_result(loss_dict, ppo_stats(lr, std))` and `env_step_result(rewards)`. A runner that drives rsl_rl's

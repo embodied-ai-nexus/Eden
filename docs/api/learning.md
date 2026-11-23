@@ -26,12 +26,6 @@ configures) next to the implementation.
       members:
         - MIN_RSL_RL_VERSION
 
-### Across rsl-rl-lib releases
-
-::: eden.learning.wrappers.rsl_rl.compat
-    options:
-      show_root_heading: false
-
 ### SimBaV2 actor-critic
 
 ::: eden.learning.wrappers.rsl_rl.simba.options

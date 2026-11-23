@@ -30,7 +30,7 @@ import torch.optim as optim
 from rsl_rl.utils import resolve_callable, resolve_obs_groups
 from tensordict import TensorDict
 
-from eden.learning.wrappers.rsl_rl.compat import UpdateResult, env_step_result, ppo_stats, update_result
+from eden.envs.wrappers.rsl_rl_compat import UpdateResult, env_step_result, ppo_stats, update_result
 from eden.learning.wrappers.rsl_rl.him.actor_critic import (
     _NO_OBS_NORMALIZATION,
     HIMActorCritic,
@@ -165,7 +165,7 @@ class HIMPPO:
 
     @classmethod
     def construct_algorithm(cls, obs, env, cfg: dict, device: str) -> HIMPPO:
-        """rsl-rl-lib 4 / 5's construction hook: build the actor-critic, the storage and the algorithm.
+        """rsl-rl-lib 4 to 6's construction hook: build the actor-critic, the storage and the algorithm.
 
         The mirror is run once on these observations' widths, so a layout it does not cover fails here,
         before a rollout.
@@ -261,7 +261,7 @@ class HIMPPO:
         return self.actor_critic
 
     def save(self) -> dict:
-        """rsl-rl-lib 4 / 5's checkpoint contents (v3's runner saves ``policy`` and ``optimizer`` itself)."""
+        """rsl-rl-lib 4 to 6's checkpoint contents (v3's runner saves ``policy`` and ``optimizer`` itself)."""
         return {
             "actor_critic_state_dict": self.actor_critic.state_dict(),
             "estimator_optimizer_state_dict": self.optimizer.estimator.state_dict(),

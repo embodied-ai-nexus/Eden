@@ -78,6 +78,7 @@ which has no `__init__.py`, so the API generator cannot render them here; read t
 | Module | Classes and functions | Library |
 |---|---|---|
 | `eden/envs/wrappers/rsl_rl_env.py` | `RslRlVecEnvWrapper`, `make_rsl_rl_runner`, `load_runner_checkpoint`, `DDPOnPolicyRunner`, `MimicOnPolicyRunner` | rsl-rl-lib |
+| `eden/envs/wrappers/rsl_rl_compat.py` | `loss_dict_of`, `update_result`, `env_step_result`, `log_env_step`, `log_iteration`, `episode_buffers`: the algorithm, runner and logger contracts rsl-rl-lib 6.0 changed, for 3.x to 6.x | rsl-rl-lib |
 | `eden/envs/wrappers/rl_games_env.py` | `RlGamesVecEnvWrapper` | rl_games |
 | `eden/envs/wrappers/gymnasium_env.py` | `GymnasiumVecEnvWrapper`, `make_vec_env`, `register_gymnasium_envs` | Gymnasium (`gym.make_vec("Eden/<task>")`) |
 | `eden/envs/wrappers/sb3_env.py` | `Sb3VecEnvWrapper` | Stable-Baselines3 |

@@ -36,7 +36,7 @@ from tensordict import TensorDict
 import eden as en
 from eden.envs.base import MimicRLEnvBase
 from eden.envs.wrappers.core import EnvWrapperMixin, action_space, observation_space, time_outs
-from eden.learning.wrappers.rsl_rl.compat import ensure_logger_writer, episode_buffers
+from eden.envs.wrappers.rsl_rl_compat import episode_buffers
 from eden.options.learning.rsl_rl.translate import translate_runner_dict
 from eden.utils import distributed as eden_dist
 from eden.utils.assets import model_checkpoints
@@ -640,9 +640,6 @@ class CheckpointRetentionMixin:
     _reported_later_checkpoints: bool = False
 
     def save(self, path: str, infos: dict | None = None) -> None:
-        logger = getattr(self, "logger", None)
-        if logger is not None:
-            ensure_logger_writer(logger)  # a save before learn() under rsl-rl-lib 4.x
         super().save(path, infos)  # type: ignore[misc]
         self._last_saved_checkpoint = path
         self._prune_checkpoints(path, in_flight=1 if self._uploads_checkpoints() else 0)
@@ -701,11 +698,29 @@ class CheckpointRetentionMixin:
             )
 
 
-#: What Eden adds to every rsl_rl runner it builds, in MRO order: ``progress.json``, the agent log theme and checkpoint
-#: retention. A runner for another rsl_rl-based learner (FlashSAC's ``OffPolicyRunner``) composes the same tuple, so a
-#: feature added here reaches every learner. :class:`MotionWeightCurriculumMixin` is not in it: it steps the curriculum
-#: once per PPO iteration (a rollout of ``num_steps_per_env`` steps), which is not what an off-policy iteration is.
-EDEN_RUNNER_MIXINS = (ProgressFileMixin, AgentIterationLogMixin, CheckpointRetentionMixin)
+class SaveBeforeLearnMixin:
+    """Let a runner save a checkpoint before ``learn()`` under rsl-rl-lib 4.x.
+
+    rsl-rl-lib 4.x creates ``Logger.writer`` only in ``init_logging_writer()``, which ``learn()`` calls, while its
+    ``OnPolicyRunner.save()`` reads it to decide on an upload. So a save before ``learn()`` (a script writing out an
+    initial checkpoint) raises ``AttributeError`` there, and under no other release. This sets the attribute to
+    ``None`` once the runner is built, which is what 3.x, 5.x and 6.x start with: no writer yet, so nothing to upload.
+    ``init_logging_writer()`` replaces it as usual. A logger that already has a ``writer`` is left alone.
+    """
+
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        logger = getattr(self, "logger", None)
+        if logger is not None and not hasattr(logger, "writer"):
+            logger.writer = None
+
+
+#: What Eden adds to every rsl_rl runner it builds, in MRO order: ``progress.json``, the agent log theme, checkpoint
+#: retention, and saving before ``learn()`` on rsl-rl-lib 4.x. A runner for another rsl_rl-based learner (FlashSAC's
+#: ``OffPolicyRunner``) composes the same tuple, so a feature added here reaches every learner.
+#: :class:`MotionWeightCurriculumMixin` is not in it: it steps the curriculum once per PPO iteration (a rollout of
+#: ``num_steps_per_env`` steps), which is not what an off-policy iteration is.
+EDEN_RUNNER_MIXINS = (ProgressFileMixin, AgentIterationLogMixin, CheckpointRetentionMixin, SaveBeforeLearnMixin)
 
 
 class MimicOnPolicyRunner(*EDEN_RUNNER_MIXINS, MotionWeightCurriculumMixin, OnPolicyRunner):
@@ -752,10 +767,10 @@ _STD_TYPE_HEADS = ("actor", "teacher", "student")
 def _detect_std_type(runner_dict: dict) -> str | None:
     """Find the destination Gaussian std parameterisation in a runner dict.
 
-    Returns 'scalar', 'log', or None if unknown. Handles rsl_rl v3 / v4 / v5
+    Returns 'scalar', 'log', or None if unknown. Handles rsl_rl v3 / v4 / v5 and v6
     layouts produced by :func:`translate_runner_dict`, for PPO and distillation:
 
-    - v5 (current): ``runner_dict[head]["distribution_cfg"]["std_type"]``
+    - v5, v6:       ``runner_dict[head]["distribution_cfg"]["std_type"]``
     - v4:           ``runner_dict[head]["noise_std_type"]`` (the v4 translator
                     pops ``distribution_cfg`` and writes the flat noise params)
     - v3:           ``runner_dict["policy"]["noise_std_type"]``
@@ -880,7 +895,7 @@ def _undetectable_std_type_error(runner_dict: dict, checkpoint: str) -> RuntimeE
         f"converting it needs the std parameterisation of the model its actor weights load into "
         f"('actor' for PPO; 'teacher', else 'student', for distillation), which the runner dict "
         f"does not state: none of the heads {list(_STD_TYPE_HEADS)} has "
-        f"distribution_cfg.std_type (rsl-rl 5.x) or noise_std_type (4.x), and no 'policy' has "
+        f"distribution_cfg.std_type (rsl-rl-lib 5.x and 6.x) or noise_std_type (4.x), and no 'policy' has "
         f"noise_std_type (3.x). Heads present: {present or 'none'}; runner dict keys: "
         f"[{', '.join(sorted(map(str, runner_dict)))}]. This is not an rsl-rl-lib version mismatch, "
         f"so installing another version will not help. Either give that head a "
@@ -1119,11 +1134,11 @@ def _audit_rsl_rl_checkpoint_keys(runner, checkpoint_path: str, device) -> list[
 
 
 def _runner_uses_split_policy(runner) -> bool:
-    """True when the runner's alg uses the split-module layout (rsl-rl-lib 4.x / 5.x).
+    """True when the runner's alg uses the split-module layout (rsl-rl-lib 4.x to 6.x).
 
     Version map (the ``rsl-rl-lib>=3.0`` pin spans both): **3.x** algs hold a
     single ``alg.policy`` module and save/load a native ``model_state_dict``
-    (``load()`` has no ``strict``); the **later 4.x / 5.x** releases split the
+    (``load()`` has no ``strict``); the **4.x to 6.x** releases split the
     modules — PPO into ``alg.actor``/``alg.critic``, Distillation into
     ``alg.student``/``alg.teacher`` — save ``actor_state_dict``/... keys, and
     their ``load()`` accepts ``strict``. The legacy-checkpoint conversion and

@@ -52,7 +52,7 @@ from eden.learning.wrappers.rsl_rl.amp_ppo.amp import (  # noqa: E402
     AmpReplayBuffer,
     FrameNormalizer,
 )
-from eden.learning.wrappers.rsl_rl.compat import MEAN_REWARD_KEY, UpdateResult, loss_dict_of  # noqa: E402
+from eden.envs.wrappers.rsl_rl_compat import MEAN_REWARD_KEY, UpdateResult, loss_dict_of  # noqa: E402
 
 #: ``class_name`` string rsl_rl resolves to :class:`AmpPPO`.
 AMP_PPO_CLASS_NAME = "eden.learning.wrappers.rsl_rl.amp_ppo.ppo:AmpPPO"

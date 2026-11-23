@@ -38,7 +38,7 @@ require_rsl_rl_version(MIN_RSL_RL_VERSION, __name__, "PPO over separate actor/cr
 from rsl_rl.algorithms import PPO  # noqa: E402  (after the version guard, on purpose)
 from rsl_rl.utils import resolve_callable, resolve_optimizer  # noqa: E402
 
-from eden.learning.wrappers.rsl_rl.compat import UpdateResult, ppo_stats, update_result  # noqa: E402
+from eden.envs.wrappers.rsl_rl_compat import UpdateResult, ppo_stats, update_result  # noqa: E402
 from eden.learning.wrappers.rsl_rl.rma.model import RmaActorModel  # noqa: E402
 
 #: ``class_name`` string rsl_rl resolves to :class:`RmaPPO`.

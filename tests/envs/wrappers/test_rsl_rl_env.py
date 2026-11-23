@@ -35,7 +35,7 @@ from eden.envs.wrappers.rsl_rl_env import (
     make_rsl_rl_runner,
     rsl_rl_runner_class,
 )
-from eden.learning.wrappers.rsl_rl.compat import log_env_step
+from eden.envs.wrappers.rsl_rl_compat import log_env_step
 from eden.utils.configs import EdenConfig, EdenRLConfig
 from eden.utils.warning import warn_once
 from tests.envs.conftest import trace_config

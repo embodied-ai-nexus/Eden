@@ -6,9 +6,10 @@ import pytest
 import torch
 from tensordict import TensorDict
 
-from eden.learning.wrappers.rsl_rl.compat import has_stats_api, loss_dict_of
+from eden.envs.wrappers.rsl_rl_compat import loss_dict_of
 from eden.options.learning.rsl_rl.translate import detect_rsl_rl_major_version
 from tests.support.simba import NUM_ACTIONS, group_obs, runner_dict, simba_models
+from tests.support.rsl_rl import runner_unpacks_stats
 
 pytestmark = pytest.mark.skipif(detect_rsl_rl_major_version() < 5, reason="MuonPPO needs rsl-rl-lib >= 5")
 
@@ -72,7 +73,7 @@ def test_a_ppo_update_moves_both_optimizers_parameters_and_logs_explained_varian
     _collect(alg, obs)
     result = alg.update()
     # The shape the installed OnPolicyRunner unpacks: the loss dict before 6.0, (loss_dict, stats_dict) from 6.0.
-    assert isinstance(result, tuple) == has_stats_api()
+    assert isinstance(result, tuple) == runner_unpacks_stats()
     assert {"value", "surrogate", "entropy", "explained_variance"} <= set(loss_dict_of(result))
     after = dict([*alg.actor.named_parameters(), *alg.critic.named_parameters()])
     moved = {n for n, p in after.items() if not torch.equal(p.detach(), before[n])}

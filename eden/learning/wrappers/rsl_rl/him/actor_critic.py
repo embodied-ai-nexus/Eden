@@ -34,7 +34,7 @@ def _unsupported(field: str, value, supported, why: str) -> ValueError:
 
 
 def check_model_cfg(actor_cfg: dict, critic_cfg: dict) -> float:
-    """Refuse the rsl-rl-lib 4 / 5 model settings HIM would otherwise ignore; return the initial action std.
+    """Refuse the rsl-rl-lib 4 to 6 model settings HIM would otherwise ignore; return the initial action std.
 
     Reads both formats Eden hands the runner: 5's ``distribution_cfg`` and 4's flattened
     ``init_noise_std`` / ``noise_std_type`` / ``state_dependent_std`` (``translate_runner_dict``).

@@ -12,23 +12,23 @@ import pytest
 import torch
 from tensordict import TensorDict
 
-from eden.learning.wrappers.rsl_rl.compat import (
+from eden.envs.wrappers.rsl_rl_compat import (
     MEAN_REWARD_KEY,
     env_step_result,
     episode_buffers,
-    has_stats_api,
     log_env_step,
     log_iteration,
     loss_dict_of,
     ppo_stats,
     raise_if_env_step_nonfinite,
+    runner_expects_stats,
     update_result,
 )
-from eden.options.learning.rsl_rl.translate import detect_rsl_rl_version
+from tests.support.rsl_rl import runner_unpacks_stats
 
 
-def test_the_stats_api_is_detected_from_the_installed_release():
-    assert has_stats_api() == (detect_rsl_rl_version()[0] >= 6)
+def test_the_logger_signature_probe_agrees_with_the_installed_release_number():
+    assert runner_expects_stats() == runner_unpacks_stats()
 
 
 def test_a_bare_loss_dict_is_its_own_loss_dict():
@@ -62,14 +62,14 @@ def test_an_update_result_takes_the_installed_releases_shape():
     assert stats == {"Optimizer/learning_rate": 1e-3, "Model/mean_policy_std": 1.0}
     assert ppo_stats(1e-3, None) == {"Optimizer/learning_rate": 1e-3}
     result = update_result(losses, stats)
-    assert result == ((losses, stats) if has_stats_api() else losses)
+    assert result == ((losses, stats) if runner_unpacks_stats() else losses)
     assert loss_dict_of(result) is losses
 
 
 def test_an_env_step_result_is_the_rewards_from_6_0_and_none_before():
     rewards = torch.tensor([1.0, 2.0])
     result = env_step_result(rewards)
-    if has_stats_api():
+    if runner_unpacks_stats():
         assert set(result) == {MEAN_REWARD_KEY} and result[MEAN_REWARD_KEY] is rewards
     else:
         assert result is None
@@ -105,7 +105,45 @@ def test_a_driven_logger_sums_finished_episodes_and_prints_the_releases_stats(tm
     text = printed.getvalue()
     assert re.search(r"Mean reward: +4\.00", text) and re.search(r"Mean value loss: +1\.0000", text)
     # rsl-rl-lib 6.0 prints the stats it is given; older releases print the std it reads itself.
-    assert re.search(r"Mean policy std: +1\b" if has_stats_api() else r"Mean action (noise )?std: +1\.00", text)
+    assert re.search(r"Mean policy std: +1\b" if runner_unpacks_stats() else r"Mean action (noise )?std: +1\.00", text)
+
+
+def test_a_logger_whose_methods_are_wrapped_on_the_instance_still_gets_its_releases_call(tmp_path):
+    """Inside ``learn()`` Eden's runner mixins replace ``logger.log`` with a ``*args, **kwargs`` wrapper (and a non-zero
+    DDP rank replaces ``process_env_step``), so the helpers read the methods off the logger's class.
+    """
+    from rsl_rl.utils.logger import Logger
+
+    cfg = {"logger": "tensorboard", "num_steps_per_env": 1, "algorithm": {"rnd_cfg": None}}
+    logger = Logger(str(tmp_path), cfg, {}, 2, False, 1, 0, "cpu")
+    if hasattr(logger, "init_logging_writer"):  # rsl-rl-lib 3.x opens its writer in __init__
+        logger.init_logging_writer()
+    calls = []
+    for name in ("log", "process_env_step"):
+        method = getattr(logger, name)
+
+        def wrapper(*args, _method=method, _name=name, **kwargs):
+            calls.append((_name, sorted(kwargs)))
+            return _method(*args, **kwargs)
+
+        setattr(logger, name, wrapper)
+
+    log_env_step(logger, torch.ones(2), torch.ones(2), {})
+    with contextlib.redirect_stdout(io.StringIO()):
+        log_iteration(
+            logger,
+            it=0,
+            start_it=0,
+            total_it=1,
+            collect_time=0.1,
+            learn_time=0.1,
+            loss_dict={"value": 1.0},
+            learning_rate=1e-3,
+            policy_std=None,
+        )
+
+    stats_or_std = "stats_dict" if runner_unpacks_stats() else "action_std"
+    assert [name for name, _ in calls] == ["process_env_step", "log"] and stats_or_std in calls[1][1]
 
 
 def test_episode_buffers_read_either_layout_and_name_both_when_neither_is_there():

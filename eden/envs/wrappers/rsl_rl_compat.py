@@ -13,19 +13,26 @@ changed API directly, so it runs under every rsl-rl-lib that Eden's ``rsl-rl-lib
   ``lenbuffer``. ``rsl_rl.utils.check_nan`` became ``find_nonfinite`` + ``raise_if_nonfinite``.
 
 A PPO subclass that adds metrics passes its parent's results through (:func:`loss_dict_of`, and returning what
-``super().process_env_step()`` returned), so it never needs the version. An algorithm or runner written from scratch
-builds the release's shapes with :func:`update_result`, :func:`env_step_result`, :func:`log_env_step` and
-:func:`log_iteration`.
+``super().process_env_step()`` returned). An algorithm or runner written from scratch builds the release's shapes with
+:func:`update_result`, :func:`env_step_result`, :func:`log_env_step` and :func:`log_iteration`.
+
+**How a helper tells the releases apart.** It inspects what it is handed, never the version number: the shape of the
+parent's ``update()`` result, the parameters of the logger's methods, the names ``rsl_rl.utils`` exports. This is the
+rule :func:`~eden.envs.wrappers.rsl_rl_env._runner_uses_split_policy` follows, for the same reason: a source checkout
+without package metadata reads as version 3. :func:`update_result` and :func:`env_step_result` are handed nothing that
+differs between releases, so they inspect the class the stock runner hands their results to,
+``rsl_rl.utils.logger.Logger`` (:func:`runner_expects_stats`). A logger's methods are read off its class: a runner
+mixin may replace ``logger.log`` on the instance with a ``*args, **kwargs`` wrapper while ``learn()`` runs.
 """
 
 from __future__ import annotations
 
+import functools
+import inspect
 from collections.abc import Sequence
 from typing import Any, TypeAlias
 
 import torch
-
-from eden.options.learning.rsl_rl.translate import detect_rsl_rl_version
 
 #: What an rsl-rl-lib algorithm's ``update()`` returns: the loss dict (< 6.0), or ``(loss_dict, stats_dict)`` (>= 6.0).
 UpdateResult: TypeAlias = dict[str, float] | tuple[dict[str, float], dict[str, float]]
@@ -34,9 +41,21 @@ UpdateResult: TypeAlias = dict[str, float] | tuple[dict[str, float], dict[str, f
 MEAN_REWARD_KEY = "Training/mean_reward"
 
 
-def has_stats_api() -> bool:
-    """Whether the installed rsl-rl-lib is 6.0 or newer: ``update()`` returns stats and ``process_env_step()`` a dict."""
-    return detect_rsl_rl_version() >= (6,)
+def _takes(method: Any, parameter: str) -> bool:
+    """Whether ``method`` declares a parameter named ``parameter``."""
+    return parameter in inspect.signature(method).parameters
+
+
+@functools.cache
+def runner_expects_stats() -> bool:
+    """Whether the installed rsl_rl runner takes ``(loss_dict, stats_dict)`` from ``update()`` (rsl-rl-lib >= 6.0).
+
+    The same runner then also takes a dict from ``process_env_step()``. Read off the ``Logger`` it hands both to: its
+    ``log()`` takes ``stats_dict`` from 6.0 on, and ``learning_rate`` / ``action_std`` before.
+    """
+    from rsl_rl.utils.logger import Logger
+
+    return _takes(Logger.log, "stats_dict")
 
 
 def loss_dict_of(result: UpdateResult) -> dict[str, float]:
@@ -92,7 +111,7 @@ def update_result(loss_dict: dict[str, float], stats_dict: dict[str, float]) -> 
     UpdateResult
         ``(loss_dict, stats_dict)`` on rsl-rl-lib >= 6.0, else ``loss_dict``.
     """
-    return (loss_dict, stats_dict) if has_stats_api() else loss_dict
+    return (loss_dict, stats_dict) if runner_expects_stats() else loss_dict
 
 
 def ppo_stats(learning_rate: float, policy_std: torch.Tensor | None) -> dict[str, float]:
@@ -129,7 +148,7 @@ def env_step_result(rewards: torch.Tensor) -> dict[str, torch.Tensor] | None:
     dict[str, torch.Tensor] or None
         The per-env values rsl-rl-lib >= 6.0's ``Logger`` sums per episode, or ``None`` for an older runner.
     """
-    return {MEAN_REWARD_KEY: rewards} if has_stats_api() else None
+    return {MEAN_REWARD_KEY: rewards} if runner_expects_stats() else None
 
 
 def log_env_step(logger: Any, rewards: torch.Tensor, dones: torch.Tensor, extras: dict) -> None:
@@ -144,7 +163,7 @@ def log_env_step(logger: Any, rewards: torch.Tensor, dones: torch.Tensor, extras
     extras : dict
         The env's extras for the step (its ``"log"`` / ``"episode"`` entries are recorded).
     """
-    if has_stats_api():
+    if _takes(type(logger).process_env_step, "step_dict"):
         logger.process_env_step(dones, extras, {MEAN_REWARD_KEY: rewards})
     else:
         logger.process_env_step(rewards, dones, extras, None)
@@ -180,7 +199,7 @@ def log_iteration(
         The policy's action std; ``None`` for a deterministic policy, which logs no std on 6.0 and a std of 0 before.
     """
     timing = {"it": it, "start_it": start_it, "total_it": total_it, "collect_time": collect_time}
-    if has_stats_api():
+    if _takes(type(logger).log, "stats_dict"):
         stats = ppo_stats(learning_rate, policy_std)
         logger.log(**timing, learn_time=learn_time, loss_dict=loss_dict, stats_dict=stats)
     else:
@@ -225,23 +244,6 @@ def raise_if_env_step_nonfinite(obs: Any, rewards: torch.Tensor, dones: torch.Te
                 f"The {', '.join(nonfinite)} returned by the environment contain NaN or Inf values. This usually "
                 "indicates a bug in the environment's step() or reset() function."
             )
-
-
-def ensure_logger_writer(logger: Any) -> None:
-    """Give an rsl-rl-lib 4.x ``Logger`` the ``writer = None`` that every other release sets in its ``__init__``.
-
-    rsl-rl-lib 4.x creates ``Logger.writer`` only in ``init_logging_writer()``, which ``learn()`` calls, while its
-    ``OnPolicyRunner.save()`` reads it to decide on an upload. So a save before ``learn()`` (a script writing out an
-    initial checkpoint) raises ``AttributeError`` there and nowhere else. ``None`` is the value 5.x and 6.x start
-    with: no writer yet, so nothing to upload. ``init_logging_writer()`` replaces it as usual.
-
-    Parameters
-    ----------
-    logger : Any
-        The runner's logger; one that already has a ``writer`` is left alone.
-    """
-    if not hasattr(logger, "writer"):
-        logger.writer = None
 
 
 def episode_buffers(logger: Any) -> tuple[Sequence[float], Sequence[float]]:
