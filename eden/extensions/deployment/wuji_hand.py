@@ -46,7 +46,7 @@ from eden.extensions.deployment.utils.state import RobotCommand, RobotState
 from eden.options.actuators import WujiHand2Actuator
 from eden.options.robots.wuji_hand1 import _WujiHand1
 from eden.options.robots.wuji_hand2beta2 import _WujiHand2Beta2
-from eden.utils.string import first_few, resolve_matching_names_values
+from eden.utils.string import resolve_matching_names_values
 
 if TYPE_CHECKING:
     from eden.envs.base import EnvBase
@@ -745,7 +745,7 @@ class WujiHandDeployment(DeploymentBase):
         Rate of the interpolated sub-targets.
     effort_limit_a : float | None
         Joint current limit, A. ``None``: 0.5 on Hand 1 (upstream's default); on Hand 2 the robot's
-        ``WujiHand2Actuator.CURRENT_LIMIT`` (1.5, what its force limits were trained at), or 1.0 without specs.
+        ``current_limit_a`` (1.5 for ``WujiHand2Beta2``, what its force limits were trained at), else 1.0.
     lowpass_cutoff_hz : float
         Hand 1's target low-pass cutoff.
     mit_kp, mit_kd : float | dict[str, float] | None
@@ -834,7 +834,7 @@ class WujiHandDeployment(DeploymentBase):
             self._joint_gain_per_mit = (
                 None if motors is None else np.array([motors[name].JOINT_GAIN(1.0) for name in self.dofs_name])
             )
-            self._effort_limit_a = self._resolve_hand2_current_limit(motors)
+            self._effort_limit_a = self._resolve_hand2_current_limit()
             per_mit = self._joint_gain_per_mit
             self._mit_kp = self._resolve_gain(
                 "mit_kp", self.mit_kp, None if per_mit is None else self.default_dof_kp / per_mit
@@ -930,30 +930,23 @@ class WujiHandDeployment(DeploymentBase):
             )
         return motors
 
-    def _resolve_hand2_current_limit(self, motors: dict[str, type[WujiHand2Actuator]] | None) -> np.ndarray:
-        """Per deployment DOF, the current limit [A]: ``effort_limit_a``, else the specs' ``CURRENT_LIMIT``, else 1.0.
+    def _resolve_hand2_current_limit(self) -> np.ndarray:
+        """Per deployment DOF, the current limit [A]: ``effort_limit_a``, else the robot's ``current_limit_a``, else 1.0.
 
-        The specs' limit is the one the robot's ``default_dofs_force_limits`` were trained at
-        (``EFFORT_LIMIT = TORQUE_CONSTANT * CURRENT_LIMIT``), so an explicit value that differs from it is logged.
+        ``current_limit_a`` is the current the robot's ``default_dofs_force_limits`` were trained at (the Wuji Hand 2
+        options derive them as ``TORQUE_CONSTANT * current_limit_a``), so an explicit value that differs is logged.
         """
-        trained = None if motors is None else np.array([motors[name].CURRENT_LIMIT for name in self.dofs_name])
+        trained = getattr(self.robot_options, "current_limit_a", None)
         if self.effort_limit_a is None:
-            return np.full(self.num_dofs, 1.0) if trained is None else trained
-        limit = np.full(self.num_dofs, float(self.effort_limit_a))
-        if trained is not None and not np.allclose(limit, trained):
-            differs = ~np.isclose(limit, trained)
-            ratio = limit[differs] / trained[differs]
-            reach = (
-                f"{ratio.min():.0%}" if np.isclose(ratio.min(), ratio.max()) else f"{ratio.min():.0%}-{ratio.max():.0%}"
-            )
-            trained_a = ", ".join(f"{a:g} A" for a in sorted(set(trained.tolist())))
+            return np.full(self.num_dofs, 1.0 if trained is None else float(trained))
+        if trained is not None and not np.isclose(self.effort_limit_a, trained):
             en.logger.warning(
                 f"[wuji] effort_limit_a={self.effort_limit_a:g} A, but {type(self.robot_options).__name__}'s force "
-                f"limits were trained at its motor specs' CURRENT_LIMIT ({trained_a}), so the hand reaches {reach} of "
-                f"the trained torque ceiling on {first_few(np.asarray(self.dofs_name)[differs].tolist())}. Leave "
-                "effort_limit_a unset to program the specs' limit."
+                f"limits were trained at current_limit_a={trained:g} A, so the hand reaches "
+                f"{self.effort_limit_a / trained:.0%} of the trained torque ceiling. Leave effort_limit_a unset to "
+                "program the trained current."
             )
-        return limit
+        return np.full(self.num_dofs, float(self.effort_limit_a))
 
     def _resolve_gain(
         self, name: str, value: float | dict[str, float] | None, nominal: np.ndarray | None

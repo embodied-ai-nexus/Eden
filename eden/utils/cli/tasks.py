@@ -134,7 +134,16 @@ def _checkpoint_sibling_config(args) -> str | None:
         return None
     if getattr(args, "config", None) and is_full_config(read_config_arg(args.config)):
         return None  # an explicit saved config replaces the checkpoint's own; let the rebuild path apply it
-    sibling = os.path.join(os.path.dirname(os.path.abspath(args.checkpoint)), "config.json")
+    return _saved_training_config(args.checkpoint)
+
+
+def _saved_training_config(checkpoint: str) -> str | None:
+    """The ``config.json`` its training run saved beside ``checkpoint``, or ``None`` for a loose checkpoint.
+
+    Where a checkpoint's training config lives. Whether a replay *loads* it is
+    :func:`_checkpoint_sibling_config`'s question; what the checkpoint was trained with is this one's.
+    """
+    sibling = os.path.join(os.path.dirname(os.path.abspath(checkpoint)), "config.json")
     return sibling if os.path.exists(sibling) else None
 
 
@@ -2371,12 +2380,14 @@ def _warn_on_task_robot_gains(dep, pinned_robots: list[tuple[str, Any]]) -> None
 
 
 def _checkpoint_trained_robots(checkpoints: list[str], entity_name: str, robot_options) -> list[tuple[str, Any]]:
-    """Each checkpoint's robot as its sibling ``config.json`` saved it, or ``None`` without one.
+    """Each checkpoint's robot as its training ``config.json`` saved it, or why it cannot be read.
 
     Every checkpoint slot runs at the deploy env robot's gains (:func:`_load_checkpoint_slots`), which are the
-    first checkpoint's own only when the env was built from its ``config.json`` without overrides. Read here,
-    before the deployment swaps the entity, so a config that does not load stops the deploy before any
-    hardware contact. A composite rig is skipped: :meth:`DeploymentBase.wire_gains` reads no gains from one.
+    first checkpoint's own only when the env was built from its ``config.json`` without overrides. The
+    comparison is a diagnostic, so a config that does not load (a retired field, an unimportable task class, a
+    renamed entity) yields its error as a string for :func:`_warn_on_checkpoint_gains` to report; it never
+    stops a deploy that would otherwise run. A composite rig is skipped: :meth:`DeploymentBase.wire_gains`
+    reads no gains from one.
     """
     from eden.extensions.deployment.base import scene_entity_options
     from eden.options.entities import CompositeEntityOptions
@@ -2386,11 +2397,14 @@ def _checkpoint_trained_robots(checkpoints: list[str], entity_name: str, robot_o
         return []
     trained = []
     for ckpt in checkpoints:
-        sibling = os.path.join(os.path.dirname(os.path.abspath(ckpt)), "config.json")
-        robot = None
-        if os.path.exists(sibling):
-            robot = scene_entity_options(EdenConfig.load_from_file(sibling).scene_options, entity_name)
-        trained.append((ckpt, robot))
+        saved = _saved_training_config(ckpt)
+        if saved is None:
+            trained.append((ckpt, None))
+            continue
+        try:
+            trained.append((ckpt, scene_entity_options(EdenConfig.load_from_file(saved).scene_options, entity_name)))
+        except Exception as exc:  # noqa: BLE001 -- reported by _warn_on_checkpoint_gains, see the docstring
+            trained.append((ckpt, f"{saved} did not load ({type(exc).__name__}: {exc})"))
     return trained
 
 
@@ -2406,10 +2420,11 @@ def _warn_on_checkpoint_gains(dep, trained_robots: list[tuple[str, Any]]) -> Non
 
     deployed = dep.wire_gains()
     for ckpt, robot in trained_robots:
-        if robot is None:
+        if robot is None or isinstance(robot, str):
+            why = "has no config.json beside it" if robot is None else f"has a config.json, but {robot}"
             en.logger.warning(
-                f"[deploy] '{ckpt}' has no config.json beside it, so the gains it was trained at are unknown; it runs "
-                "at the --task robot's. Check them against its training run before going live."
+                f"[deploy] '{ckpt}' {why}, so the gains it was trained at are unknown; it runs at the --task robot's. "
+                "Check them against its training run before going live."
             )
             continue
         for gain, joints in _differing_joints(dep.dofs_name, dep.wire_gains(robot), deployed, "deployed"):

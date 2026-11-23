@@ -424,7 +424,7 @@ simulator.
   runs its own position loop, so it refuses `deploy_kp_kd_scale` and gains; soften it with
   `effort_limit_a` (default 0.5 A). Both refuse `--disable_joints`.
 
-    !!! note "Hand 2's defaults come from the robot's motor specs"
+    !!! note "Hand 2's defaults come from the robot options"
         Left unset, `mit_kp` / `mit_kd` default to the robot's `default_dofs_kp` / `default_dofs_kd`
         times `deploy_kp_kd_scale`, converted from N·m/rad to MIT units through each joint's
         `WujiHand2Actuator` spec in `dofs_spec` (divided by `TORQUE_CONSTANT` x 1.9115 A per unit).
@@ -434,9 +434,10 @@ simulator.
         differ. A robot with no such specs must set `mit_kp` and `mit_kd`, and its slots are
         compared with the boot slot instead.
 
-        `effort_limit_a` defaults to the specs' `CURRENT_LIMIT` (1.5 A), the current the robot's
-        force limits were trained at, or to 1.0 A without specs. An explicit value that differs is
-        logged with the share of the trained torque ceiling it leaves.
+        `effort_limit_a` defaults to the robot's `current_limit_a`, the current its force limits were
+        trained at (1.5 A for `WujiHand2Beta2`, upstream pen spin's operating point), or to 1.0 A for a
+        robot that declares none. An explicit value that differs is logged with the share of the
+        trained torque ceiling it leaves.
 
 - **Streaming.** `stream_mode="sync"` (default) interpolates `servo_hz` (default 200) sub-targets
   across each control period and blocks until the period's deadline, chained from the previous one,

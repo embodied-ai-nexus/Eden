@@ -1674,6 +1674,18 @@ def test_each_checkpoint_trained_at_other_gains_than_the_deployed_robot_is_named
     assert checkpoints[2] in warnings[1] and "no config.json beside it" in warnings[1]
 
 
+def test_a_checkpoint_config_that_does_not_load_is_reported_not_fatal(g1_env, eden_caplog, tmp_path):
+    """The comparison is a diagnostic: a config.json from a retired layout must not stop the deploy."""
+    ckpt = _checkpoint(tmp_path, "retired", None)
+    pathlib.Path(ckpt).with_name("config.json").write_text('{"not": "an eden config"}')
+    ((_, why),) = tasks._checkpoint_trained_robots([ckpt], "robot", G1Dofs29())
+    with deployments(g1_env) as make:
+        tasks._warn_on_checkpoint_gains(make(LoopbackDeployment), [(ckpt, why)])
+
+    (warning,) = [r.message for r in eden_caplog.records if r.levelname == "WARNING" and ckpt in r.message]
+    assert "has a config.json, but" in warning and "did not load (" in warning and "unknown" in warning
+
+
 def test_a_composite_rig_reads_no_checkpoint_gains(tmp_path):
     assert tasks._checkpoint_trained_robots([_checkpoint(tmp_path, "rig", None)], "robot", OliWuji()) == []
 

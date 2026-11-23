@@ -339,14 +339,17 @@ class WujiHand2Actuator(ActuatorSpecOptions):
 
     The firmware takes kp / kd in MIT units and a current limit in amperes. One MIT unit is
     ``AMPS_PER_MIT_UNIT`` A, and ``TORQUE_CONSTANT`` is the joint-side output torque per ampere, so a
-    joint-space gain is the MIT gain times ``AMPS_PER_MIT_UNIT * TORQUE_CONSTANT``. ``EFFORT_LIMIT`` is the
-    torque at ``CURRENT_LIMIT``. Values from wuji-mjlab v2026.10.22
-    ``tasks/pen_spin/config/wuji_hand2/hand2_constants.py``; upstream does not name the motors, so the
-    subclasses are named by the joints they drive.
+    joint-space gain is the MIT gain times ``AMPS_PER_MIT_UNIT * TORQUE_CONSTANT``. Values from wuji-mjlab
+    v2026.10.22 ``tasks/pen_spin/config/wuji_hand2/hand2_constants.py``; upstream does not name the motors,
+    so the subclasses are named by the joints they drive.
+
+    Only motor and SDK properties live here. The current a task runs the hand at, and so its torque
+    ceiling, is the robot's operating point (``_WujiHand2Beta2.current_limit_a``), and ``EFFORT_LIMIT``
+    keeps the base's unknown default. Armature is identified per joint rather than per motor, so
+    ``ARMATURE()`` is 0: a robot using these specs must set ``default_dofs_armature`` itself.
     """
 
     TORQUE_CONSTANT: ClassVar[float] = 0.0  # [N*m/A]
-    CURRENT_LIMIT: ClassVar[float] = 1.5  # [A]
     AMPS_PER_MIT_UNIT: ClassVar[float] = 1.9114709702965849
 
     @classmethod
@@ -376,46 +379,39 @@ class WujiHand2Flex(WujiHand2Actuator):
     """Thumb CMC flexion and index / middle / ring MCP flexion."""
 
     TORQUE_CONSTANT: ClassVar[float] = 0.4136
-    EFFORT_LIMIT: ClassVar[float] = TORQUE_CONSTANT * WujiHand2Actuator.CURRENT_LIMIT
 
 
 class WujiHand2ThumbAbd(WujiHand2Actuator):
     """Thumb CMC abduction."""
 
     TORQUE_CONSTANT: ClassVar[float] = 0.3545
-    EFFORT_LIMIT: ClassVar[float] = TORQUE_CONSTANT * WujiHand2Actuator.CURRENT_LIMIT
 
 
 class WujiHand2ThumbMcp(WujiHand2Actuator):
     """Thumb MCP."""
 
     TORQUE_CONSTANT: ClassVar[float] = 0.2216
-    EFFORT_LIMIT: ClassVar[float] = TORQUE_CONSTANT * WujiHand2Actuator.CURRENT_LIMIT
 
 
 class WujiHand2ThumbIp(WujiHand2Actuator):
     """Thumb IP."""
 
     TORQUE_CONSTANT: ClassVar[float] = 0.1329
-    EFFORT_LIMIT: ClassVar[float] = TORQUE_CONSTANT * WujiHand2Actuator.CURRENT_LIMIT
 
 
 class WujiHand2Finger(WujiHand2Actuator):
     """Index / middle / ring MCP abduction, PIP and DIP."""
 
     TORQUE_CONSTANT: ClassVar[float] = 0.1673
-    EFFORT_LIMIT: ClassVar[float] = TORQUE_CONSTANT * WujiHand2Actuator.CURRENT_LIMIT
 
 
 class WujiHand2PinkyFlex(WujiHand2Actuator):
     """Pinky MCP flexion."""
 
     TORQUE_CONSTANT: ClassVar[float] = 0.4461
-    EFFORT_LIMIT: ClassVar[float] = TORQUE_CONSTANT * WujiHand2Actuator.CURRENT_LIMIT
 
 
 class WujiHand2Pinky(WujiHand2Actuator):
     """Pinky MCP abduction, PIP and DIP."""
 
     TORQUE_CONSTANT: ClassVar[float] = 0.1115
-    EFFORT_LIMIT: ClassVar[float] = TORQUE_CONSTANT * WujiHand2Actuator.CURRENT_LIMIT

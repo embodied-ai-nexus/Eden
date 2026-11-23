@@ -61,15 +61,16 @@ def test_double_5020_sums_two_motors_but_keeps_the_single_motor_speeds():
 
 
 @pytest.mark.parametrize("actuator", _WUJI_HAND2, ids=lambda a: a.__name__)
-def test_a_wuji_hand2_motor_is_limited_by_its_current_and_converts_mit_gains_both_ways(actuator):
-    assert actuator.EFFORT_LIMIT == pytest.approx(1.5 * actuator.TORQUE_CONSTANT, rel=1e-12)
+def test_a_wuji_hand2_motor_converts_mit_gains_both_ways_and_sets_no_operating_point(actuator):
+    """The current, and so the torque ceiling, is the robot's operating point, not the motor's."""
+    assert actuator.EFFORT_LIMIT == WujiHand2Actuator.EFFORT_LIMIT
+    assert not hasattr(actuator, "CURRENT_LIMIT")
     assert actuator.MIT_GAIN(actuator.JOINT_GAIN(3.0)) == pytest.approx(3.0, rel=1e-12)
 
 
 def test_the_wuji_hand2_thumb_flexor_matches_upstream():
     """wuji-mjlab pen spin: kt 0.4136 N*m/A, 1.9115 A per MIT unit, so MIT kp 3.0 is 2.3718 N*m/rad."""
     assert WujiHand2Flex.JOINT_GAIN(3.0) == pytest.approx(2.371753, rel=1e-6)
-    assert WujiHand2Flex.EFFORT_LIMIT == pytest.approx(0.6204, rel=1e-12)
 
 
 def test_a_wuji_spec_without_a_torque_constant_refuses_to_convert_and_names_the_motors():

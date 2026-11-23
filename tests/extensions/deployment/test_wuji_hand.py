@@ -177,13 +177,13 @@ def test_hand2_programs_the_nominal_gains_in_mit_units_by_default(hand2):
     gains = hand2(deploy_kp_kd_scale=0.5)._make_transport().gains
     np.testing.assert_allclose(gains.kp, 0.5 * MIT_KP)
     np.testing.assert_allclose(gains.kd, 0.5 * MIT_KD)
-    assert gains.effort_limit_a == [1.5] * N, "the motor specs' CURRENT_LIMIT, which the force limits trained at"
+    assert gains.effort_limit_a == [1.5] * N, "the robot's current_limit_a, which its force limits trained at"
 
 
 def test_hand2_names_the_torque_an_explicit_current_limit_costs(hand2, eden_caplog):
     assert hand2(effort_limit_a=1.0)._make_transport().gains.effort_limit_a == [1.0] * N
     (warning,) = [r.message for r in eden_caplog.records if "effort_limit_a=1 A" in r.message]
-    assert "CURRENT_LIMIT (1.5 A)" in warning and "reaches 67% of the trained torque ceiling" in warning
+    assert "current_limit_a=1.5 A" in warning and "reaches 67% of the trained torque ceiling" in warning
 
     eden_caplog.clear()
     hand2(effort_limit_a=1.5)

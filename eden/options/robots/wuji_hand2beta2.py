@@ -25,44 +25,39 @@ from eden.options.catalog import ROBOT_REGISTRY
 from eden.options.entities import MetadataOptions, RobotOptions
 
 
-_WUJI_HAND2_DOFS_SPEC: dict[str, type[WujiHand2Actuator]] = {
-    ".*_thumb_cmc_flex": WujiHand2Flex,
-    ".*_thumb_cmc_abd": WujiHand2ThumbAbd,
-    ".*_thumb_mcp": WujiHand2ThumbMcp,
-    ".*_thumb_ip": WujiHand2ThumbIp,
-    ".*_(index|middle|ring)_finger_mcp_flex": WujiHand2Flex,
-    ".*_(index|middle|ring)_finger_mcp_abd": WujiHand2Finger,
-    ".*_(index|middle|ring)_finger_(pip|dip)": WujiHand2Finger,
-    ".*_pinky_mcp_flex": WujiHand2PinkyFlex,
-    ".*_pinky_mcp_abd": WujiHand2Pinky,
-    ".*_pinky_(pip|dip)": WujiHand2Pinky,
+# The pen-spin operating point from wuji-mjlab v2026.10.22 ``pen_spin/config/wuji_hand2/hand2_constants.py``,
+# per joint pattern: the motor, and the firmware MIT kd by joint position within the finger. Every joint runs
+# at MIT kp 3.0 and a 1.5 A current limit.
+_PEN_SPIN_MOTORS: dict[str, tuple[type[WujiHand2Actuator], float]] = {
+    ".*_thumb_cmc_flex": (WujiHand2Flex, 0.075),
+    ".*_thumb_cmc_abd": (WujiHand2ThumbAbd, 0.07),
+    ".*_thumb_mcp": (WujiHand2ThumbMcp, 0.05),
+    ".*_thumb_ip": (WujiHand2ThumbIp, 0.05),
+    ".*_(index|middle|ring)_finger_mcp_flex": (WujiHand2Flex, 0.075),
+    ".*_(index|middle|ring)_finger_mcp_abd": (WujiHand2Finger, 0.07),
+    ".*_(index|middle|ring)_finger_(pip|dip)": (WujiHand2Finger, 0.05),
+    ".*_pinky_mcp_flex": (WujiHand2PinkyFlex, 0.075),
+    ".*_pinky_mcp_abd": (WujiHand2Pinky, 0.07),
+    ".*_pinky_(pip|dip)": (WujiHand2Pinky, 0.05),
 }
-
-# Firmware MIT gains from wuji-mjlab v2026.10.22 ``pen_spin/config/wuji_hand2/hand2_constants.py``:
-# kp 3.0 everywhere, kd by joint position within the finger.
 _MIT_KP = 3.0
-_MIT_KD: dict[str, float] = {
-    ".*_thumb_cmc_flex": 0.075,
-    ".*_thumb_cmc_abd": 0.07,
-    ".*_thumb_mcp": 0.05,
-    ".*_thumb_ip": 0.05,
-    ".*_(index|middle|ring)_finger_mcp_flex": 0.075,
-    ".*_(index|middle|ring)_finger_mcp_abd": 0.07,
-    ".*_(index|middle|ring)_finger_(pip|dip)": 0.05,
-    ".*_pinky_mcp_flex": 0.075,
-    ".*_pinky_mcp_abd": 0.07,
-    ".*_pinky_(pip|dip)": 0.05,
-}
+_CURRENT_LIMIT_A = 1.5
 
 
 class _WujiHand2Beta2(RobotOptions):
-    dofs_spec: ClassVar[dict[str, type[ActuatorSpecOptions]]] = _WUJI_HAND2_DOFS_SPEC
+    dofs_spec: ClassVar[dict[str, type[ActuatorSpecOptions]]] = {p: m for p, (m, _) in _PEN_SPIN_MOTORS.items()}
+
+    # The current the force limits below are trained at; ``WujiHandDeployment`` programs it when
+    # ``effort_limit_a`` is unset.
+    current_limit_a: ClassVar[float] = _CURRENT_LIMIT_A
 
     default_dofs_pos: dict[str, float] = {"*": 0.0}
 
-    default_dofs_kp: dict[str, float] = {p: s.JOINT_GAIN(_MIT_KP) for p, s in _WUJI_HAND2_DOFS_SPEC.items()}
-    default_dofs_kd: dict[str, float] = {p: s.JOINT_GAIN(_MIT_KD[p]) for p, s in _WUJI_HAND2_DOFS_SPEC.items()}
-    default_dofs_force_limits: dict[str, float] = {p: s.EFFORT_LIMIT for p, s in _WUJI_HAND2_DOFS_SPEC.items()}
+    default_dofs_kp: dict[str, float] = {p: m.JOINT_GAIN(_MIT_KP) for p, (m, _) in _PEN_SPIN_MOTORS.items()}
+    default_dofs_kd: dict[str, float] = {p: m.JOINT_GAIN(kd) for p, (m, kd) in _PEN_SPIN_MOTORS.items()}
+    default_dofs_force_limits: dict[str, float] = {
+        p: m.TORQUE_CONSTANT * _CURRENT_LIMIT_A for p, (m, _) in _PEN_SPIN_MOTORS.items()
+    }
 
     # Identified per joint (same source), so not part of the motor specs.
     # The URDF has no armature; without this Genesis would use 0.1.
