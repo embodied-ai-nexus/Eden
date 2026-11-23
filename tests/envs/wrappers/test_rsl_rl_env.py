@@ -35,6 +35,7 @@ from eden.envs.wrappers.rsl_rl_env import (
     make_rsl_rl_runner,
     rsl_rl_runner_class,
 )
+from eden.learning.wrappers.rsl_rl.compat import log_env_step
 from eden.utils.configs import EdenConfig, EdenRLConfig
 from eden.utils.warning import warn_once
 from tests.envs.conftest import trace_config
@@ -214,7 +215,7 @@ def test_a_non_zero_ddp_rank_runner_accumulates_no_episode_extras(wrapper, tmp_p
     runner.logger.init_logging_writer()
 
     for _ in range(50):
-        runner.logger.process_env_step(torch.zeros(2), torch.zeros(2), {"log": {"x": torch.ones(2)}})
+        log_env_step(runner.logger, torch.zeros(2), torch.zeros(2), {"log": {"x": torch.ones(2)}})
 
     assert runner.logger.ep_extras == []
 
@@ -536,7 +537,7 @@ def test_a_legacy_checkpoint_with_keys_the_converter_cannot_map_is_refused(runne
     message = str(excinfo.value)
     assert message.startswith(f"Legacy checkpoint {path} has 'model_state_dict' keys the legacy converter")
     assert "memory_a.* (1 key)." in message and "actor_obs_normalizer.*" in message
-    assert "not an rsl-rl-lib 4.x/5.x version to install" in message
+    assert "not an rsl-rl-lib 4.x to 6.x version to install" in message
     assert not list(tmp_path.glob("*.converted.pt"))
 
 
@@ -588,7 +589,9 @@ def test_a_legacy_checkpoint_is_converted_beside_the_original_and_loads(runner, 
 
     assert os.path.exists(tmp_path / "ckpt.log.converted.pt")  # the task's std_type, in the name
     assert open(path, "rb").read() == original  # never modified in place
-    expected["distribution.log_std_param"] = torch.log(std)  # raw std -> log for a 'log' distribution
+    # raw std -> log for a 'log' distribution; rsl-rl-lib 4.x keeps it on the model, 5.x and later on its distribution
+    log_std_key = next(key for key in ("distribution.log_std_param", "log_std") if key in expected)
+    expected[log_std_key] = torch.log(std)
     _assert_actor_is(runner, expected)
 
 

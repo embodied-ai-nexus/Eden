@@ -6,6 +6,7 @@ import pytest
 import torch
 from tensordict import TensorDict
 
+from eden.learning.wrappers.rsl_rl.compat import has_stats_api, loss_dict_of
 from eden.options.learning.rsl_rl.translate import detect_rsl_rl_major_version
 from tests.support.simba import NUM_ACTIONS, group_obs, runner_dict, simba_models
 
@@ -69,8 +70,10 @@ def test_a_ppo_update_moves_both_optimizers_parameters_and_logs_explained_varian
     alg = _muon_ppo(obs, num_mini_batches=2, num_learning_epochs=1)
     before = {n: p.detach().clone() for n, p in [*alg.actor.named_parameters(), *alg.critic.named_parameters()]}
     _collect(alg, obs)
-    losses, _ = alg.update()
-    assert {"value", "surrogate", "entropy", "explained_variance"} <= set(losses)
+    result = alg.update()
+    # The shape the installed OnPolicyRunner unpacks: the loss dict before 6.0, (loss_dict, stats_dict) from 6.0.
+    assert isinstance(result, tuple) == has_stats_api()
+    assert {"value", "surrogate", "entropy", "explained_variance"} <= set(loss_dict_of(result))
     after = dict([*alg.actor.named_parameters(), *alg.critic.named_parameters()])
     moved = {n for n, p in after.items() if not torch.equal(p.detach(), before[n])}
     assert "mlp.1.output_proj.weight" in moved  # a Muon parameter

@@ -11,6 +11,7 @@ from tensordict import TensorDict
 
 from eden.extensions.policies.husky.constants import NUM_JOINTS
 from eden.learning.wrappers.rsl_rl import MIN_RSL_RL_VERSION
+from eden.learning.wrappers.rsl_rl.compat import MEAN_REWARD_KEY, UpdateResult, has_stats_api, loss_dict_of
 from eden.options.learning.rsl_rl.translate import detect_rsl_rl_version, translate_runner_dict
 from eden.tasks import TASK_REGISTRY
 from tests.support.ddp import ddp_spawn
@@ -61,11 +62,13 @@ def test_the_style_reward_lands_only_where_the_gate_is_set():
     alg = _husky_amp_ppo(obs)
     alg.act(obs)
     rewards = torch.zeros(NUM_ENVS)
-    alg.process_env_step(obs, rewards, torch.zeros(NUM_ENVS, dtype=torch.long), {})
+    step = alg.process_env_step(obs, rewards, torch.zeros(NUM_ENVS, dtype=torch.long), {})
 
     stored = alg.storage.rewards[0].squeeze(-1)
     assert (stored[~gate] == 0.0).all()
     assert (stored[gate] > 0.0).all()  # LSGAN reward is non-negative and a fresh discriminator scores near 0
+    # The logged episode reward is the env's own, as before rsl-rl-lib 6.0; the style reward has its own metric.
+    assert step is None if not has_stats_api() else torch.equal(step[MEAN_REWARD_KEY], rewards)
     assert len(alg.amp_replay) == NUM_ENVS  # every window is banked, gated or not
 
 
@@ -80,7 +83,10 @@ def test_an_update_trains_the_discriminator_and_a_checkpoint_round_trips_it():
             _obs(gate, seed=step + 1), torch.randn(NUM_ENVS), torch.zeros(NUM_ENVS, dtype=torch.long), {}
         )
     alg.compute_returns(obs)
-    losses = alg.update()
+    result = alg.update()
+    # The shape the installed OnPolicyRunner unpacks: the loss dict before 6.0, (loss_dict, stats_dict) from 6.0.
+    assert isinstance(result, tuple) == has_stats_api()
+    losses = loss_dict_of(result)
 
     for key in ("amp", "amp_grad_pen", "amp_expert_d", "amp_policy_d", "amp_style_reward"):
         assert torch.isfinite(torch.tensor(losses[key])), key
@@ -103,7 +109,7 @@ def test_a_mis_sized_amp_group_names_the_expected_layout():
         alg.process_env_step(short, torch.zeros(NUM_ENVS), torch.zeros(NUM_ENVS, dtype=torch.long), {})
 
 
-def _rollout_and_update(alg, gate: torch.Tensor, seed: int = 0) -> dict[str, float]:
+def _rollout_and_update(alg, gate: torch.Tensor, seed: int = 0) -> UpdateResult:
     with torch.inference_mode():
         for step in range(NUM_STEPS):
             alg.act(_obs(gate, seed=seed + step))

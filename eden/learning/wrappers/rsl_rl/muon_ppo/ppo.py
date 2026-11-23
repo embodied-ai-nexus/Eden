@@ -37,6 +37,8 @@ if detect_rsl_rl_major_version() < 5:
 
 from rsl_rl.algorithms import PPO  # noqa: E402  (after the version guard, on purpose)
 
+from eden.learning.wrappers.rsl_rl.compat import UpdateResult, loss_dict_of  # noqa: E402
+
 #: ``class_name`` string rsl_rl resolves to :class:`MuonPPO`.
 MUON_PPO_CLASS_NAME = "eden.learning.wrappers.rsl_rl.muon_ppo.ppo:MuonPPO"
 
@@ -162,18 +164,18 @@ class MuonPPO(PPO):
             muon_weight_decay=muon_weight_decay,
         )
 
-    def update(self) -> tuple[dict[str, float], dict[str, float]]:
+    def update(self) -> UpdateResult:
         """Run the stock PPO update, and log the value function's explained variance (Weave's extra metric).
 
         Returns
         -------
-        dict[str, float]
-            rsl_rl's loss dict plus ``explained_variance``.
+        UpdateResult
+            rsl_rl's own result, in the installed release's shape, with ``explained_variance`` in its loss dict.
         """
         with torch.no_grad():
             values = self.storage.values.flatten()
             returns = self.storage.returns.flatten()
             explained_variance = (1.0 - (returns - values).var() / (returns.var() + 1e-8)).item()
-        loss_dict, stats_dict = super().update()
-        loss_dict["explained_variance"] = explained_variance
-        return loss_dict, stats_dict
+        result = super().update()
+        loss_dict_of(result)["explained_variance"] = explained_variance
+        return result

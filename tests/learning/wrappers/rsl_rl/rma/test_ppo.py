@@ -9,6 +9,7 @@ import torch
 from tensordict import TensorDict
 
 from eden.learning.wrappers.rsl_rl import MIN_RSL_RL_VERSION
+from eden.learning.wrappers.rsl_rl.compat import has_stats_api, loss_dict_of
 from eden.options.learning.rsl_rl.translate import detect_rsl_rl_version, translate_runner_dict
 from eden.tasks import TASK_REGISTRY
 
@@ -40,7 +41,7 @@ def _rma_ppo(critic=None, **alg_overrides):
 
 
 def _iterate(alg) -> dict[str, float]:
-    """One learning iteration: a rollout, returns, and the update."""
+    """One learning iteration: a rollout, returns, and the update; returns the update's loss dict."""
     g = torch.Generator().manual_seed(alg.iteration)
     with torch.inference_mode():
         for step in range(NUM_STEPS):
@@ -52,7 +53,12 @@ def _iterate(alg) -> dict[str, float]:
                 {},
             )
         alg.compute_returns(_obs(seed=NUM_STEPS))
-    return alg.update()
+    result = alg.update()
+    # The shape the installed OnPolicyRunner unpacks: the loss dict before 6.0, (loss_dict, stats_dict) from 6.0.
+    assert isinstance(result, tuple) == has_stats_api()
+    if has_stats_api():
+        assert set(result[1]) == {"Optimizer/learning_rate", "Model/mean_policy_std"}
+    return loss_dict_of(result)
 
 
 def test_the_task_trains_with_the_parkour_mirror_and_the_estimator_outside_the_ppo_optimizer():
@@ -123,7 +129,9 @@ def test_per_mini_batch_advantage_normalization_is_applied_in_the_update():
             )
         alg.compute_returns(_obs(seed=NUM_STEPS))
     assert alg.storage.advantages.abs().max() > 100.0  # raw, as stock compute_returns leaves them under the flag
-    assert abs(alg.update()["surrogate"]) < 10.0  # O(1): each mini-batch was normalized before the surrogate
+    assert (
+        abs(loss_dict_of(alg.update())["surrogate"]) < 10.0
+    )  # O(1): each mini-batch was normalized before the surrogate
 
 
 def test_a_recurrent_critic_is_refused():

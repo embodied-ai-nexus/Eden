@@ -106,7 +106,8 @@ def translate_runner_dict(runner_dict: dict, algorithm: Any = None) -> dict:
     major = detect_rsl_rl_major_version()
     if major < 3:
         raise ValueError(
-            f"Detected rsl_rl version {major}.X is not supported. Only versions 3, 4, and 5 are supported."
+            f"Detected rsl-rl-lib {major}.x, which Eden does not support: it runs on rsl-rl-lib 3.x to 6.x. Fix: "
+            "`uv pip install 'rsl-rl-lib>=3.0'`."
         )
     elif major == 3:
         en.logger.info("Detected rsl_rl version 3.X. Translating runner dict to v3 format.")
@@ -114,7 +115,7 @@ def translate_runner_dict(runner_dict: dict, algorithm: Any = None) -> dict:
     elif major == 4:
         en.logger.info("Detected rsl_rl version 4.X. Translating runner dict to v4 format.")
         out = translate_runner_dict_to_v4(runner_dict)
-    else:  # v5+
+    else:  # v5 and v6 take the same runner dict
         out = copy.deepcopy(runner_dict)
     adapt = getattr(algorithm, "adapt_runner_dict", None)  # an optional hook, not a required field
     return adapt(out, major) if adapt is not None else out

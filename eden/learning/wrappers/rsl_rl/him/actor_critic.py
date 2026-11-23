@@ -227,7 +227,7 @@ class HIMActorCritic(nn.Module):
         pass
 
     def forward(self, obs) -> torch.Tensor:
-        """The deterministic action for an observation TensorDict: what rsl-rl-lib 4/5's ``get_inference_policy``
+        """The deterministic action for an observation TensorDict: what rsl-rl-lib 4 to 6's ``get_inference_policy``
         serves.
         """
         return self.act_inference(obs)

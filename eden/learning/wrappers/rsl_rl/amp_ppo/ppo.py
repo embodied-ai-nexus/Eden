@@ -52,6 +52,7 @@ from eden.learning.wrappers.rsl_rl.amp_ppo.amp import (  # noqa: E402
     AmpReplayBuffer,
     FrameNormalizer,
 )
+from eden.learning.wrappers.rsl_rl.compat import MEAN_REWARD_KEY, UpdateResult, loss_dict_of  # noqa: E402
 
 #: ``class_name`` string rsl_rl resolves to :class:`AmpPPO`.
 AMP_PPO_CLASS_NAME = "eden.learning.wrappers.rsl_rl.amp_ppo.ppo:AmpPPO"
@@ -140,27 +141,43 @@ class AmpPPO(PPO):
 
     def process_env_step(
         self, obs: TensorDict, rewards: torch.Tensor, dones: torch.Tensor, extras: dict[str, torch.Tensor]
-    ) -> None:
-        """Add the gated style reward and bank the policy window, then defer to PPO."""
+    ) -> dict[str, torch.Tensor] | None:
+        """Add the gated style reward and bank the policy window, then defer to PPO.
+
+        Returns
+        -------
+        dict[str, torch.Tensor] or None
+            PPO's own result. On rsl-rl-lib >= 6.0 its ``Training/mean_reward`` is the env's reward without the style
+            reward, which is what the runner logs before 6.0; the style reward is logged as ``Loss/amp_style_reward``.
+        """
         raw_windows, gate = self._split_amp_obs(obs)
         frames = raw_windows.view(-1, self.amp_num_frames, self.amp_expert.frame_dim)
         style = self.discriminator.style_reward(self.amp_normalizer.normalize(frames).flatten(1), self.amp_reward_coef)
         style = style * gate.float() * self.amp_reward_scale
-        rewards = rewards + style
 
         self.amp_replay.insert(raw_windows)
         self._style_reward_sum = self._style_reward_sum + style.mean()
         self._style_reward_steps += 1
-        super().process_env_step(obs, rewards, dones, extras)
+        step = super().process_env_step(obs, rewards + style, dones, extras)
+        if step is not None and MEAN_REWARD_KEY in step:
+            step[MEAN_REWARD_KEY] = rewards
+        return step
 
     # ------------------------------------------------------------------
     # Update
     # ------------------------------------------------------------------
 
-    def update(self) -> dict[str, float]:
-        """Run the PPO update, then the discriminator's LSGAN updates."""
+    def update(self) -> UpdateResult:
+        """Run the PPO update, then the discriminator's LSGAN updates.
+
+        Returns
+        -------
+        UpdateResult
+            rsl_rl's own result, in the installed release's shape, with the discriminator's metrics in its loss dict.
+        """
         batch_size = self.storage.num_envs * self.storage.num_transitions_per_env // self.num_mini_batches
-        loss_dict = super().update()
+        result = super().update()
+        loss_dict = loss_dict_of(result)
 
         # The source trained the discriminator inside the PPO optimizer, so its
         # learning rate followed the KL-adaptive schedule; mirror that here.
@@ -204,7 +221,7 @@ class AmpPPO(PPO):
         loss_dict["amp_style_reward"] = float(self._style_reward_sum) / max(self._style_reward_steps, 1)
         self._style_reward_sum = torch.zeros((), device=self.device)
         self._style_reward_steps = 0
-        return loss_dict
+        return result
 
     def _gather(self, frames: torch.Tensor) -> torch.Tensor:
         """``frames`` from every rank, concatenated (``frames`` itself on one process)."""

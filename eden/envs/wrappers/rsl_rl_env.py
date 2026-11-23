@@ -36,6 +36,7 @@ from tensordict import TensorDict
 import eden as en
 from eden.envs.base import MimicRLEnvBase
 from eden.envs.wrappers.core import EnvWrapperMixin, action_space, observation_space, time_outs
+from eden.learning.wrappers.rsl_rl.compat import ensure_logger_writer, episode_buffers
 from eden.options.learning.rsl_rl.translate import translate_runner_dict
 from eden.utils import distributed as eden_dist
 from eden.utils.assets import model_checkpoints
@@ -455,8 +456,8 @@ class ProgressFileMixin:
         logger = self.logger
         if logger.log_dir is None or logger.disable_logs:
             return
-        rewards = list(logger.rewbuffer)
-        lengths = list(logger.lenbuffer)
+        reward_buffer, length_buffer = episode_buffers(logger)
+        rewards, lengths = list(reward_buffer), list(length_buffer)
         mean_reward = statistics.mean(rewards) if rewards else None
         if mean_reward is not None and mean_reward > best_mean_reward[0]:
             best_mean_reward[0] = mean_reward
@@ -639,6 +640,9 @@ class CheckpointRetentionMixin:
     _reported_later_checkpoints: bool = False
 
     def save(self, path: str, infos: dict | None = None) -> None:
+        logger = getattr(self, "logger", None)
+        if logger is not None:
+            ensure_logger_writer(logger)  # a save before learn() under rsl-rl-lib 4.x
         super().save(path, infos)  # type: ignore[misc]
         self._last_saved_checkpoint = path
         self._prune_checkpoints(path, in_flight=1 if self._uploads_checkpoints() else 0)
@@ -815,10 +819,10 @@ def _refuse_unconvertible_legacy_keys(index: dict, path: str) -> None:
         raise RuntimeError(
             f"Legacy checkpoint {path} is an rsl-rl-lib 3.x distillation checkpoint (its 'model_state_dict' "
             f"holds {found}), which Eden does not convert: 3.x saved one optimizer over student, teacher and "
-            f"std together, while 4.x/5.x Distillation.load restores a student-only optimizer from "
+            f"std together, while 4.x to 6.x Distillation.load restores a student-only optimizer from "
             f"'optimizer_state_dict', so a converted file could not resume. Nothing was converted or loaded. "
-            f"It replays under rsl-rl-lib 3.x, which Eden's 'rsl-rl-lib>=3.0' pin admits; another 4.x/5.x "
-            f"release will not read it either. Under 4.x/5.x, re-run the distillation with its teacher "
+            f"It replays under rsl-rl-lib 3.x, which Eden's 'rsl-rl-lib>=3.0' pin admits; another 4.x to 6.x "
+            f"release will not read it either. Under 4.x to 6.x, re-run the distillation with its teacher "
             f"bootstrapped from the RL checkpoint that trained it."
         )
     raise RuntimeError(
@@ -828,7 +832,7 @@ def _refuse_unconvertible_legacy_keys(index: dict, path: str) -> None:
         f"{' / '.join(map(repr, _LEGACY_BARE_KEYS))}). Converting anyway would drop those weights and load "
         f"a partly random policy under strict=False, so nothing was converted or loaded — and deleting the "
         f"keys to get past this check does exactly that. This is a layout the converter lacks, not an "
-        f"rsl-rl-lib 4.x/5.x version to install: replay the file under the rsl-rl-lib 3.x that wrote it, "
+        f"rsl-rl-lib 4.x to 6.x version to install: replay the file under the rsl-rl-lib 3.x that wrote it, "
         f"or map those keys in eden.envs.wrappers.rsl_rl_env._maybe_convert_legacy_checkpoint."
     )
 
@@ -1029,7 +1033,7 @@ def _audited_heads(runner, ckpt: dict) -> list[tuple[str, str]]:
     """The ``(alg attribute, checkpoint key)`` pairs ``runner.load`` will actually fill from ``ckpt``.
 
     PPO loads ``actor`` and ``critic`` by name. Distillation mirrors rsl_rl's
-    ``Distillation.load`` (identical across 4.x/5.x): a checkpoint from RL training
+    ``Distillation.load`` (identical across 4.x to 6.x): a checkpoint from RL training
     (any ``actor_state_dict`` key) loads only the teacher, from the RL actor, and
     leaves the student at its init by design; anything else loads the student by name
     and the teacher from ``teacher_state_dict``, falling back to ``actor_state_dict``.
@@ -1135,7 +1139,8 @@ def _runner_uses_split_policy(runner) -> bool:
 # drift warning and the format error below: two hand-written copies of this sentence would
 # drift apart the first time either is edited.
 RSL_RL_LAYOUT_SPLIT = (
-    "rsl-rl-lib 3.x saves a single 'model_state_dict'; 4.x/5.x split it into 'actor_state_dict' + 'critic_state_dict'"
+    "rsl-rl-lib 3.x saves a single 'model_state_dict'; "
+    "4.x to 6.x split it into 'actor_state_dict' + 'critic_state_dict'"
 )
 
 
@@ -1275,7 +1280,7 @@ def _rsl_rl_checkpoint_format_error(
 def load_runner_checkpoint(runner, checkpoint: str) -> None:
     """``runner.load`` across rsl-rl-lib versions (the ``>=3.0`` pin spans both layouts).
 
-    On split-module rsl_rl (4.x/5.x — see :func:`_runner_uses_split_policy`)
+    On split-module rsl_rl (4.x to 6.x — see :func:`_runner_uses_split_policy`)
     the checkpoint is first routed through the legacy converter (``std``/key
     remapping) and the pre-load key audit; single-module 3.x loads its native
     ``model_state_dict`` directly. ``strict=False`` is passed only where

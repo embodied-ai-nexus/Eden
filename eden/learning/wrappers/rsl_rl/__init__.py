@@ -1,4 +1,4 @@
-"""Models, algorithms and runners for rsl-rl-lib 5, selected through their options' ``class_name``.
+"""Models, algorithms and runners for rsl-rl-lib >= 5, selected through their options' ``class_name``.
 
 - :mod:`.simba` — a SimBaV2 actor / critic behind one encoder per observation group.
 - :mod:`.muon_ppo` — PPO whose optimizer is Muon for the 2-D weights and AdamW for the rest.
@@ -7,6 +7,8 @@
 - :mod:`.amp_ppo` — PPO plus an adversarial-motion-prior style reward (HUSKY).
 - :mod:`.rma` — the RMA teacher (actor with estimator + scan / privileged / history encoders, PPO with
   privileged-latent regularization and DAgger) and its depth-student distillation runner (extreme parkour).
+- :mod:`.compat` — the ``update()`` / ``process_env_step()`` / ``Logger`` contracts that rsl-rl-lib 6.0 changed,
+  behind one interface that every algorithm and runner here goes through.
 
 Each subpackage ships an options class subclassing the rsl_rl option it replaces (``RslRlModelOptions`` /
 ``RslRlPpoAlgorithmOptions`` / ``RslRlBaseRunnerOptions``) whose ``class_name`` defaults to its implementation, so a

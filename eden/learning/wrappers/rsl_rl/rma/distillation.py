@@ -43,12 +43,13 @@ from tensordict import TensorDict
 from torch import nn
 
 from eden.envs.wrappers.rsl_rl_env import AgentIterationLogMixin, CheckpointRetentionMixin, ProgressFileMixin
+from eden.learning.wrappers.rsl_rl.compat import log_env_step, log_iteration, raise_if_env_step_nonfinite
 from eden.learning.wrappers.rsl_rl.rma.depth_encoder import RecurrentDepthEncoder
 from eden.learning.wrappers.rsl_rl.rma.model import RmaActorModel
 from eden.utils import distributed as eden_dist
 
 from rsl_rl.runners import OnPolicyRunner  # noqa: E402  (the model import above holds the rsl-rl-lib version guard)
-from rsl_rl.utils import check_nan, resolve_class, resolve_obs_groups  # noqa: E402
+from rsl_rl.utils import resolve_class, resolve_obs_groups  # noqa: E402
 
 #: ``class_name`` string ``eden train`` resolves to :class:`RmaDepthDistillationRunner`.
 RMA_DEPTH_DISTILLATION_RUNNER_CLASS_NAME = "eden.learning.wrappers.rsl_rl.rma.distillation:RmaDepthDistillationRunner"
@@ -298,9 +299,9 @@ class RmaDepthDistillationRunner(ProgressFileMixin, AgentIterationLogMixin, Chec
                 stepped = teacher_actions if it < alg.num_pretrain_iters else student_actions
                 obs, rewards, dones, extras = self.env.step(stepped.detach().to(self.env.device))
                 if check_for_nan:
-                    check_nan(obs, rewards, dones)
+                    raise_if_env_step_nonfinite(obs, rewards, dones, extras)
                 obs, rewards, dones = obs.to(self.device), rewards.to(self.device), dones.to(self.device)
-                self.logger.process_env_step(rewards, dones, extras, None)
+                log_env_step(self.logger, rewards, dones, extras)
 
             stop = time.time()
             collect_time, start = stop - start, stop
@@ -314,7 +315,8 @@ class RmaDepthDistillationRunner(ProgressFileMixin, AgentIterationLogMixin, Chec
 
             learn_time = time.time() - start
             self.current_learning_iteration = it
-            self.logger.log(
+            log_iteration(
+                self.logger,
                 it=it,
                 start_it=start_it,
                 total_it=total_it,
@@ -322,9 +324,7 @@ class RmaDepthDistillationRunner(ProgressFileMixin, AgentIterationLogMixin, Chec
                 learn_time=learn_time,
                 loss_dict=loss_dict,
                 learning_rate=alg.optimizer.param_groups[0]["lr"],
-                # Distillation is deterministic — no exploration noise to report.
-                action_std=torch.zeros(self.env.num_actions, device=self.device),
-                rnd_weight=None,
+                policy_std=None,  # distillation is deterministic: no exploration noise to report
             )
             if self.logger.writer is not None and self._save_due(it, start_it):
                 self.save(os.path.join(self.logger.log_dir, f"model_{it}.pt"))
