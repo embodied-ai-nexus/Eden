@@ -158,10 +158,17 @@ def test_hand1_refuses_gains_it_cannot_receive(hand1, options):
 # --- gains -----------------------------------------------------------------------------------
 
 
+def _nominal_sdk(field: str) -> np.ndarray:
+    """Hand 2's per-joint ``default_dofs_<field>``, looked up by joint name, in SDK order."""
+    options = WujiHand2Beta2_L()
+    table = getattr(options, f"default_dofs_{field}")
+    return np.array([table[f".*_{name.removeprefix('l_')}"] for name in options.dofs_name])
+
+
 def test_hand2_programs_the_nominal_gains_by_default(hand2):
     gains = hand2(deploy_kp_kd_scale=0.5)._make_transport().gains
-    np.testing.assert_allclose(gains.kp, [25.0] * N)  # default_dofs_kp 50 x 0.5
-    np.testing.assert_allclose(gains.kd, [2.5] * N)
+    np.testing.assert_allclose(gains.kp, 0.5 * _nominal_sdk("kp"))
+    np.testing.assert_allclose(gains.kd, 0.5 * _nominal_sdk("kd"))
     assert gains.effort_limit_a == [1.0] * N
 
 
@@ -174,15 +181,20 @@ def test_hand2_per_joint_gains_reach_the_sdk_in_its_order(hand2):
 
 
 @pytest.mark.parametrize(
-    "options, kp, kd", [({"deploy_kp_kd_scale": 0.5}, 25.0, 2.5), ({"mit_kp": 2.0, "mit_kd": 0.1}, 2.0, 0.1)]
+    "options, kp, kd",
+    [
+        ({"deploy_kp_kd_scale": 0.5}, 0.5 * _nominal_sdk("kp"), 0.5 * _nominal_sdk("kd")),
+        ({"mit_kp": 2.0, "mit_kd": 0.1}, np.full(N, 2.0), np.full(N, 0.1)),
+    ],
+    ids=["scaled_nominal", "explicit"],
 )
 def test_hand2_reports_the_gains_it_programs_for_the_deploy_to_compare_slots_with(hand2, options, kp, kd):
     """``eden deploy`` warns about a slot trained at other gains than these; they are the policy's units."""
     dep = hand2(**options)
-    programmed = dep.programmed_gains()
-    np.testing.assert_allclose(programmed[0], [kp] * N)
-    np.testing.assert_allclose(programmed[1], [kd] * N)
-    np.testing.assert_allclose(dep.to_sdk(programmed[0]), dep._make_transport().gains.kp)
+    programmed_kp, programmed_kd = dep.programmed_gains()
+    np.testing.assert_allclose(dep.to_sdk(programmed_kp), kp)
+    np.testing.assert_allclose(dep.to_sdk(programmed_kd), kd)
+    np.testing.assert_allclose(dep.to_sdk(programmed_kp), dep._make_transport().gains.kp)
 
 
 def test_hand1_reports_no_gains_its_position_loop_could_be_compared_by(hand1):
