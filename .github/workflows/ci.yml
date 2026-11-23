@@ -116,5 +116,11 @@ jobs:
           path: ~/.cache/eden/assets
           key: eden-assets-rsl-rl-${{ hashFiles('eden/utils/assets.py') }}
           restore-keys: eden-assets-rsl-rl-
+      # Building a scene builds Genesis' offscreen rasterizer, which needs OpenGL. The runner has no GPU and no usable
+      # EGL, so it renders through OSMesa, the software rasterizer Genesis falls back to on a headless machine.
+      - name: Install OSMesa
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libosmesa6
       - name: Run the rsl_rl tests
+        env:
+          PYOPENGL_PLATFORM: osmesa
         run: uv run --no-sync --with rsl-rl-lib==${{ matrix.rsl-rl-lib }} pytest -q ${{ matrix.tests }}
