@@ -716,10 +716,12 @@ class SaveBeforeLearnMixin:
 
 
 #: What Eden adds to every rsl_rl runner it builds, in MRO order: ``progress.json``, the agent log theme, checkpoint
-#: retention, and saving before ``learn()`` on rsl-rl-lib 4.x. A runner for another rsl_rl-based learner (FlashSAC's
-#: ``OffPolicyRunner``) composes the same tuple, so a feature added here reaches every learner.
-#: :class:`MotionWeightCurriculumMixin` is not in it: it steps the curriculum once per PPO iteration (a rollout of
-#: ``num_steps_per_env`` steps), which is not what an off-policy iteration is.
+#: retention, and saving before ``learn()`` on rsl-rl-lib 4.x. The runners for other rsl_rl-based learners (FlashSAC's
+#: ``OffPolicyRunner``, SuperMimic's, the RMA depth student's) compose the same tuple, so a feature added here reaches
+#: every learner. The one exception is ``ContrackOnPolicyRunner``, which composes only
+#: :class:`CheckpointRetentionMixin`: its fork's runner has no rsl_rl ``Logger`` for the others to read, and sets its
+#: own ``writer`` in ``__init__``. :class:`MotionWeightCurriculumMixin` is not in the tuple: it steps the curriculum once
+#: per PPO iteration (a rollout of ``num_steps_per_env`` steps), which is not what an off-policy iteration is.
 EDEN_RUNNER_MIXINS = (ProgressFileMixin, AgentIterationLogMixin, CheckpointRetentionMixin, SaveBeforeLearnMixin)
 
 

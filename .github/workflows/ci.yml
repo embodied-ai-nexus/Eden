@@ -85,20 +85,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - rsl-rl-lib: "6.0.0"
-            tests: tests/envs/wrappers/test_rsl_rl_compat.py tests/learning/wrappers/rsl_rl tests/envs/wrappers/test_rsl_rl_env.py
-          - rsl-rl-lib: "5.5.2"
-            tests: tests/envs/wrappers/test_rsl_rl_compat.py tests/learning/wrappers/rsl_rl tests/envs/wrappers/test_rsl_rl_env.py
-          # Three test_rsl_rl_env.py tests fail under 4.x, and are deselected until fixed: the legacy-checkpoint
-          # converter writes 5.x parameter names (distribution.std_param / log_std_param) where a 4.x actor has
-          # std / log_std, and one test deletes a runner-dict key only 5.x and 6.x have.
-          - rsl-rl-lib: "4.0.1"
-            tests: >-
-              tests/envs/wrappers/test_rsl_rl_compat.py tests/learning/wrappers/rsl_rl tests/envs/wrappers/test_rsl_rl_env.py --deselect tests/envs/wrappers/test_rsl_rl_env.py::test_a_distillation_runner_converts_a_legacy_checkpoint_into_its_teacher --deselect tests/envs/wrappers/test_rsl_rl_env.py::test_a_legacy_checkpoint_is_converted_beside_the_original_and_loads --deselect tests/envs/wrappers/test_rsl_rl_env.py::test_a_runner_dict_without_std_type_refuses_a_legacy_checkpoint_and_passes_a_current_one
-          # test_rsl_rl_env.py assumes the split actor/critic layout of 4.x and later throughout, so 3.x runs the rest.
-          - rsl-rl-lib: "3.3.0"
-            tests: tests/envs/wrappers/test_rsl_rl_compat.py tests/learning/wrappers/rsl_rl
+        # Every release runs the same tests: one that a release cannot pass says so with its own skip or xfail mark.
+        rsl-rl-lib: ["3.3.0", "4.0.1", "5.5.2", "6.0.0"]
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v5
@@ -109,13 +97,17 @@ jobs:
       # The default groups, for pytest.
       - name: Sync dependencies
         run: uv sync
-      # The robots, motion clips and meshes these tests build come from the Hugging Face hub on first use.
+      # The robots, motion clips and meshes these tests build come from the Hugging Face hub on first use, and are
+      # fetched only when missing, unpinned. So the cache lives for one ISO week and is never restored from an older
+      # key: an asset updated on the hub reaches CI within the week.
+      - name: Cache week
+        id: week
+        run: echo "week=$(date -u +%G-W%V)" >> "$GITHUB_OUTPUT"
       - name: Cache Eden assets
         uses: actions/cache@v4
         with:
           path: ~/.cache/eden/assets
-          key: eden-assets-rsl-rl-${{ hashFiles('eden/utils/assets.py') }}
-          restore-keys: eden-assets-rsl-rl-
+          key: eden-assets-rsl-rl-${{ steps.week.outputs.week }}
       # Building a scene builds Genesis' offscreen rasterizer, which needs an OpenGL context through EGL. The runner has
       # no GPU, so Mesa's EGL provides a software device. Not OSMesa: PyOpenGL loads it, and with it the system LLVM, as
       # Genesis is imported, and Triton's libtriton then segfaults while torch imports it. Mesa's EGL loads its driver
@@ -123,4 +115,5 @@ jobs:
       - name: Install Mesa EGL
         run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libegl1 libegl-mesa0 libgl1-mesa-dri
       - name: Run the rsl_rl tests
-        run: uv run --no-sync --with rsl-rl-lib==${{ matrix.rsl-rl-lib }} pytest -q ${{ matrix.tests }}
+        run: >-
+          uv run --no-sync --with rsl-rl-lib==${{ matrix.rsl-rl-lib }} pytest -q tests/envs/wrappers/test_rsl_rl_compat.py tests/learning/wrappers/rsl_rl tests/envs/wrappers/test_rsl_rl_env.py

@@ -41,12 +41,15 @@ UpdateResult: TypeAlias = dict[str, float] | tuple[dict[str, float], dict[str, f
 MEAN_REWARD_KEY = "Training/mean_reward"
 
 
-def _takes(method: Any, parameter: str) -> bool:
-    """Whether ``method`` declares a parameter named ``parameter``."""
-    return parameter in inspect.signature(method).parameters
-
-
 @functools.cache
+def _takes(cls: type, method: str, parameter: str) -> bool:
+    """Whether ``cls.method`` declares a parameter named ``parameter``.
+
+    Cached: :func:`log_env_step` asks at every env step, and a class's signature does not change within a run.
+    """
+    return parameter in inspect.signature(getattr(cls, method)).parameters
+
+
 def runner_expects_stats() -> bool:
     """Whether the installed rsl_rl runner takes ``(loss_dict, stats_dict)`` from ``update()`` (rsl-rl-lib >= 6.0).
 
@@ -55,7 +58,7 @@ def runner_expects_stats() -> bool:
     """
     from rsl_rl.utils.logger import Logger
 
-    return _takes(Logger.log, "stats_dict")
+    return _takes(Logger, "log", "stats_dict")
 
 
 def loss_dict_of(result: UpdateResult) -> dict[str, float]:
@@ -163,7 +166,7 @@ def log_env_step(logger: Any, rewards: torch.Tensor, dones: torch.Tensor, extras
     extras : dict
         The env's extras for the step (its ``"log"`` / ``"episode"`` entries are recorded).
     """
-    if _takes(type(logger).process_env_step, "step_dict"):
+    if _takes(type(logger), "process_env_step", "step_dict"):
         logger.process_env_step(dones, extras, {MEAN_REWARD_KEY: rewards})
     else:
         logger.process_env_step(rewards, dones, extras, None)
@@ -199,7 +202,7 @@ def log_iteration(
         The policy's action std; ``None`` for a deterministic policy, which logs no std on 6.0 and a std of 0 before.
     """
     timing = {"it": it, "start_it": start_it, "total_it": total_it, "collect_time": collect_time}
-    if _takes(type(logger).log, "stats_dict"):
+    if _takes(type(logger), "log", "stats_dict"):
         stats = ppo_stats(learning_rate, policy_std)
         logger.log(**timing, learn_time=learn_time, loss_dict=loss_dict, stats_dict=stats)
     else:

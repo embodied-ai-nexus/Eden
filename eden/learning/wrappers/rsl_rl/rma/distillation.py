@@ -42,7 +42,7 @@ import torch
 from tensordict import TensorDict
 from torch import nn
 
-from eden.envs.wrappers.rsl_rl_env import AgentIterationLogMixin, CheckpointRetentionMixin, ProgressFileMixin
+from eden.envs.wrappers.rsl_rl_env import EDEN_RUNNER_MIXINS
 from eden.envs.wrappers.rsl_rl_compat import log_env_step, log_iteration, raise_if_env_step_nonfinite
 from eden.learning.wrappers.rsl_rl.rma.depth_encoder import RecurrentDepthEncoder
 from eden.learning.wrappers.rsl_rl.rma.model import RmaActorModel
@@ -205,7 +205,7 @@ class RmaDepthDistillation:
         return True
 
 
-class RmaDepthDistillationRunner(ProgressFileMixin, AgentIterationLogMixin, CheckpointRetentionMixin, OnPolicyRunner):
+class RmaDepthDistillationRunner(*EDEN_RUNNER_MIXINS, OnPolicyRunner):
     """Runs :class:`RmaDepthDistillation`'s DAgger loop; see the module docstring for the loop and its contracts."""
 
     alg: RmaDepthDistillation
