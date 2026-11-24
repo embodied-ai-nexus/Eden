@@ -68,8 +68,9 @@ TASK_TAGS: Mapping[str, str] = types.MappingProxyType(
         ),
         "dexterous": "the robot manipulates with a hand of three or more articulated fingers",
         "loco_manipulation": (
-            "a legged robot handles objects while its base walks or balances: one whole-body policy, or a leg policy "
-            "that keeps the base stable while another controller drives the arms (as in homie)"
+            "the policy moves a legged robot's base and handles objects with its arms or hands in the same episode "
+            "(a leg policy that only keeps balance while another controller moves the arms, as in homie, is "
+            "locomotion)"
         ),
         "deformable": "the physics solver simulates a deformable body: cloth, cable, foam",
         "benchmarks": (
