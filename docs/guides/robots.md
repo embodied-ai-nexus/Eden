@@ -342,7 +342,8 @@ kp or kd, and `MIT_GAIN(joint_gain)` the reverse. Each is one of the hand's seve
 mean of upstream's per-joint armature, damping and friction loss over the joints that model drives; the damping
 and friction loss were identified on one right hand, and the left-hand presets use the same values. The gains
 convert at 1.91147 A per MIT unit, the factor of Wuji's published pen-spin configuration; firmware v2.13.1 and
-v3.0.0 use 1.98413, so on those versions the hand runs 3.8% stiffer than the simulated gains. The specs hold no
+v3.0.0 use 1.98413, so on those versions the hand runs 3.8% stiffer than the simulated gains under legacy MIT;
+deploying with `control_mode="mit_v2"` (firmware 3.1.0+) programs the joint-space gains directly. The specs hold no
 operating point: the current a task runs the hand at, and so its force limits, belong to the robot
 (`_WujiHand2Beta2.current_limit_a`, 1.5 A, pen spin's operating point).
 

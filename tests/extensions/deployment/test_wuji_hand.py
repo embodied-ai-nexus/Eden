@@ -123,6 +123,8 @@ def test_a_joint_mapped_twice_names_the_duplicate_and_the_gap(hand1, monkeypatch
     [
         ({"stream_mode": "Thread"}, r"stream_mode='Thread' is not one of \('sync', 'thread'\)"),
         ({"hand": "Hand2"}, r"hand='Hand2' is not one of"),
+        ({"control_mode": "mitv2"}, r"control_mode='mitv2' is not one of \('mit', 'mit_v2'\)"),
+        ({"control_mode": "mit_v2", "require_all_joints": False}, r"needs all 20 joints online.*control_mode='mit'"),
         ({"servo_hz": 0.0}, "servo_hz must be a positive number"),
         ({"effort_limit_a": -1.0}, "effort_limit_a must be a positive number"),
         ({"vel_lowpass_hz": 0.0}, "vel_lowpass_hz must be a positive number"),
@@ -134,6 +136,8 @@ def test_a_joint_mapped_twice_names_the_duplicate_and_the_gap(hand1, monkeypatch
     ids=[
         "stream_mode",
         "hand",
+        "control_mode",
+        "mit_v2_partial_hand",
         "servo_hz",
         "effort_limit",
         "vel_lowpass",
@@ -154,6 +158,11 @@ def test_option_values_are_checked_at_construction(hand2, options, match):
 def test_hand1_refuses_gains_it_cannot_receive(hand1, options):
     with pytest.raises(ValueError, match=r"configure\(effort_limit_a=0\.3\)"):
         hand1(**options)
+
+
+def test_hand1_refuses_a_hand2_control_mode(hand1):
+    with pytest.raises(ValueError, match=r"control_mode='mit_v2' selects a Wuji Hand 2 impedance mode"):
+        hand1(control_mode="mit_v2")
 
 
 # --- gains -----------------------------------------------------------------------------------
@@ -177,11 +186,11 @@ def test_hand2_programs_the_nominal_gains_in_mit_units_by_default(hand2):
     gains = hand2(deploy_kp_kd_scale=0.5)._make_transport().gains
     np.testing.assert_allclose(gains.kp, 0.5 * MIT_KP)
     np.testing.assert_allclose(gains.kd, 0.5 * MIT_KD)
-    assert gains.effort_limit_a == [1.5] * N, "the robot's current_limit_a, which its force limits trained at"
+    assert gains.effort_limit == [1.5] * N, "the robot's current_limit_a, which its force limits trained at"
 
 
 def test_hand2_names_the_torque_an_explicit_current_limit_costs(hand2, eden_caplog):
-    assert hand2(effort_limit_a=1.0)._make_transport().gains.effort_limit_a == [1.0] * N
+    assert hand2(effort_limit_a=1.0)._make_transport().gains.effort_limit == [1.0] * N
     (warning,) = [r.message for r in eden_caplog.records if "effort_limit_a=1 A" in r.message]
     assert "current_limit_a=1.5 A" in warning and "reaches 67% of the trained torque ceiling" in warning
 
@@ -202,7 +211,7 @@ def test_hand2_per_joint_gains_reach_the_sdk_in_its_order(hand2):
     gains = hand2(mit_kp=kp, mit_kd=0.1, effort_limit_a=1.5)._make_transport().gains
     np.testing.assert_allclose(gains.kp, np.arange(N))
     assert gains.kd == [0.1] * N
-    assert gains.effort_limit_a == [1.5] * N
+    assert gains.effort_limit == [1.5] * N
 
 
 @pytest.mark.parametrize(
@@ -239,12 +248,44 @@ def test_a_hand2_robot_without_motor_specs_must_give_mit_gains(hand1):
     dep = hand1(hand="hand2", mit_kp=3.0, mit_kd=0.05)
     gains = dep._make_transport().gains
     assert gains.kp == [3.0] * N
-    assert gains.effort_limit_a == [1.0] * N, "no specs say what current the robot trained at"
+    assert gains.effort_limit == [1.0] * N, "no specs say what current the robot trained at"
     assert dep.programmed_gains() is None  # no spec says what 3.0 is in joint space
 
 
 def test_hand1_reports_no_gains_its_position_loop_could_be_compared_by(hand1):
     assert hand1().programmed_gains() is None
+
+
+def test_mit_v2_programs_the_robots_joint_space_gains_and_trained_force_limits(hand2):
+    """MIT_V2 takes N·m/rad and N·m, so the hand gets exactly the gains and torque ceiling the policy trained with."""
+    dep = hand2(control_mode="mit_v2", deploy_kp_kd_scale=0.5)
+    gains = dep._make_transport().gains
+    assert gains.control_mode == "mit_v2" and gains.effort_unit == "N·m"
+    np.testing.assert_allclose(gains.kp, 0.5 * _nominal_sdk("kp"))
+    np.testing.assert_allclose(gains.kd, 0.5 * _nominal_sdk("kd"))
+    np.testing.assert_allclose(gains.effort_limit, _nominal_sdk("force_limits"))
+    programmed_kp, programmed_kd = dep.programmed_gains()
+    np.testing.assert_allclose(dep.to_sdk(programmed_kp), gains.kp)
+    np.testing.assert_allclose(dep.to_sdk(programmed_kd), gains.kd)
+
+
+def test_mit_v2_turns_an_explicit_current_limit_into_each_motors_torque(hand2):
+    gains = hand2(control_mode="mit_v2", effort_limit_a=1.0)._make_transport().gains
+    np.testing.assert_allclose(gains.effort_limit, _nominal_sdk("force_limits") / 1.5)  # trained at 1.5 A
+
+
+def test_mit_v2_programs_a_robot_without_motor_specs_as_it_trained(hand1):
+    """No conversion is needed, so a spec-less robot needs no explicit gains; only a current limit has no torque."""
+    dep = hand1(hand="hand2", control_mode="mit_v2")
+    gains = dep._make_transport().gains
+    robot = dep._env.entities["robot"]
+    np.testing.assert_allclose(dep.from_sdk(gains.kp), robot.get_default_dofs_kp(dep.dofs_name)[0].cpu().numpy())
+    np.testing.assert_allclose(
+        dep.from_sdk(gains.effort_limit), robot.get_default_dofs_force_limits(dep.dofs_name)[0].cpu().numpy()
+    )
+    assert dep.programmed_gains() is not None
+    with pytest.raises(ValueError, match=r"effort_limit_a=1 A cannot become an MIT_V2 torque limit.*unset"):
+        hand1(hand="hand2", control_mode="mit_v2", effort_limit_a=1.0)
 
 
 # --- the control tick ------------------------------------------------------------------------
@@ -757,7 +798,7 @@ class FakeWujiSdk:
             MitParam=lambda kp, kd: (kp, kd),
             JointCommand=lambda q, dq, tau: SimpleNamespace(q=q),
             DeviceType=SimpleNamespace(WujiGlove=self.GLOVE, WujiHand2=self.HAND),
-            ControlMode=SimpleNamespace(Mit="Mit", Position="Position"),
+            ControlMode=SimpleNamespace(Mit="Mit", Position="Position", MitV2="MitV2"),
         )
 
     def read_online(self, values):
@@ -780,8 +821,8 @@ def fake_sdk(monkeypatch):
     return install
 
 
-def _hand2_transport(**kwargs) -> wh.Hand2Transport:
-    gains = wh.Hand2Gains(kp=[1.0] * N, kd=[0.1] * N, effort_limit_a=[1.0] * N)
+def _hand2_transport(control_mode="mit", **kwargs) -> wh.Hand2Transport:
+    gains = wh.Hand2Gains(kp=[1.0] * N, kd=[0.1] * N, effort_limit=[1.0] * N, control_mode=control_mode)
     return wh.Hand2Transport(wh.StreamOptions(), gains, **kwargs)
 
 
@@ -845,6 +886,31 @@ def test_a_current_limit_that_reads_back_different_is_refused_by_joint(fake_sdk)
     ):
         t.connect()
     assert "enable" not in sdk.calls and sdk.disconnected == [t.device_name]
+
+
+def test_mit_v2_writes_its_torque_limit_in_mit_v2_mode(fake_sdk, eden_caplog):
+    sdk = fake_sdk()
+    _hand2_transport("mit_v2").connect()
+    assert sdk.calls == ["disable", "control_mode MitV2", "effort_limit in MitV2", "mit_params", "enable"]
+    assert "mit_v2, effort limit 1-1 N·m" in eden_caplog.text
+
+
+def test_mit_v2_on_older_firmware_points_back_to_legacy_mit(fake_sdk):
+    sdk = fake_sdk()
+    sdk.mode_sticks = True
+    with pytest.raises(
+        RuntimeError, match=r"reads Position after selecting MitV2.*firmware 3\.1\.0.*control_mode='mit'"
+    ):
+        _hand2_transport("mit_v2").connect()
+    assert "enable" not in sdk.calls
+
+
+def test_mit_v2_on_an_sdk_without_it_names_the_version_to_install(fake_sdk):
+    sdk = fake_sdk()
+    sdk.module.ControlMode = SimpleNamespace(Mit="Mit", Position="Position")
+    with pytest.raises(RuntimeError, match=r"no ControlMode\.MitV2.*wuji-sdk 2026\.11\.23"):
+        _hand2_transport("mit_v2").connect()
+    assert "enable" not in sdk.calls
 
 
 def test_offline_joints_are_skipped_in_the_readback(fake_sdk):

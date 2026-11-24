@@ -419,29 +419,42 @@ simulator.
   (Hand 1 and the `wuji-mjlab` task models) and `{r,l}_thumb_cmc_flex` … `{r,l}_pinky_dip`
   (Hand2Beta2) onto that order, so a robot may declare its DOFs in any order. A robot outside those
   classes must name its generation: `WujiHandDeployment.configure(hand="hand2")`.
-- **Gains are programmed once, at connect.** Hand 2 takes MIT `mit_kp` / `mit_kd` (one value, or a
-  pattern-keyed dict covering all 20) and a current limit `effort_limit_a`. Before writing them, the
-  deploy disables the joints and selects MIT mode: the effort limit is in A only in MIT mode (in
-  Position mode it is N·m), and the hand stays in the mode the last program left it in. It then reads
-  the limits and gains back and refuses to enable the hand if an online joint holds other values. The
-  connect log names the firmware version. This needs `wuji-sdk` 2026.11.9 or later. Hand 1
-  runs its own position loop, so it refuses `deploy_kp_kd_scale` and gains; soften it with
-  `effort_limit_a` (default 0.5 A). Both refuse `--disable_joints`.
+- **Gains are programmed once, at connect.** Hand 2 takes `mit_kp` / `mit_kd` (one value, or a
+  pattern-keyed dict covering all 20) and a current limit `effort_limit_a`, in the units of its
+  `control_mode`:
+    - `"mit"` (default, any firmware): legacy MIT. Gains are in firmware MIT units and the limit is
+      a current in A.
+    - `"mit_v2"` (firmware 3.1.0+ and `wuji-sdk` 2026.11.23+): gains are in N·m/rad and N·m·s/rad and
+      the limit is a torque in N·m, so the robot's own gains and force limits are programmed with no
+      conversion. All 20 joints must be online.
+
+    Before writing the gains, the deploy disables the joints and selects the mode: the effort limit is
+    in A in MIT mode and in N·m in Position and MIT_V2, and the hand stays in the mode the last program
+    left it in. It then reads the limits and gains back and refuses to enable the hand if an online
+    joint holds other values. The connect log names the firmware version. Legacy MIT needs `wuji-sdk`
+    2026.11.9 or later. Hand 1 runs its own position loop, so it refuses `deploy_kp_kd_scale`, gains
+    and `control_mode`; soften it with `effort_limit_a` (default 0.5 A). Both refuse
+    `--disable_joints`.
 
     !!! note "Hand 2's defaults come from the robot options"
         Left unset, `mit_kp` / `mit_kd` default to the robot's `default_dofs_kp` / `default_dofs_kd`
-        times `deploy_kp_kd_scale`, converted from N·m/rad to MIT units through each joint's
-        `WujiHand2Actuator` spec in `dofs_spec` (divided by `TORQUE_CONSTANT` x 1.9115 A per unit).
-        For `WujiHand2Beta2` that is upstream pen spin's kp 3.0 and kd 0.075 / 0.07 / 0.05 / 0.05
-        on joints 1-4 of each finger. Explicit values are MIT units. With the specs, the deploy
-        converts the programmed gains back to joint space and warns per slot whose training gains
-        differ. A robot with no such specs must set `mit_kp` and `mit_kd`, and its slots are
-        compared with the boot slot instead.
+        times `deploy_kp_kd_scale`. In `"mit_v2"` those are programmed as they are. In `"mit"` they
+        are converted from N·m/rad to MIT units through each joint's `WujiHand2Actuator` spec in
+        `dofs_spec` (divided by `TORQUE_CONSTANT` x 1.9115 A per unit); for `WujiHand2Beta2` that is
+        upstream pen spin's kp 3.0 and kd 0.075 / 0.07 / 0.05 / 0.05 on joints 1-4 of each finger.
+        Firmware v2.13.1 and v3.0.0 convert at 1.98413 A per unit, so in `"mit"` those hands run 3.8%
+        stiffer than the simulated gains; `"mit_v2"` has no such factor. The deploy reports the
+        programmed gains in joint space and warns per slot whose training gains differ. In `"mit"`, a
+        robot with no such specs must set `mit_kp` and `mit_kd`, and its slots are compared with the
+        boot slot instead.
 
-        `effort_limit_a` defaults to the robot's `current_limit_a`, the current its force limits were
-        trained at (1.5 A for `WujiHand2Beta2`, upstream pen spin's operating point), or to 1.0 A for a
-        robot that declares none. An explicit value that differs is logged with the share of the
-        trained torque ceiling it leaves.
+        In `"mit"`, `effort_limit_a` defaults to the robot's `current_limit_a`, the current its force
+        limits were trained at (1.5 A for `WujiHand2Beta2`, upstream pen spin's operating point), or
+        to 1.0 A for a robot that declares none. In `"mit_v2"`, the torque limit defaults to the
+        robot's `default_dofs_force_limits`, and an explicit `effort_limit_a` becomes each joint's
+        torque through its motor's `TORQUE_CONSTANT` (so it needs the specs). An explicit value that
+        differs from `current_limit_a` is logged with the share of the trained torque ceiling it
+        leaves.
 
 - **Streaming.** `stream_mode="sync"` (default) interpolates `servo_hz` (default 200) sub-targets
   across each control period and blocks until the period's deadline, chained from the previous one,

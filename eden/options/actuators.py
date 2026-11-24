@@ -355,6 +355,8 @@ class WujiHand2Actuator(ActuatorSpecOptions):
     reference at 1.98413 A per unit, so on those versions the hand's kp and kd are 3.8% above the joint-space
     gains here. The deploy converts through the same factor, so it programs the trained MIT gains either way.
     To model those firmware versions instead, subclass each motor with ``AMPS_PER_MIT_UNIT = 1.98413``.
+    ``WujiHandDeployment`` with ``control_mode="mit_v2"`` (firmware 3.1.0+) programs joint-space gains, so no
+    factor applies there.
 
     Each subclass is one of the hand's seven motor models, as Wuji groups them. ``ROTOR_INERTIA`` (with
     ``GEAR_RATIO`` 1, so it is the joint-side armature, as the LimX specs encode theirs), ``DAMPING`` and
