@@ -134,7 +134,7 @@ _OBSERVATIONS = dict(
 
 @TASK_REGISTRY.register(
     modifiers=(RobosuiteRobotMod, TwoArmArrangementMod(placements=_PLACEMENTS)),
-    tags=("manipulation", "benchmark_suite"),
+    tags=("manipulation", "benchmarks"),
 )
 class RobosuiteTwoArmLiftConfig(RobosuiteTaskConfig):
     robot_slots: ClassVar[tuple[str, ...]] = ("robot0", "robot1")

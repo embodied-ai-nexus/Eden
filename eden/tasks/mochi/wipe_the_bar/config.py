@@ -155,7 +155,7 @@ _Observations = {
 }
 
 
-@TASK_REGISTRY.register(tags=("manipulation", "deformable", "benchmark_suite"))
+@TASK_REGISTRY.register(tags=("manipulation", "deformable", "benchmarks"))
 class MochiWipeTheBarConfig(EdenRLConfig):
     env_options: EnvOptions = EnvOptions(
         num_envs=256,

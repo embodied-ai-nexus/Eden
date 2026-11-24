@@ -120,7 +120,7 @@ _OBSERVATIONS = dict(
 
 @TASK_REGISTRY.register(
     modifiers=(RobosuiteRobotMod, TwoArmArrangementMod(placements=NARROW_TABLE_PLACEMENTS)),
-    tags=("manipulation", "benchmark_suite"),
+    tags=("manipulation", "benchmarks"),
 )
 class RobosuiteTwoArmHandoverConfig(RobosuiteTaskConfig):
     robot_slots: ClassVar[tuple[str, ...]] = ("robot0", "robot1")

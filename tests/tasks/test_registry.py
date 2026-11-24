@@ -9,7 +9,7 @@ import sys
 import time
 import types
 import warnings
-from typing import Annotated, Literal
+from typing import Annotated, Literal, get_args
 
 import pytest
 
@@ -26,6 +26,7 @@ from eden.tasks.registry import (
     literal_choices,
     unwrap_optional,
 )
+from eden.types import TaskTag
 from eden.utils.configs import EdenConfig, EdenRLConfig
 
 
@@ -1440,6 +1441,11 @@ def test_the_tag_vocabulary_cannot_be_extended_at_run_time():
     """A tag added from plugin code would pass ``register`` while the scan and ``--tag``'s choices never see it."""
     with pytest.raises(TypeError):
         TASK_TAGS["vision"] = "the policy observes camera pixels"  # type: ignore[index]
+
+
+def test_the_task_tag_literal_spells_the_same_tags_as_task_tags():
+    """``TaskTag`` is what a type checker sees on ``tags=``; a tag in one list only is flagged on correct code, or passes the checker and raises at registration."""
+    assert list(get_args(TaskTag)) == list(TASK_TAGS)
 
 
 def test_a_filter_on_an_unknown_tag_raises_instead_of_listing_nothing():

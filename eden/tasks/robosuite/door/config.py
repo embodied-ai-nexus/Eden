@@ -159,7 +159,7 @@ class DoorLatchMod(TaskMod):
         return config
 
 
-@TASK_REGISTRY.register(modifiers=(RobosuiteRobotMod, DoorLatchMod), tags=("manipulation", "benchmark_suite"))
+@TASK_REGISTRY.register(modifiers=(RobosuiteRobotMod, DoorLatchMod), tags=("manipulation", "benchmarks"))
 class RobosuiteDoorConfig(RobosuiteTaskConfig):
     env_options: EnvOptions = robosuite_env_options()
 

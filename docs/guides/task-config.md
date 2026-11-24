@@ -326,8 +326,9 @@ it. A task carries every tag whose rule applies to it:
 | `motion_tracking` | the policy follows a recorded or retargeted motion clip: whole-body, hand, or hand-object (a planned tool path, as in calligraphy, is not a clip) |
 | `manipulation` | the policy drives an arm, gripper or hand to a target, or to grasp, move or use objects (another agent's body is not an object) |
 | `dexterous` | the robot manipulates with a hand of three or more articulated fingers |
+| `loco_manipulation` | a legged robot handles objects while its base walks or balances: one whole-body policy, or a leg policy that keeps the base stable while another controller drives the arms (as in `homie`) |
 | `deformable` | the physics solver simulates a deformable body: cloth, cable, foam |
-| `benchmark_suite` | the task reproduces one task of a published multi-task suite that others evaluate on (a benchmark or a demo set), with the success check or score the suite reports, so results compare; the robot and assets may differ |
+| `benchmarks` | the task reproduces one task of a published multi-task suite that others evaluate on (a benchmark or a demo set), with the success check or score the suite reports, so results compare; the robot and assets may differ |
 
 ```python
 @TASK_REGISTRY.register(modifiers=(ContrackDataMod(),), tags=("motion_tracking", "manipulation", "dexterous"))
@@ -339,14 +340,16 @@ Tags group tasks without moving them. A task's package path is recorded in every
 cannot be reorganized by category, and a task such as ConTrack belongs to three categories at once.
 
 - **The set is closed.** The tags are the keys of `TASK_TAGS` (`eden/tasks/registry.py`), a read-only mapping, and an
-  unknown tag raises `ValueError` at registration with the closest match. To add a category, add it to `TASK_TAGS`
-  and to the table above with its rule, and tag every task it applies to.
+  unknown tag raises `ValueError` at registration with the closest match. `eden.types.TaskTag` spells the same
+  names as a `Literal`, so a type checker or an editor completes and checks a `tags=` string before anything runs.
+  To add a category, add it to `TASK_TAGS` and `TaskTag` and to the table above with its rule, and tag every task it
+  applies to.
 - **A plugin that uses a newer tag needs the newer Eden.** An out-of-tree task's unknown tag raises when its module
   is imported, as a built-in's does, so a plugin that tags a task with a tag added in a later Eden release must
   require that release (`eden-world>=<version>` in its `pyproject.toml`).
 - **Write them as a literal tuple of strings.** `eden list` reads the tags off the decorator without importing the
   module, as it does the task name; the scan warns on a variable or an expression, and the task lists as untagged.
-- **A port is not by itself a `benchmark_suite` task.** `piano` carries the tag because it reproduces RoboPianist's
+- **A port does not by itself carry `benchmarks`.** `piano` carries the tag because it reproduces RoboPianist's
   key-press F1; `mujoco_playground_getup` and `_handstand` do not, because MuJoCo Playground defines their rewards
   and no success check or score. `omnireset` reproduces one task from the OmniReset paper, which is not a suite. The
   `art_*` tasks are graded by RoboPaint's rules but copy Eden's own works and skip RoboPaint's registration step, so
@@ -395,7 +398,7 @@ file and `__init__.py` rules across every built-in task.
 - **Every task is tagged, and its family table agrees.** A built-in task carries at least one [tag](#tags), and the
   family tables of [the task index](../tasks/index.md) list a task only under a family whose tag it carries
   (Locomotion → `locomotion`, Motion tracking → `motion_tracking`, Manipulation and dexterous hands →
-  `manipulation`, Ported benchmarks → `benchmark_suite`), and every task appears in one of those tables (a PolaRiS
+  `manipulation`, Ported benchmarks → `benchmarks`), and every task appears in one of those tables (a PolaRiS
   `_batched` variant through its base task).
 
 ## Strict fields

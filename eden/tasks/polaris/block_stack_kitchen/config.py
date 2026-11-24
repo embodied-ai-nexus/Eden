@@ -27,7 +27,7 @@ from eden.tasks import TASK_REGISTRY
 from eden.tasks.polaris.rubric import put_in, rubric, within
 
 
-@TASK_REGISTRY.register(tags=("manipulation", "benchmark_suite"))
+@TASK_REGISTRY.register(tags=("manipulation", "benchmarks"))
 class PolarisBlockStackKitchenConfig(DroidBaseConfig):
     splat_options: SplatOptions = make_polaris_splat(
         path="block_stack_kitchen/assets/g60_kitchen_table_zed/splat.ply",
@@ -98,7 +98,7 @@ class PolarisBlockStackKitchenConfig(DroidBaseConfig):
     )
 
 
-@TASK_REGISTRY.register(tags=("manipulation", "benchmark_suite"))
+@TASK_REGISTRY.register(tags=("manipulation", "benchmarks"))
 class PolarisBlockStackKitchenBatchedConfig(DroidBatchBaseConfig):
     """Batched (Madrona + gsplat) variant of :class:`PolarisBlockStackKitchenConfig`.
 

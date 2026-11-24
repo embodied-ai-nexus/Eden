@@ -25,7 +25,11 @@ from collections.abc import Mapping
 from importlib.metadata import EntryPoint, entry_points
 from importlib.util import find_spec
 from pathlib import Path
-from typing import Annotated, Any, Literal, NamedTuple, Union, get_args, get_origin, get_type_hints
+from typing import TYPE_CHECKING, Annotated, Any, Literal, NamedTuple, Union, get_args, get_origin, get_type_hints
+
+if TYPE_CHECKING:
+    # eden.types imports torch and genesis; a run-time import here would load both whenever the CLI builds its parser.
+    from eden.types import TaskTag
 
 #: The entry-point group an installed distribution names its task packages under. Each entry
 #: point's value is a package, AST-scanned like ``eden.tasks`` (see :class:`TaskRegistry`)::
@@ -46,6 +50,8 @@ OUT_OF_TREE_TASK_HINT = (
 #: raises at registration rather than founding a one-task category; to add a tag, add it here with its rule, add it
 #: to the Tags table of ``docs/guides/task-config.md``, and tag the tasks it applies to. ``eden list --tag <tag>``
 #: filters on them, and ``tests/tasks/test_init.py`` keeps the family tables of ``docs/tasks/index.md`` in step.
+#: :data:`eden.types.TaskTag` spells the same names, in the same order, as a ``Literal`` for type checkers and editor
+#: completion; ``tests/tasks/test_registry.py`` keeps the two equal.
 TASK_TAGS: Mapping[str, str] = types.MappingProxyType(
     {
         "locomotion": (
@@ -61,8 +67,12 @@ TASK_TAGS: Mapping[str, str] = types.MappingProxyType(
             "body is not an object)"
         ),
         "dexterous": "the robot manipulates with a hand of three or more articulated fingers",
+        "loco_manipulation": (
+            "a legged robot handles objects while its base walks or balances: one whole-body policy, or a leg policy "
+            "that keeps the base stable while another controller drives the arms (as in homie)"
+        ),
         "deformable": "the physics solver simulates a deformable body: cloth, cable, foam",
-        "benchmark_suite": (
+        "benchmarks": (
             "the task reproduces one task of a published multi-task suite that others evaluate on (a benchmark or a "
             "demo set), with the success check or score the suite reports, so results compare; the robot and assets "
             "may differ"
@@ -440,7 +450,7 @@ class TaskRegistry:
         name: str | None = None,
         override: bool = False,
         modifiers: tuple[ModifierEntry, ...] | None = None,
-        tags: tuple[str, ...] | list[str] = (),
+        tags: tuple[TaskTag, ...] | list[TaskTag] = (),
     ) -> Any:
         """Register a config class eagerly. Can be used as a decorator or function call.
 
@@ -722,7 +732,7 @@ class TaskRegistry:
             config = applied.apply(config)
         return config
 
-    def list_tasks(self, *, tags: tuple[str, ...] = ()) -> list[str]:
+    def list_tasks(self, *, tags: tuple[TaskTag, ...] = ()) -> list[str]:
         """List all registered task names (eager + discovered), or those carrying every one of ``tags``.
 
         Import-free, like :meth:`task_tags`, which the filter reads.

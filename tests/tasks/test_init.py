@@ -137,7 +137,7 @@ INDEX_FAMILY_TAGS = {
     "Locomotion": "locomotion",
     "Motion tracking": "motion_tracking",
     "Manipulation and dexterous hands": "manipulation",
-    "Ported benchmarks": "benchmark_suite",
+    "Ported benchmarks": "benchmarks",
 }
 TASK_INDEX = TASKS_ROOT.parent.parent / "docs" / "tasks" / "index.md"
 

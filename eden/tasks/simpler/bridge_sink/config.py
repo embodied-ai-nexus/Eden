@@ -93,7 +93,7 @@ class BridgeSinkBaseConfig(SimplerBridgeBaseConfig):
     )
 
 
-@TASK_REGISTRY.register(tags=("manipulation", "benchmark_suite"))
+@TASK_REGISTRY.register(tags=("manipulation", "benchmarks"))
 class SimplerPutEggplantInBasketConfig(BridgeSinkBaseConfig):
     scene_options: SceneOptions = en.scenes.Empty(
         is_support_enabled=True,

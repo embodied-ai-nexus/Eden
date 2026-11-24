@@ -88,7 +88,7 @@ _OBSERVATIONS = dict(
 )
 
 
-@TASK_REGISTRY.register(modifiers=(RobosuiteRobotMod,), tags=("manipulation", "benchmark_suite"))
+@TASK_REGISTRY.register(modifiers=(RobosuiteRobotMod,), tags=("manipulation", "benchmarks"))
 class RobosuiteLiftConfig(RobosuiteTaskConfig):
     env_options: EnvOptions = robosuite_env_options()
 

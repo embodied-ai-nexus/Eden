@@ -403,7 +403,7 @@ class SongMod(TaskMod):
         return config
 
 
-@TASK_REGISTRY.register(modifiers=(SongMod(),), tags=("manipulation", "dexterous", "benchmark_suite"))
+@TASK_REGISTRY.register(modifiers=(SongMod(),), tags=("manipulation", "dexterous", "benchmarks"))
 class PianoConfig(EdenRLConfig):
     env_options: EnvOptions = EnvOptions(
         num_envs=_NUM_ENVS,

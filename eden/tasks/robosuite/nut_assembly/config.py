@@ -241,7 +241,7 @@ class NutAssemblyNutMod(TaskMod):
 # --- the task ---------------------------------------------------------------------------------------
 
 
-@TASK_REGISTRY.register(modifiers=(RobosuiteRobotMod, NutAssemblyNutMod), tags=("manipulation", "benchmark_suite"))
+@TASK_REGISTRY.register(modifiers=(RobosuiteRobotMod, NutAssemblyNutMod), tags=("manipulation", "benchmarks"))
 class RobosuiteNutAssemblyConfig(RobosuiteTaskConfig):
     env_options: EnvOptions = robosuite_env_options(max_collision_pairs=60)
 
