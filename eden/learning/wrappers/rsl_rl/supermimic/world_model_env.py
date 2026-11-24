@@ -21,15 +21,28 @@ if TYPE_CHECKING:
 
 
 def actor_input(
-    goals: dict[str, torch.Tensor], history: torch.Tensor, critic: torch.Tensor | None = None
+    goals: dict[str, torch.Tensor],
+    history: torch.Tensor,
+    critic: torch.Tensor | None = None,
+    reference_action: torch.Tensor | None = None,
 ) -> TensorDict:
-    """The actor's input: the observation ``history`` ``(B, H, obs_dim)``, one ``goal_<name>`` per goal interface and,
-    in imagination, the critic's input.
+    """The actor's input: the observation ``history`` ``(B, H, obs_dim)``, one ``goal_<name>`` per goal interface,
+    in imagination the critic's input, and the reference action of an actor that adds it.
     """
     obs = {"history": history} | {f"goal_{name}": goal for name, goal in goals.items()}
     if critic is not None:
         obs["critic"] = critic
+    if reference_action is not None:
+        obs["reference_action"] = reference_action
     return TensorDict(obs, batch_size=[history.shape[0]], device=history.device)
+
+
+def reference_action(library: MotionLibrary, frames: torch.Tensor, dynamics: Dynamics) -> torch.Tensor:
+    """The action that commands the reference joint positions of the frame after ``frames``, which the step from
+    ``frames`` is graded against. A clip's last frame commands its own pose.
+    """
+    following = torch.minimum(frames + 1, library.last_frame(frames))
+    return dynamics.action(library.joint_pos[following])
 
 
 class WorldModelEnv:
@@ -66,6 +79,8 @@ class WorldModelEnv:
     encoder_bias : Callable[[torch.Tensor], torch.Tensor | None] | None
         Each joint's encoder bias from a normalized simulation context (``SimContext.encoder_bias``), added to the
         joint reading of the imagined proprioception. ``None`` for a task without an encoder bias.
+    reference_action : bool
+        Give the actor the :func:`reference_action` of each step, for an actor built with ``reference_action``.
     compile : bool
         Run :meth:`reset` and :meth:`step` through ``torch.compile``.
     """
@@ -84,6 +99,7 @@ class WorldModelEnv:
         anchor_ori_threshold: float,
         termination_softness: float,
         encoder_bias: Callable[[torch.Tensor], torch.Tensor | None] | None = None,
+        reference_action: bool = False,
         compile: bool = False,
     ):
         if goal_specs[0].name != "motion":
@@ -100,6 +116,7 @@ class WorldModelEnv:
         self.anchor_ori_threshold = anchor_ori_threshold
         self.termination_softness = termination_softness
         self.encoder_bias = encoder_bias
+        self.reference_action = reference_action
         # Built here, not in a step: a captured CUDA graph refuses a host-to-device copy.
         self._down = torch.tensor([0.0, 0.0, -1.0], device=representation.default_joint_pos.device)
         if compile:
@@ -151,7 +168,7 @@ class WorldModelEnv:
         if self.history_length > 1:
             history = torch.cat([self._past, history], dim=1)
         critic = torch.cat([self.rep_state, self._wm_goal, self.sim_ctx], dim=-1)
-        return actor_input(self._goals, history, critic)
+        return actor_input(self._goals, history, critic, self._reference_action)
 
     def _sense(self) -> torch.Tensor:
         if self.observation == "state":
@@ -165,6 +182,9 @@ class WorldModelEnv:
         self._goals = {"motion": actor_goal}
         for spec in self.goal_specs[1:]:
             self._goals[spec.name] = spec.goal(self.library, self.frames, self.aux_state)
+        self._reference_action = (
+            reference_action(self.library, self.frames, self.dynamics) if self.reference_action else None
+        )
 
     def _termination_probability(self, target: tuple[torch.Tensor, ...]) -> torch.Tensor:
         ref_pos, ref_quat = target[0][:, 0], target[1][:, 0]
@@ -188,11 +208,15 @@ class WorldModelEnv:
         return torch.where(pad.unsqueeze(-1), shared.unsqueeze(1), noisy)
 
 
+#: The stored fields :meth:`WorldModelEnv.reset` reads of a start state.
+START_FIELDS = ("state", "prev_action", "sim_ctx", "frame")
+
+
 def sample_starts(buffer: ReplayBuffer, history_length: int, batch_size: int) -> TensorDict:
     """Start states for :meth:`WorldModelEnv.reset`. With a history, each also carries ``sensor_window``, the frames
     ending at it, and ``pad_mask``, which of them repeat the episode's first frame.
     """
     if history_length == 1:
-        return buffer.sample(1, batch_size).squeeze(1)
+        return buffer.sample(1, batch_size, fields=START_FIELDS).squeeze(1)
     window, padded = buffer.sample_causal(history_length, batch_size)
     return window[:, -1].set("sensor_window", window["actor_obs"]).set("pad_mask", padded)

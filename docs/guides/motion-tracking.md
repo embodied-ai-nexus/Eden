@@ -305,7 +305,10 @@ Three methods are there to be called, not overridden:
 Two terms are written on these. `KinematicLinksMotion` (`eden/managers/terms/motions/`) reads a dataset that stores
 root and joint state only (`LAFAN1RootJointsG1Dataset`, `SEEDRootJointsG1Dataset`) and fills the link fields by
 forward kinematics (`eden.utils.motion_reference.kinematics.ForwardKinematics`); it keeps the base start sampling,
-so any tracking task can use it to fit a large library on one GPU. `SuperMimicMotion`
+so any tracking task can use it to fit a large library on one GPU. On a CUDA device it runs the kinematics through
+`torch.compile` (`compile_kinematics=True`): a fill takes about 0.5 ms instead of 10 ms, the first fill and the first
+reset each wait tens of seconds for the compile, and the link fields differ from the eager ones in the last bits.
+`SuperMimicMotion`
 (`eden/learning/wrappers/rsl_rl/supermimic/motion.py`) extends it with starts drawn from per-bin weights that the
 SuperMimic runner sets.
 

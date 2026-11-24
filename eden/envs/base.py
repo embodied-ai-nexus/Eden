@@ -2190,8 +2190,9 @@ class RLEnvBase(EnvBase[EdenRLConfig]):
     @assert_built
     def post_build_setup(self):
         super().post_build_setup()
-        if self.env_options.cuda_graph_options is not None:
-            self._graded_graph = GradedPhaseGraph(self, self._compute_graded, self.env_options.cuda_graph_options)
+        options = self.env_options.cuda_graph_options
+        if options is not None and (options.require_cuda or torch.device(self.device).type == "cuda"):
+            self._graded_graph = GradedPhaseGraph(self, self._compute_graded, options)
 
     def _compute_graded(self) -> tuple[torch.Tensor, torch.Tensor]:
         """The graded phase of :meth:`step` (phases 6-9), eagerly: ``(reset_buf, reward_buf)``.

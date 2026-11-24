@@ -61,6 +61,17 @@ def test_a_cpu_env_refuses_the_graph_at_build():
         build_env(config)
 
 
+def test_a_cpu_env_grades_eagerly_when_the_graph_does_not_require_cuda():
+    config = EdenRLConfig(
+        env_options=EnvOptions(num_envs=2, cuda_graph_options=CudaGraphOptions(require_cuda=False)),
+        scene_options=SceneOptions(box=BoxOptions(size=(0.1, 0.1, 0.1), default_root_pos=(0.0, 0.0, 0.5))),
+    )
+    env = build_env(config, reset=True)
+    assert env._graded_graph is None
+    _, reward, terminated, truncated, _ = env.step()
+    assert reward.shape == terminated.shape == truncated.shape == (2,)
+
+
 def test_an_env_with_no_graded_phase_refuses_the_graph_at_construction():
     config = EdenConfig(
         env_options=EnvOptions(num_envs=2, cuda_graph_options=CudaGraphOptions()),

@@ -30,10 +30,14 @@ class SimContext(torch.nn.Module):
         self._env = env
         self._friction = self._com = self._bias = None
         self._bias_columns: slice | None = None
+        #: ``(kind, name)`` of each column: ``("friction", link)``, ``("com_x" | "com_y" | "com_z", link)`` or
+        #: ``("encoder_bias", joint)``.
+        self.columns: list[tuple[str, str]] = []
         ranges: list[tuple[float, float]] = []
         if options.foot_friction_event is not None:
             term = self._event("foot_friction_event", options.foot_friction_event, RandomizeFrictionRatio)
             self._friction = (term.entity_name, term.ls_idx_local)
+            self.columns += [("friction", link) for link in term.links_name]
             ranges += [tuple(term.friction_range)] * len(term.ls_idx_local)
         if options.com_event is not None:
             term = self._event("com_event", options.com_event, RandomizeComShift)
@@ -43,6 +47,9 @@ class SimContext(torch.nn.Module):
                     f"{len(term.ls_idx_local)} links ({term.links_name})."
                 )
             self._com = (term.entity_name, term.ls_idx_local)
+            # The term keeps the configured name, which may be a pattern: read the link it resolved to.
+            link = env.entities[term.entity_name].find_named_links_idx_local(term.links_name)[0][0]
+            self.columns += [(f"com_{axis}", link) for axis in "xyz"]
             ranges += [tuple(term.com_shift_x_range), tuple(term.com_shift_y_range), tuple(term.com_shift_z_range)]
         if options.encoder_bias_event is not None:
             term = self._event("encoder_bias_event", options.encoder_bias_event, RandomizeDofsPosOffset)
@@ -53,6 +60,7 @@ class SimContext(torch.nn.Module):
             # The controller's offset is q0 - b for an encoder bias b, so the event draws -b in dofs_pos_range.
             lo, hi = term.dofs_pos_range
             self._bias_columns = slice(len(ranges), len(ranges) + len(controller.dofs_name))
+            self.columns += [("encoder_bias", joint) for joint in controller.dofs_name]
             ranges += [(-hi, -lo)] * len(controller.dofs_name)
         if not ranges:
             raise ValueError("sim_context names no randomization event; name at least one in SimContextOptions.")

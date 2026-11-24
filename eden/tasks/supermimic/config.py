@@ -27,7 +27,7 @@ from eden.managers.terms.rewards.tracking import (
     motion_link_position_tracking_exp,
 )
 from eden.managers.terms.terminations.tracking import bad_anchor_ori, bad_anchor_pos_z_only
-from eden.options import ObservationGroupOptions
+from eden.options import CudaGraphOptions, ObservationGroupOptions
 from eden.options.entities import PlaneOptions
 from eden.options.managers.motions import MotionManagerOptions
 from eden.options.robots.unitree_g1 import G1_ACTION_SCALE, G1Dofs29
@@ -167,6 +167,8 @@ class SuperMimicConfig(EdenMimicConfig):
         batch_dofs_info=False,
         enable_self_collision=True,
         enable_multi_contact=True,
+        # The terminations and rewards replay from a CUDA graph; a CPU host computes them eagerly.
+        cuda_graph_options=CudaGraphOptions(require_cuda=False),
     )
 
     observation_options: ObservationManagerOptions = ObservationManagerOptions(

@@ -50,9 +50,9 @@ class RunLogger:
                 project=options.wandb_project, name=run_name, dir=self.log_dir, config=options.dict()
             )
         else:
-            from torch.utils.tensorboard import SummaryWriter
+            from torch.utils.tensorboard.writer import FileWriter
 
-            self._writer = SummaryWriter(log_dir=self.log_dir, flush_secs=10)
+            self._writer = FileWriter(self.log_dir, flush_secs=10)
 
     def process_env_step(self, rewards: torch.Tensor, dones: torch.Tensor, extras: dict) -> None:
         if self.disable_logs:
@@ -61,39 +61,72 @@ class RunLogger:
             self._episode_logs.append(extras["log"])
         self._reward_sum += rewards
         self._length += 1
-        done = dones.nonzero(as_tuple=False)[:, 0]
-        if done.numel():
-            self.rewbuffer.extend(self._reward_sum[done].tolist())
-            self.lenbuffer.extend(self._length[done].tolist())
-            self._reward_sum[done] = 0
-            self._length[done] = 0
+        done = dones.bool()
+        # One host read per step: every env's sum, length and done flag, filtered on the host.
+        reward_sum, length, ended = torch.stack([self._reward_sum, self._length, done.float()]).cpu()
+        ended = ended.bool()
+        if ended.any():
+            self.rewbuffer.extend(reward_sum[ended].tolist())
+            self.lenbuffer.extend(length[ended].tolist())
+            self._reward_sum.masked_fill_(done, 0)
+            self._length.masked_fill_(done, 0)
 
-    def log(self, it: int, total_it: int, steps: int, collect_time: float, learn_time: float, losses: dict) -> None:
+    def log(
+        self,
+        it: int,
+        total_it: int,
+        steps: int,
+        collect_time: float,
+        learn_time: float,
+        losses: dict,
+        normalized_return: float | None = None,
+    ) -> None:
+        """Write one iteration. ``normalized_return`` is the mean, over the episodes that ended in it, of the
+        episode's summed reward over its length times the largest step reward; ``None`` if no episode ended.
+        """
         if self.disable_logs:
             return
         self.tot_timesteps += steps
         self.tot_time += collect_time + learn_time
-        scalars = {f"Loss/{k}": float(v) for k, v in losses.items()}
+        # One host read for every loss and episode statistic: each is a 0-dim tensor on the device.
+        on_device = {f"Loss/{k}": torch.as_tensor(v, dtype=torch.float) for k, v in losses.items()}
         for key in dict.fromkeys(k for log in self._episode_logs for k in log):
             values = [
                 torch.as_tensor(log[key], dtype=torch.float).reshape(-1) for log in self._episode_logs if key in log
             ]
-            scalars[key if "/" in key else f"Episode/{key}"] = float(torch.cat(values).mean())
+            on_device[key if "/" in key else f"Episode/{key}"] = torch.cat(values).mean()
+        device = self._reward_sum.device
+        read = (
+            torch.stack([v.detach().reshape(()).to(device) for v in on_device.values()]).tolist() if on_device else []
+        )
+        scalars = dict(zip(on_device, read, strict=True))
         self._episode_logs.clear()
         if self.rewbuffer:
             scalars["Train/mean_reward"] = statistics.mean(self.rewbuffer)
             scalars["Train/mean_episode_length"] = statistics.mean(self.lenbuffer)
+        if normalized_return is not None:
+            scalars["Train/mean_normalized_return"] = normalized_return
         fps = int(steps / max(collect_time + learn_time, 1e-9))
         scalars |= {"Perf/total_fps": fps, "Perf/collection_time": collect_time, "Perf/learning_time": learn_time}
         if self._wandb is not None:
             self._wandb.log(scalars, step=it)
         else:
-            for key, value in scalars.items():
-                self._writer.add_scalar(key, value, it)
+            self._write_scalars(scalars, it)
         width, pad = 80, 40
         lines = [f"{'#' * width}", f"\033[1m{f' Learning iteration {it}/{total_it} '.center(width)}\033[0m", ""]
         lines += [f"{f'{key}:':>{pad}} {value:.4f}" for key, value in scalars.items()]
         print("\n".join(lines))
+
+    def _write_scalars(self, scalars: dict[str, float], step: int) -> None:
+        """Write an iteration's scalars to TensorBoard as one event holding every tag. ``SummaryWriter.add_scalar``
+        writes one event per scalar, each appended with an open and a close of the file, which is slow on a network
+        file system.
+        """
+        from tensorboard.compat.proto.summary_pb2 import Summary
+        from torch.utils.tensorboard.summary import scalar
+
+        values = [value for key, x in scalars.items() for value in scalar(key, x).value]
+        self._writer.add_summary(Summary(value=values), step)
 
     def close(self) -> None:
         if self._writer is not None:

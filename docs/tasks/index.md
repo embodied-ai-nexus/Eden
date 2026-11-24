@@ -98,7 +98,7 @@ To train on several GPUs, launch the same `eden train` command under `torchrun`;
 |---|---|---|
 | `beyondmimic` | Unitree G1 29-DOF | Track one motion clip (BeyondMimic recipe) |
 | `general_mimic` | Unitree G1 29-DOF | Track a library of clips (LAFAN1 or AMASS) with an adaptive per-clip curriculum |
-| `supermimic` | Unitree G1 29-DOF | Track a library of clips (LAFAN1 or BONES-SEED) with SuperMimic: the policy trains through a learned, differentiable world model |
+| `supermimic` | Unitree G1 29-DOF | Track a library of clips (LAFAN1 or BONES-SEED) with SuperMimic: the policy trains through a learned, differentiable world model, with BlinkMimic's learner-side recipe |
 | `weave_hoi` | G1 + two Inspire RH56DFQ hands | Track OMOMO human-object clips with the object simulated |
 | `contrack` | xArm7 + XHand | Track a hand-object clip with contact annotations |
 | `assistmimic` | Two SMPL humanoids | A caregiver helps a weakened recipient up off the floor |
