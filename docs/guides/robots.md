@@ -303,12 +303,15 @@ An actuator spec is a class in `eden.options.actuators` that describes one motor
 |---|---|
 | `EFFORT_LIMIT` | torque limit (N·m), written as the DOF's symmetric force range |
 | `ROTOR_INERTIA`, `GEAR_RATIO` | single-stage (floats) or two-stage planetary (3-tuples); `ARMATURE()` is the reflected inertia |
-| `STIFFNESS`, `DAMPING` | passive joint spring and damper (not kp / kd) |
+| `STIFFNESS`, `DAMPING` | passive joint spring and damper (not kp / kd); `None` (the default) keeps the asset's |
+| `FRICTIONLOSS` | passive joint dry friction, the DOF's `frictionloss` (N·m); `None` (the default) keeps the asset's |
 | `FULL_TORQUE_SPEED`, `NO_LOAD_SPEED`, `DRIVING_TORQUE_LIMIT`, `BRAKING_TORQUE_LIMIT` | the torque-speed envelope |
 | `STATIC_FRICTION`, `DYNAMIC_FRICTION`, `FRICTION_ACTIVATION_SPEED` | joint friction model parameters |
 
 A robot maps DOF patterns to specs in its `dofs_spec` class variable. At build, a DOF covered by the spec gets the
-spec's stiffness, damping, armature and effort limit unless the robot's options set that property explicitly.
+spec's stiffness, damping, friction loss, armature and effort limit unless the robot's options set that property
+explicitly, so a robot whose specs carry these need not repeat them. A spec value is written to the solver like an
+option value, and a field the spec leaves `None` keeps the asset's.
 Robots that derive their gains from the spec do it in the class body with the Raibert heuristic in
 `eden.utils.actuator`, which targets a 10 Hz closed-loop bandwidth by default (`NATURAL_FREQ = 2π·10`):
 
@@ -335,9 +338,10 @@ The shipped specs cover Unitree motors (`Unitree7520_22`, `Unitree7520_14`, `Uni
 finger motors (`WujiHand2Flex`, `WujiHand2ThumbAbd`, `WujiHand2ThumbMcp`, `WujiHand2ThumbIp`,
 `WujiHand2Finger`, `WujiHand2PinkyFlex`, `WujiHand2Pinky`). The Wuji specs carry the motor's
 `TORQUE_CONSTANT` (N·m/A) and convert the firmware's MIT gains: `JOINT_GAIN(mit_gain)` gives the joint-space
-kp or kd, and `MIT_GAIN(joint_gain)` the reverse. They hold no operating point: the current a task runs the
-hand at, and so its force limits, belong to the robot (`_WujiHand2Beta2.current_limit_a`), and its armature is
-identified per joint in `default_dofs_armature`.
+kp or kd, and `MIT_GAIN(joint_gain)` the reverse. Each is one of the hand's seven motor models and carries the
+mean of upstream's per-joint armature, damping and friction loss over the joints that model drives. They hold no
+operating point: the current a task runs the hand at, and so its force limits, belong to the robot
+(`_WujiHand2Beta2.current_limit_a`).
 
 ## Adding a robot
 

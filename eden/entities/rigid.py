@@ -664,6 +664,7 @@ class RigidEntity(Entity, SupportSurfaceMixin, DofDefaultsMixin):
         apply_to_sim: bool = True,
         force_broadcast: bool = False,
         variant_default_info: torch.Tensor | None = None,
+        write_default: bool = False,
     ) -> torch.Tensor:
         """Initialize a DOF property: parse user dict, store as tensor, optionally apply to sim.
 
@@ -690,6 +691,9 @@ class RigidEntity(Entity, SupportSurfaceMixin, DofDefaultsMixin):
             Heterogeneous only: ``default_info`` per present variant, ``(n_variants, ...)``, for a property
             whose sim default can differ between variants (each variant's initial DOF positions, its default
             armature).
+        write_default : bool
+            Write ``default_info`` to the sim even when the user dict is unset: it no longer is what the sim
+            holds (an actuator spec's value replaced the asset's).
         """
         if attr_name in self._variant_fields or variant_default_info is not None:
             return self._init_variant_dofs_property(
@@ -699,11 +703,15 @@ class RigidEntity(Entity, SupportSurfaceMixin, DofDefaultsMixin):
                 variant_default_info,
                 apply_to_sim=apply_to_sim,
                 force_broadcast=force_broadcast,
+                write_default=write_default,
             )
         user_dict = getattr(self, attr_name)
-        if user_dict:
-            parsed = self._parse_dofs_info(user_dict, default_info=default_info).unsqueeze(0)
-            self._warn_zero_gain_fallthrough(attr_name, user_dict, parsed[0])
+        if user_dict or write_default:
+            if user_dict:
+                parsed = self._parse_dofs_info(user_dict, default_info=default_info).unsqueeze(0)
+                self._warn_zero_gain_fallthrough(attr_name, user_dict, parsed[0])
+            else:
+                parsed = default_info.unsqueeze(0).to(self.device)
 
             if force_broadcast:
                 broadcast = parsed.repeat(self._env.num_envs, *([1] * (parsed.ndim - 1)))
@@ -728,6 +736,7 @@ class RigidEntity(Entity, SupportSurfaceMixin, DofDefaultsMixin):
         *,
         apply_to_sim: bool,
         force_broadcast: bool,
+        write_default: bool = False,
     ) -> torch.Tensor:
         """``_init_dofs_property`` for a heterogeneous entity: one row per variant, then one per env.
 
@@ -751,19 +760,19 @@ class RigidEntity(Entity, SupportSurfaceMixin, DofDefaultsMixin):
                 row = row_default.to(self.device)
             rows.append(row)
         rows = torch.stack(rows)
-        writes = apply_to_sim and setter_name is not None
+        writes = apply_to_sim and setter_name is not None and (any(user_dicts) or write_default)
 
         if bool((rows == rows[:1]).all()):
             value = rows[:1]
             if force_broadcast:
                 value = value.repeat(self._env.num_envs, *([1] * (value.ndim - 1)))
-            if writes and any(user_dicts):
+            if writes:
                 getattr(self, setter_name)(value if force_broadcast else value[0])
             return value
 
         value = rows[self._env_variant_idx]
         # As above, and as for an ungrouped entity: the sim already holds each variant's own default.
-        if writes and any(user_dicts):
+        if writes:
             if not force_broadcast:
                 self._require_batched_dofs_info(attr_name)
             getattr(self, setter_name)(value)
@@ -1224,26 +1233,38 @@ class RigidEntity(Entity, SupportSurfaceMixin, DofDefaultsMixin):
             def default_at(env: int) -> torch.Tensor:
                 return self._parse_dofs_info(spec_values, default_info=getter(envs_idx=env).squeeze(0))
 
+            # A spec value replaces what the asset gave the solver, so it is written like an option value:
+            # otherwise the property would report the spec's value while the solver simulates the asset's.
             return self._init_dofs_property(
                 attr_name,
                 setter_name,
                 default_info=default_at(0),
                 force_broadcast=batch_info,
                 variant_default_info=self._variant_rows(default_at),
+                write_default=bool(spec_values),
             )
 
-        specs = self.dofs_spec.items()
+        def spec_values(field: str) -> dict:
+            """Each spec's ``field`` by DOF pattern, leaving out the specs that keep the asset's (``None``)."""
+            return {k: v for k, s in self.dofs_spec.items() if (v := getattr(s, field)) is not None}
+
         self.default_dofs_stiffness = init_dynamics(
-            "default_dofs_stiffness", "set_dofs_stiffness", self.get_dofs_stiffness, {k: s.STIFFNESS for k, s in specs}
+            "default_dofs_stiffness", "set_dofs_stiffness", self.get_dofs_stiffness, spec_values("STIFFNESS")
         )
         self.default_dofs_damping = init_dynamics(
-            "default_dofs_damping", "set_dofs_damping", self.get_dofs_damping, {k: s.DAMPING for k, s in specs}
+            "default_dofs_damping", "set_dofs_damping", self.get_dofs_damping, spec_values("DAMPING")
         )
         self.default_dofs_armature = init_dynamics(
-            "default_dofs_armature", "set_dofs_armature", self.get_dofs_armature, {k: s.ARMATURE() for k, s in specs}
+            "default_dofs_armature",
+            "set_dofs_armature",
+            self.get_dofs_armature,
+            {k: s.ARMATURE() for k, s in self.dofs_spec.items()},
         )
         self.default_dofs_frictionloss = init_dynamics(
-            "default_dofs_frictionloss", "set_dofs_frictionloss", self.get_dofs_frictionloss, {}
+            "default_dofs_frictionloss",
+            "set_dofs_frictionloss",
+            self.get_dofs_frictionloss,
+            spec_values("FRICTIONLOSS"),
         )
 
     def _init_soft_pos_limits(self) -> None:

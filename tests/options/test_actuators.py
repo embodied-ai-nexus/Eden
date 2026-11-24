@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 
 from eden.options.actuators import (
-    WujiHand2Actuator,
+    ActuatorSpecOptions,
     DamiaoDM4310,
     DamiaoDM4340,
     LimxOliAnkleWaist,
@@ -14,6 +14,7 @@ from eden.options.actuators import (
     LimxOliWristHead,
     Unitree5020_16,
     Unitree5020_16_DOUBLE,
+    WujiHand2Actuator,
     WujiHand2Finger,
     WujiHand2Flex,
     WujiHand2Pinky,
@@ -78,3 +79,14 @@ def test_a_wuji_spec_without_a_torque_constant_refuses_to_convert_and_names_the_
     for convert in (WujiHand2Actuator.JOINT_GAIN, WujiHand2Actuator.MIT_GAIN):
         with pytest.raises(ValueError, match=r"WujiHand2Actuator\.TORQUE_CONSTANT is 0\.0.*WujiHand2Flex"):
             convert(3.0)
+
+
+def test_a_spec_keeps_the_assets_passive_dynamics_unless_it_sets_them():
+    """``None`` is "the asset's": a spec that knows no joint damping must not zero the asset's."""
+    assert (ActuatorSpecOptions.STIFFNESS, ActuatorSpecOptions.DAMPING, ActuatorSpecOptions.FRICTIONLOSS) == (None,) * 3
+
+
+@pytest.mark.parametrize("actuator", _WUJI_HAND2, ids=lambda a: a.__name__)
+def test_a_wuji_hand2_motor_carries_its_joint_side_armature_damping_and_friction(actuator):
+    assert actuator.GEAR_RATIO == 1.0 and actuator.ARMATURE() == actuator.ROTOR_INERTIA > 0
+    assert actuator.DAMPING >= 0 and actuator.FRICTIONLOSS > 0

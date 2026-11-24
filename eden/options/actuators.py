@@ -18,10 +18,12 @@ class ActuatorSpecOptions(ConfigurableOptions):
 
     Parameters
     ----------
-    STIFFNESS: float
-        Stiffness of the actuator (different from control stiffness, i.e., kp) [N*m/rad]
-    DAMPING: float
-        Damping of the actuator (different from control damping, i.e., kd) [N*m*s/rad]
+    STIFFNESS: float | None
+        Stiffness of the actuator (different from control stiffness, i.e., kp) [N*m/rad]. ``None`` keeps the
+        asset's.
+    DAMPING: float | None
+        Damping of the actuator (different from control damping, i.e., kd) [N*m*s/rad]. ``None`` keeps the
+        asset's.
     FULL_TORQUE_SPEED: float
         (X1) Maximum Speed at Full Torque (T-N Curve Knee Point) [rad/s]
     NO_LOAD_SPEED: float
@@ -38,6 +40,10 @@ class ActuatorSpecOptions(ConfigurableOptions):
         Dynamic Friction Coefficient
     FRICTION_ACTIVATION_SPEED: float
         Velocity at which the friction is fully activated [rad/s]
+    FRICTIONLOSS: float | None
+        Passive joint dry friction the solver applies, the DOF's ``frictionloss`` [N*m]. ``None`` keeps the
+        asset's. (``STATIC_FRICTION`` / ``DYNAMIC_FRICTION`` feed the actuator action modifier's torque model
+        instead.)
     ROTOR_INERTIA: float | tuple[float, float, float]
         Rotor inertia of the motor [kg*m^2]
     GEAR_RATIO: float | tuple[float, float, float]
@@ -61,8 +67,8 @@ class ActuatorSpecOptions(ConfigurableOptions):
                               X1   X2
     """
 
-    STIFFNESS: ClassVar[float] = 0.0
-    DAMPING: ClassVar[float] = 0.0
+    STIFFNESS: ClassVar[float | None] = None
+    DAMPING: ClassVar[float | None] = None
     FULL_TORQUE_SPEED: ClassVar[float] = 1e9
     NO_LOAD_SPEED: ClassVar[float] = 1e9
     DRIVING_TORQUE_LIMIT: ClassVar[float] = 1e9
@@ -71,6 +77,7 @@ class ActuatorSpecOptions(ConfigurableOptions):
     STATIC_FRICTION: ClassVar[float] = 0.0
     DYNAMIC_FRICTION: ClassVar[float] = 0.0
     FRICTION_ACTIVATION_SPEED: ClassVar[float] = 0.01
+    FRICTIONLOSS: ClassVar[float | None] = None
 
     ROTOR_INERTIA: ClassVar[float | tuple[float, float, float]] = 0.0
     GEAR_RATIO: ClassVar[float | tuple[float, float, float]] = 1.0
@@ -343,10 +350,15 @@ class WujiHand2Actuator(ActuatorSpecOptions):
     v2026.10.22 ``tasks/pen_spin/config/wuji_hand2/hand2_constants.py``; upstream does not name the motors,
     so the subclasses are named by the joints they drive.
 
-    Only motor and SDK properties live here. The current a task runs the hand at, and so its torque
-    ceiling, is the robot's operating point (``_WujiHand2Beta2.current_limit_a``), and ``EFFORT_LIMIT``
-    keeps the base's unknown default. Armature is identified per joint rather than per motor, so
-    ``ARMATURE()`` is 0: a robot using these specs must set ``default_dofs_armature`` itself.
+    Each subclass is one of the hand's seven motor models, as Wuji groups them. ``ROTOR_INERTIA`` (with
+    ``GEAR_RATIO`` 1, so it is the joint-side armature, as the LimX specs encode theirs), ``DAMPING`` and
+    ``FRICTIONLOSS`` are the mean of upstream's per-joint values over the joints that model drives:
+    upstream's armature is Wuji's per-joint table, and its damping and friction loss were identified on one
+    hand, so joint-to-joint differences within a model are unit spread (each joint sits within upstream's
+    domain-randomization band of its model's mean). A model driving one joint takes that joint's value.
+
+    The current a task runs the hand at, and so its torque ceiling, is the robot's operating point
+    (``_WujiHand2Beta2.current_limit_a``), so ``EFFORT_LIMIT`` keeps the base's unknown default.
     """
 
     TORQUE_CONSTANT: ClassVar[float] = 0.0  # [N*m/A]
@@ -379,39 +391,67 @@ class WujiHand2Flex(WujiHand2Actuator):
     """Thumb CMC flexion and index / middle / ring MCP flexion."""
 
     TORQUE_CONSTANT: ClassVar[float] = 0.4136
+    ROTOR_INERTIA: ClassVar[float] = 1.4981e-4  # mean of 4 joints
+    GEAR_RATIO: ClassVar[float] = 1.0
+    DAMPING: ClassVar[float] = 1.8380e-3
+    FRICTIONLOSS: ClassVar[float] = 4.0709e-2
 
 
 class WujiHand2ThumbAbd(WujiHand2Actuator):
     """Thumb CMC abduction."""
 
     TORQUE_CONSTANT: ClassVar[float] = 0.3545
+    ROTOR_INERTIA: ClassVar[float] = 1.366389e-4
+    GEAR_RATIO: ClassVar[float] = 1.0
+    DAMPING: ClassVar[float] = 0.0042812198
+    FRICTIONLOSS: ClassVar[float] = 0.0342266392
 
 
 class WujiHand2ThumbMcp(WujiHand2Actuator):
     """Thumb MCP."""
 
     TORQUE_CONSTANT: ClassVar[float] = 0.2216
+    ROTOR_INERTIA: ClassVar[float] = 1.273553e-4
+    GEAR_RATIO: ClassVar[float] = 1.0
+    DAMPING: ClassVar[float] = 0.0014135711
+    FRICTIONLOSS: ClassVar[float] = 0.0187921182
 
 
 class WujiHand2ThumbIp(WujiHand2Actuator):
     """Thumb IP."""
 
     TORQUE_CONSTANT: ClassVar[float] = 0.1329
+    ROTOR_INERTIA: ClassVar[float] = 8.768902e-5
+    GEAR_RATIO: ClassVar[float] = 1.0
+    DAMPING: ClassVar[float] = 0.0005131806
+    FRICTIONLOSS: ClassVar[float] = 0.0122545518
 
 
 class WujiHand2Finger(WujiHand2Actuator):
     """Index / middle / ring MCP abduction, PIP and DIP."""
 
     TORQUE_CONSTANT: ClassVar[float] = 0.1673
+    ROTOR_INERTIA: ClassVar[float] = 5.7249e-5  # mean of 9 joints
+    GEAR_RATIO: ClassVar[float] = 1.0
+    DAMPING: ClassVar[float] = 4.5220e-4
+    FRICTIONLOSS: ClassVar[float] = 1.9409e-2
 
 
 class WujiHand2PinkyFlex(WujiHand2Actuator):
     """Pinky MCP flexion."""
 
     TORQUE_CONSTANT: ClassVar[float] = 0.4461
+    ROTOR_INERTIA: ClassVar[float] = 9.706259e-5
+    GEAR_RATIO: ClassVar[float] = 1.0
+    DAMPING: ClassVar[float] = 0.0
+    FRICTIONLOSS: ClassVar[float] = 0.0338251954
 
 
 class WujiHand2Pinky(WujiHand2Actuator):
     """Pinky MCP abduction, PIP and DIP."""
 
     TORQUE_CONSTANT: ClassVar[float] = 0.1115
+    ROTOR_INERTIA: ClassVar[float] = 4.4114e-5  # mean of 3 joints
+    GEAR_RATIO: ClassVar[float] = 1.0
+    DAMPING: ClassVar[float] = 5.4155e-4
+    FRICTIONLOSS: ClassVar[float] = 1.7760e-2
