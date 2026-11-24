@@ -16,37 +16,37 @@ from eden.utils.actuator import (
 class ActuatorSpecOptions(ConfigurableOptions):
     """Specification of a single actuator's physical and control parameters.
 
-    Parameters
+    Attributes
     ----------
-    STIFFNESS: float | None
+    STIFFNESS : float | None
         Stiffness of the actuator (different from control stiffness, i.e., kp) [N*m/rad]. ``None`` keeps the
         asset's.
-    DAMPING: float | None
+    DAMPING : float | None
         Damping of the actuator (different from control damping, i.e., kd) [N*m*s/rad]. ``None`` keeps the
         asset's.
-    FULL_TORQUE_SPEED: float
+    FULL_TORQUE_SPEED : float
         (X1) Maximum Speed at Full Torque (T-N Curve Knee Point) [rad/s]
-    NO_LOAD_SPEED: float
+    NO_LOAD_SPEED : float
         (X2) No-Load Speed Test Result [rad/s]
-    DRIVING_TORQUE_LIMIT: float
+    DRIVING_TORQUE_LIMIT : float
         (Y1) Driving Torque Limit, i.e., Torque and Speed in the Same Direction [N*m]
-    BRAKING_TORQUE_LIMIT: float | None
+    BRAKING_TORQUE_LIMIT : float | None
         (Y2) Braking Torque Limit, i.e., Torque and Speed in the Opposite Direction [N*m]
-    EFFORT_LIMIT: float
+    EFFORT_LIMIT : float
         Maximum torque limit to prevent mechanical damage [N*m]
-    STATIC_FRICTION: float
+    STATIC_FRICTION : float
         Static Friction Coefficient
-    DYNAMIC_FRICTION: float
+    DYNAMIC_FRICTION : float
         Dynamic Friction Coefficient
-    FRICTION_ACTIVATION_SPEED: float
+    FRICTION_ACTIVATION_SPEED : float
         Velocity at which the friction is fully activated [rad/s]
-    FRICTIONLOSS: float | None
+    FRICTIONLOSS : float | None
         Passive joint dry friction the solver applies, the DOF's ``frictionloss`` [N*m]. ``None`` keeps the
         asset's. (``STATIC_FRICTION`` / ``DYNAMIC_FRICTION`` feed the actuator action modifier's torque model
         instead.)
-    ROTOR_INERTIA: float | tuple[float, float, float]
+    ROTOR_INERTIA : float | tuple[float, float, float]
         Rotor inertia of the motor [kg*m^2]
-    GEAR_RATIO: float | tuple[float, float, float]
+    GEAR_RATIO : float | tuple[float, float, float]
         Gear ratio of the gearbox
 
     NOTE
