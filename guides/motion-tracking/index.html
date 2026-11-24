@@ -5841,7 +5841,10 @@ are the supported extension points: the helpers they sit on (<code>_sample_assig
 <p>Two terms are written on these. <code>KinematicLinksMotion</code> (<code>eden/managers/terms/motions/</code>) reads a dataset that stores
 root and joint state only (<code>LAFAN1RootJointsG1Dataset</code>, <code>SEEDRootJointsG1Dataset</code>) and fills the link fields by
 forward kinematics (<code>eden.utils.motion_reference.kinematics.ForwardKinematics</code>); it keeps the base start sampling,
-so any tracking task can use it to fit a large library on one GPU. <code>SuperMimicMotion</code>
+so any tracking task can use it to fit a large library on one GPU. On a CUDA device it runs the kinematics through
+<code>torch.compile</code> (<code>compile_kinematics=True</code>): a fill takes about 0.5 ms instead of 10 ms, the first fill and the first
+reset each wait tens of seconds for the compile, and the link fields differ from the eager ones in the last bits.
+<code>SuperMimicMotion</code>
 (<code>eden/learning/wrappers/rsl_rl/supermimic/motion.py</code>) extends it with starts drawn from per-bin weights that the
 SuperMimic runner sets.</p>
 <h2 id="several-actors-in-one-reference">Several actors in one reference<a class="headerlink" href="#several-actors-in-one-reference" title="Permanent link">&para;</a></h2>

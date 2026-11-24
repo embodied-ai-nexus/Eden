@@ -5977,9 +5977,9 @@ keeps hitting its cap in some episodes, say) is the hint to raise the option the
 <li><code>update_sensors_every_substep</code> (default <code>False</code>) skips sensor updates on the intermediate scene steps of a control
   step. See <a href="../sensors-and-rendering/#when-sensors-update">Sensors and rendering</a>.</li>
 <li><code>cuda_graph_options</code> (default <code>None</code>) replays the graded phase of <code>RLEnvBase.step</code> (metrics, terminations,
-  rewards) from a CUDA graph; <code>CudaGraphOptions()</code> turns it on. CUDA only. It is a training-only field: <code>eden
-  inference</code>, <code>eden export</code> and <code>eden deploy</code> reset it when they replay a run's config. See
-  <a href="../environments/">Environments</a>.</li>
+  rewards) from a CUDA graph; <code>CudaGraphOptions()</code> turns it on. CUDA only (<code>require_cuda=False</code> runs the phase
+  eagerly elsewhere). It is a training-only field: <code>eden inference</code>, <code>eden export</code> and <code>eden deploy</code> reset it
+  when they replay a run's config. See <a href="../environments/">Environments</a>.</li>
 <li>The <code>batch_*_info</code> switches above cost memory and some speed; leave them off unless a term needs them.</li>
 </ul>
 <h2 id="see-also">See also<a class="headerlink" href="#see-also" title="Permanent link">&para;</a></h2>

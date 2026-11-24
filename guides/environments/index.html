@@ -6001,7 +6001,7 @@ replay.</p>
 <!-- TODO(material): an eager vs graph-mode step-time table per task, with the GPU it was measured on. -->
 
 <p>It is off by default (<code>cuda_graph_options=None</code>) and needs an <code>RLEnvBase</code> on a CUDA device; any other
-environment refuses it. It is in <code>EnvOptions.training_only_fields</code>, which <code>eden inference</code>, <code>eden export</code>
+environment refuses it, unless <code>require_cuda=False</code> lets a CPU or Metal one run the phase eagerly. It is in <code>EnvOptions.training_only_fields</code>, which <code>eden inference</code>, <code>eden export</code>
 and <code>eden deploy</code> reset when they replay a run's own config. <code>CudaGraphOptions</code> (<code>eden.options.envs</code>)
 holds its settings:</p>
 <table>
@@ -6032,6 +6032,11 @@ holds its settings:</p>
 <td><code>max_recaptures_per_window</code></td>
 <td><code>2</code></td>
 <td>Re-captures allowed within the window; one more raises, naming what changed.</td>
+</tr>
+<tr>
+<td><code>require_cuda</code></td>
+<td><code>True</code></td>
+<td>Raise at build on a device without CUDA. <code>False</code> runs the phase eagerly there, for a task config that turns the graph on and must also build on a CPU host (<code>supermimic</code> does).</td>
 </tr>
 </tbody>
 </table>
