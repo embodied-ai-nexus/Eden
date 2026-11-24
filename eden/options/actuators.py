@@ -350,11 +350,18 @@ class WujiHand2Actuator(ActuatorSpecOptions):
     v2026.10.22 ``tasks/pen_spin/config/wuji_hand2/hand2_constants.py``; upstream does not name the motors,
     so the subclasses are named by the joints they drive.
 
+    ``AMPS_PER_MIT_UNIT`` is 1.91147, the factor of Wuji's published pen-spin configuration, so the simulated
+    gains reproduce that training setup. Firmware v2.13.1 and v3.0.0 convert an MIT command to a current
+    reference at 1.98413 A per unit, so on those versions the hand's kp and kd are 3.8% above the joint-space
+    gains here. The deploy converts through the same factor, so it programs the trained MIT gains either way.
+    To model those firmware versions instead, subclass each motor with ``AMPS_PER_MIT_UNIT = 1.98413``.
+
     Each subclass is one of the hand's seven motor models, as Wuji groups them. ``ROTOR_INERTIA`` (with
     ``GEAR_RATIO`` 1, so it is the joint-side armature, as the LimX specs encode theirs), ``DAMPING`` and
     ``FRICTIONLOSS`` are the mean of upstream's per-joint values over the joints that model drives:
     upstream's armature is Wuji's per-joint table, and its damping and friction loss were identified on one
-    hand, so joint-to-joint differences within a model are unit spread (each joint sits within upstream's
+    right hand (the left-hand presets use the same values), so joint-to-joint differences within a model are unit
+    spread (each joint sits within upstream's
     domain-randomization band of its model's mean). A model driving one joint takes that joint's value.
 
     The current a task runs the hand at, and so its torque ceiling, is the robot's operating point

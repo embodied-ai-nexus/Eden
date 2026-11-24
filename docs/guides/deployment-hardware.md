@@ -420,7 +420,11 @@ simulator.
   (Hand2Beta2) onto that order, so a robot may declare its DOFs in any order. A robot outside those
   classes must name its generation: `WujiHandDeployment.configure(hand="hand2")`.
 - **Gains are programmed once, at connect.** Hand 2 takes MIT `mit_kp` / `mit_kd` (one value, or a
-  pattern-keyed dict covering all 20) and a current limit `effort_limit_a`. Hand 1
+  pattern-keyed dict covering all 20) and a current limit `effort_limit_a`. Before writing them, the
+  deploy disables the joints and selects MIT mode: the effort limit is in A only in MIT mode (in
+  Position mode it is N·m), and the hand stays in the mode the last program left it in. It then reads
+  the limits and gains back and refuses to enable the hand if an online joint holds other values. The
+  connect log names the firmware version. This needs `wuji-sdk` 2026.11.9 or later. Hand 1
   runs its own position loop, so it refuses `deploy_kp_kd_scale` and gains; soften it with
   `effort_limit_a` (default 0.5 A). Both refuse `--disable_joints`.
 

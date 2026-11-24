@@ -478,10 +478,10 @@ _device_seq = itertools.count()
 class Hand2Transport(HandTransport):
     """Wuji Hand 2 via ``wuji_sdk`` (upstream ``WujiHand2Driver`` and pen spin's ``Hand2Compat``).
 
-    Connects to ``serial_number`` (or the single hand on the bus), programs the MIT gains and the
-    current limit, enables the motors, and streams ``JointCommand(q, 0, 0)``. Joint positions
-    arrive on the SDK's ``joint_states`` callback; ``joint_diagnostics`` feeds :meth:`fault`, and
-    the age of the joint feed feeds :meth:`stale`.
+    Connects to ``serial_number`` (or the single hand on the bus), selects MIT mode, programs the MIT
+    gains and the current limit and reads them back, enables the motors, and streams
+    ``JointCommand(q, 0, 0)``. Joint positions arrive on the SDK's ``joint_states`` callback;
+    ``joint_diagnostics`` feeds :meth:`fault`, and the age of the joint feed feeds :meth:`stale`.
 
     Parameters
     ----------
@@ -540,7 +540,9 @@ class Hand2Transport(HandTransport):
         self._hand = self._mgr.connect(
             sn=sn, device_name=self.device_name, options=wuji_sdk.ConnectOptions(enable_bridge=False)
         )
-        en.logger.info(f"[wuji] connected Wuji Hand 2 sn={self._hand.serial_number}")
+        en.logger.info(
+            f"[wuji] connected Wuji Hand 2 sn={self._hand.serial_number}, firmware {self._firmware_version()}"
+        )
         # Connected from here on: any failure must disable and release the link before propagating.
         try:
             n_online = self._hand.online_joints_count().get()
@@ -551,10 +553,12 @@ class Hand2Transport(HandTransport):
                     "online, WujiHandDeployment.configure(require_all_joints=False)."
                 )
             g = self.gains
+            self._select_mit_mode()
             self._hand.effort_limit().set([float(a) for a in g.effort_limit_a])
             self._hand.mit_params().set(
                 [wuji_sdk.MitParam(float(p), float(d)) for p, d in zip(g.kp, g.kd, strict=True)]
             )
+            self._verify_programmed(g)
             self._sub = self._hand.joint_states().subscribe_with_callback(self._on_state)
             try:
                 self._diag_sub = self._hand.joint_diagnostics().subscribe_with_callback(self._on_diag)
@@ -573,6 +577,49 @@ class Hand2Transport(HandTransport):
             f"current limit {min(g.effort_limit_a):g}-{max(g.effort_limit_a):g} A, "
             f"{self.stream.mode} streaming at {self.stream.servo_hz:g} Hz{partial}"
         )
+
+    def _firmware_version(self) -> str:
+        """The hand's firmware version for the connect log; a failed read is logged, never fatal."""
+        try:
+            return str(self._hand.firmware_version().get())
+        except Exception as e:  # noqa: BLE001 - diagnostic only; the hand is still usable
+            return f"unknown ({type(e).__name__}: {e})"
+
+    def _select_mit_mode(self) -> None:
+        """Put the hand in MIT mode, where the effort limit is in A and kp / kd are in MIT units.
+
+        Each control mode keeps its own effort limit in its own unit (N·m in Position mode, firmware 3.0.0+),
+        and the hand stays in whatever mode the last program set. The SDK switches modes only on disabled
+        joints. Its readback covers the whole hand, and when joints disagree it logs a warning (listing
+        them) and returns the mode last written; ``wuji_sdk`` has no per-joint mode read to check further.
+        """
+        mit = self._sdk.ControlMode.Mit
+        self._hand.disable()
+        self._hand.control_mode().set(mit)
+        if (mode := self._hand.control_mode().get()) != mit:
+            raise RuntimeError(
+                f"Wuji Hand 2 {self._hand.serial_number}: control mode reads {mode} after selecting {mit}, so the "
+                "current limit and MIT gains would be read in another mode's units. Power-cycle the hand and check "
+                "the firmware version; do not enable it in this mode."
+            )
+
+    def _verify_programmed(self, g: Hand2Gains) -> None:
+        """Read the current limits and MIT gains back; an online joint holding other values refuses the run."""
+        limits, params = self._hand.effort_limit().get(), self._hand.mit_params().get()
+        wrong = []
+        for i, (limit, p) in enumerate(zip(limits, params, strict=True)):
+            if limit is None and p is None:  # offline
+                continue
+            want = (g.effort_limit_a[i], g.kp[i], g.kd[i])
+            got = (limit, getattr(p, "kp", None), getattr(p, "kd", None))
+            if None in got or not np.allclose(got, want, rtol=1e-4, atol=1e-6):
+                wrong.append(f"{self.joint_names[i]} (limit A, kp, kd) wrote {want}, read {got}")
+        if wrong:
+            raise RuntimeError(
+                f"Wuji Hand 2 {self._hand.serial_number}: {len(wrong)} joint(s) read back other values than were "
+                f"written: {'; '.join(wrong)}. Power-cycle the hand and reconnect; do not enable it with these "
+                "values."
+            )
 
     def _only_hand_on_the_bus(self) -> str:
         """The serial number of the one Wuji hand ``scan()`` finds; a Wuji Glove on the bus is not a hand."""

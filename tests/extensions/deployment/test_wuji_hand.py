@@ -637,6 +637,13 @@ class FakeWujiSdk:
         self.disconnected: list[str] = []
         self.enabled = False
         self.mit_error: Exception | None = None
+        self.calls: list[str] = []  # the configuration writes, in order
+        self.mode = "Position"  # whatever the last program left
+        self.mode_sticks = False  # a hand that ignores the mode switch
+        self.limits: list[float | None] = [None] * N
+        self.params: list[tuple[float, float] | None] = [None] * N
+        self.limit_readback: list[float | None] | None = None  # overrides what effort_limit().get() returns
+        self.firmware: object = "3.0.0"
         self.sent: list[list[float]] = []
         self.diag_cb = None
         sdk = self
@@ -670,6 +677,22 @@ class FakeWujiSdk:
         def _mit_set(value):
             if sdk.mit_error:
                 raise sdk.mit_error
+            sdk.calls.append("mit_params")
+            sdk.params = [SimpleNamespace(kp=kp, kd=kd) for kp, kd in value]
+
+        def _limit_set(value):
+            sdk.calls.append(f"effort_limit in {sdk.mode}")
+            sdk.limits = list(value)
+
+        def _mode_set(value):
+            sdk.calls.append(f"control_mode {value}")
+            if not sdk.mode_sticks:
+                sdk.mode = value
+
+        def _firmware():
+            if isinstance(sdk.firmware, Exception):
+                raise sdk.firmware
+            return _Value(sdk.firmware)
 
         class Hand:
             serial_number = "SN-HAND"
@@ -678,10 +701,16 @@ class FakeWujiSdk:
                 return _Value(sdk.online)
 
             def effort_limit(self):
-                return _Value()
+                return _Value(sdk.limit_readback or sdk.read_online(sdk.limits), _limit_set)
 
             def mit_params(self):
-                return _Value(on_set=_mit_set)
+                return _Value(sdk.read_online(sdk.params), _mit_set)
+
+            def control_mode(self):
+                return _Value(sdk.mode, _mode_set)
+
+            def firmware_version(self):
+                return _firmware()
 
             def joint_states(self):
                 return _Stream("states")
@@ -693,9 +722,11 @@ class FakeWujiSdk:
                 return _Stream("cmd")
 
             def enable(self):
+                sdk.calls.append("enable")
                 sdk.enabled = True
 
             def disable(self):
+                sdk.calls.append("disable")
                 sdk.enabled = False
 
             def describe_error(self, code):
@@ -726,7 +757,12 @@ class FakeWujiSdk:
             MitParam=lambda kp, kd: (kp, kd),
             JointCommand=lambda q, dq, tau: SimpleNamespace(q=q),
             DeviceType=SimpleNamespace(WujiGlove=self.GLOVE, WujiHand2=self.HAND),
+            ControlMode=SimpleNamespace(Mit="Mit", Position="Position"),
         )
+
+    def read_online(self, values):
+        """A per-joint readback: offline joints (the last ones here) read ``None``."""
+        return [v if i < self.online else None for i, v in enumerate(values)]
 
     @classmethod
     def device(cls, sn, kind):
@@ -780,6 +816,48 @@ def test_an_incomplete_hand_is_refused_and_released(fake_sdk):
     with pytest.raises(RuntimeError, match=r"16/20 joints online.*require_all_joints=False"):
         t.connect()
     assert sdk.disconnected == [t.device_name] and not sdk.enabled
+
+
+def test_hand2_selects_mit_mode_on_disabled_joints_before_writing_the_current_limit(fake_sdk, eden_caplog):
+    """In Position mode the same limit would be N·m, and the firmware's position loop would ignore the gains."""
+    sdk = fake_sdk()
+    _hand2_transport().connect()
+    assert sdk.calls == ["disable", "control_mode Mit", "effort_limit in Mit", "mit_params", "enable"]
+    assert "sn=SN-HAND, firmware 3.0.0" in eden_caplog.text
+
+
+def test_a_hand_that_stays_out_of_mit_mode_is_never_enabled(fake_sdk):
+    sdk = fake_sdk()
+    sdk.mode_sticks = True
+    t = _hand2_transport()
+    with pytest.raises(RuntimeError, match=r"control mode reads Position after selecting Mit.*Power-cycle"):
+        t.connect()
+    assert "enable" not in sdk.calls and not any(c.startswith("effort_limit") for c in sdk.calls)
+    assert sdk.disconnected == [t.device_name]
+
+
+def test_a_current_limit_that_reads_back_different_is_refused_by_joint(fake_sdk):
+    sdk = fake_sdk()
+    sdk.limit_readback = [1.0] * (N - 1) + [0.8]
+    t = _hand2_transport(joint_names=WujiHand2Beta2_L().dofs_name)
+    with pytest.raises(
+        RuntimeError, match=r"1 joint\(s\) read back.*l_pinky_dip .*wrote \(1\.0, 1\.0, 0\.1\), read \(0\.8"
+    ):
+        t.connect()
+    assert "enable" not in sdk.calls and sdk.disconnected == [t.device_name]
+
+
+def test_offline_joints_are_skipped_in_the_readback(fake_sdk):
+    sdk = fake_sdk(online=16)
+    _hand2_transport(require_all_joints=False).connect()
+    assert sdk.enabled
+
+
+def test_an_unreadable_firmware_version_is_logged_not_fatal(fake_sdk, eden_caplog):
+    sdk = fake_sdk()
+    sdk.firmware = OSError("no such resource")
+    _hand2_transport().connect()
+    assert sdk.enabled and "firmware unknown (OSError: no such resource)" in eden_caplog.text
 
 
 def test_a_failed_gain_write_releases_the_hand(fake_sdk):

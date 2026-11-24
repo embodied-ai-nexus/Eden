@@ -223,7 +223,7 @@ sonic-viz = [
 # usage events to a third-party analytics host. Set `WUJI_TELEMETRY_DISABLE=1` in the
 # environment to turn it off; Eden does not set it for you.
 wuji = [
-  "wuji-sdk>=2026.8.17; sys_platform == 'linux'"
+  "wuji-sdk>=2026.11.9; sys_platform == 'linux'"
 ]
 vis = [
   "plyfile",

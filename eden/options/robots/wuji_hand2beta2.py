@@ -47,8 +47,8 @@ _CURRENT_LIMIT_A = 1.5
 class _WujiHand2Beta2(RobotOptions):
     dofs_spec: ClassVar[dict[str, type[ActuatorSpecOptions]]] = {p: m for p, (m, _) in _PEN_SPIN_MOTORS.items()}
 
-    # The current the force limits below are trained at; ``WujiHandDeployment`` programs it when
-    # ``effort_limit_a`` is unset.
+    # Pen spin's operating point: the current the force limits below are trained at. ``WujiHandDeployment``
+    # programs it when ``effort_limit_a`` is unset.
     current_limit_a: ClassVar[float] = _CURRENT_LIMIT_A
 
     default_dofs_pos: dict[str, float] = {"*": 0.0}
