@@ -225,6 +225,17 @@ sonic-viz = [
 wuji = [
   "wuji-sdk>=2026.8.17; sys_platform == 'linux'"
 ]
+# LimX low-level SDK for the Oli deployment backend (`eden/extensions/deployment/limx_oli.py`).
+# 4.1.2 ships manylinux_2_29 wheels for x86_64 and aarch64 and no sdist; the only Windows wheel
+# is 4.1.0, and there is none for macOS. As with `wuji`, the Linux marker keeps the universal
+# lockfile resolvable on the darwin-arm64 and win32-AMD64 `required-environments`; elsewhere
+# the extra installs nothing and the backend raises its install hint at connect.
+# limxsdk depends on the CPU `onnxruntime`, which shares its package directory with
+# `onnxruntime-gpu`: combined with the `onnx-gpu` extra, reinstall the GPU wheel last (the ONNX
+# runtime section of docs/guides/deployment-hardware.md).
+limx = [
+  "limxsdk>=4.1.2; sys_platform == 'linux'"
+]
 vis = [
   "plyfile",
   # Gaussian-splat rendering (SplatEnvBase / SplatRLEnvBase) goes through gsplat.
