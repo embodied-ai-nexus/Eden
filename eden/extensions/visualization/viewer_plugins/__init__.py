@@ -2,7 +2,7 @@
 
 Reusable ``genesis.vis.viewer_plugins`` subclasses that add mouse-driven
 interaction to the Genesis viewer (point selection, ...). Register one with
-``scene.viewer.add_plugin(...)`` before ``scene.build()``.
+``scene.viewer.add_plugin(...)``, before or after ``scene.build()``.
 """
 
 from eden.extensions.visualization.viewer_plugins.mesh_point_selector import (

@@ -6,10 +6,12 @@ import torch
 from eden.datasets import LAFAN1RetargetedG1Dataset, LAFAN1RootJointsG1Dataset
 from eden.entities.rigid import StagedStateWrite
 from eden.managers.terms.motions import KinematicLinksMotion
+from eden.managers.terms.motions.kinematic import link_fields
 from eden.options.entities import BoxOptions
 from eden.options.managers.motions import MotionManagerOptions
 from eden.options.robots.unitree_g1 import G1Dofs29
 from eden.utils.geom import inv_transform_by_quat, normalize
+from eden.utils.motion_reference.kinematics import ForwardKinematics
 from tests.support.motion import FRAMERATE, ROBOT_DOFS, build_mimic_env, make_manager, write_lafan1_csv_library
 
 pytestmark = [pytest.mark.requires_genesis]
@@ -126,6 +128,29 @@ def test_the_terms_kinematics_match_genesis_at_random_states(env):
         torch.testing.assert_close(ang_vel, robot.get_links_ang(ls_idx_local=links), atol=1e-4, rtol=0)
     finally:
         env.reset()
+
+
+def test_a_cpu_device_runs_the_kinematics_eagerly(env):
+    motion = _motion(env)
+    assert motion.compile_kinematics and motion._link_fields is link_fields
+
+
+@pytest.mark.skipif(not torch.cuda.is_available(), reason="the term compiles its kinematics on a CUDA device only")
+def test_the_compiled_kinematics_match_the_eager_ones_to_rounding():
+    fk = ForwardKinematics(G1Dofs29().fetch_asset(), ROBOT_DOFS, LINKS).cuda()
+    compiled = torch.compile(link_fields)
+    # A full batch, then a subset of it, which the compiled pass takes with a dynamic row count.
+    for rows in (64, 6):
+        gen = torch.Generator().manual_seed(rows)
+        root_pos, root_quat = torch.rand(rows, 3, generator=gen), normalize(torch.randn(rows, 4, generator=gen))
+        lin, ang = torch.randn(rows, 3, generator=gen), torch.randn(rows, 3, generator=gen)
+        q, qd = (
+            0.5 * torch.randn(rows, len(ROBOT_DOFS), generator=gen),
+            torch.randn(rows, len(ROBOT_DOFS), generator=gen),
+        )
+        state = [x.cuda() for x in (root_pos, root_quat, lin, ang, q, qd)]
+        for got, want in zip(compiled(fk, *state), link_fields(fk, *state), strict=True):
+            torch.testing.assert_close(got, want, atol=2e-5, rtol=0)
 
 
 def test_a_dataset_that_stores_links_is_named(env, library):

@@ -86,6 +86,10 @@ class Dynamics(nn.Module):
     def target(self, action: torch.Tensor) -> torch.Tensor:
         return action * self.action_scale + self.action_offset
 
+    def action(self, target: torch.Tensor) -> torch.Tensor:
+        """The action that commands the joint position ``target``."""
+        return (target - self.action_offset) / self.action_scale
+
     def forward(
         self, rep_state: torch.Tensor, action: torch.Tensor, aux_state: torch.Tensor, sim_ctx: torch.Tensor
     ) -> tuple[torch.Tensor, torch.Tensor]:
@@ -106,6 +110,7 @@ class MultiEncoderActor(nn.Module):
     state (``latent_bc_weight``), which updates only that task's encoder.
 
     The input ``TensorDict`` holds ``history`` ``(B, H, obs_dim)``, the newest frame last, and ``goal_<task>`` per task.
+    With ``reference_action`` it also holds ``reference_action`` ``(B, action_dim)``, added to the decoder's output.
     """
 
     def __init__(
@@ -118,12 +123,14 @@ class MultiEncoderActor(nn.Module):
         hidden_dims: tuple[int, ...],
         latent_bc_weight: float,
         history_length: int,
+        reference_action: bool = False,
     ):
         super().__init__()
         if not goal_specs:
             raise ValueError("MultiEncoderActor needs at least one goal spec.")
         self.obs_dim = obs_dim
         self.history_length = history_length
+        self.reference_action = reference_action
         self.latent_bc_weight = latent_bc_weight
         self.goal_specs = goal_specs
         self._names = [spec.name for spec in goal_specs]
@@ -132,6 +139,11 @@ class MultiEncoderActor(nn.Module):
         self.goal_normalizers = nn.ModuleDict({s.name: RunningNormalizer(s.goal_dim) for s in goal_specs})
         self.encoders = nn.ModuleDict({s.name: build_mlp(s.goal_dim, hidden_dims, latent_dim) for s in goal_specs})
         self.decoder = build_mlp(latent_dim + history_length * obs_dim, hidden_dims, action_dim)
+        if reference_action:
+            # A small output layer: the untrained actor commands nearly the reference.
+            with torch.no_grad():
+                self.decoder[-1].weight.mul_(0.01)
+                self.decoder[-1].bias.zero_()
         self.set_slot_mix(slot_mix)
 
     def set_slot_mix(self, slot_mix: dict[str, float]) -> None:
@@ -170,7 +182,10 @@ class MultiEncoderActor(nn.Module):
         ]
         self._aux_loss = self._latent_bc_loss(obs, slots)
         history = self.obs_normalizer(obs["history"]).flatten(start_dim=1)
-        return self.decoder(torch.cat([torch.cat(latents, dim=0), history], dim=-1))
+        action = self.decoder(torch.cat([torch.cat(latents, dim=0), history], dim=-1))
+        if self.reference_action:
+            action = action + obs["reference_action"]
+        return action
 
     def _latent_bc_loss(self, obs: TensorDict, slots: list[tuple[int, int]]) -> torch.Tensor:
         """Per-row loss pulling each non-anchor task's latent towards the anchor task's (zero in eval mode)."""

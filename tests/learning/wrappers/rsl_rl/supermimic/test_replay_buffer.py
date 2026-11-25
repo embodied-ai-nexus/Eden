@@ -70,3 +70,53 @@ def test_ending_the_episodes_keeps_windows_from_crossing_the_newest_step():
     # Step 5 ends its episode: a window may end on it, and none holds it before its last step.
     assert not (t[:, :-1] == 5).any()
     assert (t[:, -1] == 5).any() and (t[:, 0] == 6).any()
+
+
+def _step(t: int, terminated: bool = False) -> TensorDict:
+    return TensorDict(
+        {"t": torch.tensor([t]), "terminated": torch.tensor([terminated]), "truncated": torch.tensor([False])}, [1]
+    )
+
+
+def test_the_windows_counted_before_a_write_are_counted_again_after_it():
+    buffer = _filled(steps=2, ends=set())
+    assert not buffer.has_window(3)
+    buffer.insert(_step(2, terminated=True))
+    assert buffer.has_window(3)
+    buffer.insert(_step(3))
+    # Step 2 ends its episode, so the one window of three steps is still the first.
+    assert torch.equal(buffer.sample(sequence_length=3, batch_size=8)["t"], torch.tensor([[0, 1, 2]]).expand(8, 3))
+    buffer.end_episodes()
+    buffer.insert(_step(4))
+    buffer.insert(_step(5))
+    assert not (buffer.sample(sequence_length=2, batch_size=200)["t"] == torch.tensor([3, 4])).all(1).any()
+
+
+def test_samples_between_two_writes_draw_as_from_a_buffer_never_sampled():
+    sampled, fresh = _filled(steps=14, ends={3, 9}), _filled(steps=14, ends={3, 9})
+    torch.manual_seed(0)
+    sampled.sample(sequence_length=3, batch_size=5)
+    state = torch.get_rng_state()
+    again = sampled.sample(sequence_length=3, batch_size=50)["t"]
+    torch.set_rng_state(state)
+    assert torch.equal(again, fresh.sample(sequence_length=3, batch_size=50)["t"])
+
+
+def test_naming_the_fields_to_return_draws_the_same_windows():
+    buffer = _filled(steps=14, ends={3, 9})
+    torch.manual_seed(0)
+    whole = buffer.sample(sequence_length=3, batch_size=50)
+    torch.manual_seed(0)
+    part = buffer.sample(sequence_length=3, batch_size=50, fields=("t",))
+    assert set(part.keys()) == {"t"}
+    assert torch.equal(part["t"], whole["t"])
+
+
+def test_several_batches_at_once_are_the_batches_successive_calls_draw():
+    buffer = _filled(steps=14, ends={3, 9})
+    torch.manual_seed(0)
+    one_by_one = torch.stack([buffer.sample(sequence_length=3, batch_size=20)["t"] for _ in range(4)])
+    torch.manual_seed(0)
+    together = buffer.sample(sequence_length=3, batch_size=20, num_batches=4)
+    assert together.shape == (4, 20, 3)
+    assert torch.equal(together["t"], one_by_one)

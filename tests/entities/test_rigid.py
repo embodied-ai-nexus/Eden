@@ -877,6 +877,18 @@ def test_a_bool_mask_mass_shift_lands_on_exactly_the_masked_envs(batched_robot):
     assert torch.allclose(got[[0, 2]], shift) and (got[[1, 3]] == 0.0).all()
 
 
+def test_a_gapped_link_selection_resolves_its_first_geoms_once(batched_robot):
+    last = batched_robot.num_links - 1
+    links = torch.tensor([0, 2], device=batched_robot.device)
+    geoms = batched_robot._first_geom_per_link(links)
+    assert batched_robot._first_geom_per_link(links) is geoms
+    assert geoms.tolist() == [batched_robot.links[i].geom_start for i in (0, 2)]
+    links[1] = last  # written in place: another selection under the same identity
+    assert batched_robot._first_geom_per_link(links).tolist() == [batched_robot.links[i].geom_start for i in (0, last)]
+    ratio = batched_robot.get_friction_ratio(ls_idx_local=links)
+    assert torch.equal(ratio, torch.ones(NUM_ENVS, 2, device=batched_robot.device))
+
+
 def test_unrandomized_links_read_back_as_nominal(batched_robot):
     n, device = batched_robot.num_links, batched_robot.device
     assert torch.equal(batched_robot.get_friction_ratio(), torch.ones(NUM_ENVS, n, device=device))

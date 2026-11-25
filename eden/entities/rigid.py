@@ -3530,17 +3530,34 @@ class RigidEntity(Entity, SupportSurfaceMixin, DofDefaultsMixin):
         recovers the per-link ratio.
         """
         # Memoized per resolved selection: reading an index tensor back with `.tolist()` and uploading the
-        # geom ids would be a GPU->CPU sync each, every step a privileged observation reads friction.
+        # geom ids would be a GPU->CPU sync each, every step a privileged observation reads friction. A range
+        # is keyed by its bounds and an index tensor by identity and version; an inference tensor has no version
+        # and is read back on every call.
         selection = range(self.num_links) if ls_idx_local is None else _genesis_selection(ls_idx_local)
-        key = (selection.start, selection.stop, selection.step) if isinstance(selection, range) else None
         cache = self.__dict__.setdefault("_first_geom_idx_cache", {})
-        if key is not None and key in cache:
+        if isinstance(selection, range):
+            key = (selection.start, selection.stop, selection.step)
+            if key not in cache:
+                cache[key] = self._links_geom_start(selection)
             return cache[key]
-        local = selection if key is not None else torch.as_tensor(selection).reshape(-1).tolist()
-        geoms = torch.tensor([self.links[int(i)].geom_start for i in local], dtype=torch.long, device=self.device)
-        if key is not None:
-            cache[key] = geoms
+        try:
+            version = selection._version if isinstance(selection, torch.Tensor) else None
+        except RuntimeError:
+            version = None
+        if version is None:
+            return self._links_geom_start(torch.as_tensor(selection).reshape(-1).tolist())
+        key = id(selection)
+        cached = cache.get(key)
+        if cached is not None and cached[0]() is selection and cached[1] == version:
+            return cached[2]
+        geoms = self._links_geom_start(selection.reshape(-1).tolist())
+        # Held weakly, so the entry goes with the tensor and a recycled id never serves another selection.
+        cache[key] = (weakref.ref(selection, lambda _, key=key, cache=cache: cache.pop(key, None)), version, geoms)
         return geoms
+
+    def _links_geom_start(self, ls_idx_local) -> torch.Tensor:
+        """Global index of the first geom of each of the local links ``ls_idx_local`` (host integers)."""
+        return torch.tensor([self.links[int(i)].geom_start for i in ls_idx_local], dtype=torch.long, device=self.device)
 
     def get_mass_shift(self, ls_idx_local=None, envs_idx=None) -> torch.Tensor:
         """Per-env link mass shift (kg) vs the nominal (unrandomized) mass; 0 if none.

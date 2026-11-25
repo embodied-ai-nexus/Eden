@@ -121,7 +121,8 @@ class GradedPhaseGraph:
             raise ValueError(
                 f"EnvOptions.cuda_graph_options needs a CUDA device, but this env runs on '{env.device}'. Set "
                 "cuda_graph_options=None, or run on an NVIDIA GPU with en.init(backend=gs.cuda); gs.gpu is not "
-                "enough, as it picks Metal on a Mac."
+                "enough, as it picks Metal on a Mac. CudaGraphOptions(require_cuda=False) runs the graded phase "
+                "eagerly on such a device."
             )
         self._env = env
         self._compute = compute

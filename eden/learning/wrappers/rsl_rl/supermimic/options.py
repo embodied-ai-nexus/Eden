@@ -27,17 +27,28 @@ class WorldModelOptions(ConfigurableOptions):
         Steps per window, rolled out autoregressively from the window's first state.
     nominal_error_root_pos, nominal_error_root_ori, nominal_error_joint_pos, nominal_error_joint_vel : float
         Nominal error of each channel group of the state loss; a group is weighted by ``1 / nominal_error^2``.
+    mirror_share : float
+        Share of each batch, in ``[0, 1]``, replaced by its left-right mirror image
+        (:class:`~eden.learning.wrappers.rsl_rl.supermimic.mirror.Mirror`). Above 0, the runner checks at
+        construction that the robot and the task's randomization are mirror symmetric.
     """
 
-    hidden_dims: tuple[int, ...] = (2048, 2048, 2048)
-    lr: float = 2e-4
-    num_batches: int = 10
+    hidden_dims: tuple[int, ...] = (1024, 1024, 1024)
+    lr: float = 4e-4
+    num_batches: int = 5
     batch_size: int = 2048
     horizon: int = 8
     nominal_error_root_pos: float = 0.01
     nominal_error_root_ori: float = 0.02
     nominal_error_joint_pos: float = 0.1
     nominal_error_joint_vel: float = 3.14
+    mirror_share: float = 0.5
+
+    @model_validator(mode="after")
+    def _check(self) -> WorldModelOptions:
+        if not 0.0 <= self.mirror_share <= 1.0:
+            raise ValueError(f"mirror_share is a share of the batch, in [0, 1], got {self.mirror_share}.")
+        return self
 
 
 class PolicyOptions(ConfigurableOptions):
@@ -50,6 +61,22 @@ class PolicyOptions(ConfigurableOptions):
         rollouts; ``"bptt"`` uses the imagined return alone.
     lr : float
         Learning rate of the actor and the critic.
+    lr_multiplier : float
+        The actor steps at ``lr * lr_multiplier``; the critic keeps ``lr``.
+    lr_decay_return : float | None
+        Once ``Train/mean_normalized_return`` reaches this, ``lr_multiplier`` ramps linearly to 1 over
+        ``lr_decay_iterations`` iterations. That return is the mean, over the episodes that ended in an iteration,
+        of the episode's reward per step over the largest reward of one step. ``None`` leaves it out of the schedule.
+    lr_decay_deadline : int | None
+        The iteration at which the ramp starts if the return has not started it; ``None`` sets no deadline.
+    lr_decay_iterations : int
+        Iterations the ramp takes.
+    ema_decay : float
+        Decay per actor step of a Polyak average of the actor, in ``[0, 1)``. Replay runs the average and
+        collection the trained actor. 0 keeps no average.
+    reference_action : bool
+        Add the action that commands the reference joint positions of the next frame to the actor's output, so the
+        network learns a correction to it. A checkpoint loads only under the value it trained with.
     num_batches : int
         Actor steps per update, one imagined batch each.
     batch_size : int
@@ -90,9 +117,15 @@ class PolicyOptions(ConfigurableOptions):
     """
 
     algorithm: Literal["actor_critic", "bptt"] = "actor_critic"
-    lr: float = 2e-4
+    lr: float = 4e-4
+    lr_multiplier: float = 4.0
+    lr_decay_return: float | None = 0.75
+    lr_decay_deadline: int | None = 350
+    lr_decay_iterations: int = 75
+    ema_decay: float = 0.995
+    reference_action: bool = True
     num_batches: int = 1
-    batch_size: int = 4096
+    batch_size: int = 2048
     horizon: int = 32
     gamma: float = 0.99
     lam: float = 0.95
@@ -130,6 +163,19 @@ class PolicyOptions(ConfigurableOptions):
                 f"0 < gamma < 1 and 0 <= lam <= 1, got gamma={self.gamma}, lam={self.lam}. For an undiscounted "
                 "objective set algorithm='bptt'."
             )
+        if not 0.0 <= self.ema_decay < 1.0:
+            raise ValueError(f"ema_decay must be in [0, 1), got {self.ema_decay}. 0 keeps no average of the actor.")
+        if self.lr_multiplier <= 0.0:
+            raise ValueError(f"lr_multiplier must be positive, got {self.lr_multiplier}.")
+        if self.lr_decay_return is not None and not 0.0 < self.lr_decay_return <= 1.0:
+            raise ValueError(
+                f"lr_decay_return is a normalized return, in (0, 1], got {self.lr_decay_return}. Set it to None to "
+                "leave the return out of the schedule."
+            )
+        if self.lr_decay_deadline is not None and self.lr_decay_deadline < 0:
+            raise ValueError(f"lr_decay_deadline is an iteration, got {self.lr_decay_deadline}.")
+        if self.lr_decay_iterations < 1:
+            raise ValueError(f"lr_decay_iterations must be at least 1, got {self.lr_decay_iterations}.")
         return self
 
 
@@ -172,6 +218,11 @@ class ReturnSamplerOptions(ConfigurableOptions):
         Share of resets spread uniformly over the bins.
     keep : float
         Share of resets on the bins in proportion to the summed squared focus they received.
+    failure : float
+        Share of resets on the bins up to ``failure_lead_s`` before the frames of recent falls, within the fall's
+        clip. Until a fall is recorded the other shares take it.
+    failure_lead_s : float
+        How long before a fall the resets of the ``failure`` share start, at most.
     """
 
     enabled: bool = True
@@ -179,15 +230,27 @@ class ReturnSamplerOptions(ConfigurableOptions):
     horizon: int = 20
     memory: int = 256
     steepness: float = 25.0
-    explore: float = 0.5
-    keep: float = 0.1
+    explore: float = 0.35
+    keep: float = 0.07
+    failure: float = 0.3
+    failure_lead_s: float = 1.0
 
     @model_validator(mode="after")
     def _check(self) -> ReturnSamplerOptions:
         if not 0.0 < self.gamma < 1.0:
             raise ValueError(f"return sampler gamma must be in (0, 1), got {self.gamma}.")
-        if self.explore + self.keep >= 1.0:
-            raise ValueError(f"explore ({self.explore}) + keep ({self.keep}) must leave a share for the focus.")
+        if min(self.explore, self.keep, self.failure) < 0.0:
+            raise ValueError(
+                f"explore ({self.explore}), keep ({self.keep}) and failure ({self.failure}) are shares of the "
+                "resets and cannot be negative."
+            )
+        if self.explore + self.keep + self.failure >= 1.0:
+            raise ValueError(
+                f"explore ({self.explore}) + keep ({self.keep}) + failure ({self.failure}) must leave a share for "
+                "the focus."
+            )
+        if self.failure_lead_s <= 0.0:
+            raise ValueError(f"failure_lead_s must be positive, got {self.failure_lead_s}.")
         return self
 
 
@@ -246,7 +309,8 @@ SUPERMIMIC_RUNNER_CLASS_NAME = "eden.learning.wrappers.rsl_rl.supermimic.runner:
 
 
 class SuperMimicRunnerOptions(RslRlBaseRunnerOptions):
-    """SuperMimic: a motion tracker trained through one learned, differentiable world model.
+    """SuperMimic: a motion tracker trained through one learned, differentiable world model. The defaults add
+    BlinkMimic's learner-side recipe (https://github.com/fuyichen0725/blinkmimic) to the paper's method.
 
     Each iteration steps the simulator ``num_steps_per_env`` times with the deterministic policy, storing every
     transition in a replay buffer. On average ``num_envs / (num_batches * batch_size * horizon) * replay_ratio``
@@ -298,7 +362,7 @@ class SuperMimicRunnerOptions(RslRlBaseRunnerOptions):
     clip_end_termination: str = "clip_end"
     reward_terms: RewardTermsOptions = RewardTermsOptions()
     buffer_size: int = 1000
-    replay_ratio: float = 16.0
+    replay_ratio: float = 8.0
     world_model: WorldModelOptions = WorldModelOptions()
     policy: PolicyOptions = PolicyOptions()
     velocity_goal: VelocityGoalOptions = VelocityGoalOptions()

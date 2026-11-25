@@ -18,7 +18,7 @@ import logging
 #: The griffe warning count of a full build on ``main``, with the toolchain pinned in
 #: ``.github/actions/docs-toolchain/constraints.txt``. Lower it as docstrings are fixed. Raise it only in a change that
 #: bumps those pins and adds warnings by doing so, and say so in the commit message.
-MAX_GRIFFE_WARNINGS = 2573
+MAX_GRIFFE_WARNINGS = 2565
 
 # griffe logs through mkdocstrings' logger factory, under the ``mkdocs.plugins`` namespace.
 _GRIFFE_LOGGER = logging.getLogger("mkdocs.plugins.griffe")

@@ -597,7 +597,7 @@ Every term registered in Eden (247 of them) with the parameters it accepts, gene
 
 | Term | Form | Parameters | Summary |
 |---|---|---|---|
-| `kinematic_links_motion` | class `KinematicLinksMotion` | — | Reference links by forward kinematics. |
+| `kinematic_links_motion` | class `KinematicLinksMotion` | `compile_kinematics: bool = True` | Reference links by forward kinematics. |
 
 ## noise_model terms
 

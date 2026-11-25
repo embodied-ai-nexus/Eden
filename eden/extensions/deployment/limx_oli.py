@@ -1,7 +1,6 @@
 """LimX Dynamics Oli (HU_D04) real-robot deployment backend.
 
-Talks to the robot through the LimX low-level SDK (``limxsdk``, the Python
-wheel shipped in https://github.com/limxdynamics/limxsdk-lowlevel): joint
+Talks to the robot through the LimX low-level SDK (``limxsdk`` on PyPI): joint
 state and IMU arrive on subscription callbacks, commands go out via
 ``publishRobotCmd``. Command/state arrays are indexed in the robot's motor
 order, which the backend maps to/from Eden's ``dofs_name`` order by motor
@@ -71,9 +70,9 @@ def ensure_limx_sdk() -> None:
     """Raise a descriptive error if the LimX SDK is not importable."""
     if not IS_LIMX_SDK_AVAILABLE:
         raise RuntimeError(
-            "LimX SDK (limxsdk) failed to import. Install the platform wheel shipped in "
-            "https://github.com/limxdynamics/limxsdk-lowlevel under python3/<arch>/ "
-            "(e.g. `uv pip install python3/amd64/limxsdk-*.whl`). "
+            "LimX SDK (limxsdk) failed to import. Install the `limx` extra: "
+            '`pip install "eden-world[limx]"`, or `uv sync --inexact --extra limx` in a checkout '
+            "(Linux x86_64/aarch64 only; on Windows, `pip install limxsdk`). "
             f"Underlying error: {_LIMX_SDK_IMPORT_ERROR!r}"
         )
 

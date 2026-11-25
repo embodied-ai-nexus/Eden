@@ -274,9 +274,9 @@ class ReacherConfig(EdenRLConfig):
 
 <div class="eden-card" markdown>
 
-![Two arms folding a towel](assets/readme/mochi_fold.webp)
+![Two arms folding a T-shirt in thirds on a kitchen table](assets/readme/mochi_fold_shirt.webp)
 
-**Cloth manipulation**: two arms fold a towel in half.
+**Cloth manipulation**: two arms fold a T-shirt in thirds.
 
 </div>
 
@@ -386,6 +386,8 @@ Eden builds on these open-source projects:
   reference environments for human motion priors.
 - [Holosoma](https://github.com/amazon-far/holosoma) and
   [InstinctLab](https://github.com/project-instinct/InstinctLab): reference end-to-end humanoid frameworks.
+- [project_superdex](https://github.com/facebookresearch/project_superdex): the original implementation of the Mochi
+  solver.
 
 ## Citation
 
