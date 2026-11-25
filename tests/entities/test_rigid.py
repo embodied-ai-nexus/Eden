@@ -10,6 +10,7 @@ import gc
 import math
 import os
 import re
+from typing import ClassVar
 
 import genesis as gs
 import genesis.utils.geom as gu
@@ -22,7 +23,7 @@ from eden.envs.base import EnvBase
 from eden.options import BoxOptions, EntityOptions, EnvOptions, PlaneOptions, SceneOptions
 from eden.options.entities import GroupedEntityOptions, RobotOptions, SphereOptions
 from eden.options.materials import KinematicMaterialOptions, RigidMaterialOptions
-from eden.options.actuators import Unitree5020_16_DOUBLE, Unitree7520_14, Unitree7520_22
+from eden.options.actuators import ActuatorSpecOptions, Unitree5020_16_DOUBLE, Unitree7520_14, Unitree7520_22
 from eden.options.robots import FrankaEmikaPanda, FrankaHand, FrankaResearch3, Robotiq2f85
 from eden.options.robots.unitree_g1 import G1Dofs29
 from eden.utils.configs import EdenConfig, overrides_from_str
@@ -1103,6 +1104,44 @@ def test_each_joint_carries_the_spec_of_its_motor(g1, dofs_name, spec_cls):
     for dof_name, idx in zip(dofs_name, g1.find_named_dofs(dofs_name).columns.tolist()):
         for prop in _SPEC_PROPS:
             assert getattr(g1, f"_{prop.lower()}")[0, idx].item() == pytest.approx(getattr(spec_cls, prop), rel=1e-5)
+
+
+# A spec that sets a joint's passive dynamics replaces the asset's in the solver; one that leaves them unset
+# (``None``) keeps the asset's. Either way ``default_dofs_*`` reports what the solver runs.
+_SPEC_DYNAMICS_MJCF = """<mujoco model="spec_dynamics"><worldbody><body name="base">
+  <body name="a" pos="0.1 0 0"><joint name="set_by_spec" type="hinge" axis="0 0 1" damping="0.3" frictionloss="0.4"/>
+    <geom type="box" size="0.02 0.02 0.02" mass="0.1"/></body>
+  <body name="b" pos="-0.1 0 0"><joint name="kept_from_asset" type="hinge" axis="0 0 1" damping="0.3" frictionloss="0.4"/>
+    <geom type="box" size="0.02 0.02 0.02" mass="0.1"/></body>
+</body></worldbody></mujoco>"""
+
+
+class _SetsDynamics(ActuatorSpecOptions):
+    DAMPING: ClassVar[float] = 0.02
+    FRICTIONLOSS: ClassVar[float] = 0.05
+
+
+class _KeepsDynamics(ActuatorSpecOptions):
+    pass
+
+
+class _SpecDynamicsRig(RobotOptions):
+    dofs_spec: ClassVar[dict[str, type[ActuatorSpecOptions]]] = {
+        "set_by_spec": _SetsDynamics,
+        "kept_from_asset": _KeepsDynamics,
+    }
+
+
+def test_a_spec_writes_the_passive_dynamics_it_sets_and_keeps_the_assets_otherwise(tmp_path):
+    asset = tmp_path / "spec_dynamics.xml"
+    asset.write_text(_SPEC_DYNAMICS_MJCF)
+    rig = _SpecDynamicsRig(file=str(asset), is_fixed_base=True, dofs_name=["set_by_spec", "kept_from_asset"])
+    env = build_env(EdenConfig(env_options=EnvOptions(num_envs=1), scene_options=SceneOptions(rig=rig)))
+    entity = env.entities["rig"]
+    for field, spec_value in (("damping", 0.02), ("frictionloss", 0.05)):
+        simulated = getattr(entity, f"get_dofs_{field}")()[0].tolist()
+        assert simulated == pytest.approx([spec_value, {"damping": 0.3, "frictionloss": 0.4}[field]]), field
+        assert getattr(entity, f"default_dofs_{field}")[0].tolist() == pytest.approx(simulated), field
 
 
 # ═════════════════════════════════════════════════════════════════════════════════════════════════

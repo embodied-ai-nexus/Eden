@@ -223,7 +223,7 @@ sonic-viz = [
 # usage events to a third-party analytics host. Set `WUJI_TELEMETRY_DISABLE=1` in the
 # environment to turn it off; Eden does not set it for you.
 wuji = [
-  "wuji-sdk>=2026.8.17; sys_platform == 'linux'"
+  "wuji-sdk>=2026.11.9; sys_platform == 'linux'"
 ]
 # LimX low-level SDK for the Oli deployment backend (`eden/extensions/deployment/limx_oli.py`).
 # 4.1.2 ships manylinux_2_29 wheels for x86_64 and aarch64 and no sdist; the only Windows wheel

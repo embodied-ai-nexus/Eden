@@ -45,6 +45,7 @@ from eden.options import (
     SceneOptions,
 )
 from eden.options.learning.rsl_rl.translate import detect_rsl_rl_version
+from eden.options.robots.composite.oli_wuji import OliWuji
 from eden.options.robots.unitree_g1 import G1Dofs23, G1Dofs29
 from eden.options.robots.unitree_go1 import Go1
 from eden.tasks import TASK_REGISTRY
@@ -1643,6 +1644,50 @@ def test_under_a_task_each_policy_trained_at_other_gains_than_the_task_robot_is_
     assert [w.split("'")[1] for w in warnings] == ["extension:sonic", "extension:sonic"]
     assert "--task robot's kp," in warnings[0] and "--task robot's kd," in warnings[1]
     assert all("left_hip_pitch_joint (own" in w and "task " in w and "without --task" in w for w in warnings)
+
+
+def _checkpoint(tmp_path, run: str, robot) -> str:
+    """A checkpoint path in ``run``, with a ``config.json`` beside it saving ``robot``, or none for ``None``."""
+    run_dir = tmp_path / run
+    run_dir.mkdir()
+    if robot is not None:
+        config = _config()
+        config.scene_options.robot = robot
+        config.save_as_json(str(run_dir / "config.json"), lock_config=False)
+    return str(run_dir / "model_100.pt")
+
+
+def test_each_checkpoint_trained_at_other_gains_than_the_deployed_robot_is_named(g1_env, eden_caplog, tmp_path):
+    """Its own config.json is silent; one trained with stiffer knees is named; one without a config is flagged."""
+    stiff = G1Dofs29(default_dofs_kp={**G1Dofs29().default_dofs_kp, "*_knee_joint": 300.0})
+    checkpoints = [
+        _checkpoint(tmp_path, r, robot) for r, robot in (("own", G1Dofs29()), ("stiff", stiff), ("loose", None))
+    ]
+    trained = tasks._checkpoint_trained_robots(checkpoints, "robot", G1Dofs29())
+    with deployments(g1_env) as make:
+        tasks._warn_on_checkpoint_gains(make(LoopbackDeployment), trained)
+
+    warnings = [r.message for r in eden_caplog.records if r.levelname == "WARNING" and "[deploy]" in r.message]
+    assert len(warnings) == 2
+    assert checkpoints[1] in warnings[0] and "--task robot's kp," in warnings[0]
+    assert f"left_knee_joint (own 300.00, deployed {G1Dofs29().default_dofs_kp['*_knee_joint']:.2f})" in warnings[0]
+    assert checkpoints[2] in warnings[1] and "no config.json beside it" in warnings[1]
+
+
+def test_a_checkpoint_config_that_does_not_load_is_reported_not_fatal(g1_env, eden_caplog, tmp_path):
+    """The comparison is a diagnostic: a config.json from a retired layout must not stop the deploy."""
+    ckpt = _checkpoint(tmp_path, "retired", None)
+    pathlib.Path(ckpt).with_name("config.json").write_text('{"not": "an eden config"}')
+    ((_, why),) = tasks._checkpoint_trained_robots([ckpt], "robot", G1Dofs29())
+    with deployments(g1_env) as make:
+        tasks._warn_on_checkpoint_gains(make(LoopbackDeployment), [(ckpt, why)])
+
+    (warning,) = [r.message for r in eden_caplog.records if r.levelname == "WARNING" and ckpt in r.message]
+    assert "has a config.json, but" in warning and "did not load (" in warning and "unknown" in warning
+
+
+def test_a_composite_rig_reads_no_checkpoint_gains(tmp_path):
+    assert tasks._checkpoint_trained_robots([_checkpoint(tmp_path, "rig", None)], "robot", OliWuji()) == []
 
 
 def _gain_slots(dep):

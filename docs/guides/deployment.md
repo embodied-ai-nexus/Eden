@@ -452,8 +452,11 @@ A slot's kp/kd come from its policy's pinned robot (`robot_options()`) on every 
 names, and from the env's robot on the rest, so a `--checkpoint` (trained in the env) and a policy
 pinning no robot run at the env robot's gains. With `--task`, the task's robot sets every slot's
 gains, extension policies included (a task robot is how a deploy retunes gains for the hardware),
-and the deploy warns at startup for each policy whose pinned gains differ. `--deploy_kp_kd_scale`
-and `--disable_joints` apply to every slot alike.
+and the deploy warns at startup for each policy whose pinned gains differ. It warns likewise for
+each `--checkpoint` / `--extra_checkpoint` whose sibling `config.json` saved other gains than the
+env robot's (an extra checkpoint from another run, or `--config` / `--override` changing the
+robot), and for each checkpoint with no `config.json`, whose training gains it cannot know.
+`--deploy_kp_kd_scale` and `--disable_joints` apply to every slot alike.
 
 The boot slot's gains are on the wire from the first command. A switch ramps kp/kd linearly to the
 new slot's over `--gain_ramp_steps` control steps (default 50, 1 s at 50 Hz; `0` jumps), because a

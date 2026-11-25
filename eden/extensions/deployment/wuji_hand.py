@@ -43,9 +43,10 @@ from eden.extensions.deployment.base import (
     resolve_dofs_values,
 )
 from eden.extensions.deployment.utils.state import RobotCommand, RobotState
+from eden.options.actuators import WujiHand2Actuator
 from eden.options.robots.wuji_hand1 import _WujiHand1
 from eden.options.robots.wuji_hand2beta2 import _WujiHand2Beta2
-from eden.utils.string import resolve_matching_names_values
+from eden.utils.string import first_few, resolve_matching_names_values
 
 if TYPE_CHECKING:
     from eden.envs.base import EnvBase
@@ -446,26 +447,48 @@ class Hand1Transport(HandTransport):
                 en.logger.warning(f"[wuji] Hand 1 disable failed: {e}")
 
 
+#: Hand 2's impedance modes, by Eden's name: the ``wuji_sdk.ControlMode`` member each selects.
+_HAND2_MODES = {"mit": "Mit", "mit_v2": "MitV2"}
+#: The first firmware with MIT_V2 (``wuji_sdk`` 2026.11.23 docs).
+_MIT_V2_FIRMWARE = (3, 1, 0)
+
+
 @dataclass
 class Hand2Gains:
-    """MIT impedance and current limit programmed on a Wuji Hand 2 at connect.
+    """The impedance mode, gains and effort limit programmed on a Wuji Hand 2 at connect.
 
     Parameters
     ----------
     kp, kd : list[float]
-        Per-joint stiffness and damping, SDK (finger-major) order.
-    effort_limit_a : list[float]
-        Per-joint current limit, A.
+        Per-joint stiffness and damping, SDK (finger-major) order: firmware MIT units in ``"mit"``,
+        N·m/rad and N·m·s/rad in ``"mit_v2"``.
+    effort_limit : list[float]
+        Per-joint effort limit: a current in A in ``"mit"``, a torque in N·m in ``"mit_v2"``.
+    control_mode : {"mit", "mit_v2"}
+        The mode selected before the gains and limit are written. ``"mit_v2"`` needs firmware 3.1.0.
     """
 
     kp: list[float]
     kd: list[float]
-    effort_limit_a: list[float]
+    effort_limit: list[float]
+    control_mode: Literal["mit", "mit_v2"] = "mit"
 
     def __post_init__(self) -> None:
-        for name in ("kp", "kd", "effort_limit_a"):
+        for name in ("kp", "kd", "effort_limit"):
             if len(getattr(self, name)) != NUM_JOINTS:
                 raise ValueError(f"Hand2Gains.{name} needs {NUM_JOINTS} values, got {len(getattr(self, name))}")
+        if self.control_mode not in _HAND2_MODES:
+            raise ValueError(f"Hand2Gains.control_mode={self.control_mode!r} is not one of {tuple(_HAND2_MODES)}.")
+
+    @property
+    def effort_unit(self) -> str:
+        return "A" if self.control_mode == "mit" else "N·m"
+
+
+def _parse_firmware(version: str) -> tuple[int, ...] | None:
+    """``"v2.13.1"`` -> ``(2, 13, 1)``; ``None`` for a string in another format (the mode readback still checks)."""
+    parts = version.strip().lstrip("vV").split(".")
+    return tuple(int(p) for p in parts) if parts and all(p.isdigit() for p in parts) else None
 
 
 #: ``device_name`` is the handle ``wuji_sdk`` registers a connection under and ``disconnect``
@@ -477,10 +500,10 @@ _device_seq = itertools.count()
 class Hand2Transport(HandTransport):
     """Wuji Hand 2 via ``wuji_sdk`` (upstream ``WujiHand2Driver`` and pen spin's ``Hand2Compat``).
 
-    Connects to ``serial_number`` (or the single hand on the bus), programs the MIT gains and the
-    current limit, enables the motors, and streams ``JointCommand(q, 0, 0)``. Joint positions
-    arrive on the SDK's ``joint_states`` callback; ``joint_diagnostics`` feeds :meth:`fault`, and
-    the age of the joint feed feeds :meth:`stale`.
+    Connects to ``serial_number`` (or the single hand on the bus), selects the gains' control mode,
+    programs the gains and the effort limit and reads them back, enables the motors, and streams
+    ``JointCommand(q, 0, 0)``. Joint positions arrive on the SDK's ``joint_states`` callback;
+    ``joint_diagnostics`` feeds :meth:`fault`, and the age of the joint feed feeds :meth:`stale`.
 
     Parameters
     ----------
@@ -539,7 +562,8 @@ class Hand2Transport(HandTransport):
         self._hand = self._mgr.connect(
             sn=sn, device_name=self.device_name, options=wuji_sdk.ConnectOptions(enable_bridge=False)
         )
-        en.logger.info(f"[wuji] connected Wuji Hand 2 sn={self._hand.serial_number}")
+        self._firmware = self._firmware_version()
+        en.logger.info(f"[wuji] connected Wuji Hand 2 sn={self._hand.serial_number}, firmware {self._firmware}")
         # Connected from here on: any failure must disable and release the link before propagating.
         try:
             n_online = self._hand.online_joints_count().get()
@@ -550,10 +574,12 @@ class Hand2Transport(HandTransport):
                     "online, WujiHandDeployment.configure(require_all_joints=False)."
                 )
             g = self.gains
-            self._hand.effort_limit().set([float(a) for a in g.effort_limit_a])
+            self._select_control_mode(g.control_mode)
+            self._hand.effort_limit().set([float(a) for a in g.effort_limit])
             self._hand.mit_params().set(
                 [wuji_sdk.MitParam(float(p), float(d)) for p, d in zip(g.kp, g.kd, strict=True)]
             )
+            self._verify_programmed(g)
             self._sub = self._hand.joint_states().subscribe_with_callback(self._on_state)
             try:
                 self._diag_sub = self._hand.joint_diagnostics().subscribe_with_callback(self._on_diag)
@@ -569,9 +595,70 @@ class Hand2Transport(HandTransport):
         partial = "" if self._watched.all() else f", {int(self._watched.sum())}/{NUM_JOINTS} joints online"
         en.logger.info(
             f"[wuji] Hand 2 enabled: kp {min(g.kp):.3g}-{max(g.kp):.3g}, kd {min(g.kd):.3g}-{max(g.kd):.3g}, "
-            f"current limit {min(g.effort_limit_a):g}-{max(g.effort_limit_a):g} A, "
+            f"{g.control_mode}, effort limit {min(g.effort_limit):.3g}-{max(g.effort_limit):.3g} {g.effort_unit}, "
             f"{self.stream.mode} streaming at {self.stream.servo_hz:g} Hz{partial}"
         )
+
+    def _firmware_version(self) -> str:
+        """The hand's firmware version for the connect log; a failed read is logged, never fatal."""
+        try:
+            return str(self._hand.firmware_version().get())
+        except Exception as e:  # noqa: BLE001 - diagnostic only; the hand is still usable
+            return f"unknown ({type(e).__name__}: {e})"
+
+    def _select_control_mode(self, control_mode: str) -> None:
+        """Put the hand in ``control_mode``, the mode whose units the gains and effort limit are in.
+
+        The effort limit is in A in MIT mode and in N·m in Position and MIT_V2 (firmware 3.0.0+), the modes
+        store their gains separately, and the hand stays in whatever mode the last program set. The SDK
+        switches modes only on disabled joints. Its readback covers the whole hand, and when joints disagree
+        it logs a warning (listing them) and returns the mode last written; ``wuji_sdk`` has no per-joint
+        mode read to check further.
+        """
+        member = _HAND2_MODES[control_mode]
+        if control_mode == "mit_v2" and (version := _parse_firmware(self._firmware)) and version < _MIT_V2_FIRMWARE:
+            raise RuntimeError(
+                f"Wuji Hand 2 {self._hand.serial_number} runs firmware {self._firmware}, and MIT_V2 needs "
+                f"{'.'.join(map(str, _MIT_V2_FIRMWARE))} or later. Deploy it with control_mode='mit', or update its "
+                "firmware first."
+            )
+        if not hasattr(self._sdk.ControlMode, member):
+            raise RuntimeError(
+                f"wuji_sdk {getattr(self._sdk, '__version__', '(unknown version)')} has no ControlMode.{member}; "
+                f"control_mode={control_mode!r} needs wuji-sdk 2026.11.23 or later: pip install -U wuji-sdk."
+            )
+        want = getattr(self._sdk.ControlMode, member)
+        self._hand.disable()
+        self._hand.control_mode().set(want)
+        if (mode := self._hand.control_mode().get()) != want:
+            fix = (
+                " MIT_V2 needs firmware 3.1.0 or later; on older firmware deploy with control_mode='mit'."
+                if control_mode == "mit_v2"
+                else ""
+            )
+            raise RuntimeError(
+                f"Wuji Hand 2 {self._hand.serial_number}: control mode reads {mode} after selecting {want}, so the "
+                f"gains and effort limit would be read in another mode's units.{fix} Power-cycle the hand and check "
+                "the firmware version; do not enable it in this mode."
+            )
+
+    def _verify_programmed(self, g: Hand2Gains) -> None:
+        """Read the current limits and MIT gains back; an online joint holding other values refuses the run."""
+        limits, params = self._hand.effort_limit().get(), self._hand.mit_params().get()
+        wrong = []
+        for i, (limit, p) in enumerate(zip(limits, params, strict=True)):
+            if limit is None and p is None:  # offline
+                continue
+            want = (g.effort_limit[i], g.kp[i], g.kd[i])
+            got = (limit, getattr(p, "kp", None), getattr(p, "kd", None))
+            if None in got or not np.allclose(got, want, rtol=1e-4, atol=1e-6):
+                wrong.append(f"{self.joint_names[i]} (limit {g.effort_unit}, kp, kd) wrote {want}, read {got}")
+        if wrong:
+            raise RuntimeError(
+                f"Wuji Hand 2 {self._hand.serial_number}: {len(wrong)} joint(s) read back other values than were "
+                f"written: {'; '.join(wrong)}. Power-cycle the hand and reconnect; do not enable it with these "
+                "values."
+            )
 
     def _only_hand_on_the_bus(self) -> str:
         """The serial number of the one Wuji hand ``scan()`` finds; a Wuji Glove on the bus is not a hand."""
@@ -703,10 +790,13 @@ class WujiHandDeployment(DeploymentBase):
     **Joint velocity is a finite difference** of consecutive reads over the transport's clock, like
     the XHand's (neither SDK reports one), optionally low-passed (``vel_lowpass_hz``).
 
-    **Gains are programmed once at connect, never per command.** Hand 2 takes MIT ``kp`` / ``kd``
+    **Gains are programmed once at connect, never per command.** Hand 2 takes ``kp`` / ``kd``
     (``mit_kp`` / ``mit_kd``, default the payload's nominal gains: the robot's ``default_dofs_kp`` /
-    ``default_dofs_kd`` times ``deploy_kp_kd_scale``). Hand 1 runs its own position loop and has
-    no gain to set. So ``disable_joints`` (which works by zeroing command gains) is refused for
+    ``default_dofs_kd`` times ``deploy_kp_kd_scale``) in the units of its ``control_mode``. In
+    ``"mit_v2"`` (firmware 3.1.0+) those are the joint-space gains, programmed as they are, with the
+    robot's force limits as the torque limit. In legacy ``"mit"`` they are converted to firmware MIT
+    units through each joint's :class:`~eden.options.actuators.WujiHand2Actuator` spec. Hand 1 runs its own position
+    loop and has no gain to set. So ``disable_joints`` (which works by zeroing command gains) is refused for
     both, and ``deploy_kp_kd_scale`` / ``mit_kp`` / ``mit_kd`` for Hand 1.
 
     **Loop order.** The base control tick (:meth:`DeploymentBase.step`, the operator state machine
@@ -741,13 +831,22 @@ class WujiHandDeployment(DeploymentBase):
         How targets are streamed (see the module docstring).
     servo_hz : float
         Rate of the interpolated sub-targets.
+    control_mode : {"mit", "mit_v2"}
+        Hand 2's impedance mode. ``"mit"``: legacy MIT, any firmware; gains in firmware MIT units and a
+        current limit in A. ``"mit_v2"``: firmware 3.1.0+ and wuji-sdk 2026.11.23+; gains in N·m/rad and
+        N·m·s/rad and a torque limit in N·m, and all 20 joints must be online (``require_all_joints``).
     effort_limit_a : float | None
-        Joint current limit, A. ``None``: upstream's defaults, 0.5 (Hand 1) / 1.0 (Hand 2).
+        Joint current limit, A. ``None``: 0.5 on Hand 1 (upstream's default); on Hand 2 in ``"mit"`` the
+        robot's ``current_limit_a`` (1.5 for ``WujiHand2Beta2``, what its force limits were trained at),
+        else 1.0. In ``"mit_v2"`` a set value becomes each joint's torque limit through its motor's
+        ``TORQUE_CONSTANT``; ``None`` programs the robot's ``default_dofs_force_limits``, the ceiling the
+        policy trained with.
     lowpass_cutoff_hz : float
         Hand 1's target low-pass cutoff.
     mit_kp, mit_kd : float | dict[str, float] | None
-        Hand 2's MIT gains: one value for every joint, or a pattern-keyed dict covering all 20.
-        ``None``: the payload's nominal gains.
+        Hand 2's gains in ``control_mode``'s units (the SDK's ``mit_params`` in either mode): one value
+        for every joint, or a pattern-keyed dict covering all 20. ``None``: the payload's nominal gains,
+        which in ``"mit"`` needs the robot's ``dofs_spec`` to map every joint to a ``WujiHand2Actuator``.
     require_all_joints : bool
         Hand 2: refuse a hand with fewer than 20 joints online.
     stop_on_fault : bool
@@ -776,6 +875,7 @@ class WujiHandDeployment(DeploymentBase):
     serial_number: str = ""
     stream_mode: Literal["sync", "thread"] = "sync"
     servo_hz: float = 200.0
+    control_mode: Literal["mit", "mit_v2"] = "mit"
     effort_limit_a: float | None = None
     lowpass_cutoff_hz: float = 3.0
     mit_kp: float | dict[str, float] | None = None
@@ -822,12 +922,26 @@ class WujiHandDeployment(DeploymentBase):
                     f"{owner} cannot tell which Wuji generation robot {robot} is. Name it: "
                     f"{owner}.configure(hand='hand1') for wujihandpy, or hand='hand2' for wuji_sdk."
                 )
-        if self.effort_limit_a is None:
-            self.effort_limit_a = 0.5 if self.hand == "hand1" else 1.0
+        if self.effort_limit_a is None and self.hand == "hand1":
+            self.effort_limit_a = 0.5
         self._reject_unforwarded_gain_options()
         if self.hand == "hand2":
-            self._mit_kp = self._resolve_gain("mit_kp", self.mit_kp, self.default_dof_kp)
-            self._mit_kd = self._resolve_gain("mit_kd", self.mit_kd, self.default_dof_kd)
+            motors = self._resolve_hand2_motors()
+            if self.control_mode == "mit_v2":
+                per_unit = np.ones(self.num_dofs)
+                self._effort_limit = self._resolve_hand2_torque_limit(motors)
+            else:
+                per_unit = None if motors is None else np.array([motors[n].JOINT_GAIN(1.0) for n in self.dofs_name])
+                self._effort_limit = self._resolve_hand2_current_limit()
+            #: Per DOF, the joint-space gain of one unit of the programmed gain (``None``: not convertible).
+            self._joint_gain_per_unit = per_unit
+            self._mit_kp = self._resolve_gain(
+                "mit_kp", self.mit_kp, None if per_unit is None else self.default_dof_kp / per_unit
+            )
+            self._mit_kd = self._resolve_gain(
+                "mit_kd", self.mit_kd, None if per_unit is None else self.default_dof_kd / per_unit
+            )
+            self._warn_on_torque_ceiling(motors)
 
         self.stream = StreamOptions(mode=self.stream_mode, servo_hz=self.servo_hz, interp_s=self.control_dt)
         if self.stream_mode == "sync":
@@ -841,7 +955,11 @@ class WujiHandDeployment(DeploymentBase):
     def _check_option_values(self) -> None:
         """Refuse an option value the SDKs or the loop cannot act on (the ``Literal`` hints are not enforced)."""
         owner = type(self).__name__
-        choices = {"hand": (None, "hand1", "hand2"), "stream_mode": ("sync", "thread")}
+        choices = {
+            "hand": (None, "hand1", "hand2"),
+            "stream_mode": ("sync", "thread"),
+            "control_mode": tuple(_HAND2_MODES),
+        }
         for name, allowed in choices.items():
             if getattr(self, name) not in allowed:
                 raise ValueError(f"{owner}: {name}={getattr(self, name)!r} is not one of {allowed}.")
@@ -874,7 +992,18 @@ class WujiHandDeployment(DeploymentBase):
                 "connect. Remove disable_joints."
             )
         if self.hand != "hand1":
+            if self.control_mode == "mit_v2" and not self.require_all_joints:
+                raise ValueError(
+                    f"{owner}: control_mode='mit_v2' needs all 20 joints online (wuji_sdk's MIT_V2 setup), so it "
+                    "cannot run with require_all_joints=False. Bring every joint online, or deploy the partial hand "
+                    "with control_mode='mit'."
+                )
             return
+        if self.control_mode != "mit":
+            raise ValueError(
+                f"{owner}: control_mode={self.control_mode!r} selects a Wuji Hand 2 impedance mode, and Wuji Hand 1 "
+                "runs its own position loop. Leave control_mode unset for Hand 1."
+            )
         if self.deploy_kp_kd_scale != 1.0 or self.mit_kp is not None or self.mit_kd is not None:
             raise ValueError(
                 f"{owner}: Wuji Hand 1 runs its own position loop (wujihandpy realtime controller), so gains cannot "
@@ -884,12 +1013,116 @@ class WujiHandDeployment(DeploymentBase):
             )
 
     def programmed_gains(self) -> tuple[np.ndarray, np.ndarray] | None:
-        """Hand 2's MIT gains (``mit_kp`` / ``mit_kd``, else the nominal ones), in a policy's units; Hand 1 has none."""
-        if self.hand != "hand2":
+        """Hand 2's gains in joint space, a policy's units; ``None`` for Hand 1, or legacy MIT without specs."""
+        if self.hand != "hand2" or self._joint_gain_per_unit is None:
             return None
-        return self._mit_kp, self._mit_kd
+        return self._mit_kp * self._joint_gain_per_unit, self._mit_kd * self._joint_gain_per_unit
 
-    def _resolve_gain(self, name: str, value: float | dict[str, float] | None, nominal: np.ndarray) -> np.ndarray:
+    def _resolve_hand2_motors(self) -> dict[str, type[WujiHand2Actuator]] | None:
+        """Each deployment DOF's ``WujiHand2Actuator`` spec from the robot's ``dofs_spec``.
+
+        ``None`` when the robot maps no DOF to one; then legacy MIT can program only explicit ``mit_kp`` /
+        ``mit_kd``.
+        """
+        owner, robot = type(self).__name__, type(self.robot_options).__name__
+        motors = {}
+        if spec := getattr(self.robot_options, "dofs_spec", None):
+            _, names, values = resolve_matching_names_values(spec, self.dofs_name)
+            motors = {n: m for n, m in zip(names, values) if isinstance(m, type) and issubclass(m, WujiHand2Actuator)}
+        if not motors:
+            if self.control_mode == "mit" and (self.mit_kp is None or self.mit_kd is None):
+                raise ValueError(
+                    f"{owner}: robot {robot} maps no joint to a WujiHand2Actuator spec in dofs_spec, so its "
+                    "default_dofs_kp / default_dofs_kd cannot be converted to the hand's MIT units. Give both gains "
+                    f"in MIT units, e.g. {owner}.configure(mit_kp=3.0, mit_kd=0.05), or map the robot's joints to "
+                    "the eden.options.actuators.WujiHand2* specs, or on firmware 3.1.0+ program the joint-space gains "
+                    "as they are with control_mode='mit_v2'. Sending the joint-space gains unconverted in MIT mode "
+                    "would run the hand at other gains than the policy trained at."
+                )
+            return None
+        if missing := [name for name in self.dofs_name if name not in motors]:
+            raise ValueError(
+                f"{owner}: robot {robot} maps joints {missing} to no WujiHand2Actuator spec in dofs_spec, while "
+                f"{len(motors)} others have one; map every joint so each gain can be converted to MIT units."
+            )
+        return motors
+
+    def _resolve_hand2_current_limit(self) -> np.ndarray:
+        """Per deployment DOF, the current limit [A]: ``effort_limit_a``, else the robot's ``current_limit_a``, else 1.0.
+
+        ``current_limit_a`` is the current the Wuji Hand 2 options derive ``default_dofs_force_limits`` from
+        (``TORQUE_CONSTANT * current_limit_a``). :meth:`_warn_on_torque_ceiling` checks the result against the
+        force limits the deployed robot actually carries.
+        """
+        if self.effort_limit_a is None:
+            trained = getattr(self.robot_options, "current_limit_a", None)
+            return np.full(self.num_dofs, 1.0 if trained is None else float(trained))
+        return np.full(self.num_dofs, float(self.effort_limit_a))
+
+    def _warn_on_torque_ceiling(self, motors: dict[str, type[WujiHand2Actuator]] | None) -> None:
+        """Warn per joint where the hand's torque ceiling is not the force limit the policy trained with.
+
+        The trained ceiling is the deployed robot's ``default_dofs_force_limits`` as the built entity resolved them:
+        for a checkpoint replayed from its ``config.json``, the limits it trained at. The hand's ceiling is the
+        programmed effort limit, in N·m under MIT_V2 and under legacy MIT the current times each motor's
+        ``TORQUE_CONSTANT``; without motor specs legacy MIT's ceiling in N·m is unknown and nothing is checked.
+        """
+        if self.control_mode == "mit_v2":
+            ceiling = self._effort_limit
+        elif motors is not None:
+            ceiling = self._effort_limit * np.array([motors[name].TORQUE_CONSTANT for name in self.dofs_name])
+        else:
+            return
+        entity = self._env.entities[self.entity_name]
+        trained = entity.get_default_dofs_force_limits(self.dofs_name)[0].cpu().numpy().astype(np.float64)
+        differing = [
+            f"{name} (trained {t:.3g} N·m, hand {c:.3g} N·m" + (f", {c / t:.0%})" if t > 0 else ")")
+            for name, t, c in zip(self.dofs_name, trained, ceiling, strict=True)
+            if not np.isclose(c, t, rtol=1e-3)
+        ]
+        if not differing:
+            return
+        robot = type(self.robot_options).__name__
+        if self.effort_limit_a is not None:
+            unset = "force limits" if self.control_mode == "mit_v2" else "current_limit_a"
+            advice = (
+                f"The hand gets effort_limit_a={self.effort_limit_a:g} A times each motor's TORQUE_CONSTANT. Leave "
+                f"effort_limit_a unset to program the robot's {unset}."
+            )
+        else:  # legacy MIT at the robot's current_limit_a: the robot's force limits are not the ones it derives
+            advice = (
+                f"The hand gets the robot's current_limit_a ({self._effort_limit.min():g} A) times each motor's "
+                "TORQUE_CONSTANT. A checkpoint whose config.json predates the Wuji Hand 2 calibration (5 N·m force "
+                "limits, kp 50 / kd 5) trained on another hand model, and its gains convert to MIT gains far above "
+                "the firmware's kp 3.0 / kd 0.05: retrain it on WujiHand2Beta2 before running it on the hand."
+            )
+        en.logger.warning(
+            f"[wuji] The hand's torque ceiling is not the force limit {robot} trained with on {len(differing)} of "
+            f"{self.num_dofs} joints: {first_few(differing)}. {advice}"
+        )
+
+    def _resolve_hand2_torque_limit(self, motors: dict[str, type[WujiHand2Actuator]] | None) -> np.ndarray:
+        """MIT_V2's per-DOF torque limit [N·m].
+
+        ``effort_limit_a`` times each joint's ``TORQUE_CONSTANT``; unset, the robot's ``default_dofs_force_limits``
+        as the built entity resolved them (spec and asset fallbacks included).
+        """
+        if self.effort_limit_a is None:
+            entity = self._env.entities[self.entity_name]
+            return entity.get_default_dofs_force_limits(self.dofs_name)[0].cpu().numpy().astype(np.float64)
+        if motors is None:
+            raise ValueError(
+                f"{type(self).__name__}: effort_limit_a={self.effort_limit_a:g} A cannot become an MIT_V2 torque limit "
+                f"(N·m): robot {type(self.robot_options).__name__} maps no joint to a WujiHand2Actuator spec, so no "
+                "joint has a torque constant. Leave effort_limit_a unset to program the robot's "
+                "default_dofs_force_limits, or set those to the torque you want."
+            )
+        torque_constant = np.array([motors[n].TORQUE_CONSTANT for n in self.dofs_name])
+        return self._resolve_hand2_current_limit() * torque_constant
+
+    def _resolve_gain(
+        self, name: str, value: float | dict[str, float] | None, nominal: np.ndarray | None
+    ) -> np.ndarray:
         """One MIT gain per deployment DOF: ``None`` -> the nominal gains, a float -> every joint, a dict -> by pattern."""
         if value is None:
             return np.asarray(nominal, dtype=np.float64)
@@ -955,7 +1188,8 @@ class WujiHandDeployment(DeploymentBase):
         gains = Hand2Gains(
             kp=self.to_sdk(self._mit_kp).tolist(),
             kd=self.to_sdk(self._mit_kd).tolist(),
-            effort_limit_a=[float(self.effort_limit_a)] * NUM_JOINTS,
+            effort_limit=self.to_sdk(self._effort_limit).tolist(),
+            control_mode=self.control_mode,
         )
         return Hand2Transport(
             self.stream,

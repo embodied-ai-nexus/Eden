@@ -10,30 +10,80 @@ dataset, converted from the upstream ``wuji-technology/wuji-description``
 
 from typing import ClassVar
 
+from eden.options.actuators import (
+    ActuatorSpecOptions,
+    WujiHand2Actuator,
+    WujiHand2Finger,
+    WujiHand2Flex,
+    WujiHand2Pinky,
+    WujiHand2PinkyFlex,
+    WujiHand2ThumbAbd,
+    WujiHand2ThumbIp,
+    WujiHand2ThumbMcp,
+)
 from eden.options.catalog import ROBOT_REGISTRY
-from eden.options.entities import RobotOptions, MetadataOptions
+from eden.options.entities import MetadataOptions, RobotOptions
+
+
+# The pen-spin operating point from wuji-mjlab v2026.10.22 ``pen_spin/config/wuji_hand2/hand2_constants.py``,
+# per joint pattern: the motor, and the firmware MIT kd by joint position within the finger. Every joint runs
+# at MIT kp 3.0 and a 1.5 A current limit.
+_PEN_SPIN_MOTORS: dict[str, tuple[type[WujiHand2Actuator], float]] = {
+    ".*_thumb_cmc_flex": (WujiHand2Flex, 0.075),
+    ".*_thumb_cmc_abd": (WujiHand2ThumbAbd, 0.07),
+    ".*_thumb_mcp": (WujiHand2ThumbMcp, 0.05),
+    ".*_thumb_ip": (WujiHand2ThumbIp, 0.05),
+    ".*_(index|middle|ring)_finger_mcp_flex": (WujiHand2Flex, 0.075),
+    ".*_(index|middle|ring)_finger_mcp_abd": (WujiHand2Finger, 0.07),
+    ".*_(index|middle|ring)_finger_(pip|dip)": (WujiHand2Finger, 0.05),
+    ".*_pinky_mcp_flex": (WujiHand2PinkyFlex, 0.075),
+    ".*_pinky_mcp_abd": (WujiHand2Pinky, 0.07),
+    ".*_pinky_(pip|dip)": (WujiHand2Pinky, 0.05),
+}
+_MIT_KP = 3.0
+_CURRENT_LIMIT_A = 1.5
 
 
 class _WujiHand2Beta2(RobotOptions):
+    dofs_spec: ClassVar[dict[str, type[ActuatorSpecOptions]]] = {p: m for p, (m, _) in _PEN_SPIN_MOTORS.items()}
+
+    # Pen spin's operating point: the current the force limits below are trained at. ``WujiHandDeployment``
+    # programs it when ``effort_limit_a`` is unset.
+    current_limit_a: ClassVar[float] = _CURRENT_LIMIT_A
+
     default_dofs_pos: dict[str, float] = {"*": 0.0}
 
-    default_dofs_kp: dict[str, float] = {"*": 50.0}
+    default_dofs_kp: dict[str, float] = {p: m.JOINT_GAIN(_MIT_KP) for p, (m, _) in _PEN_SPIN_MOTORS.items()}
+    default_dofs_kd: dict[str, float] = {p: m.JOINT_GAIN(kd) for p, (m, kd) in _PEN_SPIN_MOTORS.items()}
+    default_dofs_force_limits: dict[str, float] = {
+        p: m.TORQUE_CONSTANT * _CURRENT_LIMIT_A for p, (m, _) in _PEN_SPIN_MOTORS.items()
+    }
 
-    default_dofs_kd: dict[str, float] = {"*": 5.0}
-
-    # Per-joint effort ceiling. The URDF/MJCF joint efforts (0.2-2.0 Nm) leave the
-    # PD torque-starved (the kd term eats most of the budget), so the fingers can't
-    # close at hand speed. Widened for teleop / manipulation responsiveness, matching
-    # the sibling dexterous hands. NOTE: this exceeds the real Wuji actuator spec —
-    # override it if you need hardware-faithful torques (the MJCF forceranges are
-    # 0.6 Nm thumb CMC, 2.0 Nm finger MCP-flex, 0.2-0.3 Nm elsewhere).
-    default_dofs_force_limits: dict[str, float] = {"*": 5.0}
-
-    # Rotor inertia: a uniform 5e-4, the manufacturer MJCF's value for the driven
-    # CMC/MCP-flex joints (``mjcf/{right,left}.xml`` joint ``armature``; it declares 2e-4 on
-    # the rest). The URDF carries no armature field, so without this every joint would take
-    # Genesis' non-physical 0.1 morph default (~200x heavier) and the fingers would barely move.
-    default_dofs_armature: dict[str, float] = {"*": 5.0e-4}
+    # Joint damping [N*m*s/rad], per joint as upstream identified it on one right hand (``PEN_SPIN_HAND2_DAMPING``
+    # in the same file); the left hand reuses it. Upstream does not randomize damping, so unlike armature and
+    # friction loss it is not averaged into the motor specs.
+    default_dofs_damping: dict[str, float] = {
+        ".*_thumb_cmc_flex": 0.0026915050,
+        ".*_thumb_cmc_abd": 0.0042812198,
+        ".*_thumb_mcp": 0.0014135711,
+        ".*_thumb_ip": 0.0005131806,
+        ".*_index_finger_mcp_flex": 0.0010510923,
+        ".*_index_finger_mcp_abd": 0.0,
+        ".*_index_finger_pip": 0.0010302809,
+        ".*_index_finger_dip": 0.0000663526,
+        ".*_middle_finger_mcp_flex": 0.0021587672,
+        ".*_middle_finger_mcp_abd": 0.0008842859,
+        ".*_middle_finger_pip": 0.0012610488,
+        ".*_middle_finger_dip": 0.0001128493,
+        ".*_ring_finger_mcp_flex": 0.0014506542,
+        ".*_ring_finger_mcp_abd": 0.0,
+        ".*_ring_finger_pip": 0.0007149635,
+        ".*_ring_finger_dip": 0.0,
+        ".*_pinky_mcp_flex": 0.0,
+        ".*_pinky_mcp_abd": 0.0,
+        ".*_pinky_pip": 0.0016246495,
+        ".*_pinky_dip": 0.0,
+    }
 
 
 # Finger anatomy (per hand, 4 DOF each): CMC/MCP flexion + abduction, then the two

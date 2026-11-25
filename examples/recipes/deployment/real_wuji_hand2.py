@@ -15,8 +15,10 @@ period, and reads it back. The hand eases from its measured pose to open, then c
 ``--cycles`` times on a cosine profile, and the script prints how closely it tracked each pose.
 
 **Gains.** The hand is programmed with the MIT gains its firmware ships with (kp 3.0, kd 0.05 on
-every joint), not with ``WujiHand2Beta2``'s ``default_dofs_kp`` / ``default_dofs_kd`` (50 / 5,
-simulation gains), which the backend programs when ``mit_kp`` / ``mit_kd`` are left unset.
+every joint), not with the pen-spin gains the backend converts from ``WujiHand2Beta2``'s
+``default_dofs_kp`` / ``default_dofs_kd`` when ``mit_kp`` / ``mit_kd`` are left unset. On firmware
+3.1.0+, ``--control-mode mit_v2`` programs the same gains converted to N·m/rad through each joint's
+motor spec, and ``--effort-limit`` becomes each motor's torque at that current.
 
 **Stopping.** Ctrl-C, a fault or lost feedback ends the run and disables the motors, so the
 fingers go limp wherever they are. ``--closure`` scales the fist (0 = open, 1 = full); start low.
@@ -27,6 +29,7 @@ Usage:
     WUJI_TELEMETRY_DISABLE=1 uv run python examples/recipes/deployment/real_wuji_hand2.py
     WUJI_TELEMETRY_DISABLE=1 uv run python examples/recipes/deployment/real_wuji_hand2.py \
         --side left --serial-number WH2KA01260918006 --closure 0.8 --cycles 5
+    WUJI_TELEMETRY_DISABLE=1 uv run python examples/recipes/deployment/real_wuji_hand2.py --control-mode mit_v2
 """
 
 import argparse
@@ -131,6 +134,13 @@ def main():
     parser.add_argument("--hold-seconds", type=float, default=0.5, help="Pause at each pose")
     parser.add_argument("--effort-limit", type=float, default=1.0, help="Joint current limit programmed at connect, A")
     parser.add_argument(
+        "--control-mode",
+        type=str,
+        default="mit",
+        choices=["mit", "mit_v2"],
+        help="Hand 2 impedance mode: legacy MIT (any firmware) or MIT_V2 (firmware 3.1.0+, physical units)",
+    )
+    parser.add_argument(
         "--servo-hz", type=float, default=200.0, help="Rate of the sub-targets streamed inside each control tick"
     )
     parser.add_argument("--yes", action="store_true", help="Start moving without asking for confirmation")
@@ -146,13 +156,19 @@ def main():
     env.build()
     env.reset()
 
+    if args.control_mode == "mit":
+        mit_kp, mit_kd = MIT_KP, MIT_KD
+    else:  # MIT_V2 takes N·m/rad: the same firmware gains, converted through each joint's motor
+        mit_kp = {pattern: motor.JOINT_GAIN(MIT_KP) for pattern, motor in robot.dofs_spec.items()}
+        mit_kd = {pattern: motor.JOINT_GAIN(MIT_KD) for pattern, motor in robot.dofs_spec.items()}
     dep = WujiHandDeployment(
         env,
         WujiHandDeployment.configure(
             entity_name="robot",
             serial_number=args.serial_number,
-            mit_kp=MIT_KP,
-            mit_kd=MIT_KD,
+            control_mode=args.control_mode,
+            mit_kp=mit_kp,
+            mit_kd=mit_kd,
             effort_limit_a=args.effort_limit,
             servo_hz=args.servo_hz,
             clip_targets_to_joint_limits=True,
@@ -162,7 +178,8 @@ def main():
     closed_pose = open_pose + args.closure * (resolve_dofs_values(CLOSED, dep.dofs_name) - open_pose)
 
     print(
-        f"About to enable the {args.side} Wuji Hand 2 (MIT kp {MIT_KP:g}, kd {MIT_KD:g}, {args.effort_limit:g} A) "
+        f"About to enable the {args.side} Wuji Hand 2 ({args.control_mode}, firmware MIT kp {MIT_KP:g}, kd {MIT_KD:g}, "
+        f"{args.effort_limit:g} A) "
         f"and close it to {args.closure:.0%} of a fist {args.cycles} times, {args.move_seconds:g} s per motion, "
         f"streaming at {args.servo_hz:g} Hz. Keep the fingers' path clear."
     )

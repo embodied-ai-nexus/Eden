@@ -303,12 +303,15 @@ An actuator spec is a class in `eden.options.actuators` that describes one motor
 |---|---|
 | `EFFORT_LIMIT` | torque limit (N·m), written as the DOF's symmetric force range |
 | `ROTOR_INERTIA`, `GEAR_RATIO` | single-stage (floats) or two-stage planetary (3-tuples); `ARMATURE()` is the reflected inertia |
-| `STIFFNESS`, `DAMPING` | passive joint spring and damper (not kp / kd) |
+| `STIFFNESS`, `DAMPING` | passive joint spring and damper (not kp / kd); `None` (the default) keeps the asset's |
+| `FRICTIONLOSS` | passive joint dry friction, the DOF's `frictionloss` (N·m); `None` (the default) keeps the asset's |
 | `FULL_TORQUE_SPEED`, `NO_LOAD_SPEED`, `DRIVING_TORQUE_LIMIT`, `BRAKING_TORQUE_LIMIT` | the torque-speed envelope |
 | `STATIC_FRICTION`, `DYNAMIC_FRICTION`, `FRICTION_ACTIVATION_SPEED` | joint friction model parameters |
 
 A robot maps DOF patterns to specs in its `dofs_spec` class variable. At build, a DOF covered by the spec gets the
-spec's stiffness, damping, armature and effort limit unless the robot's options set that property explicitly.
+spec's stiffness, damping, friction loss, armature and effort limit unless the robot's options set that property
+explicitly, so a robot whose specs carry these need not repeat them. A spec value is written to the solver like an
+option value, and a field the spec leaves `None` keeps the asset's.
 Robots that derive their gains from the spec do it in the class body with the Raibert heuristic in
 `eden.utils.actuator`, which targets a 10 Hz closed-loop bandwidth by default (`NATURAL_FREQ = 2π·10`):
 
@@ -330,8 +333,21 @@ class Go2(RobotOptions):
 
 The shipped specs cover Unitree motors (`Unitree7520_22`, `Unitree7520_14`, `Unitree5020_16`,
 `Unitree5020_16_DOUBLE`, `Unitree4010_25`, `Unitree8010_6`, `Unitree8010_6Calf`, `UnitreeGo2HV`,
-`UnitreeGo2HVCalf`), DAMIAO motors (`DamiaoDM4310`, `DamiaoDM4340`) and the LimX Oli joint groups
-(`LimxOliHipKnee`, `LimxOliAnkleWaist`, `LimxOliShoulderElbow`, `LimxOliWristHead`).
+`UnitreeGo2HVCalf`), DAMIAO motors (`DamiaoDM4310`, `DamiaoDM4340`), the LimX Oli joint groups
+(`LimxOliHipKnee`, `LimxOliAnkleWaist`, `LimxOliShoulderElbow`, `LimxOliWristHead`) and the Wuji Hand 2
+finger motors (`WujiHand2Flex`, `WujiHand2ThumbAbd`, `WujiHand2ThumbMcp`, `WujiHand2ThumbIp`,
+`WujiHand2Finger`, `WujiHand2PinkyFlex`, `WujiHand2Pinky`). The Wuji specs carry the motor's
+`TORQUE_CONSTANT` (N·m/A) and convert the firmware's MIT gains: `JOINT_GAIN(mit_gain)` gives the joint-space
+kp or kd, and `MIT_GAIN(joint_gain)` the reverse. Each is one of the hand's seven motor models and carries the
+mean of upstream's per-joint armature and friction loss over the joints that model drives. Damping stays per joint
+on the robot (`_WujiHand2Beta2.default_dofs_damping`): upstream does not randomize it, and within the little
+finger's motor model alone it runs from 0 to 1.6e-3 N·m·s/rad. Damping and friction loss were identified on one right hand, and the
+left-hand presets use the same values. The gains
+convert at 1.91147 A per MIT unit, the factor of Wuji's published pen-spin configuration; firmware v2.13.1 and
+v3.0.0 use 1.98413, so on those versions the hand runs 3.8% stiffer than the simulated gains under legacy MIT;
+deploying with `control_mode="mit_v2"` (firmware 3.1.0+) programs the joint-space gains directly. The specs hold no
+operating point: the current a task runs the hand at, and so its force limits, belong to the robot
+(`_WujiHand2Beta2.current_limit_a`, 1.5 A, pen spin's operating point).
 
 ## Adding a robot
 

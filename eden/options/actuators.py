@@ -1,4 +1,4 @@
-"""Actuator specification options and motor presets (Unitree, DAMIAO, LimX)."""
+"""Actuator specification options and motor presets (Unitree, DAMIAO, LimX, Wuji)."""
 
 from __future__ import annotations
 from typing import ClassVar
@@ -16,31 +16,37 @@ from eden.utils.actuator import (
 class ActuatorSpecOptions(ConfigurableOptions):
     """Specification of a single actuator's physical and control parameters.
 
-    Parameters
+    Attributes
     ----------
-    STIFFNESS: float
-        Stiffness of the actuator (different from control stiffness, i.e., kp) [N*m/rad]
-    DAMPING: float
-        Damping of the actuator (different from control damping, i.e., kd) [N*m*s/rad]
-    FULL_TORQUE_SPEED: float
+    STIFFNESS : float | None
+        Stiffness of the actuator (different from control stiffness, i.e., kp) [N*m/rad]. ``None`` keeps the
+        asset's.
+    DAMPING : float | None
+        Damping of the actuator (different from control damping, i.e., kd) [N*m*s/rad]. ``None`` keeps the
+        asset's.
+    FULL_TORQUE_SPEED : float
         (X1) Maximum Speed at Full Torque (T-N Curve Knee Point) [rad/s]
-    NO_LOAD_SPEED: float
+    NO_LOAD_SPEED : float
         (X2) No-Load Speed Test Result [rad/s]
-    DRIVING_TORQUE_LIMIT: float
+    DRIVING_TORQUE_LIMIT : float
         (Y1) Driving Torque Limit, i.e., Torque and Speed in the Same Direction [N*m]
-    BRAKING_TORQUE_LIMIT: float | None
+    BRAKING_TORQUE_LIMIT : float | None
         (Y2) Braking Torque Limit, i.e., Torque and Speed in the Opposite Direction [N*m]
-    EFFORT_LIMIT: float
+    EFFORT_LIMIT : float
         Maximum torque limit to prevent mechanical damage [N*m]
-    STATIC_FRICTION: float
+    STATIC_FRICTION : float
         Static Friction Coefficient
-    DYNAMIC_FRICTION: float
+    DYNAMIC_FRICTION : float
         Dynamic Friction Coefficient
-    FRICTION_ACTIVATION_SPEED: float
+    FRICTION_ACTIVATION_SPEED : float
         Velocity at which the friction is fully activated [rad/s]
-    ROTOR_INERTIA: float | tuple[float, float, float]
+    FRICTIONLOSS : float | None
+        Passive joint dry friction the solver applies, the DOF's ``frictionloss`` [N*m]. ``None`` keeps the
+        asset's. (``STATIC_FRICTION`` / ``DYNAMIC_FRICTION`` feed the actuator action modifier's torque model
+        instead.)
+    ROTOR_INERTIA : float | tuple[float, float, float]
         Rotor inertia of the motor [kg*m^2]
-    GEAR_RATIO: float | tuple[float, float, float]
+    GEAR_RATIO : float | tuple[float, float, float]
         Gear ratio of the gearbox
 
     NOTE
@@ -61,8 +67,8 @@ class ActuatorSpecOptions(ConfigurableOptions):
                               X1   X2
     """
 
-    STIFFNESS: ClassVar[float] = 0.0
-    DAMPING: ClassVar[float] = 0.0
+    STIFFNESS: ClassVar[float | None] = None
+    DAMPING: ClassVar[float | None] = None
     FULL_TORQUE_SPEED: ClassVar[float] = 1e9
     NO_LOAD_SPEED: ClassVar[float] = 1e9
     DRIVING_TORQUE_LIMIT: ClassVar[float] = 1e9
@@ -71,6 +77,7 @@ class ActuatorSpecOptions(ConfigurableOptions):
     STATIC_FRICTION: ClassVar[float] = 0.0
     DYNAMIC_FRICTION: ClassVar[float] = 0.0
     FRICTION_ACTIVATION_SPEED: ClassVar[float] = 0.01
+    FRICTIONLOSS: ClassVar[float | None] = None
 
     ROTOR_INERTIA: ClassVar[float | tuple[float, float, float]] = 0.0
     GEAR_RATIO: ClassVar[float | tuple[float, float, float]] = 1.0
@@ -332,3 +339,125 @@ class LimxOliWristHead(LimxOliActuator):
 
     EFFORT_LIMIT: ClassVar[float] = 19.0
     ROTOR_INERTIA: ClassVar[float] = 0.0153218  # reflected armature [kg*m^2]
+
+
+class WujiHand2Actuator(ActuatorSpecOptions):
+    """Wuji Hand 2 finger actuator base: an MIT-impedance servo driven through ``wuji_sdk``.
+
+    The firmware takes kp / kd in MIT units and a current limit in amperes. One MIT unit is
+    ``AMPS_PER_MIT_UNIT`` A, and ``TORQUE_CONSTANT`` is the joint-side output torque per ampere, so a
+    joint-space gain is the MIT gain times ``AMPS_PER_MIT_UNIT * TORQUE_CONSTANT``. Values from wuji-mjlab
+    v2026.10.22 ``tasks/pen_spin/config/wuji_hand2/hand2_constants.py``; upstream does not name the motors,
+    so the subclasses are named by the joints they drive.
+
+    ``AMPS_PER_MIT_UNIT`` is 1.91147, the factor of Wuji's published pen-spin configuration, so the simulated
+    gains reproduce that training setup. Firmware v2.13.1 and v3.0.0 convert an MIT command to a current
+    reference at 1.98413 A per unit, so on those versions the hand's kp and kd are 3.8% above the joint-space
+    gains here. The deploy converts through the same factor, so it programs the trained MIT gains either way.
+    To model those firmware versions instead, subclass each motor with ``AMPS_PER_MIT_UNIT = 1.98413``.
+    ``WujiHandDeployment`` with ``control_mode="mit_v2"`` (firmware 3.1.0+) programs joint-space gains, so no
+    factor applies there.
+
+    Each subclass is one of the hand's seven motor models, as Wuji groups them. ``ROTOR_INERTIA`` (with
+    ``GEAR_RATIO`` 1, so it is the joint-side armature, as the LimX specs encode theirs) and ``FRICTIONLOSS``
+    are the mean of upstream's per-joint values over the joints that model drives. Upstream's armature is
+    Wuji's per-joint table and its friction loss was identified on one right hand (the left-hand presets use
+    the same values), and every joint sits within upstream's domain-randomization band of its model's mean
+    (armature x0.5-2, friction loss x0.5-1.5), so the spread within a model is treated as unit spread. A model
+    driving one joint takes that joint's value.
+
+    ``DAMPING`` stays ``None``: upstream identified joint damping per joint on the same hand, from 0 to
+    4.3e-3 N*m*s/rad, and does not randomize it, so a model's mean would move some joints off zero and cut
+    others to a third. ``_WujiHand2Beta2.default_dofs_damping`` carries the per-joint values.
+
+    The current a task runs the hand at, and so its torque ceiling, is the robot's operating point
+    (``_WujiHand2Beta2.current_limit_a``), so ``EFFORT_LIMIT`` keeps the base's unknown default.
+    """
+
+    TORQUE_CONSTANT: ClassVar[float] = 0.0  # [N*m/A]
+    AMPS_PER_MIT_UNIT: ClassVar[float] = 1.9114709702965849
+
+    @classmethod
+    def JOINT_GAIN(cls, mit_gain: float) -> float:
+        """The joint-space kp [N*m/rad] or kd [N*m*s/rad] of an MIT-unit gain."""
+        return mit_gain * cls._joint_gain_per_mit_unit()
+
+    @classmethod
+    def MIT_GAIN(cls, joint_gain: float) -> float:
+        """The MIT-unit gain of a joint-space kp or kd; the inverse of :meth:`JOINT_GAIN`."""
+        return joint_gain / cls._joint_gain_per_mit_unit()
+
+    @classmethod
+    def _joint_gain_per_mit_unit(cls) -> float:
+        if not cls.TORQUE_CONSTANT > 0:
+            motors = ", ".join(sub.__name__ for sub in WujiHand2Actuator.__subclasses__())
+            raise ValueError(
+                f"{cls.__name__}.TORQUE_CONSTANT is {cls.TORQUE_CONSTANT!r}, so no gain converts between MIT units and "
+                f"joint space through it. Map the joint to a Wuji Hand 2 motor ({motors}), or give "
+                f"{cls.__name__} its motor's TORQUE_CONSTANT in N*m/A. Do not skip the conversion: the firmware would "
+                "run the joint at other gains than the policy trained at."
+            )
+        return cls.AMPS_PER_MIT_UNIT * cls.TORQUE_CONSTANT
+
+
+class WujiHand2Flex(WujiHand2Actuator):
+    """Thumb CMC flexion and index / middle / ring MCP flexion."""
+
+    TORQUE_CONSTANT: ClassVar[float] = 0.4136
+    ROTOR_INERTIA: ClassVar[float] = 1.4981e-4  # mean of 4 joints
+    GEAR_RATIO: ClassVar[float] = 1.0
+    FRICTIONLOSS: ClassVar[float] = 4.0709e-2
+
+
+class WujiHand2ThumbAbd(WujiHand2Actuator):
+    """Thumb CMC abduction."""
+
+    TORQUE_CONSTANT: ClassVar[float] = 0.3545
+    ROTOR_INERTIA: ClassVar[float] = 1.366389e-4
+    GEAR_RATIO: ClassVar[float] = 1.0
+    FRICTIONLOSS: ClassVar[float] = 0.0342266392
+
+
+class WujiHand2ThumbMcp(WujiHand2Actuator):
+    """Thumb MCP."""
+
+    TORQUE_CONSTANT: ClassVar[float] = 0.2216
+    ROTOR_INERTIA: ClassVar[float] = 1.273553e-4
+    GEAR_RATIO: ClassVar[float] = 1.0
+    FRICTIONLOSS: ClassVar[float] = 0.0187921182
+
+
+class WujiHand2ThumbIp(WujiHand2Actuator):
+    """Thumb IP."""
+
+    TORQUE_CONSTANT: ClassVar[float] = 0.1329
+    ROTOR_INERTIA: ClassVar[float] = 8.768902e-5
+    GEAR_RATIO: ClassVar[float] = 1.0
+    FRICTIONLOSS: ClassVar[float] = 0.0122545518
+
+
+class WujiHand2Finger(WujiHand2Actuator):
+    """Index / middle / ring MCP abduction, PIP and DIP."""
+
+    TORQUE_CONSTANT: ClassVar[float] = 0.1673
+    ROTOR_INERTIA: ClassVar[float] = 5.7249e-5  # mean of 9 joints
+    GEAR_RATIO: ClassVar[float] = 1.0
+    FRICTIONLOSS: ClassVar[float] = 1.9409e-2
+
+
+class WujiHand2PinkyFlex(WujiHand2Actuator):
+    """Pinky MCP flexion."""
+
+    TORQUE_CONSTANT: ClassVar[float] = 0.4461
+    ROTOR_INERTIA: ClassVar[float] = 9.706259e-5
+    GEAR_RATIO: ClassVar[float] = 1.0
+    FRICTIONLOSS: ClassVar[float] = 0.0338251954
+
+
+class WujiHand2Pinky(WujiHand2Actuator):
+    """Pinky MCP abduction, PIP and DIP."""
+
+    TORQUE_CONSTANT: ClassVar[float] = 0.1115
+    ROTOR_INERTIA: ClassVar[float] = 4.4114e-5  # mean of 3 joints
+    GEAR_RATIO: ClassVar[float] = 1.0
+    FRICTIONLOSS: ClassVar[float] = 1.7760e-2

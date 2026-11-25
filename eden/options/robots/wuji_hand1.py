@@ -124,8 +124,7 @@ class _WujiHand1(RobotOptions):
 
     # Joint effort limits, matching both the URDF ``<limit effort>`` and the MJCF
     # ``actuatorfrcrange``. Left at the hardware spec deliberately: the upstream RL task
-    # normalizes its torque penalty by these, so widening them (as
-    # ``wuji_hand2beta2`` does for teleop responsiveness) would silently rescale that
+    # normalizes its torque penalty by these, so widening them would silently rescale that
     # reward term.
     default_dofs_force_limits: dict[str, float] = {
         ".*_finger1_joint1": 0.4452,

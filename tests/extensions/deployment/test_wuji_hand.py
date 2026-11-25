@@ -20,6 +20,7 @@ from eden.extensions.deployment import wuji_hand as wh
 from eden.extensions.deployment.utils.state import RobotCommand
 from eden.options.robots.wuji_hand1 import WujiHand1_L, WujiHand1_R
 from eden.options.robots.wuji_hand2beta2 import WujiHand2Beta2_L, WujiHand2Beta2_R, WujiHand2Beta2WithMount_L
+from eden.utils.string import resolve_matching_names_values
 from tests.support.deploy import ScriptedHandTransport, assert_dofs_looked_up_by_name, deployments, robot_env
 
 N = wh.NUM_JOINTS
@@ -36,8 +37,22 @@ def _command(dofs_pos) -> RobotCommand:
 
 @pytest.fixture(scope="module")
 def envs():
-    """``envs(generation)``: a right Hand 1 or a left Hand 2 env, built on first use."""
-    robots = {"hand1": lambda: WujiHand1_R(dofs_name=H1_DOFS), "hand2": lambda: WujiHand2Beta2_L(dofs_name=H2_DOFS)}
+    """``envs(generation)``: a right Hand 1 or a left Hand 2 env, built on first use.
+
+    ``hand2_uncalibrated`` is the left Hand 2 as a ``config.json`` saved before the Wuji Hand 2 calibration rebuilds
+    it: kp 50, kd 5, 5 N·m force limits and armature 5e-4 on every joint.
+    """
+    robots = {
+        "hand1": lambda: WujiHand1_R(dofs_name=H1_DOFS),
+        "hand2": lambda: WujiHand2Beta2_L(dofs_name=H2_DOFS),
+        "hand2_uncalibrated": lambda: WujiHand2Beta2_L(
+            dofs_name=H2_DOFS,
+            default_dofs_kp={"*": 50.0},
+            default_dofs_kd={"*": 5.0},
+            default_dofs_force_limits={"*": 5.0},
+            default_dofs_armature={"*": 5.0e-4},
+        ),
+    }
     built = {}
 
     def get(generation):
@@ -58,7 +73,7 @@ def _deployer(generation):
     return fixture
 
 
-hand1, hand2 = _deployer("hand1"), _deployer("hand2")
+hand1, hand2, hand2_uncalibrated = _deployer("hand1"), _deployer("hand2"), _deployer("hand2_uncalibrated")
 
 
 def _connected(dep, transport):
@@ -101,7 +116,7 @@ def test_an_unrecognised_robot_must_name_its_generation(hand1, monkeypatch):
     monkeypatch.setattr(wh, "_WujiHand1", type("NotThisRobot", (), {}))
     with pytest.raises(ValueError, match=r"configure\(hand='hand1'\)"):
         hand1()
-    assert hand1(hand="hand2").hand == "hand2"
+    assert hand1(hand="hand2", mit_kp=3.0, mit_kd=0.05).hand == "hand2"
 
 
 def test_mixed_sides_are_refused_naming_the_joints(hand1, monkeypatch):
@@ -122,6 +137,8 @@ def test_a_joint_mapped_twice_names_the_duplicate_and_the_gap(hand1, monkeypatch
     [
         ({"stream_mode": "Thread"}, r"stream_mode='Thread' is not one of \('sync', 'thread'\)"),
         ({"hand": "Hand2"}, r"hand='Hand2' is not one of"),
+        ({"control_mode": "mitv2"}, r"control_mode='mitv2' is not one of \('mit', 'mit_v2'\)"),
+        ({"control_mode": "mit_v2", "require_all_joints": False}, r"needs all 20 joints online.*control_mode='mit'"),
         ({"servo_hz": 0.0}, "servo_hz must be a positive number"),
         ({"effort_limit_a": -1.0}, "effort_limit_a must be a positive number"),
         ({"vel_lowpass_hz": 0.0}, "vel_lowpass_hz must be a positive number"),
@@ -133,6 +150,8 @@ def test_a_joint_mapped_twice_names_the_duplicate_and_the_gap(hand1, monkeypatch
     ids=[
         "stream_mode",
         "hand",
+        "control_mode",
+        "mit_v2_partial_hand",
         "servo_hz",
         "effort_limit",
         "vel_lowpass",
@@ -155,14 +174,67 @@ def test_hand1_refuses_gains_it_cannot_receive(hand1, options):
         hand1(**options)
 
 
+def test_hand1_refuses_a_hand2_control_mode(hand1):
+    with pytest.raises(ValueError, match=r"control_mode='mit_v2' selects a Wuji Hand 2 impedance mode"):
+        hand1(control_mode="mit_v2")
+
+
 # --- gains -----------------------------------------------------------------------------------
 
 
-def test_hand2_programs_the_nominal_gains_by_default(hand2):
+def _nominal_sdk(field: str) -> np.ndarray:
+    """Hand 2's ``default_dofs_<field>`` resolved over its joints, in SDK order (its ``dofs_name`` order)."""
+    options = WujiHand2Beta2_L()
+    _, names, values = resolve_matching_names_values(getattr(options, f"default_dofs_{field}"), options.dofs_name)
+    assert names == options.dofs_name
+    return np.array(values)
+
+
+# Upstream pen spin's firmware gains, SDK order: kp 3.0, kd by joint position within each finger.
+MIT_KP = np.full(N, 3.0)
+MIT_KD = np.array([0.075, 0.07, 0.05, 0.05] * 5)
+
+
+def test_hand2_programs_the_nominal_gains_in_mit_units_by_default(hand2):
+    """The robot's joint-space gains, converted through its motor specs, are upstream's firmware gains."""
     gains = hand2(deploy_kp_kd_scale=0.5)._make_transport().gains
-    np.testing.assert_allclose(gains.kp, [25.0] * N)  # default_dofs_kp 50 x 0.5
-    np.testing.assert_allclose(gains.kd, [2.5] * N)
-    assert gains.effort_limit_a == [1.0] * N
+    np.testing.assert_allclose(gains.kp, 0.5 * MIT_KP)
+    np.testing.assert_allclose(gains.kd, 0.5 * MIT_KD)
+    assert gains.effort_limit == [1.5] * N, "the robot's current_limit_a, which its force limits trained at"
+
+
+def _ceiling_warnings(caplog) -> list[str]:
+    return [r.message for r in caplog.records if "torque ceiling" in r.message]
+
+
+@pytest.mark.parametrize("control_mode", ["mit", "mit_v2"])
+def test_hand2_names_the_torque_an_explicit_current_limit_costs(hand2, eden_caplog, control_mode):
+    hand2(control_mode=control_mode, effort_limit_a=1.0)
+    (warning,) = _ceiling_warnings(eden_caplog)
+    assert "on 20 of 20 joints" in warning
+    assert "l_pinky_mcp_flex (trained 0.669 N·m, hand 0.446 N·m, 67%)" in warning  # 0.4461 N·m/A at 1.5 A, then 1 A
+    assert "effort_limit_a=1 A" in warning and "predates" not in warning, "no checkpoint is at fault here"
+
+    eden_caplog.clear()
+    hand2(control_mode=control_mode, effort_limit_a=1.5)
+    hand2(control_mode=control_mode)
+    assert not _ceiling_warnings(eden_caplog), "1.5 A is the current the robot's force limits are derived from"
+
+
+def test_hand2_warns_when_a_pre_calibration_checkpoint_would_run_on_the_hand(hand2_uncalibrated, eden_caplog):
+    """Its config.json trained at 5 N·m and kp 50: the hand gives a fraction of the torque at MIT gains far above 3.0."""
+    gains = hand2_uncalibrated()._make_transport().gains
+    assert min(gains.kp) > 50.0, "kp 50 N·m/rad is over 50 MIT units on every motor"
+    (warning,) = _ceiling_warnings(eden_caplog)
+    assert "on 20 of 20 joints" in warning and "l_pinky_mcp_flex (trained 5 N·m, hand 0.669 N·m, 13%)" in warning
+    assert "predates the Wuji Hand 2 calibration" in warning
+
+
+def test_hand2_refuses_specs_that_leave_joints_unconverted(hand2, monkeypatch):
+    partial = {k: v for k, v in WujiHand2Beta2_L.dofs_spec.items() if "pinky" not in k}
+    monkeypatch.setattr(WujiHand2Beta2_L, "dofs_spec", partial)
+    with pytest.raises(ValueError, match=r"maps joints \[.*'l_pinky_dip'.*\] to no WujiHand2Actuator spec"):
+        hand2()
 
 
 def test_hand2_per_joint_gains_reach_the_sdk_in_its_order(hand2):
@@ -170,23 +242,81 @@ def test_hand2_per_joint_gains_reach_the_sdk_in_its_order(hand2):
     gains = hand2(mit_kp=kp, mit_kd=0.1, effort_limit_a=1.5)._make_transport().gains
     np.testing.assert_allclose(gains.kp, np.arange(N))
     assert gains.kd == [0.1] * N
-    assert gains.effort_limit_a == [1.5] * N
+    assert gains.effort_limit == [1.5] * N
 
 
 @pytest.mark.parametrize(
-    "options, kp, kd", [({"deploy_kp_kd_scale": 0.5}, 25.0, 2.5), ({"mit_kp": 2.0, "mit_kd": 0.1}, 2.0, 0.1)]
+    "options, kp, kd",
+    [
+        ({"deploy_kp_kd_scale": 0.5}, 0.5 * _nominal_sdk("kp"), 0.5 * _nominal_sdk("kd")),
+        (
+            {
+                "mit_kp": 3.0,
+                "mit_kd": {
+                    ".*_(mcp|cmc)_flex": 0.075,
+                    ".*_(mcp|cmc)_abd": 0.07,
+                    ".*_(thumb_mcp|thumb_ip|pip|dip)": 0.05,
+                },
+            },
+            _nominal_sdk("kp"),
+            _nominal_sdk("kd"),
+        ),
+    ],
+    ids=["scaled_nominal", "explicit_upstream"],
 )
-def test_hand2_reports_the_gains_it_programs_for_the_deploy_to_compare_slots_with(hand2, options, kp, kd):
-    """``eden deploy`` warns about a slot trained at other gains than these; they are the policy's units."""
+def test_hand2_reports_the_gains_it_programs_in_joint_space(hand2, options, kp, kd):
+    """``eden deploy`` compares slots with these, so they are in the policy's units, not the firmware's."""
     dep = hand2(**options)
-    programmed = dep.programmed_gains()
-    np.testing.assert_allclose(programmed[0], [kp] * N)
-    np.testing.assert_allclose(programmed[1], [kd] * N)
-    np.testing.assert_allclose(dep.to_sdk(programmed[0]), dep._make_transport().gains.kp)
+    programmed_kp, programmed_kd = dep.programmed_gains()
+    np.testing.assert_allclose(dep.to_sdk(programmed_kp), kp)
+    np.testing.assert_allclose(dep.to_sdk(programmed_kd), kd)
+
+
+def test_a_hand2_robot_without_motor_specs_must_give_mit_gains(hand1):
+    """A Hand 1 robot run as a Hand 2 has no WujiHand2Actuator specs to convert its joint-space gains through."""
+    with pytest.raises(ValueError, match=r"configure\(mit_kp=3\.0, mit_kd=0\.05\)"):
+        hand1(hand="hand2")
+    dep = hand1(hand="hand2", mit_kp=3.0, mit_kd=0.05)
+    gains = dep._make_transport().gains
+    assert gains.kp == [3.0] * N
+    assert gains.effort_limit == [1.0] * N, "no specs say what current the robot trained at"
+    assert dep.programmed_gains() is None  # no spec says what 3.0 is in joint space
 
 
 def test_hand1_reports_no_gains_its_position_loop_could_be_compared_by(hand1):
     assert hand1().programmed_gains() is None
+
+
+def test_mit_v2_programs_the_robots_joint_space_gains_and_trained_force_limits(hand2):
+    """MIT_V2 takes N·m/rad and N·m, so the hand gets exactly the gains and torque ceiling the policy trained with."""
+    dep = hand2(control_mode="mit_v2", deploy_kp_kd_scale=0.5)
+    gains = dep._make_transport().gains
+    assert gains.control_mode == "mit_v2" and gains.effort_unit == "N·m"
+    np.testing.assert_allclose(gains.kp, 0.5 * _nominal_sdk("kp"))
+    np.testing.assert_allclose(gains.kd, 0.5 * _nominal_sdk("kd"))
+    np.testing.assert_allclose(gains.effort_limit, _nominal_sdk("force_limits"))
+    programmed_kp, programmed_kd = dep.programmed_gains()
+    np.testing.assert_allclose(dep.to_sdk(programmed_kp), gains.kp)
+    np.testing.assert_allclose(dep.to_sdk(programmed_kd), gains.kd)
+
+
+def test_mit_v2_turns_an_explicit_current_limit_into_each_motors_torque(hand2):
+    gains = hand2(control_mode="mit_v2", effort_limit_a=1.0)._make_transport().gains
+    np.testing.assert_allclose(gains.effort_limit, _nominal_sdk("force_limits") / 1.5)  # trained at 1.5 A
+
+
+def test_mit_v2_programs_a_robot_without_motor_specs_as_it_trained(hand1):
+    """No conversion is needed, so a spec-less robot needs no explicit gains; only a current limit has no torque."""
+    dep = hand1(hand="hand2", control_mode="mit_v2")
+    gains = dep._make_transport().gains
+    robot = dep._env.entities["robot"]
+    np.testing.assert_allclose(dep.from_sdk(gains.kp), robot.get_default_dofs_kp(dep.dofs_name)[0].cpu().numpy())
+    np.testing.assert_allclose(
+        dep.from_sdk(gains.effort_limit), robot.get_default_dofs_force_limits(dep.dofs_name)[0].cpu().numpy()
+    )
+    assert dep.programmed_gains() is not None
+    with pytest.raises(ValueError, match=r"effort_limit_a=1 A cannot become an MIT_V2 torque limit.*unset"):
+        hand1(hand="hand2", control_mode="mit_v2", effort_limit_a=1.0)
 
 
 # --- the control tick ------------------------------------------------------------------------
@@ -579,6 +709,13 @@ class FakeWujiSdk:
         self.disconnected: list[str] = []
         self.enabled = False
         self.mit_error: Exception | None = None
+        self.calls: list[str] = []  # the configuration writes, in order
+        self.mode = "Position"  # whatever the last program left
+        self.mode_sticks = False  # a hand that ignores the mode switch
+        self.limits: list[float | None] = [None] * N
+        self.params: list[tuple[float, float] | None] = [None] * N
+        self.limit_readback: list[float | None] | None = None  # overrides what effort_limit().get() returns
+        self.firmware: object = "v3.1.0"
         self.sent: list[list[float]] = []
         self.diag_cb = None
         sdk = self
@@ -612,6 +749,22 @@ class FakeWujiSdk:
         def _mit_set(value):
             if sdk.mit_error:
                 raise sdk.mit_error
+            sdk.calls.append("mit_params")
+            sdk.params = [SimpleNamespace(kp=kp, kd=kd) for kp, kd in value]
+
+        def _limit_set(value):
+            sdk.calls.append(f"effort_limit in {sdk.mode}")
+            sdk.limits = list(value)
+
+        def _mode_set(value):
+            sdk.calls.append(f"control_mode {value}")
+            if not sdk.mode_sticks:
+                sdk.mode = value
+
+        def _firmware():
+            if isinstance(sdk.firmware, Exception):
+                raise sdk.firmware
+            return _Value(sdk.firmware)
 
         class Hand:
             serial_number = "SN-HAND"
@@ -620,10 +773,16 @@ class FakeWujiSdk:
                 return _Value(sdk.online)
 
             def effort_limit(self):
-                return _Value()
+                return _Value(sdk.limit_readback or sdk.read_online(sdk.limits), _limit_set)
 
             def mit_params(self):
-                return _Value(on_set=_mit_set)
+                return _Value(sdk.read_online(sdk.params), _mit_set)
+
+            def control_mode(self):
+                return _Value(sdk.mode, _mode_set)
+
+            def firmware_version(self):
+                return _firmware()
 
             def joint_states(self):
                 return _Stream("states")
@@ -635,9 +794,11 @@ class FakeWujiSdk:
                 return _Stream("cmd")
 
             def enable(self):
+                sdk.calls.append("enable")
                 sdk.enabled = True
 
             def disable(self):
+                sdk.calls.append("disable")
                 sdk.enabled = False
 
             def describe_error(self, code):
@@ -668,7 +829,12 @@ class FakeWujiSdk:
             MitParam=lambda kp, kd: (kp, kd),
             JointCommand=lambda q, dq, tau: SimpleNamespace(q=q),
             DeviceType=SimpleNamespace(WujiGlove=self.GLOVE, WujiHand2=self.HAND),
+            ControlMode=SimpleNamespace(Mit="Mit", Position="Position", MitV2="MitV2"),
         )
+
+    def read_online(self, values):
+        """A per-joint readback: offline joints (the last ones here) read ``None``."""
+        return [v if i < self.online else None for i, v in enumerate(values)]
 
     @classmethod
     def device(cls, sn, kind):
@@ -686,8 +852,8 @@ def fake_sdk(monkeypatch):
     return install
 
 
-def _hand2_transport(**kwargs) -> wh.Hand2Transport:
-    gains = wh.Hand2Gains(kp=[1.0] * N, kd=[0.1] * N, effort_limit_a=[1.0] * N)
+def _hand2_transport(control_mode="mit", **kwargs) -> wh.Hand2Transport:
+    gains = wh.Hand2Gains(kp=[1.0] * N, kd=[0.1] * N, effort_limit=[1.0] * N, control_mode=control_mode)
     return wh.Hand2Transport(wh.StreamOptions(), gains, **kwargs)
 
 
@@ -722,6 +888,88 @@ def test_an_incomplete_hand_is_refused_and_released(fake_sdk):
     with pytest.raises(RuntimeError, match=r"16/20 joints online.*require_all_joints=False"):
         t.connect()
     assert sdk.disconnected == [t.device_name] and not sdk.enabled
+
+
+def test_hand2_selects_mit_mode_on_disabled_joints_before_writing_the_current_limit(fake_sdk, eden_caplog):
+    """In Position mode the same limit would be N·m, and the firmware's position loop would ignore the gains."""
+    sdk = fake_sdk()
+    _hand2_transport().connect()
+    assert sdk.calls == ["disable", "control_mode Mit", "effort_limit in Mit", "mit_params", "enable"]
+    assert "sn=SN-HAND, firmware v3.1.0" in eden_caplog.text
+
+
+def test_a_hand_that_stays_out_of_mit_mode_is_never_enabled(fake_sdk):
+    sdk = fake_sdk()
+    sdk.mode_sticks = True
+    t = _hand2_transport()
+    with pytest.raises(RuntimeError, match=r"control mode reads Position after selecting Mit.*Power-cycle"):
+        t.connect()
+    assert "enable" not in sdk.calls and not any(c.startswith("effort_limit") for c in sdk.calls)
+    assert sdk.disconnected == [t.device_name]
+
+
+def test_a_current_limit_that_reads_back_different_is_refused_by_joint(fake_sdk):
+    sdk = fake_sdk()
+    sdk.limit_readback = [1.0] * (N - 1) + [0.8]
+    t = _hand2_transport(joint_names=WujiHand2Beta2_L().dofs_name)
+    with pytest.raises(
+        RuntimeError, match=r"1 joint\(s\) read back.*l_pinky_dip .*wrote \(1\.0, 1\.0, 0\.1\), read \(0\.8"
+    ):
+        t.connect()
+    assert "enable" not in sdk.calls and sdk.disconnected == [t.device_name]
+
+
+def test_mit_v2_writes_its_torque_limit_in_mit_v2_mode(fake_sdk, eden_caplog):
+    sdk = fake_sdk()
+    _hand2_transport("mit_v2").connect()
+    assert sdk.calls == ["disable", "control_mode MitV2", "effort_limit in MitV2", "mit_params", "enable"]
+    assert "mit_v2, effort limit 1-1 N·m" in eden_caplog.text
+
+
+def test_mit_v2_on_older_firmware_points_back_to_legacy_mit(fake_sdk):
+    sdk = fake_sdk()
+    sdk.mode_sticks = True
+    with pytest.raises(
+        RuntimeError, match=r"reads Position after selecting MitV2.*firmware 3\.1\.0.*control_mode='mit'"
+    ):
+        _hand2_transport("mit_v2").connect()
+    assert "enable" not in sdk.calls
+
+
+def test_mit_v2_is_refused_before_switching_on_firmware_that_reports_an_older_version(fake_sdk):
+    sdk = fake_sdk()
+    sdk.firmware = "v2.13.1"  # what a real Hand 2 on that firmware reports
+    with pytest.raises(RuntimeError, match=r"runs firmware v2\.13\.1, and MIT_V2 needs 3\.1\.0.*control_mode='mit'"):
+        _hand2_transport("mit_v2").connect()
+    assert not [c for c in sdk.calls if c.startswith("control_mode")] and "enable" not in sdk.calls
+
+
+@pytest.mark.parametrize(
+    ("version", "parsed"), [("v2.13.1", (2, 13, 1)), ("3.1.0", (3, 1, 0)), ("v3.1.0-rc1", None), ("unknown", None)]
+)
+def test_firmware_versions_parse_or_defer_to_the_mode_readback(version, parsed):
+    assert wh._parse_firmware(version) == parsed
+
+
+def test_mit_v2_on_an_sdk_without_it_names_the_version_to_install(fake_sdk):
+    sdk = fake_sdk()
+    sdk.module.ControlMode = SimpleNamespace(Mit="Mit", Position="Position")
+    with pytest.raises(RuntimeError, match=r"no ControlMode\.MitV2.*wuji-sdk 2026\.11\.23"):
+        _hand2_transport("mit_v2").connect()
+    assert "enable" not in sdk.calls
+
+
+def test_offline_joints_are_skipped_in_the_readback(fake_sdk):
+    sdk = fake_sdk(online=16)
+    _hand2_transport(require_all_joints=False).connect()
+    assert sdk.enabled
+
+
+def test_an_unreadable_firmware_version_is_logged_not_fatal(fake_sdk, eden_caplog):
+    sdk = fake_sdk()
+    sdk.firmware = OSError("no such resource")
+    _hand2_transport().connect()
+    assert sdk.enabled and "firmware unknown (OSError: no such resource)" in eden_caplog.text
 
 
 def test_a_failed_gain_write_releases_the_hand(fake_sdk):

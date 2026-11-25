@@ -134,7 +134,16 @@ def _checkpoint_sibling_config(args) -> str | None:
         return None
     if getattr(args, "config", None) and is_full_config(read_config_arg(args.config)):
         return None  # an explicit saved config replaces the checkpoint's own; let the rebuild path apply it
-    sibling = os.path.join(os.path.dirname(os.path.abspath(args.checkpoint)), "config.json")
+    return _saved_training_config(args.checkpoint)
+
+
+def _saved_training_config(checkpoint: str) -> str | None:
+    """The ``config.json`` its training run saved beside ``checkpoint``, or ``None`` for a loose checkpoint.
+
+    Where a checkpoint's training config lives. Whether a replay *loads* it is
+    :func:`_checkpoint_sibling_config`'s question; what the checkpoint was trained with is this one's.
+    """
+    sibling = os.path.join(os.path.dirname(os.path.abspath(checkpoint)), "config.json")
     return sibling if os.path.exists(sibling) else None
 
 
@@ -2370,6 +2379,62 @@ def _warn_on_task_robot_gains(dep, pinned_robots: list[tuple[str, Any]]) -> None
             )
 
 
+def _checkpoint_trained_robots(checkpoints: list[str], entity_name: str, robot_options) -> list[tuple[str, Any]]:
+    """Each checkpoint's robot as its training ``config.json`` saved it, or why it cannot be read.
+
+    Every checkpoint slot runs at the deploy env robot's gains (:func:`_load_checkpoint_slots`), which are the
+    first checkpoint's own only when the env was built from its ``config.json`` without overrides. The
+    comparison is a diagnostic, so a config that does not load (a retired field, an unimportable task class, a
+    renamed entity) yields its error as a string for :func:`_warn_on_checkpoint_gains` to report; it never
+    stops a deploy that would otherwise run. A composite rig is skipped: :meth:`DeploymentBase.wire_gains`
+    reads no gains from one.
+    """
+    from eden.extensions.deployment.base import scene_entity_options
+    from eden.options.entities import CompositeEntityOptions
+    from eden.utils.configs import EdenConfig
+
+    if isinstance(robot_options, CompositeEntityOptions):
+        return []
+    trained = []
+    for ckpt in checkpoints:
+        saved = _saved_training_config(ckpt)
+        if saved is None:
+            trained.append((ckpt, None))
+            continue
+        try:
+            trained.append((ckpt, scene_entity_options(EdenConfig.load_from_file(saved).scene_options, entity_name)))
+        except Exception as exc:  # noqa: BLE001 -- reported by _warn_on_checkpoint_gains, see the docstring
+            trained.append((ckpt, f"{saved} did not load ({type(exc).__name__}: {exc})"))
+    return trained
+
+
+def _warn_on_checkpoint_gains(dep, trained_robots: list[tuple[str, Any]]) -> None:
+    """Warn for each checkpoint the deploy runs at other gains than its ``config.json`` says it trained at.
+
+    Silent for a checkpoint replayed from its own config. The others are an ``--extra_checkpoint`` trained at
+    other gains, a ``--config`` / ``--override`` that changed the robot's, and a checkpoint with no
+    ``config.json``, whose training gains are unknown.
+    """
+    import eden as en
+    from eden.utils.string import first_few
+
+    deployed = dep.wire_gains()
+    for ckpt, robot in trained_robots:
+        if robot is None or isinstance(robot, str):
+            why = "has no config.json beside it" if robot is None else f"has a config.json, but {robot}"
+            en.logger.warning(
+                f"[deploy] '{ckpt}' {why}, so the gains it was trained at are unknown; it runs at the --task robot's. "
+                "Check them against its training run before going live."
+            )
+            continue
+        for gain, joints in _differing_joints(dep.dofs_name, dep.wire_gains(robot), deployed, "deployed"):
+            en.logger.warning(
+                f"[deploy] '{ckpt}' runs at the --task robot's {gain}, not the one its config.json says it was "
+                f"trained at — {first_few(joints)}. To run it at its own, deploy it from its own config.json (no "
+                "--config / --override changing the robot), or give the task's robot those gains."
+            )
+
+
 def _warn_on_unswitchable_slot_gains(dep, slots: list[_DeploySlot]) -> None:
     """Warn for each slot whose gains the robot will not run, on a backend that cannot switch gains.
 
@@ -2379,7 +2444,7 @@ def _warn_on_unswitchable_slot_gains(dep, slots: list[_DeploySlot]) -> None:
     theirs once at connect or run their own loop, so one gain set runs whichever slot is active.
 
     Where the backend can say what that set is in a policy's units
-    (``DeploymentBase.programmed_gains``: Wuji Hand 2's MIT gains), every slot is compared with
+    (``DeploymentBase.programmed_gains``: Wuji Hand 2's MIT gains in joint space), every slot is compared with
     it, a lone one and the boot slot included. Where it cannot (XHand firmware units, Franka
     ``arm_stiffness``, Hand 1's position loop), the slots are compared with the boot slot, since
     of two slots trained at different gains at most one can run at its own.
@@ -3283,6 +3348,7 @@ def _run_deploy(
     # too, for the same reason.
     pinned_robots = [(label, cls.robot_options()) for label, cls in ext_specs]
     _check_pinned_gains(pinned_robots, robot_options)
+    trained_robots = _checkpoint_trained_robots(checkpoints, entity_name, robot_options)
 
     def _resolve_command_terms(label: str) -> list:
         terms = []
@@ -3470,6 +3536,7 @@ def _run_deploy(
     slots = _order_policy_slots(ext_slots, ckpt_slots, has_base)
     if config is not None:
         _warn_on_task_robot_gains(dep, pinned_robots)
+    _warn_on_checkpoint_gains(dep, trained_robots)
     _warn_on_unswitchable_slot_gains(dep, slots)
 
     (control_loop or _deploy_control_loop)(env, dep, slots, entity_name, genesis_show_viewer, operator=operator)
