@@ -6365,8 +6365,11 @@ for what each policy needs.</p>
 names, and from the env's robot on the rest, so a <code>--checkpoint</code> (trained in the env) and a policy
 pinning no robot run at the env robot's gains. With <code>--task</code>, the task's robot sets every slot's
 gains, extension policies included (a task robot is how a deploy retunes gains for the hardware),
-and the deploy warns at startup for each policy whose pinned gains differ. <code>--deploy_kp_kd_scale</code>
-and <code>--disable_joints</code> apply to every slot alike.</p>
+and the deploy warns at startup for each policy whose pinned gains differ. It warns likewise for
+each <code>--checkpoint</code> / <code>--extra_checkpoint</code> whose sibling <code>config.json</code> saved other gains than the
+env robot's (an extra checkpoint from another run, or <code>--config</code> / <code>--override</code> changing the
+robot), and for each checkpoint with no <code>config.json</code>, whose training gains it cannot know.
+<code>--deploy_kp_kd_scale</code> and <code>--disable_joints</code> apply to every slot alike.</p>
 <p>The boot slot's gains are on the wire from the first command. A switch ramps kp/kd linearly to the
 new slot's over <code>--gain_ramp_steps</code> control steps (default 50, 1 s at 50 Hz; <code>0</code> jumps), because a
 stiffness step of the size between SONIC's and Holosoma's hip-pitch gains (about 2.4×) can knock a

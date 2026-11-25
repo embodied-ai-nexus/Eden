@@ -6002,7 +6002,11 @@ definition. The modules under <code>eden/options/robots/composite/</code> are th
 </tr>
 <tr>
 <td><code>STIFFNESS</code>, <code>DAMPING</code></td>
-<td>passive joint spring and damper (not kp / kd)</td>
+<td>passive joint spring and damper (not kp / kd); <code>None</code> (the default) keeps the asset's</td>
+</tr>
+<tr>
+<td><code>FRICTIONLOSS</code></td>
+<td>passive joint dry friction, the DOF's <code>frictionloss</code> (N·m); <code>None</code> (the default) keeps the asset's</td>
 </tr>
 <tr>
 <td><code>FULL_TORQUE_SPEED</code>, <code>NO_LOAD_SPEED</code>, <code>DRIVING_TORQUE_LIMIT</code>, <code>BRAKING_TORQUE_LIMIT</code></td>
@@ -6015,7 +6019,9 @@ definition. The modules under <code>eden/options/robots/composite/</code> are th
 </tbody>
 </table>
 <p>A robot maps DOF patterns to specs in its <code>dofs_spec</code> class variable. At build, a DOF covered by the spec gets the
-spec's stiffness, damping, armature and effort limit unless the robot's options set that property explicitly.
+spec's stiffness, damping, friction loss, armature and effort limit unless the robot's options set that property
+explicitly, so a robot whose specs carry these need not repeat them. A spec value is written to the solver like an
+option value, and a field the spec leaves <code>None</code> keeps the asset's.
 Robots that derive their gains from the spec do it in the class body with the Raibert heuristic in
 <code>eden.utils.actuator</code>, which targets a 10 Hz closed-loop bandwidth by default (<code>NATURAL_FREQ = 2π·10</code>):</p>
 <ul>
@@ -6035,8 +6041,21 @@ Robots that derive their gains from the spec do it in the class body with the Ra
 </span></code></pre></div>
 <p>The shipped specs cover Unitree motors (<code>Unitree7520_22</code>, <code>Unitree7520_14</code>, <code>Unitree5020_16</code>,
 <code>Unitree5020_16_DOUBLE</code>, <code>Unitree4010_25</code>, <code>Unitree8010_6</code>, <code>Unitree8010_6Calf</code>, <code>UnitreeGo2HV</code>,
-<code>UnitreeGo2HVCalf</code>), DAMIAO motors (<code>DamiaoDM4310</code>, <code>DamiaoDM4340</code>) and the LimX Oli joint groups
-(<code>LimxOliHipKnee</code>, <code>LimxOliAnkleWaist</code>, <code>LimxOliShoulderElbow</code>, <code>LimxOliWristHead</code>).</p>
+<code>UnitreeGo2HVCalf</code>), DAMIAO motors (<code>DamiaoDM4310</code>, <code>DamiaoDM4340</code>), the LimX Oli joint groups
+(<code>LimxOliHipKnee</code>, <code>LimxOliAnkleWaist</code>, <code>LimxOliShoulderElbow</code>, <code>LimxOliWristHead</code>) and the Wuji Hand 2
+finger motors (<code>WujiHand2Flex</code>, <code>WujiHand2ThumbAbd</code>, <code>WujiHand2ThumbMcp</code>, <code>WujiHand2ThumbIp</code>,
+<code>WujiHand2Finger</code>, <code>WujiHand2PinkyFlex</code>, <code>WujiHand2Pinky</code>). The Wuji specs carry the motor's
+<code>TORQUE_CONSTANT</code> (N·m/A) and convert the firmware's MIT gains: <code>JOINT_GAIN(mit_gain)</code> gives the joint-space
+kp or kd, and <code>MIT_GAIN(joint_gain)</code> the reverse. Each is one of the hand's seven motor models and carries the
+mean of upstream's per-joint armature and friction loss over the joints that model drives. Damping stays per joint
+on the robot (<code>_WujiHand2Beta2.default_dofs_damping</code>): upstream does not randomize it, and within the little
+finger's motor model alone it runs from 0 to 1.6e-3 N·m·s/rad. Damping and friction loss were identified on one right hand, and the
+left-hand presets use the same values. The gains
+convert at 1.91147 A per MIT unit, the factor of Wuji's published pen-spin configuration; firmware v2.13.1 and
+v3.0.0 use 1.98413, so on those versions the hand runs 3.8% stiffer than the simulated gains under legacy MIT;
+deploying with <code>control_mode="mit_v2"</code> (firmware 3.1.0+) programs the joint-space gains directly. The specs hold no
+operating point: the current a task runs the hand at, and so its force limits, belong to the robot
+(<code>_WujiHand2Beta2.current_limit_a</code>, 1.5 A, pen spin's operating point).</p>
 <h2 id="adding-a-robot">Adding a robot<a class="headerlink" href="#adding-a-robot" title="Permanent link">&para;</a></h2>
 <ol>
 <li><strong>Get the asset.</strong> Put the URDF / MJCF (and its meshes) where <code>file</code> can reach it: a local path while you
