@@ -213,6 +213,7 @@ def test_hand2_names_the_torque_an_explicit_current_limit_costs(hand2, eden_capl
     (warning,) = _ceiling_warnings(eden_caplog)
     assert "on 20 of 20 joints" in warning
     assert "l_pinky_mcp_flex (trained 0.669 N·m, hand 0.446 N·m, 67%)" in warning  # 0.4461 N·m/A at 1.5 A, then 1 A
+    assert "effort_limit_a=1 A" in warning and "predates" not in warning, "no checkpoint is at fault here"
 
     eden_caplog.clear()
     hand2(control_mode=control_mode, effort_limit_a=1.5)

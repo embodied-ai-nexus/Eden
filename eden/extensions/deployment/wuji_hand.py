@@ -1083,16 +1083,16 @@ class WujiHandDeployment(DeploymentBase):
         if not differing:
             return
         robot = type(self.robot_options).__name__
-        if self.control_mode == "mit_v2":  # only an explicit effort_limit_a differs here
+        if self.effort_limit_a is not None:
+            unset = "force limits" if self.control_mode == "mit_v2" else "current_limit_a"
             advice = (
                 f"The hand gets effort_limit_a={self.effort_limit_a:g} A times each motor's TORQUE_CONSTANT. Leave "
-                "effort_limit_a unset to program the robot's force limits."
+                f"effort_limit_a unset to program the robot's {unset}."
             )
-        else:
+        else:  # legacy MIT at the robot's current_limit_a: the robot's force limits are not the ones it derives
             advice = (
-                f"The hand gets {self._effort_limit.min():g} A (effort_limit_a, else the robot's current_limit_a) "
-                "times each motor's TORQUE_CONSTANT. Leave effort_limit_a unset to program the robot's "
-                "current_limit_a. A checkpoint whose config.json predates the Wuji Hand 2 calibration (5 N·m force "
+                f"The hand gets the robot's current_limit_a ({self._effort_limit.min():g} A) times each motor's "
+                "TORQUE_CONSTANT. A checkpoint whose config.json predates the Wuji Hand 2 calibration (5 N·m force "
                 "limits, kp 50 / kd 5) trained on another hand model, and its gains convert to MIT gains far above "
                 "the firmware's kp 3.0 / kd 0.05: retrain it on WujiHand2Beta2 before running it on the hand."
             )
