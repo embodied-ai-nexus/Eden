@@ -80,6 +80,7 @@ from eden.utils.cli.tasks import (
 from eden.utils.configs import EdenConfig, EdenRLConfig
 from eden.utils.warning import warn_once
 
+from eden.extensions.deployment import DeployStop
 from eden.extensions.deployment.utils.operator_input import CMD_START
 from tests.support.deploy import (
     FirmwareGainsLoopbackDeployment,
@@ -1312,14 +1313,54 @@ def test_every_key_deploy_stripped_before_is_still_stripped(task):
 
 @pytest.mark.requires_genesis
 def test_eden_deploy_strips_the_task_config_before_building(tmp_path, monkeypatch, restore_run_globals):
+    """Stripped inside ``_run_deploy``, so a Python caller of it gets the same config as ``eden deploy``."""
     monkeypatch.chdir(tmp_path)
     deployed = []
-    monkeypatch.setattr(tasks, "_run_deploy", lambda config, **_: deployed.append(config))
 
-    tasks.deploy_task(["--task", "velocity_tracking_flat", "--cpu", "--checkpoint", str(tmp_path / "model_0.pt")])
+    class _Built(Exception):
+        pass
+
+    def build(config, *args, **kwargs):
+        deployed.append(config)
+        raise _Built
+
+    monkeypatch.setattr(tasks, "_build_deploy_env", build)
+
+    argv = ["--task", "velocity_tracking_flat", "--cpu", "--checkpoint", str(tmp_path / "model_0.pt")]
+    with pytest.raises(_Built):
+        tasks.deploy_task(argv)
 
     (config,) = deployed
     assert not _KEYS_DEPLOY_STRIPPED_BY_NAME & set(config.event_options.term_keys())
+    assert (config.env_options.num_envs, config.env_options.episode_length_s) == (1, 1e9)
+
+
+@pytest.mark.requires_genesis
+def test_run_deploy_called_from_python_strips_the_task_config_too(tmp_path, monkeypatch, restore_run_globals):
+    en.init(debug=True, initialize_genesis=False, log_root_path=str(tmp_path))
+    config = TASK_REGISTRY.build("velocity_tracking_flat")
+    assert _KEYS_DEPLOY_STRIPPED_BY_NAME & set(config.event_options.term_keys())
+
+    class _Built(Exception):
+        pass
+
+    def build(*args, **kwargs):
+        raise _Built
+
+    monkeypatch.setattr(tasks, "_build_deploy_env", build)
+
+    with pytest.raises(_Built):
+        tasks._run_deploy(
+            config,
+            checkpoints=[str(tmp_path / "model_0.pt")],
+            show_viewer=False,
+            entity_name="robot",
+            deploy_kp_kd_scale=1.0,
+            control_loop=lambda *args, **kwargs: None,
+        )
+
+    assert not _KEYS_DEPLOY_STRIPPED_BY_NAME & set(config.event_options.term_keys())
+    assert config.env_options.num_envs == 1
 
 
 @pytest.mark.requires_genesis
@@ -1425,6 +1466,119 @@ def test_the_slot_switched_in_acts_first_on_observations_restarted_after_the_swi
     assert len(dep.restarted) == 1, "one switch, one restart"
     assert seen[holosoma.label][0] is dep.restarted[0]
     assert all(obs is not dep.restarted[0] for obs in seen[sonic.label])
+
+
+# ---------------------------------------------------------------------------
+# a safety stop ends the run; _run_deploy takes the backend class and the loop
+# ---------------------------------------------------------------------------
+
+
+class _StoppingDeployment(OperatorLoopbackDeployment):
+    """An operator who presses START at boot, and a backend whose guard stops the run on the third control step."""
+
+    def __init__(self, env, options) -> None:
+        super().__init__(env, options)
+        self.ticks = 0
+        self.closed = 0
+
+    def reset(self):
+        obs = super().reset()
+        self.operator.press(CMD_START)
+        return obs
+
+    def _before_step(self) -> None:
+        super()._before_step()
+        self.ticks += 1
+        if self.ticks == 3:
+            raise DeployStop("hand feedback lost: feed stale")
+
+    def close(self) -> None:
+        self.closed += 1
+        super().close()
+
+
+def test_a_safety_stop_ends_the_run_with_its_message_after_the_deployment_closes(g1_env, eden_caplog):
+    with deployments(g1_env) as make:
+        dep = make(_StoppingDeployment, gain_ramp_steps=0)
+        slot = _knee_slot(g1_env, dep, "extension:knees", None)
+
+        with pytest.raises(DeployStop, match="feed stale"):
+            tasks._deploy_control_loop(g1_env, dep, [slot], "robot", False)
+
+        assert dep.closed == 1
+        assert len(dep.sent) == 2, "nothing is sent on the tick that stopped"
+        assert "[deploy] Stopped: hand feedback lost: feed stale -- closing the deployment." in eden_caplog.text
+
+
+def test_run_deploy_runs_the_given_backend_class_through_the_given_loop(tmp_path, monkeypatch, restore_run_globals):
+    en.init(debug=True, initialize_genesis=False, log_root_path=str(tmp_path))
+    monkeypatch.setattr(tasks, "_resolve_extension_policy", lambda name: _policy("Knees"))
+    looped = []
+
+    def loop(env, dep, slots, entity_name, show_viewer, *, operator=None):
+        looped.append((env, dep, [slot.label for slot in slots], entity_name))
+
+    tasks._run_deploy(
+        None,
+        checkpoints=[],
+        show_viewer=False,
+        entity_name="robot",
+        deploy_kp_kd_scale=1.0,
+        extension_policies=["knees"],
+        robot_name="G1Dofs29",
+        deployment_cls=LoopbackDeployment,
+        control_loop=loop,
+    )
+
+    try:
+        ((_, dep, labels, entity_name),) = looped
+        assert type(dep) is LoopbackDeployment
+        assert (labels, entity_name) == (["extension:knees"], "robot")
+        assert dep.sent == [], "eden deploy's own loop would have stepped the deployment"
+    finally:
+        for env, dep, *_ in looped:
+            dep.close()
+            env.destroy()
+
+
+def test_run_deploy_refuses_a_backend_class_under_mujoco():
+    """``--mujoco`` picks its own backend, so a given class would be dropped without a word."""
+    with pytest.raises(ValueError, match="deployment_cls=LoopbackDeployment and mujoco=True"):
+        tasks._run_deploy(
+            None,
+            checkpoints=[],
+            show_viewer=False,
+            entity_name="robot",
+            deploy_kp_kd_scale=1.0,
+            mujoco=True,
+            deployment_cls=LoopbackDeployment,
+        )
+
+
+@pytest.mark.parametrize("given", ["loopback_deployment", dict])
+def test_run_deploy_refuses_a_backend_that_is_not_a_deployment_class(given):
+    """A registry key, or a class that is not a deployment, is refused before anything is built."""
+    with pytest.raises(TypeError, match=r"takes a DeploymentBase subclass.*DEPLOYMENT_REGISTRY\.get\(key\)"):
+        tasks._run_deploy(
+            None,
+            checkpoints=[],
+            show_viewer=False,
+            entity_name="robot",
+            deploy_kp_kd_scale=1.0,
+            deployment_cls=given,
+        )
+
+
+def test_a_single_robot_backend_is_refused_for_a_composite_rig():
+    from eden.extensions.deployment.composite import CompositeDeployment
+    from eden.options.robots import FrankaXHand
+
+    with pytest.raises(
+        ValueError, match=r"deployment_cls=LoopbackDeployment for 'robot', a composite rig \(FrankaXHand\)"
+    ):
+        tasks._check_rig_backend(LoopbackDeployment, FrankaXHand(), "robot")
+    tasks._check_rig_backend(CompositeDeployment, FrankaXHand(), "robot")
+    tasks._check_rig_backend(LoopbackDeployment, G1Dofs29(), "robot")
 
 
 def test_a_pinned_gain_map_that_leaves_out_a_joint_is_refused_before_any_deployment_exists():
@@ -2181,3 +2335,26 @@ def test_deploy_refuses_a_task_whose_runner_is_named_by_import_path():
     ):
         _check_deployable_runner(TASK_REGISTRY.build("contrack"))
     _check_deployable_runner(TASK_REGISTRY.build("husky"))  # a stock runner (its AMP algorithm replays as PPO)
+    with pytest.raises(SystemExit, match=r"SuperMimicConfig trains with runner_options\.class_name="):
+        _check_deployable_runner(TASK_REGISTRY.build("supermimic"))
+
+
+def test_export_refuses_a_runner_that_says_its_policy_cannot_be_exported():
+    from eden.utils.cli.tasks import _check_exportable_runner
+
+    with pytest.raises(SystemExit, match=r"eden export does not support the SuperMimic runner.*Nothing was built"):
+        _check_exportable_runner(TASK_REGISTRY.build("supermimic"))
+    _check_exportable_runner(TASK_REGISTRY.build("husky"))  # a stock runner
+
+
+def test_the_supermimic_runner_is_checked_before_the_build_like_any_runner_named_by_import_path(monkeypatch):
+    import eden as en
+    from eden.envs.wrappers.rsl_rl_env import rsl_rl_runner_class
+    from eden.learning.wrappers.rsl_rl.supermimic.runner import SuperMimicRunner
+
+    config = TASK_REGISTRY.build("supermimic")
+    assert rsl_rl_runner_class(config.runner_options.class_name) is SuperMimicRunner
+    _check_rsl_rl_runner(config, checkpoint=None)
+    monkeypatch.setattr(en.distributed, "is_distributed", lambda: True)
+    with pytest.raises(ValueError, match=r"cannot train under a distributed launch: SuperMimicRunner"):
+        _check_rsl_rl_runner(config, checkpoint=None)

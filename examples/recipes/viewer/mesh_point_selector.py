@@ -64,9 +64,7 @@ def main():
         show_viewer=True,
     )
 
-    # A viewer plugin must be registered before the scene is built. `env.scene`
-    # is a `gs.Scene` created in `EnvBase.__init__`, so its viewer is available
-    # here, before `env.build()`.
+    # The viewer is available here. Genesis also supports registering plugins after env.build().
     env.scene.viewer.add_plugin(
         MeshPointSelectorPlugin(
             sphere_radius=0.004,

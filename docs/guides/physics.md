@@ -425,9 +425,9 @@ These `EnvOptions` fields change speed, not physics:
 - `update_sensors_every_substep` (default `False`) skips sensor updates on the intermediate scene steps of a control
   step. See [Sensors and rendering](sensors-and-rendering.md#when-sensors-update).
 - `cuda_graph_options` (default `None`) replays the graded phase of `RLEnvBase.step` (metrics, terminations,
-  rewards) from a CUDA graph; `CudaGraphOptions()` turns it on. CUDA only. It is a training-only field: `eden
-  inference`, `eden export` and `eden deploy` reset it when they replay a run's config. See
-  [Environments](environments.md).
+  rewards) from a CUDA graph; `CudaGraphOptions()` turns it on. CUDA only (`require_cuda=False` runs the phase
+  eagerly elsewhere). It is a training-only field: `eden inference`, `eden export` and `eden deploy` reset it
+  when they replay a run's config. See [Environments](environments.md).
 - The `batch_*_info` switches above cost memory and some speed; leave them off unless a term needs them.
 
 ## See also

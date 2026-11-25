@@ -18,7 +18,7 @@ if TYPE_CHECKING:
 
 @CURRICULUM_TERM_REGISTRY.register()
 class StageRewardWeightCurriculum(CurriculumTerm):
-    """Curriculum that sets a reward term's weight at given training steps.
+    """Sets a reward term's weight at given training steps.
 
     Parameters
     ----------

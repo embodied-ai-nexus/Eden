@@ -343,8 +343,8 @@ def builtin_catalog(kind: str | None = None) -> tuple[TermEntry, ...]:
     is right (the test suite alone registers a dozen throwaway terms).
 
     "Shipped" is the ``eden.managers`` namespace — the term modules each registry names in its
-    ``populated_by``. ``eden.tasks.*`` / ``eden.extensions.*`` terms register when their task
-    module is imported and would otherwise leak in by import order — they match a plain
+    ``populated_by``. ``eden.tasks.*`` / ``eden.extensions.*`` / ``eden.learning.*`` terms register
+    when their task or learner module is imported and would otherwise leak in by import order — they match a plain
     ``startswith("eden.")`` but not the ``eden.managers`` prefix tested here.
     """
     return tuple(

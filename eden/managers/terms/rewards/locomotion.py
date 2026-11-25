@@ -534,7 +534,7 @@ class CloseFeetPenalty(RewardTerm):
 
 @REWARD_TERM_REGISTRY.register()
 class FeetOrientationPenalty(RewardTerm):
-    """Penalize feet orientation deviation from flat (projected gravity in foot frame)."""
+    """Penalize feet tilted from flat (projected gravity in foot frame)."""
 
     entity_name: str = "robot"
     feet_link_names: list[str] = []

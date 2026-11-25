@@ -16,7 +16,7 @@ import torch
 from torch.utils._python_dispatch import TorchDispatchMode
 
 from eden.datasets.base import DATASET_REGISTRY
-from eden.managers.motion_manager import MotionTerm, sample_start_times
+from eden.managers.motion_manager import MOTION_TERM_REGISTRY, MotionTerm, sample_start_times
 from eden.utils.buffers.cbt import ConcatBatchTensor
 from eden.utils.motion_reference.motion_data import BatchMotionSequence, MotionReferenceData, MotionReferenceState
 from tests.support.motion import (
@@ -1298,3 +1298,111 @@ def test_a_library_without_body_frame_link_fields_still_sizes_its_link_buffers(e
     assert manager.data["robot"].links_pos_w.shape[-2] == len(ROBOT_LINKS)
     assert manager.get_term("default").data_source.motion_sequences["robot"].links_pos_b is None
     assert manager.data["robot"].links_pos_w[0, 0].abs().sum() > 0
+
+
+# ---------------------------------------------------------------------------
+# MotionTerm extension points: sample_starts, set_start_frames, derive_reference_fields, library_frames
+# ---------------------------------------------------------------------------
+
+
+@MOTION_TERM_REGISTRY.register()
+class ScriptedStartsMotion(MotionTerm):
+    """Starts every env on frame 7 of clip 1, and fills ``dofs_vel`` as twice the ``dofs_pos`` it was handed."""
+
+    def sample_starts(self, assigned_ids):
+        n = self.num_assigned_envs if assigned_ids.dtype == torch.bool else len(assigned_ids)
+        ones = torch.ones(n, dtype=torch.long, device=self.device)
+        self.set_start_frames(assigned_ids, ones, 7 * ones)
+
+    def derive_reference_fields(self, motion_sequence_key, envs_idx, data_buffer):
+        data_buffer.dofs_vel[envs_idx] = 2.0 * data_buffer.dofs_pos[envs_idx]
+
+
+def _scripted_manager(env, library):
+    options = term_options(library).model_copy(update={"name": "scripted_starts_motion"})
+    return make_manager(env, terms={"default": options})
+
+
+def test_a_subclass_start_distribution_is_used_at_assignment_and_at_every_reset(env, library):
+    manager = _scripted_manager(env, library)
+    term = manager.get_term("default")
+    assert term._assigned_env_motion_selection.tolist() == [1] * env.num_envs
+    pin_clips(term, [0] * env.num_envs)
+    manager.reset(torch.tensor([0, 2]))  # int ids
+    assert term._assigned_env_motion_selection.tolist() == [1, 0, 1, 0]
+    mask = torch.zeros(env.num_envs, dtype=torch.bool, device=env.device)
+    mask[3] = True
+    manager.reset(mask)  # a bool mask
+    assert term._assigned_env_motion_selection.tolist() == [1, 0, 1, 1]
+
+
+def test_a_start_on_a_whole_frame_reads_one_frame_per_step(env, library):
+    manager = _scripted_manager(env, library)
+    manager.reset()
+    for step in range(20):
+        manager.fill_data()
+        torch.testing.assert_close(_dofs(manager), _expected_dofs([1] * env.num_envs, [7 + step] * env.num_envs))
+        assert manager.get_library_frame("default").tolist() == [LENGTHS[0] + 7 + step] * env.num_envs
+        manager._advance_timestamp(DT)
+
+
+def test_the_library_frame_holds_at_the_clips_last_row(env, library):
+    manager = _scripted_manager(env, library)
+    manager.reset()
+    manager._timestamp[:] = 10.0
+    assert manager.get_library_frame("default").tolist() == [LENGTHS[0] + LENGTHS[1] - 1] * env.num_envs
+    with pytest.raises(ValueError, match=r"No motion term 'missing'. Motion terms: \['default'\]"):
+        manager.get_library_frame("missing")
+
+
+def test_derived_fields_are_filled_from_the_rows_the_fill_just_wrote(env, library):
+    manager = _scripted_manager(env, library)
+    manager.reset()
+    manager.fill_data(torch.tensor([1, 2]))
+    data = manager.data["robot"]
+    torch.testing.assert_close(data.dofs_vel[[1, 2]], 2.0 * data.dofs_pos[[1, 2]])
+    manager.fill_data()
+    torch.testing.assert_close(data.dofs_vel, 2.0 * data.dofs_pos)
+
+
+def test_the_reference_holds_the_links_the_dataset_stores_by_default(env, library):
+    manager = make_manager(env, library)
+    term = manager.get_term("default")
+    assert not term.derives_links("robot")
+    assert manager.data["robot"].links_pos_w.shape[-2] == len(ROBOT_LINKS)
+    assert term.provides_field("robot", "links_pos_w")
+
+
+def test_a_term_that_derives_links_over_a_dataset_that_stores_them_is_told_so(env, library):
+    @MOTION_TERM_REGISTRY.register()
+    class DerivedOverStoredMotion(MotionTerm):
+        def derives_links(self, motion_sequence_key):
+            return True
+
+    options = term_options(library).model_copy(update={"name": "derived_over_stored_motion"})
+    with pytest.raises(ValueError, match=r"computes the link fields of 'robot' itself .* stores \['links_pos_w'"):
+        make_manager(env, terms={"default": options})
+
+
+def test_the_start_sampling_options_are_marked_where_they_are_declared():
+    from eden.options.managers.motions import MotionTermOptions
+
+    defaults = MotionTermOptions.start_sampling_defaults()
+    assert defaults["motion_bin_length_s"] is None and defaults["env_starting_stub_sampling_strategy"] == "independent"
+    assert "freeze_at_timestep_zero_prob" not in defaults  # read by the manager's clock, not by the start sampling
+    assert all(getattr(MotionTerm, name) == default for name, default in defaults.items())
+
+
+def test_a_subclass_with_its_own_starts_raises_on_a_default_start_option(env, library):
+    options = term_options(library, motion_bin_length_s=0.2).model_copy(update={"name": "scripted_starts_motion"})
+    term = make_manager(env, terms={"default": options}).get_term("default")
+    with pytest.raises(ValueError, match=r"ScriptedStartsMotion scripts them, so .*\{'motion_bin_length_s': 0.2\}"):
+        term.require_default_start_options("scripts them")
+
+
+def test_the_library_frame_of_an_env_another_term_plays_is_minus_one(env, library):
+    manager = make_manager(env, terms={"a": term_options(library), "b": term_options(library)})
+    frames = manager.get_library_frame("a")
+    owned = manager._motion_term_assignment["a"]
+    assert frames.shape == (env.num_envs,)
+    assert (frames[owned] >= 0).all() and (frames[owned.stop :] == -1).all()

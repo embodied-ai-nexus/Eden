@@ -5,6 +5,7 @@ from __future__ import annotations
 import importlib
 import os
 import sys
+from collections.abc import Callable
 from typing import Any, Literal, NamedTuple
 import numpy as np
 
@@ -675,6 +676,7 @@ def export_task(extra_args: list[str]) -> None:
             "eden export reads rsl_rl checkpoints only: an rl_games checkpoint has no export hooks to build the "
             "graph from. Export it with rl_games' own tooling, or train the task with rsl_rl (its default runner)."
         )
+    _check_exportable_runner(config)
     config.env_options.num_envs = 1
     if hasattr(config.runner_options, "logger"):
         config.runner_options.logger = "tensorboard"  # never wandb-log an export
@@ -1300,13 +1302,8 @@ def deploy_task(extra_args: list[str]) -> None:
         config = _config_from_checkpoint(args) or get_task_config_from_args(args, run_name=args.run_name)
         if _is_rl_games(config):
             sys.exit("'eden deploy' currently supports rsl_rl checkpoints only.")
-        _strip_training_randomization(config)
-        config.env_options.num_envs = 1
-        config.env_options.episode_length_s = 1e9
-        if hasattr(config.runner_options, "logger"):
-            config.runner_options.logger = "tensorboard"
-        # The deploy config snapshot is saved inside _run_deploy, after the
-        # extension policies' command terms are merged in.
+        # _run_deploy strips the training randomization and sets one env. The deploy config snapshot is saved
+        # inside _run_deploy, after the extension policies' command terms are merged in.
     else:
         # Task-less deploy: the env is built from the env-owning extension policy's
         # own spec methods inside _run_deploy (_env_owning_slot).
@@ -2606,6 +2603,23 @@ def _check_deployable_runner(config) -> None:
         )
 
 
+def _check_exportable_runner(config) -> None:
+    """Exit, before anything is built, when the task's runner says its policy cannot be exported.
+
+    A runner named by import path may set ``export_unsupported`` to the reason: its inference policy reads something
+    an exported graph does not have (the SuperMimic policy reads the motion library). Without the attribute the
+    export goes ahead, as it does for the ConTrack runner.
+    """
+    from eden.envs.wrappers.rsl_rl_env import rsl_rl_runner_class
+
+    class_name = getattr(config.runner_options, "class_name", None) or "OnPolicyRunner"
+    if ":" not in class_name:
+        return
+    reason = getattr(rsl_rl_runner_class(class_name), "export_unsupported", None)
+    if reason:
+        sys.exit(f"{reason} Nothing was built.")
+
+
 def _load_checkpoint_slots(env, dep, checkpoints: list[str]) -> list[_DeploySlot]:
     """Load every checkpoint into an independent policy slot, *before* any hardware contact.
 
@@ -2695,6 +2709,7 @@ def _deploy_control_loop(
     import torch
 
     import eden as en
+    from eden.extensions.deployment.base import DeployStop
 
     active = 0
     en.logger.info(f"[deploy] Loaded {len(slots)} policy slot(s); boot-active: {slots[0].label}")
@@ -2756,6 +2771,11 @@ def _deploy_control_loop(
                 env.unwrapped.scene.visualizer.update()
     except KeyboardInterrupt:
         en.logger.info("[deploy] Interrupted — closing deployment.")
+    except DeployStop as exc:
+        # A backend's guard ended the run. Logged before close() for the reason SystemExit is, below: the
+        # operator needs the message, and the traceback lands after Genesis' teardown output.
+        en.logger.error(f"[deploy] Stopped: {exc} -- closing the deployment.")
+        raise
     except SystemExit as exc:
         # A slot refusing its own policy's action on the first control step
         # (:func:`_validate_step_action`). Logged here because ``sys.exit``'s own message
@@ -3079,6 +3099,42 @@ def _rig_option_kwargs(rig_opts: dict | None, deployment_cls: type, entity_name:
     return kwargs
 
 
+def _prepare_deploy_config(config) -> None:
+    """Make a task config a deploy config, in place: training randomization off, one env, no episode end.
+
+    In :func:`_run_deploy` rather than in its CLI caller, so a Python caller of ``_run_deploy`` gets it too: a
+    domain-randomization term left on can reach the robot (``RandomizeDofsPosOffset`` adds its draw to every
+    position target sent).
+    """
+    _strip_training_randomization(config)
+    config.env_options.num_envs = 1
+    config.env_options.episode_length_s = 1e9
+    if hasattr(config.runner_options, "logger"):
+        config.runner_options.logger = "tensorboard"
+
+
+def _check_rig_backend(deployment_cls: type | None, robot_options, entity_name: str) -> None:
+    """Refuse a caller's backend class that cannot drive a composite rig, before the policies are built.
+
+    A rig's deployment hands each part to that part's own backend (``CompositeDeployment.part_backends``), which a
+    single-robot backend has no way to do.
+    """
+    from eden.extensions.deployment.composite import CompositeDeployment
+    from eden.options.entities import CompositeEntityOptions
+
+    if (
+        deployment_cls is None
+        or not isinstance(robot_options, CompositeEntityOptions)
+        or issubclass(deployment_cls, CompositeDeployment)
+    ):
+        return
+    raise ValueError(
+        f"_run_deploy got deployment_cls={deployment_cls.__name__} for '{entity_name}', a composite rig "
+        f"({type(robot_options).__name__}). A rig deploys through CompositeDeployment or a subclass of it, which "
+        "runs each part on that part's own backend. Pass one of those, or leave deployment_cls unset."
+    )
+
+
 def _run_deploy(
     config,
     *,
@@ -3123,11 +3179,45 @@ def _run_deploy(
     mujoco_props: list[str] | None = None,
     imu_opts: dict | None = None,
     rig_opts: dict | None = None,
+    deployment_cls: type | None = None,
+    control_loop: Callable[..., None] | None = None,
 ) -> None:
+    """Build the deploy env, the deployment and the policy slots, then run the control loop.
+
+    ``deployment_cls`` replaces the backend that :func:`resolve_deployment_for` would pick for the robot; for a
+    composite rig it must be a :class:`CompositeDeployment` subclass. ``control_loop`` replaces
+    :func:`_deploy_control_loop` and is called with the same arguments. It then owns what that loop does at
+    either end. Before ``dep.connect()``, when ``dep.sends_command_gains``, it sets the boot slot's gains
+    (``dep.set_gains(*slots[0].gains, ramp_steps=0)``), so the robot is never commanded at others. After the last
+    step it calls ``dep.close()`` and ``operator.close()`` in a ``finally``; ``close()`` settles the robot,
+    restores the command terms the deployment substituted and flushes the debug record. This function does not
+    define connecting a deployment again after ``close()``. Both default to plain
+    ``eden deploy``. They let an application that drives the operator state machine itself, from a UI of its
+    own, reuse the env, slot and entity-swap wiring here.
+
+    A task ``config`` is made a deploy config in place (:func:`_prepare_deploy_config`) before anything else reads
+    it, so pass a copy to keep the caller's.
+    """
     import eden as en
-    from eden.extensions.deployment import DEPLOYMENT_REGISTRY, resolve_deployment_for
+    from eden.extensions.deployment import DEPLOYMENT_REGISTRY, DeploymentBase, resolve_deployment_for
     from eden.extensions.deployment.base import scene_entity_options
     from eden.options.entities import CompositeEntityOptions
+
+    if deployment_cls is not None and not (
+        isinstance(deployment_cls, type) and issubclass(deployment_cls, DeploymentBase)
+    ):
+        raise TypeError(
+            f"_run_deploy got deployment_cls={deployment_cls!r}; it takes a DeploymentBase subclass, the class "
+            "itself. For a DEPLOYMENT_REGISTRY key, pass DEPLOYMENT_REGISTRY.get(key)."
+        )
+    if mujoco and deployment_cls is not None:
+        raise ValueError(
+            f"_run_deploy got deployment_cls={deployment_cls.__name__} and mujoco=True; --mujoco picks the MuJoCo "
+            "backend itself, so the given class would not run. Pass one of them."
+        )
+
+    if config is not None:
+        _prepare_deploy_config(config)
 
     # In sim-to-sim mode the robot's physics run in-process, so the Genesis env is only
     # ever a state mirror; drive the viewer from the sim backend (MuJoCo's own window)
@@ -3185,6 +3275,7 @@ def _run_deploy(
     robot_options = getattr(scene_options, entity_name, None)
     if not isinstance(robot_options, CompositeEntityOptions):
         robot_options = scene_entity_options(scene_options, entity_name)
+    _check_rig_backend(deployment_cls, robot_options, entity_name)
 
     # Resolve each slot's pinned robot now, while the env still holds the sim entity: this calls
     # into policy code, and the deployment constructed below swaps that entity, after which a
@@ -3235,9 +3326,13 @@ def _run_deploy(
         rig = isinstance(robot_options, CompositeEntityOptions)
         deployment_cls = DEPLOYMENT_REGISTRY.get("mujoco_composite_deployment" if rig else "mujoco_deployment")
         en.logger.info(f"[deploy] sim-to-sim via {deployment_cls.__name__} (robot binding overridden by --mujoco).")
-    else:
+    elif deployment_cls is None:
         deployment_cls = resolve_deployment_for(robot_options)
         en.logger.info(f"[deploy] Using {deployment_cls.__name__} for {type(robot_options).__name__}")
+    else:
+        en.logger.info(
+            f"[deploy] Using {deployment_cls.__name__} (given by the caller) for {type(robot_options).__name__}"
+        )
     # Backend-specific options are only accepted by the backends that declare them
     # (configure() rejects unknown params), so include them conditionally.
     configure_kwargs = dict(
@@ -3377,7 +3472,7 @@ def _run_deploy(
         _warn_on_task_robot_gains(dep, pinned_robots)
     _warn_on_unswitchable_slot_gains(dep, slots)
 
-    _deploy_control_loop(env, dep, slots, entity_name, genesis_show_viewer, operator=operator)
+    (control_loop or _deploy_control_loop)(env, dep, slots, entity_name, genesis_show_viewer, operator=operator)
 
 
 def _route_backend_flag(
@@ -3845,7 +3940,8 @@ def _accepted_keywords(cls) -> tuple[set[str] | None, set[str]]:
 def _rsl_rl_env_and_runner(config, checkpoint: str | None, *, inference: bool = False, **env_kwargs):
     """The rsl_rl env wrapper and runner ``config.runner_options`` names: rsl_rl_flashsac's ``OffPolicyRunner`` for
     :class:`RslRlFlashSacRunnerOptions` (on a wrapper that also hands it the action bounds and the pre-reset
-    observation of timed-out envs), else rsl_rl's on-policy / distillation runner.
+    observation of timed-out envs), else the runner ``runner_options.class_name`` names
+    (:func:`~eden.envs.wrappers.rsl_rl_env.make_rsl_rl_runner`).
 
     ``inference`` builds a runner only to run the policy (no FlashSAC replay buffer); ``env_kwargs`` go to
     ``from_config``.

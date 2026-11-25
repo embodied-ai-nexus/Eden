@@ -6,7 +6,7 @@ from eden.datasets.base import DATASET_REGISTRY, DatasetBase
 from eden.datasets.dex_ycb_dataset import DexYCBDataset
 from eden.datasets.hhi_assist_dataset import HHIAssistDataset
 from eden.datasets.hot3d_dataset import Hot3dDataset
-from eden.datasets.lafan1_dataset import LAFAN1RetargetedG1Dataset
+from eden.datasets.lafan1_dataset import LAFAN1RetargetedG1Dataset, LAFAN1RootJointsG1Dataset
 from eden.datasets.modifiers import (
     DATASET_MODIFIER_REGISTRY,
     Compose,
@@ -21,7 +21,7 @@ from eden.datasets.modifiers import (
 from eden.datasets.oakink2_dataset import OakInk2Dataset
 from eden.datasets.omomo_dataset import OMOMOHolosomaDataset
 from eden.datasets.phuma_dataset import PHUMADataset
-from eden.datasets.seed_dataset import SEEDRetargetedG1Dataset
+from eden.datasets.seed_dataset import SEEDRetargetedG1Dataset, SEEDRootJointsG1Dataset
 from eden.datasets.taco_dataset import TacoDataset
 from eden.datasets.weave_dataset import WeaveG1InspireHOIDataset
 
@@ -43,10 +43,12 @@ __all__ = [
     "HHIAssistDataset",
     "Hot3dDataset",
     "LAFAN1RetargetedG1Dataset",
+    "LAFAN1RootJointsG1Dataset",
     "OakInk2Dataset",
     "OMOMOHolosomaDataset",
     "PHUMADataset",
     "SEEDRetargetedG1Dataset",
+    "SEEDRootJointsG1Dataset",
     "TacoDataset",
     "WeaveG1InspireHOIDataset",
 ]

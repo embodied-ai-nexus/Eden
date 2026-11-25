@@ -165,7 +165,16 @@ class RslRlVecEnvWrapper(EnvWrapperMixin, VecEnv, gym.Env):
         ``KeyError: 'class_name'``.
         """
         if self._runner_dict_cache is None:
-            self._runner_dict_cache = _translated_runner_dict(self.runner_options.dict(), self.runner_options.algorithm)
+            options = self.runner_options
+            if options.translates_to_rsl_rl:
+                self._runner_dict_cache = _translated_runner_dict(options.dict(), options.algorithm)
+            else:
+                # Options of a runner that is not built on an rsl_rl algorithm: nothing in them is rsl_rl's to
+                # translate (``RslRlBaseRunnerOptions.translates_to_rsl_rl``).
+                from eden.utils.torch import resolve_device
+
+                self._runner_dict_cache = options.dict()
+                self._runner_dict_cache["device"] = resolve_device(self._runner_dict_cache["device"])
         return copy.deepcopy(self._runner_dict_cache)
 
     @property
@@ -1465,6 +1474,10 @@ def make_rsl_rl_runner(
     runner = runner_cls(env, runner_dict, log_dir=log_dir, device=runner_dict["device"])
 
     if checkpoint:
-        load_runner_checkpoint(runner, checkpoint)
+        if env.runner_options.translates_to_rsl_rl:
+            load_runner_checkpoint(runner, checkpoint)
+        else:
+            # The runner owns its checkpoint layout: none of the rsl-rl-lib version handling applies to it.
+            runner.load(checkpoint, map_location=runner_dict["device"])
 
     return runner

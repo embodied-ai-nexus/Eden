@@ -92,7 +92,7 @@ def illegal_contact(env: RLEnvBase, *, entity_name: str, illegal_contact_entity_
 
 @TERMINATION_TERM_REGISTRY.register()
 class IllegalLinkContact(TerminationTerm):
-    """Terminate when any of the named links carries a net contact force above ``force_threshold``.
+    """Terminate when a named link carries a net contact force above ``force_threshold``.
 
     The link-level sibling of :func:`illegal_contact`, and the reason both exist: that term asks
     *which entities touched*, this one asks *which links of one entity took load, and how hard*. The

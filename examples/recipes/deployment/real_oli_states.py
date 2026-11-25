@@ -23,7 +23,7 @@ thing to verify on a new unit (LimX's own docs disagree on the head-joint
 order, so the mapping is by name, never by position).
 
 The robot IP resolves ``ROBOT_IP`` env var -> ``10.192.1.2`` (real robot);
-requires the ``limxsdk`` wheel (see ``docs/guides/deployment.md``).
+requires ``limxsdk`` (``uv sync --inexact --extra limx``; see ``docs/guides/deployment-hardware.md``).
 
 Usage:
     uv run examples/recipes/deployment/real_oli_states.py

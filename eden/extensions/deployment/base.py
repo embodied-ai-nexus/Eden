@@ -37,6 +37,16 @@ DEPLOYMENT_REGISTRY = Registry("DEPLOYMENT")
 _ROBOT_DEPLOYMENT_BINDINGS: dict[type, str] = {}
 
 
+class DeployStop(RuntimeError):
+    """A safety guard ended the run (hardware fault, stale feedback, lost tracking); the message says which.
+
+    A backend raises it from a per-tick hook (``_before_step``, ``send_payload``, ``read_state``). The deploy
+    loop logs the message, ``close()`` settles every part of the robot, and the loop re-raises it, so the run
+    ends with a traceback whose last line is the message. A backend that has a stop action of its own (an arm
+    controller to stop, a hand to make compliant) takes it before raising.
+    """
+
+
 def bind_deployment(robot_cls: type, deployment_name: str) -> None:
     """Register ``robot_cls`` as driven by the named deployment in :data:`DEPLOYMENT_REGISTRY`.
 

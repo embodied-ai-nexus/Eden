@@ -56,7 +56,7 @@ def _resolve_axis_parameter(
 
 @ACTION_TERM_REGISTRY.register()
 class DifferentialIKController(ActionTerm):
-    """Action term that maps task-space commands to joint targets via differential IK.
+    """Maps task-space commands to joint targets via differential IK.
 
     Parameters
     ----------

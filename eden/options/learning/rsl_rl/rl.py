@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any, Literal
+from typing import Any, ClassVar, Literal
 
 from eden.options.learning.clip_actions import ClipActions
 from eden.options.learning.rsl_rl.rnd import RslRlRndOptions
@@ -266,6 +266,12 @@ class RslRlBaseRunnerOptions(ConfigurableOptions):
     load_checkpoint: str
         The checkpoint file to load.
     """
+
+    #: Whether these options are a config of an rsl_rl runner. ``True``: the env wrapper translates them for the
+    #: installed rsl-rl-lib and a checkpoint loads through the rsl-rl-lib layout handling. An options class of a
+    #: runner that is not built on an rsl_rl algorithm (named by ``class_name`` as an import path) sets ``False``:
+    #: the runner gets the options as a plain dict and its own ``load`` reads the checkpoint.
+    translates_to_rsl_rl: ClassVar[bool] = True
 
     seed: Seed = 7100
     # "auto" resolves to ``str(gs.device)`` at runner construction time, so the

@@ -50,6 +50,7 @@ All of these are importable from `eden.datasets` and registered in `DATASET_REGI
 | `AMASSRetargetedG1Dataset` | `amass_retargeted_g1_dataset` | `g1` | AMASS retargeted to a 29-DOF G1, IsaacLab AMP `.npz` with link poses included | HuggingFace `ember-lab-berkeley/AMASS_Retargeted_for_G1`, auto-download |
 | `LAFAN1RetargetedG1Dataset` | `lafan1_retargeted_g1_dataset` | `g1` | Ubisoft LAFAN1 retargeted to G1, CSV (30 fps) | HuggingFace, auto-download (`g1/` only) |
 | `SEEDRetargetedG1Dataset` | `seed_retargeted_g1_dataset` | `g1` | BONES Studio SEED, G1 CSV split (120 fps) | HuggingFace `bones-studio/seed`, **gated** |
+| `LAFAN1RootJointsG1Dataset`, `SEEDRootJointsG1Dataset` | `lafan1_root_joints_g1_dataset`, `seed_root_joints_g1_dataset` | `g1` | The two above with root and joint state only: no link field is stored (`RootJointsOnlyMixin`), so a large library fits on one GPU. Read them with a motion term that computes its links, `KinematicLinksMotion` | as the dataset each extends |
 | `PHUMADataset` | `phuma_dataset` | `g1` | PHUMA physically grounded humanoid motion, G1 split | HuggingFace `DAVIAN-Robotics/PHUMA`, auto-download |
 | `OMOMOHolosomaDataset` | `omomo_holosoma_dataset` | `human`, `object` | OMOMO processed by the Holosoma pipeline: root pose, 52 SMPL-H joint positions, object pose (30 fps) | HuggingFace, auto-download |
 | `ArcticDataset` | `arctic_dataset` | `object`, `left_hand`, `right_hand` | ARCTIC bimanual manipulation: two MANO hands (21 keypoints each) and a 1-DOF articulated object | HuggingFace, auto-download |

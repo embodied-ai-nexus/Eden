@@ -249,14 +249,18 @@ eden deploy --task move_forward --robot go1 --checkpoint /path/to/model.pt
 
 ### Install
 
-The SDK is not on PyPI; install the platform wheel shipped in the
-[`limxsdk-lowlevel`](https://github.com/limxdynamics/limxsdk-lowlevel) repo:
+The SDK is `limxsdk` on PyPI, installed by the `limx` extra: `pip install "eden-world[limx]"`, or
+`uv sync --inexact --extra limx` in a checkout. The extra is Linux-only (wheels for x86_64 and
+aarch64, the onboard PC) and installs nothing elsewhere; on Windows, `pip install limxsdk` gets
+4.1.0. Check the install with:
 
 ```bash
-git clone https://github.com/limxdynamics/limxsdk-lowlevel
-uv pip install limxsdk-lowlevel/python3/amd64/limxsdk-*.whl   # aarch64/ on the onboard PC
 uv run python -c "import limxsdk.robot, limxsdk.datatypes; print('OK')"
 ```
+
+`limxsdk` depends on the CPU `onnxruntime`. If you also use the `onnx-gpu` extra, the two wheels
+share one package directory: reinstall `onnxruntime-gpu` on top as described under
+[ONNX runtime](#onnx-runtime).
 
 ### Address
 

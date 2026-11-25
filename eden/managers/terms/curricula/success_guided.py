@@ -40,7 +40,7 @@ def success_guided_probabilities(
 
 @CURRICULUM_TERM_REGISTRY.register()
 class SuccessGuidedSampling(CurriculumTerm, ResetConfigSampler):
-    """Draw each resetting env's reset configuration with probability peaked at a target success rate.
+    """Draw each reset configuration with probability peaked at a target success rate.
 
     A reset event that owns a configuration set names this term (its ``sampler`` parameter), binds it to
     the set size in its ``build()`` and calls :meth:`sample` from every reset. A term no reset event binds

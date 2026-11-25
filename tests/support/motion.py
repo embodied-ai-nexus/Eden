@@ -193,6 +193,24 @@ def write_library(
     return root
 
 
+def write_lafan1_csv_library(root: Path, lengths: list[int], joints_center: np.ndarray | None = None) -> Path:
+    """Write clips in the LAFAN1 G1 CSV layout ``[pos(3), quat xyzw(4), joints(29)]`` at 30 fps; returns ``root``.
+
+    The robot walks forward at 0.3 m/s, turning at 0.2 rad/s, while its joints sway 0.1 rad about ``joints_center``
+    (default: zeros). The CSVs hold root and joint state only, which is what the LAFAN1 datasets read.
+    """
+    root.mkdir(parents=True, exist_ok=True)
+    center = np.zeros(len(ROBOT_DOFS)) if joints_center is None else joints_center
+    for clip, frames in enumerate(lengths):
+        t = np.arange(frames) / 30.0
+        pos = np.stack([0.3 * t, np.full(frames, 0.1 * clip), np.full(frames, 0.76)], axis=-1)
+        yaw = 0.2 * t
+        quat_xyzw = np.stack([np.zeros(frames), np.zeros(frames), np.sin(yaw / 2), np.cos(yaw / 2)], axis=-1)
+        joints = center[None] + 0.1 * np.sin(2.0 * t[:, None] + np.arange(len(ROBOT_DOFS))[None])
+        np.savetxt(root / f"clip_{clip}.csv", np.concatenate([pos, quat_xyzw, joints], axis=-1), delimiter=",")
+    return root
+
+
 def load_dataset(root: Path, **dataset_kwargs) -> SyntheticMotionDataset:
     """Load the library under ``root`` as a standalone dataset on CPU."""
     from eden.options.datasets import DatasetOptions

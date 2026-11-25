@@ -345,7 +345,7 @@ replay.
 <!-- TODO(material): an eager vs graph-mode step-time table per task, with the GPU it was measured on. -->
 
 It is off by default (`cuda_graph_options=None`) and needs an `RLEnvBase` on a CUDA device; any other
-environment refuses it. It is in `EnvOptions.training_only_fields`, which `eden inference`, `eden export`
+environment refuses it, unless `require_cuda=False` lets a CPU or Metal one run the phase eagerly. It is in `EnvOptions.training_only_fields`, which `eden inference`, `eden export`
 and `eden deploy` reset when they replay a run's own config. `CudaGraphOptions` (`eden.options.envs`)
 holds its settings:
 
@@ -355,6 +355,7 @@ holds its settings:
 | `validation_steps` | `3` | Replays after each capture that are also run eagerly and compared bit for bit (at least 1). |
 | `recapture_window` | `100` | The span, in steps, over which re-captures are counted. |
 | `max_recaptures_per_window` | `2` | Re-captures allowed within the window; one more raises, naming what changed. |
+| `require_cuda` | `True` | Raise at build on a device without CUDA. `False` runs the phase eagerly there, for a task config that turns the graph on and must also build on a CPU host (`supermimic` does). |
 
 A term the graph cannot reproduce fails a validated replay, and the error names the buffers that differ.
 Before every replay the graph checks what it baked in, and re-captures (and re-validates) when one of

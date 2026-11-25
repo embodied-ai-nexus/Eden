@@ -23,31 +23,35 @@ class CudaGraphOptions(ConfigurableOptions):
     outside its own fields (another manager's term, a module global), which the graph replays as it was at
     capture.
 
-    Parameters
+    Attributes
     ----------
-    warmup_steps: int
+    warmup_steps : int
         Eager graded steps before the first capture. A term builds its lazy caches (index tensors, resolved
         link ids) on its first calls, and building one inside a capture is a host-to-device copy, which fails.
         These steps already read contacts padded, as the capture will, so a cache sized by the contact width
         fits it. Defaults to 2.
-    validation_steps: int
+    validation_steps : int
         How many replays after each capture are checked against an eager run of the same step. A validated
         replay runs the graph before the eager phase, which is what catches work a capture could not record (a
         kernel launched outside torch's stream), so at least one is required. Each costs about one eager graded
         phase plus a copy of the tensors the phase writes. Defaults to 3.
-    recapture_window: int
+    recapture_window : int
         The span, in graded steps, that ``max_recaptures_per_window`` counts re-captures over. Defaults to 100.
-    max_recaptures_per_window: int
+    max_recaptures_per_window : int
         Re-captures allowed within ``recapture_window`` steps; one more raises, naming what changed. A one-off
         change (a curriculum switching stage) re-captures once, but something that changes a baked-in value on
         nearly every step would re-capture and re-validate every step, which costs more than the eager phase.
         Defaults to 2.
+    require_cuda : bool
+        Raise at build when the env is not on a CUDA device. ``False`` runs the graded phase eagerly there, for a
+        task config that must also build on a CPU or Metal host. Defaults to True.
     """
 
     warmup_steps: PositiveInt = 2
     validation_steps: PositiveInt = 3
     recapture_window: PositiveInt = 100
     max_recaptures_per_window: NonNegativeInt = 2
+    require_cuda: bool = True
 
 
 class EnvOptions(ConfigurableOptions):
@@ -229,9 +233,10 @@ class EnvOptions(ConfigurableOptions):
         hundreds of small kernels, and on a host-bound step the launches are the cost: on BeyondMimic at
         4096 envs the phase takes ~3 ms of host time eagerly, against ~5 µs for the replay plus ~70 µs for
         the checks before it (see ``docs/guides/environments.md``). CUDA only (a CPU or Metal
-        backend raises at build), and only an ``RLEnvBase`` has a graded phase (any other env raises at
-        construction). A training-throughput switch: the replay commands (``eden inference``,
-        ``eden export``, ``eden deploy``) reset it in a run's config (see :attr:`training_only_fields`).
+        backend raises at build, or runs the phase eagerly with ``CudaGraphOptions(require_cuda=False)``),
+        and only an ``RLEnvBase`` has a graded phase (any other env raises at construction). A
+        training-throughput switch: the replay commands (``eden inference``, ``eden export``,
+        ``eden deploy``) reset it in a run's config (see :attr:`training_only_fields`).
 
     coupler_options : gs.options.BaseCouplerOptions | None = None
         The options configuring the coupler. Defaults to None (LegacyCouplerOptions).

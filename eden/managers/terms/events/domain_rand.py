@@ -502,7 +502,7 @@ class _RandomizeDofsPosBase(EventTerm):
 @EVENT_TERM_REGISTRY.register()
 class SetRandomDofsPos(_RandomizeDofsPosBase):
     """
-    Set the joint positions of an entity's DOFs to a random position (default mode: reset).
+    Set an entity's joint positions to random values (default mode: reset).
 
     Defaults to ratio mode, sampling within the first 20% of each DOF's limit range. See
     :class:`_RandomizeDofsPosBase` for the full parameter description.
@@ -609,7 +609,7 @@ class RandomizeDofsPosOffset(EventTerm):
 @EVENT_TERM_REGISTRY.register()
 class RandomizeStartupDofsPos(_RandomizeDofsPosBase):
     """
-    Randomize the absolute joint positions of an entity's DOFs (default mode: reset).
+    Randomize an entity's absolute joint positions (default mode: reset).
 
     Writes joint positions directly via ``set_dofs_pos`` — useful for spawning each episode with a randomized
     initial pose. Despite the name, defaults to ``mode=_RESET`` so it fires on every episode reset; override to

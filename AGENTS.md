@@ -48,6 +48,8 @@ export LD_LIBRARY_PATH="$(ls -d .venv/lib/python*/site-packages/nvidia/*/lib | p
 # Assets download on first use into ~/.cache/eden/assets, which on a cluster is often a small home quota or a
 # node-local disk (every node then fetches its own copy). Site-specific: a shared filesystem with tens of GB free.
 export EDEN_ASSETS_DIR=/shared/$USER/eden_assets
+# torch.compile's caches default to /tmp, which each node has to itself. Site-specific: a shared filesystem.
+export TORCHINDUCTOR_CACHE_DIR=/shared/$USER/torch_compile/inductor TRITON_CACHE_DIR=/shared/$USER/torch_compile/triton
 
 # Several nodes: node 0 hosts the rendezvous store, on a port below the ephemeral range derived from the job id.
 export RDZV_ENDPOINT="$(scontrol show hostnames "$SLURM_JOB_NODELIST" | head -n1):$((20000 + SLURM_JOB_ID % 10000))"

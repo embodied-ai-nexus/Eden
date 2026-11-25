@@ -1,7 +1,7 @@
 """Motion manager and motion-term configuration options."""
 
 from __future__ import annotations
-from typing import Literal, Sequence
+from typing import Annotated, Literal, Sequence
 
 from eden.options.datasets import DatasetOptions
 from eden.options.managers.base import ManagerOptions, ManagerTermOptions
@@ -32,6 +32,18 @@ class MotionGroupOptions(ConfigurableOptions):
     entity_name: str
     metadata_key: str = "objects"
     variant_labels: list[str]
+
+
+class StartSamplingOption:
+    """Marks a :class:`MotionTermOptions` field that configures how a reset draws a clip and a start time.
+
+    ``MotionTerm.sample_starts`` reads these options. A motion term that replaces that sampling raises on each of
+    them (``MotionTerm.require_default_start_options``), so an option added to the sampling is annotated with this
+    marker where it is declared.
+    """
+
+
+_START = StartSamplingOption()
 
 
 class MotionTermOptions(ManagerTermOptions):
@@ -230,17 +242,17 @@ class MotionTermOptions(ManagerTermOptions):
     entities_map: dict[str, str] = {}
     target_dofs_name: dict[str, str | list[str]] = {}
     target_links_name: dict[str, str | list[str]] = {}
-    motion_weights: str | list[float] | None = None
-    env_starting_stub_sampling_strategy: Literal["independent", "concat_motion_bins"] = "independent"
-    motion_start_from_middle_range: tuple[float, float] | list[float] = (0.0, 0.0)
-    motion_bin_length_s: float | None = None
-    adaptive_sampling: bool = False
+    motion_weights: Annotated[str | list[float] | None, _START] = None
+    env_starting_stub_sampling_strategy: Annotated[Literal["independent", "concat_motion_bins"], _START] = "independent"
+    motion_start_from_middle_range: Annotated[tuple[float, float] | list[float], _START] = (0.0, 0.0)
+    motion_bin_length_s: Annotated[float | None, _START] = None
+    adaptive_sampling: Annotated[bool, _START] = False
     adaptive_kernel_size: int = 1
     adaptive_lambda: float = 0.8
     adaptive_uniform_ratio: float = 0.1
     adaptive_alpha: float = 0.001
     adaptive_failure_rate_max_over_mean: float = 10.0
-    adaptive_motion_weights: bool = False
+    adaptive_motion_weights: Annotated[bool, _START] = False
     motion_weight_success_discount: float = 0.999
     motion_weight_failure_amplify: float = 2.0
     motion_weight_floor: float = 1e-3
@@ -248,13 +260,22 @@ class MotionTermOptions(ManagerTermOptions):
     motion_weight_uniform_mix: float = 0.0
     motion_weight_failure_rate_max_over_mean: float = 200.0
     motion_weight_update_every_n_iters: int = 1
-    start_at_timestep_zero_prob: float = 0.0
+    start_at_timestep_zero_prob: Annotated[float, _START] = 0.0
     freeze_at_timestep_zero_prob: float = 0.0
     compute_per_motion_metrics: bool = False
     metric_anchor_link_name: str | None = None
     log_per_motion_metrics: bool = False
     log_motion_id_to_filename: bool = False
-    env_motion_groups: MotionGroupOptions | None = None
+    env_motion_groups: Annotated[MotionGroupOptions | None, _START] = None
+
+    @classmethod
+    def start_sampling_defaults(cls) -> dict[str, object]:
+        """The options marked :class:`StartSamplingOption`, each with its default."""
+        return {
+            name: field.default
+            for name, field in cls.model_fields.items()
+            if any(isinstance(meta, StartSamplingOption) for meta in field.metadata)
+        }
 
 
 class MotionManagerOptions(ManagerOptions[MotionTermOptions]):

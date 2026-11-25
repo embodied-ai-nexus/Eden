@@ -147,7 +147,7 @@ template every task follows.
   </tr>
   <tr>
     <td><img src="https://raw.githubusercontent.com/embodied-ai-nexus/Eden/main/docs/assets/readme/mochi_wipe.webp" width="100%"><br><img src="https://raw.githubusercontent.com/embodied-ai-nexus/Eden/main/docs/assets/readme/badges/rl.svg" alt="RL"><br><sub><b>Soft-body manipulation</b>: a trained policy wipes a bar with a foam sponge (1.5x)</sub></td>
-    <td><img src="https://raw.githubusercontent.com/embodied-ai-nexus/Eden/main/docs/assets/readme/mochi_fold.webp" width="100%"><br><img src="https://raw.githubusercontent.com/embodied-ai-nexus/Eden/main/docs/assets/readme/badges/scripted.svg" alt="Scripted"><br><sub><b>Cloth manipulation</b>: two arms fold a towel in half (3x)</sub></td>
+    <td><img src="https://raw.githubusercontent.com/embodied-ai-nexus/Eden/main/docs/assets/readme/mochi_fold_shirt.webp" width="100%" alt="Two YAM arms fold a T-shirt in thirds on a kitchen table, path traced by Nyx"><br><img src="https://raw.githubusercontent.com/embodied-ai-nexus/Eden/main/docs/assets/readme/badges/scripted.svg" alt="Scripted"><br><sub><b>Cloth manipulation</b>: two arms fold a T-shirt in thirds (6x)</sub></td>
     <td><img src="https://raw.githubusercontent.com/embodied-ai-nexus/Eden/main/docs/assets/readme/mochi_route.webp" width="100%"><br><img src="https://raw.githubusercontent.com/embodied-ai-nexus/Eden/main/docs/assets/readme/badges/scripted.svg" alt="Scripted"><br><sub><b>Cable routing</b>: a cable routed round two spools into a port (8x)</sub></td>
   </tr>
   <tr>

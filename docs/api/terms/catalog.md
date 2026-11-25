@@ -2,7 +2,7 @@
 
 # Term Catalog
 
-Every term registered in Eden (246 of them) with the parameters it accepts, generated from the registries themselves. This is the complete list; the guide's [Terms & Registries](../../guides/terms.md) page explains how to write and wire one up.
+Every term registered in Eden (247 of them) with the parameters it accepts, generated from the registries themselves. This is the complete list; the guide's [Terms & Registries](../../guides/terms.md) page explains how to write and wire one up.
 
 - **Bold** parameters are required — omit one and `configure()` raises before the env is built.
 - A term's parameters are the keys of its `params={...}` dict (function terms) or its `configure()` fields (class terms). The fields *every* term of a kind carries are listed once, under that kind.
@@ -44,7 +44,7 @@ Every term registered in Eden (246 of them) with the parameters it accepts, gene
 
 | Term | Form | Parameters | Summary |
 |---|---|---|---|
-| `differential_ik_controller` | class `DifferentialIKController` | `damping: float = 0.1`, `ee_link_name: str = ''`, `ee_local_pos: tuple[float, float, float] = (0.0, 0.0, 0.0)`, `max_dq: float \| None = None`, `orientation_scale: float \| list[float] = 0.5`, `orientation_weight: float = 1.0`, `position_scale: float \| list[float] = 0.05`, `position_weight: float = 1.0` | Action term that maps task-space commands to joint targets via differential IK. |
+| `differential_ik_controller` | class `DifferentialIKController` | `damping: float = 0.1`, `ee_link_name: str = ''`, `ee_local_pos: tuple[float, float, float] = (0.0, 0.0, 0.0)`, `max_dq: float \| None = None`, `orientation_scale: float \| list[float] = 0.5`, `orientation_weight: float = 1.0`, `position_scale: float \| list[float] = 0.05`, `position_weight: float = 1.0` | Maps task-space commands to joint targets via differential IK. |
 | `ik_pose_controller` | class `IKPoseController` | `ee_link_name: str = 'gripper_link'`, `ee_link_offset_pos: tuple[float, float, float] = (0.0, 0.0, 0.0)`, `ee_link_offset_quat: tuple[float, float, float, float] = (1.0, 0.0, 0.0, 0.0)`, `joint_limit_margin: float = 0.0`, `max_ik_position_error: float \| None = None`, `max_ik_rotation_error: float \| None = None`, `max_joint_delta: float \| None = None` | Absolute task-space pose controller: solve IK for a base-frame target pose each step. |
 | `operational_space_controller` | class `OperationalSpaceController` | `action_clip: float \| tuple[float, ...] = 1.0`, `control_mode: Literal['position', 'pose'] = 'pose'`, `damping_ratio: float \| tuple[float, ...] = 1.0`, `ee_link_name: str = ''`, `ee_local_pos: tuple[float, float, float] = (0.0, 0.0, 0.0)`, `ee_local_quat: tuple[float, float, float, float] = (1.0, 0.0, 0.0, 0.0)`, `inertial_decoupling: Literal['none', 'full', 'position_orientation'] = 'none'`, `kp: float \| tuple[float, ...] = 100.0`, `nullspace_damping_ratio: float = 1.0`, `nullspace_kp: float \| None = None`, `nullspace_reference: Literal['default', 'reset_pose'] = 'default'`, `operational_inertia_damping: float = 1e-06`, `orientation_scale: float \| tuple[float, float, float] = 0.5`, `position_scale: float \| tuple[float, float, float] = 0.05` | Operational-space control to a persistent relative position/pose target. |
 
@@ -217,7 +217,7 @@ Every term registered in Eden (246 of them) with the parameters it accepts, gene
 | `feet_air_time` | class `FeetAirTime` | `command_name: str = ''`, `command_threshold: float = 0.1`, `contact_force_threshold: float = 2.0`, `entity_name: str = 'robot'`, `feet_link_names: list[str] = []`, `target_s: float = 0.35` | Legged-gym style feet air-time reward for aperiodic gaits. |
 | `feet_clearance` | class `FeetClearance` | `command_name: str = ''`, `command_threshold: float = 0.1`, `entity_name: str = 'robot'`, `feet_link_names: list[str] = []`, `target_height: float = 0.0` | Penalize deviation from target clearance height, weighted by foot xy velocity. |
 | `feet_contact_balance_penalty` | class `FeetContactBalancePenalty` | `contact_force_threshold: float = 2.0`, `ema_alpha: float = 0.02`, `entity_name: str = 'robot'`, `feet_link_names: list[str] = []` | Penalize uneven foot usage (a limp) via the variance of per-foot contact duty. |
-| `feet_orientation_penalty` | class `FeetOrientationPenalty` | `entity_name: str = 'robot'`, `feet_link_names: list[str] = []` | Penalize feet orientation deviation from flat (projected gravity in foot frame). |
+| `feet_orientation_penalty` | class `FeetOrientationPenalty` | `entity_name: str = 'robot'`, `feet_link_names: list[str] = []` | Penalize feet tilted from flat (projected gravity in foot frame). |
 | `feet_phase` | class `FeetPhase` | `entity_name: str = 'robot'`, `feet_link_names: list[str] = []`, `gait_command_name: str = ''`, `swing_height: float = 0.08`, `tracking_sigma: float = 0.25` | Reward for tracking desired foot height based on gait phase. |
 | `feet_slip` | class `FeetSlip` | `command_name: str = ''`, `command_threshold: float = 0.1`, `contact_height_threshold: float = 0.05`, `entity_name: str = 'robot'`, `feet_link_names: list[str] = []` | Penalize foot sliding (xy velocity while in contact with ground). |
 | `flat_orientation_l2` | class `FlatOrientationL2` | `entity_name: str = 'robot'` | Penalize non-flat base orientation (projected gravity deviation in xy). |
@@ -290,7 +290,7 @@ Every term registered in Eden (246 of them) with the parameters it accepts, gene
 | `dofs_torque_limit_exceeded` | function | **`entity_name: str`**, `soft_ratio: float = 1.0`, `probability: float = 1.0` | Terminate when any applied DOF torque exceeds ``soft_ratio * default_dofs_force_limits``. |
 | `dofs_vel_limit_exceeded` | function | **`entity_name: str`**, **`max_vel: float`**, `probability: float = 1.0` | Terminate when any DOF velocity exceeds ``max_vel`` in magnitude. |
 | `illegal_contact` | function | **`entity_name: str`**, **`illegal_contact_entity_names: list[str]`** | — |
-| `illegal_link_contact` | class `IllegalLinkContact` | `entity_name: str = 'robot'`, `force_threshold: float = 1.0`, `links_name: list[str] = []` | Terminate when any of the named links carries a net contact force above ``force_threshold``. |
+| `illegal_link_contact` | class `IllegalLinkContact` | `entity_name: str = 'robot'`, `force_threshold: float = 1.0`, `links_name: list[str] = []` | Terminate when a named link carries a net contact force above ``force_threshold``. |
 | `metric_above` | class `MetricAbove` | `metric_name: str = ''`, `threshold: float = 0.0` | Terminate the envs in which the named metric's cached value is strictly above ``threshold``. |
 | `on_failure` | function | — | — |
 | `on_metric_success` | class `OnMetricSuccess` | `metric_name: str = ''` | Terminate the envs in which the named metric term reports success this step. |
@@ -394,10 +394,10 @@ Every term registered in Eden (246 of them) with the parameters it accepts, gene
 | `randomize_link_mass_scale` | class `RandomizeLinkMassScale` | `entity_name: str = 'robot'`, `links_name: list[str] = []`, `mass_scale_range: Vec2FType = (0.9, 1.1)` | `EnvOptions(batch_links_info=True)` | Multiplicative per-link mass randomization. |
 | `randomize_mass_shift` | class `RandomizeMassShift` | `entity_name: str = 'robot'`, `links_name: list[str] = []`, `mass_shift_range: Vec2FType = (-1.0, 3.0)` | `EnvOptions(batch_links_info=True)` | Add a per-env offset to the named links' masses. |
 | `randomize_motor_strength` | class `RandomizeMotorStrength` | `action_term_name: str = ''`, `entity_name: str = 'robot'`, `motor_strength_range: Vec2FType = (0.9, 1.1)` | — | Randomize a `MotorStrength` action modifier's scalar (default factor 0.9 to 1.1). |
-| `randomize_startup_dofs_pos` | class `RandomizeStartupDofsPos` | `apply_as_ratio: bool = False`, `dofs_pos_range: Vec2FType = (-0.01745, 0.01745)`, `entity_name: str = 'robot'` | — | Randomize the absolute joint positions of an entity's DOFs (default mode: reset). |
+| `randomize_startup_dofs_pos` | class `RandomizeStartupDofsPos` | `apply_as_ratio: bool = False`, `dofs_pos_range: Vec2FType = (-0.01745, 0.01745)`, `entity_name: str = 'robot'` | — | Randomize an entity's absolute joint positions (default mode: reset). |
 | `randomize_startup_dofs_pos_bias` | class `RandomizeStartupDofsPosBias` | `action_terms_name: list[str] = []`, `dofs_pos_range: Vec2FType = (-0.01745, 0.01745)`, `entity_name: str = 'robot'` | — | Bake a per-env joint-zero bias into ``entity.default_dofs_pos`` at startup. |
 | `randomize_torque_noise` | class `RandomizeTorqueNoise` | `action_term_name: str = ''`, `rfi_scale: float = 0.5` | — | Residual Force Injection (RFI) — adds random torque noise to actuated joints. |
-| `set_random_dofs_pos` | class `SetRandomDofsPos` | `apply_as_ratio: bool = True`, `dofs_pos_range: Vec2FType = (0.0, 0.2)`, `entity_name: str = 'robot'` | — | Set the joint positions of an entity's DOFs to a random position (default mode: reset). |
+| `set_random_dofs_pos` | class `SetRandomDofsPos` | `apply_as_ratio: bool = True`, `dofs_pos_range: Vec2FType = (0.0, 0.2)`, `entity_name: str = 'robot'` | — | Set an entity's joint positions to random values (default mode: reset). |
 
 ### `eden.managers.terms.events.motion`
 
@@ -460,13 +460,13 @@ Every term registered in Eden (246 of them) with the parameters it accepts, gene
 | Term | Form | Parameters | Summary |
 |---|---|---|---|
 | `penalty_curriculum` | class `PenaltyCurriculum` | `degree: float = 0.00025`, `initial_scale: float = 0.1`, `level_down_threshold: float = 150.0`, `level_up_threshold: float = 750.0`, `max_scale: float = 1.0`, `min_scale: float = 0.0`, `num_episode_average: int = 1000`, `reward_term_names: list[str] = []`, `reward_term_tags: list[str] = []`, `tracker_name: str \| None = None` | Curriculum that gradually scales reward weights for a set of reward terms. |
-| `stage_reward_weight_curriculum` | class `StageRewardWeightCurriculum` | `reward_term_name: str = ''`, `weight_stages: list[tuple[int, float]] = []` | Curriculum that sets a reward term's weight at given training steps. |
+| `stage_reward_weight_curriculum` | class `StageRewardWeightCurriculum` | `reward_term_name: str = ''`, `weight_stages: list[tuple[int, float]] = []` | Sets a reward term's weight at given training steps. |
 
 ### `eden.managers.terms.curricula.success_guided`
 
 | Term | Form | Parameters | Summary |
 |---|---|---|---|
-| `success_guided_sampling` | class `SuccessGuidedSampling` | `concentration: float = 5.0`, `floor: float = 1e-08`, `history: int = 100`, `success_term: str \| None = None`, `target: float = 0.66`, `temperature: float = 2.0` | Draw each resetting env's reset configuration with probability peaked at a target success rate. |
+| `success_guided_sampling` | class `SuccessGuidedSampling` | `concentration: float = 5.0`, `floor: float = 1e-08`, `history: int = 100`, `success_term: str \| None = None`, `target: float = 0.66`, `temperature: float = 2.0` | Draw each reset configuration with probability peaked at a target success rate. |
 
 ### `eden.managers.terms.curricula.velocity`
 
@@ -582,7 +582,7 @@ Every term registered in Eden (246 of them) with the parameters it accepts, gene
 
 ## motion terms
 
-1 registered.
+2 registered.
 
 - Class terms: `<ClassName>.configure(<field>=...)` — import it from the module its section names
 - Every motion term also accepts: `adaptive_alpha: float = 0.001`, `adaptive_failure_rate_max_over_mean: float = 10.0`, `adaptive_kernel_size: int = 1`, `adaptive_lambda: float = 0.8`, `adaptive_motion_weights: bool = False`, `adaptive_sampling: bool = False`, `adaptive_uniform_ratio: float = 0.1`, `compute_per_motion_metrics: bool = False`, `dataset_options: DatasetOptions \| None = None`, `entities_map: dict[str, str] = {}`, `env_motion_groups: MotionGroupOptions \| None = None`, `env_starting_stub_sampling_strategy: Literal['independent', 'concat_motion_bins'] = 'independent'`, `freeze_at_timestep_zero_prob: float = 0.0`, `log_motion_id_to_filename: bool = False`, `log_per_motion_metrics: bool = False`, `metric_anchor_link_name: str \| None = None`, `motion_bin_length_s: float \| None = None`, `motion_start_from_middle_range: tuple[float, float] \| list[float] = (0.0, 0.0)`, `motion_weight_failure_amplify: float = 2.0`, `motion_weight_failure_rate_max_over_mean: float = 200.0`, `motion_weight_floor: float = 0.001`, `motion_weight_success_discount: float = 0.999`, `motion_weight_uniform_mix: float = 0.0`, `motion_weight_update_every_n_iters: int = 1`, `motion_weight_update_mode: Literal['compound', 'snapshot'] = 'snapshot'`, `motion_weights: str \| list[float] \| None = None`, `start_at_timestep_zero_prob: float = 0.0`, `target_dofs_name: dict[str, str \| list[str]] = {}`, `target_links_name: dict[str, str \| list[str]] = {}`
@@ -592,6 +592,12 @@ Every term registered in Eden (246 of them) with the parameters it accepts, gene
 | Term | Form | Parameters | Summary |
 |---|---|---|---|
 | `motion_term` | class `MotionTerm` | — | — |
+
+### `eden.managers.terms.motions.kinematic`
+
+| Term | Form | Parameters | Summary |
+|---|---|---|---|
+| `kinematic_links_motion` | class `KinematicLinksMotion` | `compile_kinematics: bool = True` | Reference links by forward kinematics. |
 
 ## noise_model terms
 
