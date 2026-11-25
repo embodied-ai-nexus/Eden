@@ -175,7 +175,7 @@ _AMP_MOTION_FILE = "objects/skateboard/husky_amp_push_motions.npz"
 _LEGACY_EXAMPLE_AMP_CLASS_NAME = "amp_training.ppo:AmpPPO"
 
 
-@TASK_REGISTRY.register()
+@TASK_REGISTRY.register(tags=("locomotion",))
 class HuskyConfig(EdenRLConfig):
     """G1 humanoid skateboarding on flat ground (HUSKY training port)."""
 

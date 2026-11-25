@@ -56,9 +56,10 @@ def task_registry_alias():
     """Register extra names on the global ``TASK_REGISTRY`` and remove them afterwards.
 
     Yields a ``register(cls, name)`` callable. Use it instead of hand-rolling teardown: a plain
-    ``TASK_REGISTRY._registry.pop(name)`` is incomplete, because ``register`` writes **two** dicts
-    (``TaskRegistry._do_register`` sets ``_registry`` *and* ``_modifiers``), so the popped name
-    leaves a modifier entry behind for the rest of the session.
+    ``TASK_REGISTRY._registry.pop(name)`` is incomplete, because ``register`` writes several dicts
+    (``TaskRegistry._write_registration`` sets ``_registry``, ``_modifiers`` and ``_tags``), so the
+    popped name leaves entries behind for the rest of the session. ``TaskRegistry._unregister``
+    removes all of them.
 
     Deliberately removes only the names it added — a wholesale snapshot-and-restore of
     ``_registry`` is **not** safe here. Entries that appeared because a task module was imported
@@ -79,8 +80,7 @@ def task_registry_alias():
     yield register
 
     for name in added:
-        TASK_REGISTRY._registry.pop(name, None)
-        TASK_REGISTRY._modifiers.pop(name, None)
+        TASK_REGISTRY._unregister(name)
 
 
 @pytest.fixture
@@ -130,14 +130,14 @@ def isolated_task_registry():
     yield TASK_REGISTRY
 
     imported = {
-        name: (cls, TASK_REGISTRY._modifiers[name])
+        name: (cls, TASK_REGISTRY._modifiers[name], TASK_REGISTRY._tags[name])
         for name, cls in TASK_REGISTRY._registry.items()
         if name not in saved["_registry"] and cls.__module__.startswith("eden.")
     }
     for attr, value in saved.items():
         setattr(TASK_REGISTRY, attr, value)
-    for name, (cls, entry) in imported.items():
-        TASK_REGISTRY._write_registration(name, cls, entry)
+    for name, (cls, entry, tags) in imported.items():
+        TASK_REGISTRY._write_registration(name, cls, entry, tags)
 
 
 @pytest.fixture

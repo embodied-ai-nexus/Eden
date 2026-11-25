@@ -627,6 +627,10 @@ in `tests/tasks/test_init.py` check:
   `<package>_<task>` (`PolarisPanCleanConfig` in `eden/tasks/polaris` is `polaris_pan_clean`). A task named
   exactly like its package is fine too.
 - Task names are snake case.
+- The registration passes `tags=` with every [tag](../guides/task-config.md#tags) whose rule applies, written as a
+  literal tuple (`tags=("manipulation", "dexterous")`).
+- The task has a row in a family table of the [task index](../tasks/index.md) that matches one of its tags
+  (Locomotion, Motion tracking, Manipulation and dexterous hands, Ported benchmarks).
 
 No entry point is needed: `eden/tasks/` is always scanned. [Task configuration](../guides/task-config.md) describes
 the package layout in full, and [Contributing](../contributing/index.md) covers tests and pull requests.

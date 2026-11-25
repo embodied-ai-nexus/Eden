@@ -160,7 +160,7 @@ _OBSERVATIONS = dict(
 )
 
 
-@TASK_REGISTRY.register(modifiers=(RobosuiteRobotMod,))
+@TASK_REGISTRY.register(modifiers=(RobosuiteRobotMod,), tags=("manipulation", "benchmarks"))
 class RobosuiteWipeConfig(RobosuiteTaskConfig):
     env_options: EnvOptions = robosuite_env_options()
 

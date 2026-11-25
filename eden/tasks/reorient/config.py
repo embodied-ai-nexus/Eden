@@ -307,7 +307,7 @@ class HandSideMod(TaskMod):
 # ---------------------------------------------------------------------------
 
 
-@TASK_REGISTRY.register(modifiers=(HandSideMod(),))
+@TASK_REGISTRY.register(modifiers=(HandSideMod(),), tags=("manipulation", "dexterous"))
 class ReorientConfig(EdenRLConfig):
     env_options: EnvOptions = EnvOptions(
         num_envs=_NUM_ENVS,

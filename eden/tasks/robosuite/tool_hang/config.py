@@ -149,7 +149,7 @@ def _tool_on_frame_terms() -> list[MetricTermOptions]:
     ]
 
 
-@TASK_REGISTRY.register(modifiers=(RobosuiteRobotMod,))
+@TASK_REGISTRY.register(modifiers=(RobosuiteRobotMod,), tags=("manipulation", "benchmarks"))
 class RobosuiteToolHangConfig(RobosuiteTaskConfig):
     # Three multi-geom objects on one table: the wrench's 16 ring boxes alone can hold 40 contact pairs.
     env_options: EnvOptions = robosuite_env_options(max_collision_pairs=100)

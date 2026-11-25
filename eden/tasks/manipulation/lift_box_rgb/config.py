@@ -166,7 +166,7 @@ def _rgb_runner_options(experiment_name: str = "lift_box_rgb") -> RslRlOnPolicyR
 # ``modifiers=()``: opt out of the LiftBoxManipulatorMod a lift-box subclass would otherwise inherit.
 # The wrist camera below is calibrated to the DROID flange, and a non-default arm rewrites the
 # experiment name to the blind task's ``lift_box_<arm>`` -- two runs of different tasks, one log tree.
-@TASK_REGISTRY.register(modifiers=())
+@TASK_REGISTRY.register(modifiers=(), tags=("manipulation",))
 class ManipulationLiftBoxRGBConfig(ManipulationLiftBoxConfig):
     # The wrist-camera rollout storage (per-env RGB over num_steps_per_env) OOMs a 48 GB
     # GPU at the blind task's 4096 envs; 1024 fits and is what the from-scratch runs used.

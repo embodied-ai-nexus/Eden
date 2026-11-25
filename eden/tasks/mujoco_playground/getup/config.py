@@ -152,7 +152,7 @@ _GO1 = en.robots.Go1()
 _DT = 0.02  # ctrl_dt
 
 
-@TASK_REGISTRY.register()
+@TASK_REGISTRY.register(tags=("locomotion",))
 class MujocoPlaygroundGetupConfig(EdenRLConfig):
     """Go1 fall recovery (getup) task configuration."""
 

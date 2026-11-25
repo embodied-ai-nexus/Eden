@@ -112,7 +112,7 @@ def _place_event(name: str) -> EventTermOptions:
     )
 
 
-@TASK_REGISTRY.register(modifiers=(RobosuiteRobotMod,))
+@TASK_REGISTRY.register(modifiers=(RobosuiteRobotMod,), tags=("manipulation", "benchmarks"))
 class RobosuiteStackConfig(RobosuiteTaskConfig):
     env_options: EnvOptions = robosuite_env_options()
 

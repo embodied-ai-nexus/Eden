@@ -108,7 +108,8 @@ The reacher task, abridged from
 the template every built-in task follows:
 
 ```python
-@TASK_REGISTRY.register(modifiers=(ReacherDifficultyMod,))  # adds `eden train --task reacher --difficulty hard`
+# adds `eden train --task reacher --difficulty hard`, and lists the task under `eden list --tag manipulation`
+@TASK_REGISTRY.register(modifiers=(ReacherDifficultyMod,), tags=("manipulation",))
 class ReacherConfig(EdenRLConfig):
     env_options: EnvOptions = EnvOptions(num_envs=4096, episode_length_s=9.0, sim_dt=0.01, sim_substeps=2, ...)
     scene_options: SceneOptions = en.scenes.Empty(robot=en.robots.Yam())

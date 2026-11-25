@@ -388,7 +388,7 @@ class ExtremeParkourTerrainSamplerMod(TaskMod):
         return config
 
 
-@TASK_REGISTRY.register(modifiers=(ExtremeParkourTerrainSamplerMod,))
+@TASK_REGISTRY.register(modifiers=(ExtremeParkourTerrainSamplerMod,), tags=("locomotion",))
 class ExtremeParkourTeacherConfig(EdenRLConfig):
     """Extreme Parkour teacher (see module docstring for the 753-dim obs slot table)."""
 

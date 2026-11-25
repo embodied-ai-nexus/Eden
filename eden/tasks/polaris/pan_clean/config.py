@@ -28,7 +28,7 @@ from eden.tasks import TASK_REGISTRY
 from eden.tasks.polaris.rubric import put_in, rubric
 
 
-@TASK_REGISTRY.register()
+@TASK_REGISTRY.register(tags=("manipulation", "benchmarks"))
 class PolarisPanCleanConfig(DroidBaseConfig):
     splat_options: SplatOptions = make_polaris_splat(
         path="pan_clean/assets/g60_stovetop_zed/splat.ply",
@@ -101,7 +101,7 @@ class PolarisPanCleanConfig(DroidBaseConfig):
     metric_options: MetricManagerOptions = rubric(put_in("sponge", "frying_pan", lift_height=0.03))
 
 
-@TASK_REGISTRY.register()
+@TASK_REGISTRY.register(tags=("manipulation", "benchmarks"))
 class PolarisPanCleanBatchedConfig(DroidBatchBaseConfig):
     """Batched (Madrona + gsplat) variant of :class:`PolarisPanCleanConfig`."""
 

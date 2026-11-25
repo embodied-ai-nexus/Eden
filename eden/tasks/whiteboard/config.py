@@ -211,7 +211,7 @@ class WhiteboardDrawingConfig(EdenRLConfig):
         )
 
 
-@TASK_REGISTRY.register()
+@TASK_REGISTRY.register(tags=("manipulation", "benchmarks"))
 class WhiteboardWriteTextConfig(WhiteboardDrawingConfig):
     """Write HELLO in black, where and as large as the reference shows (the original's ``write-text``)."""
 
@@ -219,7 +219,7 @@ class WhiteboardWriteTextConfig(WhiteboardDrawingConfig):
     metric_options: MetricManagerOptions = _drawing_metric("hello")
 
 
-@TASK_REGISTRY.register()
+@TASK_REGISTRY.register(tags=("manipulation", "benchmarks"))
 class WhiteboardWriteInColourConfig(WhiteboardDrawingConfig):
     """Write WELCOME on the whiteboard in green (the original's ``write-in-colour``)."""
 
@@ -228,7 +228,7 @@ class WhiteboardWriteInColourConfig(WhiteboardDrawingConfig):
     metric_options: MetricManagerOptions = _drawing_metric("welcome")
 
 
-@TASK_REGISTRY.register()
+@TASK_REGISTRY.register(tags=("manipulation", "benchmarks"))
 class WhiteboardDrawTableConfig(WhiteboardDrawingConfig):
     """Draw the blank table in blue: frame, header line, two column lines (the original's ``draw-table``)."""
 

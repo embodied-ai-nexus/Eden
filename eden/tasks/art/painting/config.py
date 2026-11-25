@@ -133,12 +133,12 @@ class PaintingConfig(EdenRLConfig):
         )
 
 
-@TASK_REGISTRY.register()
+@TASK_REGISTRY.register(tags=("manipulation",))
 class ArtPaintingSunsetConfig(PaintingConfig):
     """Paint a sea, a sky and a low sun: 3 paints, 7 strokes."""
 
 
-@TASK_REGISTRY.register()
+@TASK_REGISTRY.register(tags=("manipulation",))
 class ArtPaintingFujiStudyConfig(PaintingConfig):
     """Paint a study of Hokusai's *Fine Wind, Clear Morning*: 5 paints in two layers."""
 
@@ -147,7 +147,7 @@ class ArtPaintingFujiStudyConfig(PaintingConfig):
     metric_options: MetricManagerOptions = _painting_metric("fuji_study")
 
 
-@TASK_REGISTRY.register()
+@TASK_REGISTRY.register(tags=("manipulation",))
 class ArtPaintingFujiConfig(PaintingConfig):
     """Paint Hokusai's *Fine Wind, Clear Morning*: 10 paints in four layers."""
 

@@ -9,6 +9,18 @@ from genesis.options.morphs import Morph
 MorphLike: TypeAlias = Morph | list[Morph]
 """A morph or a list of morphs (used to seed deformable/rigid primitives)."""
 
+TaskTag: TypeAlias = Literal[
+    "locomotion",
+    "motion_tracking",
+    "manipulation",
+    "dexterous",
+    "loco_manipulation",
+    "deformable",
+    "benchmarks",
+]
+"""A task category tag (``@TASK_REGISTRY.register(tags=(...))``). The rule for each is in
+:data:`eden.tasks.registry.TASK_TAGS`, which holds the same names in the same order."""
+
 VisMode: TypeAlias = Literal["visual", "collision", "particle", "sdf", "recon"]
 """Rendering/visualization mode for an entity."""
 
@@ -30,6 +42,7 @@ VecEnvStep: TypeAlias = tuple[
 
 __all__ = [
     "MorphLike",
+    "TaskTag",
     "VecEnvObs",
     "VecEnvReset",
     "VecEnvStep",

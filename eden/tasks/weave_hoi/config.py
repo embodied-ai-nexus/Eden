@@ -506,7 +506,9 @@ def _reward_options(geometry: dict | None) -> RewardManagerOptions:
     )
 
 
-@TASK_REGISTRY.register(modifiers=(WeaveHOIDataMod(),))
+@TASK_REGISTRY.register(
+    modifiers=(WeaveHOIDataMod(),), tags=("motion_tracking", "manipulation", "dexterous", "loco_manipulation")
+)
 class WeaveHOIConfig(EdenMimicConfig):
     """Weave G1-Inspire-HOI: G1 + two Inspire RH56DFQ hands tracking OMOMO human-object clips, object in the loop.
 

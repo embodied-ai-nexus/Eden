@@ -24,7 +24,7 @@ from eden.tasks import TASK_REGISTRY
 from eden.tasks.polaris.rubric import put_in, rubric
 
 
-@TASK_REGISTRY.register()
+@TASK_REGISTRY.register(tags=("manipulation", "benchmarks"))
 class PolarisOrganizeToolsConfig(DroidBaseConfig):
     splat_options: SplatOptions = make_polaris_splat(
         path="organize_tools/assets/princeton_env_2/splat.ply",
@@ -69,7 +69,7 @@ class PolarisOrganizeToolsConfig(DroidBaseConfig):
     metric_options: MetricManagerOptions = rubric(put_in("scissor", "container_00", lift_height=0.04))
 
 
-@TASK_REGISTRY.register()
+@TASK_REGISTRY.register(tags=("manipulation", "benchmarks"))
 class PolarisOrganizeToolsBatchedConfig(DroidBatchBaseConfig):
     """Batched (Madrona + gsplat) variant of :class:`PolarisOrganizeToolsConfig`."""
 

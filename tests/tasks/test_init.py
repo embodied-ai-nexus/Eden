@@ -12,8 +12,9 @@ import re
 from pathlib import Path
 
 import eden.tasks
-from eden.tasks import TASK_REGISTRY
+from eden.tasks import TASK_REGISTRY, TASK_TAGS
 from eden.tasks.registry import (
+    TaskRegistry,
     _decorator_keyword,
     _default_task_name,
     _register_decorator,
@@ -128,4 +129,91 @@ def test_task_package_inits_import_nothing():
         f"task package __init__ modules import code: {offenders}. Keep the package docstring and delete the imports; "
         f"callers import from the defining module (eden.tasks.<pkg>.config), and the task registry needs no import "
         f"to find a task. A custom_terms/__init__.py may re-export its terms."
+    )
+
+
+#: Each family heading of ``docs/tasks/index.md`` and the tag every task its tables name must carry.
+INDEX_FAMILY_TAGS = {
+    "Locomotion": "locomotion",
+    "Motion tracking": "motion_tracking",
+    "Manipulation and dexterous hands": "manipulation",
+    "Ported benchmarks": "benchmarks",
+}
+TASK_INDEX = TASKS_ROOT.parent.parent / "docs" / "tasks" / "index.md"
+
+
+def _scanned_tags() -> dict[str, tuple[str, ...]]:
+    """Each built-in task's tags as ``eden list`` reads them: off the decorator, in a registry nothing was imported into.
+
+    Not ``TASK_REGISTRY.task_tags``, which answers from the live registration once another test has imported the
+    module, so a ``tags=`` the scan cannot read would pass here and still list as untagged.
+    """
+    scanned = TaskRegistry()
+    return {name: scanned.task_tags(name) for name in _builtin_tasks()}
+
+
+def test_every_builtin_task_is_tagged():
+    """An untagged task drops out of every ``eden list --tag`` filter."""
+    untagged = sorted(name for name, tags in _scanned_tags().items() if not tags)
+    assert not untagged, (
+        f"tasks {untagged} carry no tag; pass tags=(...) to their @TASK_REGISTRY.register(), with every key of "
+        f"TASK_TAGS (eden/tasks/registry.py) whose rule applies, e.g. tags=('manipulation', 'dexterous')."
+    )
+
+
+def _index_tables() -> dict[str, set[str]]:
+    """Family heading -> the task names in backticks on the table rows under it, in ``docs/tasks/index.md``."""
+    tables: dict[str, set[str]] = {}
+    heading = None
+    for line in TASK_INDEX.read_text().splitlines():
+        if line.startswith("## "):
+            heading = line[3:].strip()
+        elif heading in INDEX_FAMILY_TAGS and line.startswith("|"):
+            tables.setdefault(heading, set()).update(re.findall(r"`([a-z0-9_]+)`", line))
+    return tables
+
+
+def test_task_index_tables_agree_with_the_tags():
+    """The family tables of ``docs/tasks/index.md`` and ``eden list --tag`` must group the tasks the same way."""
+    tables = _index_tables()
+    assert set(tables) == set(INDEX_FAMILY_TAGS), (
+        f"docs/tasks/index.md has no table under {sorted(set(INDEX_FAMILY_TAGS) - set(tables))}; "
+        f"update INDEX_FAMILY_TAGS in this test if a family heading was renamed."
+    )
+    tags = _scanned_tags()
+    mistagged = {
+        name: f"listed under '{heading}', tags {tags[name]}"
+        for heading, names in tables.items()
+        for name in sorted(names & set(tags))
+        if INDEX_FAMILY_TAGS[heading] not in tags[name]
+    }
+    assert not mistagged, (
+        f"{mistagged}: a task in a family table of docs/tasks/index.md must carry that family's tag "
+        f"{INDEX_FAMILY_TAGS}. Fix whichever is wrong: the task's tags=(...) or the table it is listed in."
+    )
+    # The Ported benchmarks table lists a PolaRiS `_batched` variant through its base task ("and a `_batched` variant
+    # of each"), so a suite task counts as listed when its name without that suffix is.
+    unlisted = sorted(
+        name
+        for name, task_tags in tags.items()
+        if not any(
+            {name, name.removesuffix("_batched")} & tables[h]
+            for h, tag in INDEX_FAMILY_TAGS.items()
+            if tag in task_tags
+        )
+    )
+    assert not unlisted, (
+        f"tasks {unlisted} are in no family table of docs/tasks/index.md that matches their tags; add a row for "
+        f"each to the table of one of its tags ({INDEX_FAMILY_TAGS})."
+    )
+
+
+def test_the_task_config_guide_lists_every_tag():
+    """``docs/guides/task-config.md`` § Tags is where a contributor picks tags; it must not drift from ``TASK_TAGS``."""
+    guide = (TASKS_ROOT.parent.parent / "docs" / "guides" / "task-config.md").read_text()
+    section = guide.split("### Tags", 1)[1].split("\n## ", 1)[0]
+    documented = set(re.findall(r"^\| `([a-z_]+)` \|", section, flags=re.MULTILINE))
+    assert documented == set(TASK_TAGS), (
+        f"the Tags table of docs/guides/task-config.md lists {sorted(documented)}, but TASK_TAGS defines "
+        f"{sorted(TASK_TAGS)}; give each tag in TASK_TAGS a row with its rule, and drop rows for removed tags."
     )

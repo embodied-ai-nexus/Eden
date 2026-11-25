@@ -14,15 +14,27 @@ eden list
 ```
 
 ```text
-Available Tasks in Eden: Task Name | Source | Modifiers
+Available Tasks in Eden: Task Name | Source | Tags | Modifiers
   ...
-  velocity_tracking_flat | eden | VelocityTrackingRobotMod, VelocityTrackingObsMod
+  velocity_tracking_flat | eden | locomotion | VelocityTrackingRobotMod, VelocityTrackingObsMod
   ...
 ```
 
-The first column is the name you pass to `--task`. The last column names the task's
-[TaskMods](../guides/task-mods.md): typed presets that turn into command-line flags (`--robot`, `--difficulty`,
-`--song`, ...). A task's `--help` lists its flags with their choices and defaults:
+The first column is the name you pass to `--task`. The Tags column files the task under categories, and
+`--tag` filters on them; a task can carry several, so `contrack` is `motion_tracking`, `manipulation` and
+`dexterous`:
+
+```bash
+eden list --tag locomotion
+eden list --tag manipulation --tag dexterous   # tasks carrying both
+```
+
+The tags and the rule for each are under [Tags](../guides/task-config.md#tags). Each family table below lists tasks
+that carry its tag, and a task with several tags appears in one of them; `eden list --tag <tag>` gives the full set.
+
+The last column names the task's [TaskMods](../guides/task-mods.md): typed presets that turn into command-line
+flags (`--robot`, `--difficulty`, `--song`, ...). A task's `--help` lists its flags with their choices and
+defaults:
 
 ```bash
 eden train --task velocity_tracking_flat --help
@@ -107,7 +119,7 @@ To train on several GPUs, launch the same `eden train` command under `torchrun`;
 ## Manipulation and dexterous hands
 
 [Manipulation tasks](manipulation.md) — arm-and-gripper lifting and reaching, in-hand reorientation, piano,
-assembly and hand-object tracking.
+assembly and hand-object tracking; calligraphy and painting have [their own page](art.md).
 
 | Task | Robot | What the policy learns |
 |---|---|---|
@@ -121,11 +133,13 @@ assembly and hand-object tracking.
 | `omnireset` | UR5e + Robotiq 2F-85 | Assemble an object pair, starting from recorded reset states |
 | `flashdexretarget` | XHand or Sharpa Wave hands | Make retargeted human hand-object demos physically valid |
 | `reacher` | I2RT YAM arm | Reach a sampled 3D target; the reference task-config template |
+| `art_calligraphy_dai`, `art_calligraphy_san`, `art_calligraphy_ei`, `art_calligraphy_lettering_minimum` | Franka Panda | Copy a calligraphy work with a Chinese brush or a pointed pen, graded by RoboPaint's rules ([Calligraphy and painting](art.md)) |
+| `art_painting_fuji`, `art_painting_fuji_study`, `art_painting_sunset` | Franka Panda | Copy an acrylic painting with a round brush and a palette ([Calligraphy and painting](art.md)) |
 
 ## Ported benchmarks
 
-These reimplement existing benchmark suites in Eden, keeping their scenes, success checks and robot setups. Each has
-its own page.
+These reimplement existing benchmark suites in Eden, keeping their scenes and success checks; the robot may differ
+(whiteboard runs a Panda). Each has its own page.
 
 | Family | Tasks | Page |
 |---|---|---|
@@ -135,7 +149,6 @@ its own page.
 | PolaRiS | `polaris_block_stack_kitchen`, `polaris_food_bussing`, `polaris_move_latte_cup`, `polaris_organize_tools`, `polaris_pan_clean`, `polaris_tape_into_container`, and a `_batched` variant of each | [PolaRiS](polaris.md) |
 | Mochi (deformables) | `mochi_fold_the_towel`, `mochi_route_the_cable`, `mochi_wipe_the_bar` | [Mochi tasks](mochi.md) |
 | Whiteboard | `whiteboard_draw_table`, `whiteboard_write_in_colour`, `whiteboard_write_text` | [Whiteboard](whiteboard.md) |
-| Art | `art_calligraphy_dai`, `art_calligraphy_san`, `art_calligraphy_ei`, `art_calligraphy_lettering_minimum`, `art_painting_fuji`, `art_painting_fuji_study`, `art_painting_sunset` | [Calligraphy and painting](art.md) |
 
 Eden also ships a CALVIN scene and its objects (`eden.options.scenes.calvin`), which have no registered task; see
 [Scenes and terrains](../guides/scenes-and-terrains.md).

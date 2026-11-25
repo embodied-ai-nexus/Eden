@@ -37,7 +37,7 @@ from eden.utils.cli.examples import (
     _run_examples_list,
     _run_examples_smoke,
 )
-from eden.utils.cli.maintenance import _run_clean, _run_list
+from eden.utils.cli.maintenance import _configure_list, _run_clean, _run_list
 from eden.utils.cli.pose import _run_gvhmr
 from eden.utils.cli.registry import Command, _add_command, _dispatch
 from eden.utils.cli.retarget import (
@@ -70,7 +70,12 @@ from eden.utils.cli.viewers import (
 )
 
 COMMANDS: tuple[Command, ...] = (
-    Command("list", "List all available tasks", handler=_run_list),
+    Command(
+        "list",
+        "List all available tasks, or those carrying a tag (e.g. 'eden list --tag locomotion')",
+        handler=_run_list,
+        configure=_configure_list,
+    ),
     Command(
         "terms",
         "List every registered term and the parameters it accepts "

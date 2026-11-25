@@ -240,7 +240,7 @@ def _shaping() -> dict:
     return terms
 
 
-@TASK_REGISTRY.register()
+@TASK_REGISTRY.register(tags=("manipulation", "deformable", "benchmarks"))
 class MochiRouteTheCableConfig(EdenRLConfig):
     env_options: EnvOptions = EnvOptions(
         num_envs=256,

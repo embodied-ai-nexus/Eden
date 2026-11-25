@@ -324,7 +324,7 @@ _Privileged = dict(
 )
 
 
-@TASK_REGISTRY.register()
+@TASK_REGISTRY.register(tags=("manipulation", "dexterous"))
 class ManipulationDexLiftConfig(EdenRLConfig):
     env_options: EnvOptions = EnvOptions(
         num_envs=4096,

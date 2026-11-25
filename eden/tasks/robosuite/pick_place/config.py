@@ -279,7 +279,7 @@ class PickPlaceObjectMod(TaskMod):
 # --- the task ---------------------------------------------------------------------------------------
 
 
-@TASK_REGISTRY.register(modifiers=(RobosuiteRobotMod, PickPlaceObjectMod))
+@TASK_REGISTRY.register(modifiers=(RobosuiteRobotMod, PickPlaceObjectMod), tags=("manipulation", "benchmarks"))
 class RobosuitePickPlaceConfig(RobosuiteTaskConfig):
     env_options: EnvOptions = robosuite_env_options(max_collision_pairs=80)
 
