@@ -71,7 +71,7 @@ def ensure_limx_sdk() -> None:
     if not IS_LIMX_SDK_AVAILABLE:
         raise RuntimeError(
             "LimX SDK (limxsdk) failed to import. Install the `limx` extra: "
-            "`pip install \"eden-world[limx]\"`, or `uv sync --inexact --extra limx` in a checkout "
+            '`pip install "eden-world[limx]"`, or `uv sync --inexact --extra limx` in a checkout '
             "(Linux x86_64/aarch64 only; on Windows, `pip install limxsdk`). "
             f"Underlying error: {_LIMX_SDK_IMPORT_ERROR!r}"
         )
