@@ -684,7 +684,7 @@ class FakeWujiSdk:
         self.limits: list[float | None] = [None] * N
         self.params: list[tuple[float, float] | None] = [None] * N
         self.limit_readback: list[float | None] | None = None  # overrides what effort_limit().get() returns
-        self.firmware: object = "3.0.0"
+        self.firmware: object = "v3.1.0"
         self.sent: list[list[float]] = []
         self.diag_cb = None
         sdk = self
@@ -864,7 +864,7 @@ def test_hand2_selects_mit_mode_on_disabled_joints_before_writing_the_current_li
     sdk = fake_sdk()
     _hand2_transport().connect()
     assert sdk.calls == ["disable", "control_mode Mit", "effort_limit in Mit", "mit_params", "enable"]
-    assert "sn=SN-HAND, firmware 3.0.0" in eden_caplog.text
+    assert "sn=SN-HAND, firmware v3.1.0" in eden_caplog.text
 
 
 def test_a_hand_that_stays_out_of_mit_mode_is_never_enabled(fake_sdk):
@@ -903,6 +903,21 @@ def test_mit_v2_on_older_firmware_points_back_to_legacy_mit(fake_sdk):
     ):
         _hand2_transport("mit_v2").connect()
     assert "enable" not in sdk.calls
+
+
+def test_mit_v2_is_refused_before_switching_on_firmware_that_reports_an_older_version(fake_sdk):
+    sdk = fake_sdk()
+    sdk.firmware = "v2.13.1"  # what a real Hand 2 on that firmware reports
+    with pytest.raises(RuntimeError, match=r"runs firmware v2\.13\.1, and MIT_V2 needs 3\.1\.0.*control_mode='mit'"):
+        _hand2_transport("mit_v2").connect()
+    assert not [c for c in sdk.calls if c.startswith("control_mode")] and "enable" not in sdk.calls
+
+
+@pytest.mark.parametrize(
+    ("version", "parsed"), [("v2.13.1", (2, 13, 1)), ("3.1.0", (3, 1, 0)), ("v3.1.0-rc1", None), ("unknown", None)]
+)
+def test_firmware_versions_parse_or_defer_to_the_mode_readback(version, parsed):
+    assert wh._parse_firmware(version) == parsed
 
 
 def test_mit_v2_on_an_sdk_without_it_names_the_version_to_install(fake_sdk):

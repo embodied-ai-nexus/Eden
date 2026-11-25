@@ -449,6 +449,8 @@ class Hand1Transport(HandTransport):
 
 #: Hand 2's impedance modes, by Eden's name: the ``wuji_sdk.ControlMode`` member each selects.
 _HAND2_MODES = {"mit": "Mit", "mit_v2": "MitV2"}
+#: The first firmware with MIT_V2 (``wuji_sdk`` 2026.11.23 docs).
+_MIT_V2_FIRMWARE = (3, 1, 0)
 
 
 @dataclass
@@ -481,6 +483,12 @@ class Hand2Gains:
     @property
     def effort_unit(self) -> str:
         return "A" if self.control_mode == "mit" else "N·m"
+
+
+def _parse_firmware(version: str) -> tuple[int, ...] | None:
+    """``"v2.13.1"`` -> ``(2, 13, 1)``; ``None`` for a string in another format (the mode readback still checks)."""
+    parts = version.strip().lstrip("vV").split(".")
+    return tuple(int(p) for p in parts) if parts and all(p.isdigit() for p in parts) else None
 
 
 #: ``device_name`` is the handle ``wuji_sdk`` registers a connection under and ``disconnect``
@@ -554,9 +562,8 @@ class Hand2Transport(HandTransport):
         self._hand = self._mgr.connect(
             sn=sn, device_name=self.device_name, options=wuji_sdk.ConnectOptions(enable_bridge=False)
         )
-        en.logger.info(
-            f"[wuji] connected Wuji Hand 2 sn={self._hand.serial_number}, firmware {self._firmware_version()}"
-        )
+        self._firmware = self._firmware_version()
+        en.logger.info(f"[wuji] connected Wuji Hand 2 sn={self._hand.serial_number}, firmware {self._firmware}")
         # Connected from here on: any failure must disable and release the link before propagating.
         try:
             n_online = self._hand.online_joints_count().get()
@@ -609,6 +616,12 @@ class Hand2Transport(HandTransport):
         mode read to check further.
         """
         member = _HAND2_MODES[control_mode]
+        if control_mode == "mit_v2" and (version := _parse_firmware(self._firmware)) and version < _MIT_V2_FIRMWARE:
+            raise RuntimeError(
+                f"Wuji Hand 2 {self._hand.serial_number} runs firmware {self._firmware}, and MIT_V2 needs "
+                f"{'.'.join(map(str, _MIT_V2_FIRMWARE))} or later. Deploy it with control_mode='mit', or update its "
+                "firmware first."
+            )
         if not hasattr(self._sdk.ControlMode, member):
             raise RuntimeError(
                 f"wuji_sdk {getattr(self._sdk, '__version__', '(unknown version)')} has no ControlMode.{member}; "
