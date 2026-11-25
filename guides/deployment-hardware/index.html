@@ -5892,12 +5892,15 @@ back while commissioning. Do not disable load-bearing leg joints on an unsupport
 <h2 id="limx-oli">LimX Oli<a class="headerlink" href="#limx-oli" title="Permanent link">&para;</a></h2>
 <p><code>LimxOliDeployment</code> drives <code>Oli</code> (HU_D04) through LimX's low-level SDK, <code>limxsdk</code>.</p>
 <h3 id="install">Install<a class="headerlink" href="#install" title="Permanent link">&para;</a></h3>
-<p>The SDK is not on PyPI; install the platform wheel shipped in the
-<a href="https://github.com/limxdynamics/limxsdk-lowlevel"><code>limxsdk-lowlevel</code></a> repo:</p>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-8-1"><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>git<span class="w"> </span>clone<span class="w"> </span>https://github.com/limxdynamics/limxsdk-lowlevel
-</span><span id="__span-8-2"><a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>uv<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span>limxsdk-lowlevel/python3/amd64/limxsdk-*.whl<span class="w">   </span><span class="c1"># aarch64/ on the onboard PC</span>
-</span><span id="__span-8-3"><a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a>uv<span class="w"> </span>run<span class="w"> </span>python<span class="w"> </span>-c<span class="w"> </span><span class="s2">"import limxsdk.robot, limxsdk.datatypes; print('OK')"</span>
+<p>The SDK is <code>limxsdk</code> on PyPI, installed by the <code>limx</code> extra: <code>pip install "eden-world[limx]"</code>, or
+<code>uv sync --inexact --extra limx</code> in a checkout. The extra is Linux-only (wheels for x86_64 and
+aarch64, the onboard PC) and installs nothing elsewhere; on Windows, <code>pip install limxsdk</code> gets
+4.1.0. Check the install with:</p>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-8-1"><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>uv<span class="w"> </span>run<span class="w"> </span>python<span class="w"> </span>-c<span class="w"> </span><span class="s2">"import limxsdk.robot, limxsdk.datatypes; print('OK')"</span>
 </span></code></pre></div>
+<p><code>limxsdk</code> depends on the CPU <code>onnxruntime</code>. If you also use the <code>onnx-gpu</code> extra, the two wheels
+share one package directory: reinstall <code>onnxruntime-gpu</code> on top as described under
+<a href="#onnx-runtime">ONNX runtime</a>.</p>
 <h3 id="address">Address<a class="headerlink" href="#address" title="Permanent link">&para;</a></h3>
 <p>The backend connects to the <code>robot_ip</code> option, else the <code>ROBOT_IP</code> environment variable, else
 <code>10.192.1.2</code> (the robot's address on its own network). <code>ROBOT_IP=127.0.0.1</code> targets the
