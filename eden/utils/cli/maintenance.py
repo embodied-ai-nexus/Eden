@@ -82,9 +82,9 @@ def print_task_list(tags: tuple[str, ...] = ()):
         print(table)
     except ImportError:
         # Fall back to plain text so `eden list` works without prettytable.
+        # Nothing wraps a cell here, so pad Tags to its widest value rather than the table's cap.
+        plain_tags_w = max(len("Tags"), max(len(row[3]) for row in rows))
         for i, name, source, task_tags, mods in rows:
-            # Nothing wraps a cell here, so pad Tags to its widest value rather than the table's cap.
-            plain_tags_w = max(len("Tags"), max(len(row[3]) for row in rows))
             print(f"  {i:>3}. {name:<{name_w}}  {source:<{source_w}}  {task_tags:<{plain_tags_w}}  {mods}")
 
 

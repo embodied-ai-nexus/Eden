@@ -479,7 +479,7 @@ class TaskRegistry:
             subclass keeps the built-in's mods; that one is a snapshot, since the
             registration it came from no longer exists. ``()`` opts out; a class
             with no registered ancestor gets none either way.
-        tags: tuple[str, ...]
+        tags: tuple[TaskTag, ...] | list[TaskTag]
             The task's categories, each a key of :data:`TASK_TAGS`; ``eden list
             --tag`` filters on them. Write them as a literal tuple of strings: the
             AST scan reads them from the decorator without importing the module, and
@@ -733,7 +733,7 @@ class TaskRegistry:
             config = applied.apply(config)
         return config
 
-    def list_tasks(self, *, tags: tuple[TaskTag, ...] = ()) -> list[str]:
+    def list_tasks(self, *, tags: tuple[str, ...] | list[str] = ()) -> list[str]:
         """List all registered task names (eager + discovered), or those carrying every one of ``tags``.
 
         Import-free, like :meth:`task_tags`, which the filter reads.
@@ -1175,10 +1175,12 @@ class TaskRegistry:
         self._discovered = None
 
     def _unregister(self, name: str) -> None:
-        """For tests: undo a registration of ``name``, in every dict :meth:`_write_registration` writes."""
+        """For tests: undo a registration of ``name``, in every dict :meth:`_write_registration` writes, and any registration of it set aside as clashing."""
         self._registry.pop(name, None)
         self._modifiers.pop(name, None)
         self._tags.pop(name, None)
+        for key in [key for key, clash in self._clashing_registrations.items() if clash[0] == name]:
+            del self._clashing_registrations[key]
         self._resolved_modifiers.clear()
 
 
@@ -1289,10 +1291,13 @@ def _tags_from_decorator(cls_def: ast.ClassDef, aliases: set[str] | frozenset[st
     either way ``eden list`` would otherwise show the task as untagged with no reason given.
     """
     dec = _register_decorator(cls_def, aliases=aliases)
-    value = None if dec is None else _decorator_keyword(dec, "tags")
+    # A bare @TASK_REGISTRY.register passes no keywords, so only a call can carry tags=.
+    if not isinstance(dec, ast.Call):
+        return ()
+    value = _decorator_keyword(dec, "tags")
     if value is None:
         return ()
-    where = f"@{dec.func.value.id}.register(tags=...) on '{cls_def.name}' in '{file_path}'"
+    where = f"@{ast.unparse(dec.func)}(tags=...) on '{cls_def.name}' in '{file_path}'"
     if isinstance(value, ast.Constant):
         tag = (
             value.value
@@ -1309,7 +1314,8 @@ def _tags_from_decorator(cls_def: ast.ClassDef, aliases: set[str] | frozenset[st
         )
         return ()
     if isinstance(value, (ast.Tuple, ast.List)) and all(isinstance(elt, ast.Constant) for elt in value.elts):
-        others = [elt.value for elt in value.elts if not isinstance(elt.value, str)]
+        constants = [elt.value for elt in value.elts if isinstance(elt, ast.Constant)]
+        others = [constant for constant in constants if not isinstance(constant, str)]
         if others:
             warnings.warn(
                 f"TaskRegistry auto-discovery: {where} holds {others!r}, which are not tag names, so importing the "
@@ -1318,12 +1324,12 @@ def _tags_from_decorator(cls_def: ast.ClassDef, aliases: set[str] | frozenset[st
                 stacklevel=2,
             )
             return ()
-    literal = isinstance(value, (ast.Tuple, ast.List)) and all(
-        isinstance(elt, ast.Constant) and isinstance(elt.value, str) for elt in value.elts
-    )
-    if not literal and isinstance(
-        value, (ast.Set, ast.Dict, ast.ListComp, ast.SetComp, ast.DictComp, ast.GeneratorExp)
-    ):
+        try:
+            return _validate_tags(tuple(constants), where, registering=True)
+        except ValueError as exc:
+            warnings.warn(f"TaskRegistry auto-discovery: {exc}", stacklevel=2)
+            return ()
+    if isinstance(value, (ast.Set, ast.Dict, ast.ListComp, ast.SetComp, ast.DictComp, ast.GeneratorExp)):
         warnings.warn(
             f"TaskRegistry auto-discovery: {where} is {ast.unparse(value)!r}, where a tuple of tag names belongs, so "
             "importing the module raises TypeError and `eden list` shows the task untagged. Write the tags out as "
@@ -1331,20 +1337,13 @@ def _tags_from_decorator(cls_def: ast.ClassDef, aliases: set[str] | frozenset[st
             stacklevel=2,
         )
         return ()
-    if not literal:
-        warnings.warn(
-            f"TaskRegistry auto-discovery: {where} is {ast.unparse(value)!r}, which the scan cannot read without "
-            "importing the module, so `eden list` shows the task untagged. Write the tags out as a literal "
-            "tuple of strings, e.g. tags=('manipulation', 'dexterous').",
-            stacklevel=2,
-        )
-        return ()
-    tags = tuple(elt.value for elt in value.elts)
-    try:
-        return _validate_tags(tags, where, registering=True)
-    except ValueError as exc:
-        warnings.warn(f"TaskRegistry auto-discovery: {exc}", stacklevel=2)
-        return ()
+    warnings.warn(
+        f"TaskRegistry auto-discovery: {where} is {ast.unparse(value)!r}, which the scan cannot read without "
+        "importing the module, so `eden list` shows the task untagged. Write the tags out as a literal "
+        "tuple of strings, e.g. tags=('manipulation', 'dexterous').",
+        stacklevel=2,
+    )
+    return ()
 
 
 def _base_class_names(cls_def: ast.ClassDef) -> list[str]:
