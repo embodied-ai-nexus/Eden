@@ -141,7 +141,7 @@ def _tracked(name: str) -> dict:
     return {"entity_name": "robot", "links_name": [name]}
 
 
-@TASK_REGISTRY.register(name="supermimic", modifiers=(SuperMimicDataMod(),))
+@TASK_REGISTRY.register(name="supermimic", modifiers=(SuperMimicDataMod(),), tags=("motion_tracking",))
 class SuperMimicConfig(EdenMimicConfig):
     """G1 whole-body motion tracking trained with SuperMimic.
 
