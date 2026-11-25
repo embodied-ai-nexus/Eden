@@ -77,8 +77,8 @@ which has no `__init__.py`, so the API generator cannot render them here; read t
 
 | Module | Classes and functions | Library |
 |---|---|---|
-| `eden/envs/wrappers/rsl_rl_env.py` | `RslRlVecEnvWrapper`, `make_rsl_rl_runner`, `load_runner_checkpoint`, `DDPOnPolicyRunner`, `MimicOnPolicyRunner` | rsl-rl-lib |
-| `eden/envs/wrappers/rsl_rl_compat.py` | `loss_dict_of`, `update_result`, `env_step_result`, `log_env_step`, `log_iteration`, `episode_buffers`: the algorithm, runner and logger contracts rsl-rl-lib 6.0 changed, for 3.x to 6.x | rsl-rl-lib |
+| `eden/envs/wrappers/rsl_rl_env.py` | `RslRlVecEnvWrapper`, `make_rsl_rl_runner`, `load_runner_checkpoint`, `DDPOnPolicyRunner`, `MimicOnPolicyRunner`; `SaveBeforeLearnMixin` (a checkpoint saved before `learn()` on rsl-rl-lib 4.x); `StockNanCheckGuardMixin` (refuses, as `learn()` starts, a `check_for_nan` run whose check the installed rsl_rl cannot make) | rsl-rl-lib |
+| `eden/envs/wrappers/rsl_rl_compat.py` | `loss_dict_of`, `update_result`, `env_step_result`, `log_env_step`, `log_iteration`, `episode_buffers`: the algorithm, runner and logger contracts rsl-rl-lib 6.0 changed, for 3.x to 6.x. `record_env_step_nonfinite`, `raise_if_nonfinite`: the NaN check for a runner that runs its own loop, which reads groups with `concatenate_terms=False`. `stock_nan_check_reads_nested_groups`: whether the installed rsl_rl's own check reads them. `FINAL_OBS_KEY`: the `extras` key rsl-rl-lib 6.0 reads a done env's last observation from | rsl-rl-lib |
 | `eden/envs/wrappers/rl_games_env.py` | `RlGamesVecEnvWrapper` | rl_games |
 | `eden/envs/wrappers/gymnasium_env.py` | `GymnasiumVecEnvWrapper`, `make_vec_env`, `register_gymnasium_envs` | Gymnasium (`gym.make_vec("Eden/<task>")`) |
 | `eden/envs/wrappers/sb3_env.py` | `Sb3VecEnvWrapper` | Stable-Baselines3 |
