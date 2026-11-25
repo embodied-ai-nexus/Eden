@@ -14,8 +14,11 @@ import json
 import math
 import os
 import pathlib
+import re
+import socket
 import stat
 import sys
+import threading
 import time
 from types import SimpleNamespace
 from typing import ClassVar
@@ -2403,3 +2406,138 @@ def test_the_supermimic_runner_is_checked_before_the_build_like_any_runner_named
     monkeypatch.setattr(en.distributed, "is_distributed", lambda: True)
     with pytest.raises(ValueError, match=r"cannot train under a distributed launch: SuperMimicRunner"):
         _check_rsl_rl_runner(config, checkpoint=None)
+
+
+# ---------------------------------------------------------------------------
+# ``eden inference --live_rewards``
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture(scope="module")
+def reward_env():
+    from eden.options import BoxOptions, RewardManagerOptions, RewardTermOptions, SceneOptions
+    from eden.options.managers.terminations import TerminationManagerOptions, TerminationTermOptions
+    from eden.utils.configs import EnvOptions
+    from tests.support.envs import build_env
+
+    env = build_env(
+        EdenRLConfig(
+            env_options=EnvOptions(num_envs=2, sim_dt=0.01, decimation=2, episode_length_s=1.0),
+            scene_options=SceneOptions(box=BoxOptions(size=(0.1, 0.1, 0.1), default_root_pos=(0, 0, 1))),
+            reward_options=RewardManagerOptions(
+                height=RewardTermOptions(
+                    name="base_height_l2", weight=-1, params={"entity_name": "box", "target_height": 0}
+                )
+            ),
+            termination_options=TerminationManagerOptions(
+                timeout=TerminationTermOptions(name="time_out", time_out=True)
+            ),
+        ),
+        reset=True,
+        eval_mode=True,
+    )
+    yield env
+    env.destroy()
+
+
+@pytest.fixture
+def reward_viewers(monkeypatch):
+    pytest.importorskip("viser", minversion="1.1.0")
+    from eden.extensions.visualization.reward_viewer import RewardViewer
+
+    opened = SimpleNamespace(viewers=[], play_after=0.0)
+    setup_gui = RewardViewer._setup_gui
+
+    def _setup_gui(self):
+        setup_gui(self)
+        opened.viewers.append(self)
+        threading.Timer(opened.play_after, setattr, (self.playing, "value", True)).start()
+
+    monkeypatch.setattr(RewardViewer, "_setup_gui", _setup_gui)
+    return opened
+
+
+def test_reward_plots_require_a_task(capsys):
+    with pytest.raises(SystemExit):
+        tasks.inference_task(["--policy", "sonic", "--live_rewards"])
+    assert "--live_rewards requires --task" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize("port", ["70000", "http"])
+def test_the_reward_viewer_port_must_be_a_tcp_port(capsys, port):
+    with pytest.raises(SystemExit):
+        tasks.inference_task(["--policy", "sonic", "--live-rewards", port])
+    assert f"{port!r} is not a TCP port; give an integer from 0 to 65535" in capsys.readouterr().err
+
+
+def test_the_reward_viewer_host_needs_the_reward_viewer(capsys):
+    with pytest.raises(SystemExit):
+        tasks.inference_task(["--policy", "sonic", "--task", "reacher", "--live_rewards_host", "0.0.0.0"])
+    assert "--live_rewards_host only applies to the --live_rewards viewer" in capsys.readouterr().err
+
+
+def test_a_config_without_an_active_reward_term_names_why():
+    from eden.options import RewardManagerOptions, RewardTermOptions
+    from eden.options.managers.rewards import RewardGroupOptions
+
+    def height(weight):
+        return RewardTermOptions(name="base_height_l2", weight=weight, params={"entity_name": "box"})
+
+    assert tasks._no_active_reward_terms(EdenConfig()) == "EdenConfig has no reward_options"
+    assert tasks._no_active_reward_terms(EdenRLConfig(reward_options=None)) == "EdenRLConfig has no reward_options"
+    assert tasks._no_active_reward_terms(EdenRLConfig(reward_options=RewardManagerOptions())) == (
+        "reward_options declares no term"
+    )
+    inert = RewardManagerOptions(height=height(0.0), task=RewardGroupOptions(height=height(0.0)))
+    assert tasks._no_active_reward_terms(EdenRLConfig(reward_options=inert)) == (
+        "every reward term has weight 0.0, and a weight-0 term is not built"
+    )
+    grouped = RewardManagerOptions(height=height(0.0), task=RewardGroupOptions(height=height(-1.0)))
+    assert tasks._no_active_reward_terms(EdenRLConfig(reward_options=grouped)) is None
+
+
+def test_reward_plots_without_viser_name_the_extra(monkeypatch):
+    monkeypatch.setitem(sys.modules, "viser", None)
+    monkeypatch.delitem(sys.modules, "eden.extensions.visualization.reward_viewer", raising=False)
+    monkeypatch.delitem(sys.modules, "eden.extensions.visualization.viser", raising=False)
+    with (
+        pytest.raises(ImportError, match=r"--live_rewards requires Viser\. Install it with .*vis"),
+        tasks._inference_step(None, tasks._LiveRewards(port=0)),
+    ):
+        pass
+
+
+def test_the_eval_loop_steps_through_the_reward_viewer_on_the_given_host_and_port(reward_env, reward_viewers):
+    with socket.socket() as sock:
+        sock.bind(("127.0.0.1", 0))
+        port = sock.getsockname()[1]
+    live_rewards = tasks._LiveRewards(port=port, host="127.0.0.1")
+    tasks._run_eval_loop(reward_env, lambda obs: None, max_steps=2, reward_plots=live_rewards)
+    (viewer,) = reward_viewers.viewers
+    # The requested address, not server.get_port(): Viser moves to the next port when another process took this one.
+    assert (viewer.host, viewer.port) == ("127.0.0.1", port)
+    assert len(viewer._history) == 2
+
+
+def test_pausing_and_drawing_the_reward_viewer_count_as_neither_compute_nor_wall_time(
+    reward_env, reward_viewers, eden_caplog, monkeypatch
+):
+    from eden.extensions.visualization.reward_viewer import RewardViewer
+
+    # Each draw takes five control periods (dt = 0.02 s). Counted as compute, it would put the mean step compute
+    # above 100 ms and the real-time factor near 0.2; the bounds below leave the box's own step that much room.
+    update = RewardViewer.update
+
+    def slow_update(self):
+        time.sleep(0.1)
+        return update(self)
+
+    monkeypatch.setattr(RewardViewer, "update", slow_update)
+    reward_viewers.play_after = 0.5
+    _run_sim2sim_loop(reward_env, lambda obs: None, max_steps=3, reward_plots=tasks._LiveRewards(port=0))
+    assert reward_viewers.viewers[0].viewer_time >= 0.4 + 3 * 0.1
+    assert "waiting for Play" in eden_caplog.text
+    mean_step_compute_ms = float(re.search(r"mean step compute ([\d.]+) ms", eden_caplog.text)[1])
+    assert mean_step_compute_ms < 100
+    real_time_factor = float(re.search(r"real-time factor ([\d.]+)x", eden_caplog.text)[1])
+    assert real_time_factor > 0.5

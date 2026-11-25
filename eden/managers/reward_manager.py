@@ -184,6 +184,17 @@ class RewardManager(FlatManagerBase[RewardManagerOptions]):
         buf = self._episode_raw_sums if raw else self._episode_sums
         return buf[:, self._term_col(name)]
 
+    @property
+    def step_reward_rates(self) -> torch.Tensor:
+        """Return the last step's weighted rates as a ``(num_envs, num_active_terms)`` view, before the ``dt`` scaling.
+
+        Columns follow :meth:`iter_terms`. Each entry is the term's ``compute()`` output, temporally masked, zero for
+        an env Genesis flagged as corrupt, and multiplied by the term's weight; their row sum times ``dt`` is the
+        scalar step reward. The view is the manager's buffer: :meth:`compute` overwrites it in place, so treat it as
+        read-only and clone it to keep a step.
+        """
+        return self._step_reward
+
     def get_term_value(self, name: str) -> torch.Tensor:
         """Return term ``name``'s output at the last computed step as a ``(num_envs,)`` view.
 

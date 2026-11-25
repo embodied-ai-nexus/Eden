@@ -122,6 +122,9 @@ class ViserViewer:
                 self._gui_event_state["reset_triggered"] = True
                 self.env.reset()
 
+        self._setup_visualization_gui()
+
+    def _setup_visualization_gui(self):
         with self.server.gui.add_folder("Visualization"):
             slider_fov = self.server.gui.add_slider(
                 "FOV (°)",

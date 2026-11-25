@@ -147,6 +147,8 @@ cannot be combined. See [Training runs](../guides/training-runs.md) and the [pol
 | Flag | Meaning |
 |---|---|
 | `--vis`, `--show_viewer` | Open the Genesis viewer. |
+| `--live_rewards [PORT]`, `--live-rewards` | Open the Viser browser viewer on `PORT` (default 8080; 0 lets the OS pick a free port) with per-term reward graphs, editable weights and interactive link impulses. Requires the `vis` extra and a task with a reward term of nonzero weight. |
+| `--live_rewards_host HOST` | The interface the `--live_rewards` viewer binds. Default `localhost`. `0.0.0.0` serves every interface, which lets anyone who can reach the port change weights and push links. |
 | `--rec` | Record an `.mp4` through a `rec` camera, saved in the run's log directory. |
 | `--num_envs N` | Parallel evaluation environments. Default 1. |
 | `--steps N` | Stop after `N` steps. Default: one episode for a checkpoint, 1000 steps for `--policy`. |
@@ -158,6 +160,23 @@ cannot be combined. See [Training runs](../guides/training-runs.md) and the [pol
 | `--base_command VX VY WZ` | A constant velocity command for policies driven by one. Default: stand still. |
 | `--motion_file FILE` | The reference motion `.npz` for motion-tracking policies (e.g. `sonic`); required by those. |
 | `--clip_name CLIP` | The clip to track, for policies with per-clip checkpoints (e.g. `beyondmimic_moves`). |
+
+With `--live_rewards`, open the URL printed by Viser and select **Play**. Until then the rollout waits, with no
+timeout, and logs that URL, so leave the flag off unattended runs. On a remote machine, either forward the port
+(`ssh -L 8080:localhost:8080 <host>`) or bind another interface with `--live_rewards_host`.
+
+Each curve shows the selected environment's weighted reward rate against episode time, which restarts at every
+episode. Multiplying the sum of the curves by the control timestep gives the scalar step reward. The plots keep the
+last 200 steps and start a new trace when the episode or selected environment changes. Each term shows its current
+value. Type a new **Weight** and click **Set weight** to rescore subsequent steps for all environments in this run;
+the button stays enabled while the field holds an edit that has not been applied. Under **Disturbance**, choose a
+movable link, enter a world-frame impulse in N·s, and click **Apply impulse** to push its center of mass on the
+next step in the selected environment.
+
+The `--async` timing report leaves out the time spent paused and drawing the viewer, so its step compute, overruns
+and real-time factor describe the policy and the sim. Drawing still takes wall time inside each step, and a policy
+that is already over its budget can use that time to finish, so its stale-action count can come out lower than
+without the viewer.
 
 ### `eden export`
 
