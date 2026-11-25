@@ -5897,7 +5897,7 @@ Eden is installed.</p>
 <tbody>
 <tr>
 <td><a href="#eden-list"><code>eden list</code></a></td>
-<td>List every registered task, its source and its task mods</td>
+<td>List every registered task, or those carrying a tag, with its source, tags and task mods</td>
 </tr>
 <tr>
 <td><a href="#eden-terms"><code>eden terms</code></a></td>
@@ -6050,10 +6050,25 @@ config already decides it.</p>
 <h2 id="tasks">Tasks<a class="headerlink" href="#tasks" title="Permanent link">&para;</a></h2>
 <h3 id="eden-list"><code>eden list</code><a class="headerlink" href="#eden-list" title="Permanent link">&para;</a></h3>
 <div class="language-bash highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>eden<span class="w"> </span>list
+</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>eden<span class="w"> </span>list<span class="w"> </span>--tag<span class="w"> </span>manipulation<span class="w"> </span>--tag<span class="w"> </span>dexterous
 </span></code></pre></div>
 <p>Prints every registered task with its source (<code>eden</code> for a built-in task, otherwise the distribution or module it
-comes from) and the task mods that give it variant flags. Takes no flags, and imports no task module, so it is fast
-and needs no network.</p>
+comes from), its tags and the task mods that give it variant flags. It imports no task module, so it is fast and
+needs no network.</p>
+<table>
+<thead>
+<tr>
+<th>Flag</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--tag TAG</code></td>
+<td>Show only the tasks that carry <code>TAG</code>. Repeat it to require several. The tags and their rules are in <code>eden list --help</code> and under <a href="../../guides/task-config/#tags">Tags</a>.</td>
+</tr>
+</tbody>
+</table>
 <h3 id="eden-terms"><code>eden terms</code><a class="headerlink" href="#eden-terms" title="Permanent link">&para;</a></h3>
 <div class="language-bash highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>eden<span class="w"> </span>terms<span class="w">                         </span><span class="c1"># every registered term</span>
 </span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>eden<span class="w"> </span>terms<span class="w"> </span>--kind<span class="w"> </span>reward<span class="w">           </span><span class="c1"># one kind</span>

@@ -1007,6 +1007,17 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#tags" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Tags
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -5223,6 +5234,17 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#tags" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Tags
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -5488,7 +5510,7 @@ option group, and the decorator registers the class as the task <code>reacher</c
 </span><span id="__span-0-15"><a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a><span class="kn">from</span><span class="w"> </span><span class="nn">eden.utils.configs</span><span class="w"> </span><span class="kn">import</span> <span class="n">EdenRLConfig</span>
 </span><span id="__span-0-16"><a id="__codelineno-0-16" name="__codelineno-0-16" href="#__codelineno-0-16"></a>
 </span><span id="__span-0-17"><a id="__codelineno-0-17" name="__codelineno-0-17" href="#__codelineno-0-17"></a>
-</span><span id="__span-0-18"><a id="__codelineno-0-18" name="__codelineno-0-18" href="#__codelineno-0-18"></a><span class="nd">@TASK_REGISTRY</span><span class="o">.</span><span class="n">register</span><span class="p">(</span><span class="n">modifiers</span><span class="o">=</span><span class="p">(</span><span class="n">ReacherDifficultyMod</span><span class="p">,))</span>  <span class="c1"># key "reacher", one TaskMod</span>
+</span><span id="__span-0-18"><a id="__codelineno-0-18" name="__codelineno-0-18" href="#__codelineno-0-18"></a><span class="nd">@TASK_REGISTRY</span><span class="o">.</span><span class="n">register</span><span class="p">(</span><span class="n">modifiers</span><span class="o">=</span><span class="p">(</span><span class="n">ReacherDifficultyMod</span><span class="p">,),</span> <span class="n">tags</span><span class="o">=</span><span class="p">(</span><span class="s2">"manipulation"</span><span class="p">,))</span>  <span class="c1"># key "reacher", one TaskMod</span>
 </span><span id="__span-0-19"><a id="__codelineno-0-19" name="__codelineno-0-19" href="#__codelineno-0-19"></a><span class="k">class</span><span class="w"> </span><span class="nc">ReacherConfig</span><span class="p">(</span><span class="n">EdenRLConfig</span><span class="p">):</span>
 </span><span id="__span-0-20"><a id="__codelineno-0-20" name="__codelineno-0-20" href="#__codelineno-0-20"></a>    <span class="n">env_options</span><span class="p">:</span> <span class="n">EnvOptions</span> <span class="o">=</span> <span class="n">EnvOptions</span><span class="p">(</span><span class="n">num_envs</span><span class="o">=</span><span class="mi">4096</span><span class="p">,</span> <span class="n">episode_length_s</span><span class="o">=</span><span class="mf">9.0</span><span class="p">,</span> <span class="n">sim_dt</span><span class="o">=</span><span class="mf">0.01</span><span class="p">,</span> <span class="n">sim_substeps</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">decimation</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
 </span><span id="__span-0-21"><a id="__codelineno-0-21" name="__codelineno-0-21" href="#__codelineno-0-21"></a>
@@ -5796,17 +5818,18 @@ defined, so there is no central list to update.</p>
 </span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">eden.utils.configs</span><span class="w"> </span><span class="kn">import</span> <span class="n">EdenRLConfig</span>
 </span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>
 </span><span id="__span-2-4"><a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>
-</span><span id="__span-2-5"><a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="nd">@TASK_REGISTRY</span><span class="o">.</span><span class="n">register</span><span class="p">()</span>  <span class="c1"># key "my_reach", derived from the class name</span>
+</span><span id="__span-2-5"><a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="nd">@TASK_REGISTRY</span><span class="o">.</span><span class="n">register</span><span class="p">(</span><span class="n">tags</span><span class="o">=</span><span class="p">(</span><span class="s2">"manipulation"</span><span class="p">,))</span>  <span class="c1"># key "my_reach", derived from the class name</span>
 </span><span id="__span-2-6"><a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a><span class="k">class</span><span class="w"> </span><span class="nc">MyReachConfig</span><span class="p">(</span><span class="n">EdenRLConfig</span><span class="p">):</span>
 </span><span id="__span-2-7"><a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a>    <span class="o">...</span>
 </span></code></pre></div>
 <p>The key is the class name in snake case with a trailing <code>_config</code> removed: <code>ReacherConfig</code> registers as
-<code>reacher</code>, and <code>PolarisPanCleanConfig</code> as <code>polaris_pan_clean</code>. <code>register()</code> takes three keyword
+<code>reacher</code>, and <code>PolarisPanCleanConfig</code> as <code>polaris_pan_clean</code>. <code>register()</code> takes four keyword
 arguments:</p>
 <ul>
 <li><code>name=</code> sets the key explicitly. Use it only when no class name produces the key you want (see
   <a href="#task-package-layout">Task Package Layout</a>).</li>
 <li><code>modifiers=</code> attaches <a href="../task-mods/">TaskMods</a>, the task's variants and CLI flags.</li>
+<li><code>tags=</code> files the task under categories (see <a href="#tags">Tags</a>).</li>
 <li><code>override=True</code> replaces an existing registration with the same name. It is for a script that
   registers a class at run time, for example
   <code>TASK_REGISTRY.register(MyReacher, name="reacher", override=True)</code>. It does not resolve a clash between
@@ -5891,6 +5914,74 @@ blocks the tasks it has nothing to do with. Each also warns once when the scan r
   raise <code>RuntimeError</code> naming the distribution, the value and the fix. A task found elsewhere still
   resolves. Entry points are re-read on every rescan.</li>
 </ul>
+<h3 id="tags">Tags<a class="headerlink" href="#tags" title="Permanent link">&para;</a></h3>
+<p>A tag files a task under a category, so <code>eden list --tag &lt;tag&gt;</code> (or <code>TASK_REGISTRY.list_tasks(tags=...)</code>) can find
+it. A task carries every tag whose rule applies to it:</p>
+<table>
+<thead>
+<tr>
+<th>Tag</th>
+<th>A task carries it when</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>locomotion</code></td>
+<td>the policy moves or balances a legged robot's base toward a commanded velocity, pose or goal: walk, recover from a fall, hold a pose, ride (a base that follows a reference clip is <code>motion_tracking</code>)</td>
+</tr>
+<tr>
+<td><code>motion_tracking</code></td>
+<td>the policy follows a recorded or retargeted motion clip: whole-body, hand, or hand-object (a planned tool path, as in calligraphy, is not a clip)</td>
+</tr>
+<tr>
+<td><code>manipulation</code></td>
+<td>the policy drives an arm, gripper or hand to a target, or to grasp, move or use objects (another agent's body is not an object)</td>
+</tr>
+<tr>
+<td><code>dexterous</code></td>
+<td>the robot manipulates with a hand of three or more articulated fingers</td>
+</tr>
+<tr>
+<td><code>loco_manipulation</code></td>
+<td>the policy moves a legged robot's base and handles objects with its arms or hands in the same episode (a leg policy that only keeps balance while another controller moves the arms, as in <code>homie</code>, is <code>locomotion</code>)</td>
+</tr>
+<tr>
+<td><code>deformable</code></td>
+<td>the physics solver simulates a deformable body: cloth, cable, foam</td>
+</tr>
+<tr>
+<td><code>benchmarks</code></td>
+<td>the task reproduces one task of a published multi-task suite that others evaluate on (a benchmark or a demo set), with the success check or score the suite reports, so results compare; the robot and assets may differ</td>
+</tr>
+</tbody>
+</table>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="nd">@TASK_REGISTRY</span><span class="o">.</span><span class="n">register</span><span class="p">(</span><span class="n">modifiers</span><span class="o">=</span><span class="p">(</span><span class="n">ContrackDataMod</span><span class="p">(),),</span> <span class="n">tags</span><span class="o">=</span><span class="p">(</span><span class="s2">"motion_tracking"</span><span class="p">,</span> <span class="s2">"manipulation"</span><span class="p">,</span> <span class="s2">"dexterous"</span><span class="p">))</span>
+</span><span id="__span-7-2"><a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a><span class="k">class</span><span class="w"> </span><span class="nc">ContrackConfig</span><span class="p">(</span><span class="n">EdenMimicConfig</span><span class="p">):</span>
+</span><span id="__span-7-3"><a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a>    <span class="o">...</span>
+</span></code></pre></div>
+<p>Tags group tasks without moving them. A task's package path is recorded in every <code>config.json</code> it saves, so it
+cannot be reorganized by category, and a task such as ConTrack belongs to three categories at once.</p>
+<ul>
+<li><strong>The set is closed.</strong> The tags are the keys of <code>TASK_TAGS</code> (<code>eden/tasks/registry.py</code>), a read-only mapping, and an
+  unknown tag raises <code>ValueError</code> at registration with the closest match. <code>eden.types.TaskTag</code> spells the same
+  names as a <code>Literal</code>, so a type checker or an editor completes and checks a <code>tags=</code> string before anything runs.
+  To add a category, add it to <code>TASK_TAGS</code> and <code>TaskTag</code> and to the table above with its rule, and tag every task it
+  applies to.</li>
+<li><strong>A plugin that uses a newer tag needs the newer Eden.</strong> An out-of-tree task's unknown tag raises when its module
+  is imported, as a built-in's does, so a plugin that tags a task with a tag added in a later Eden release must
+  require that release (<code>eden-world&gt;=&lt;version&gt;</code> in its <code>pyproject.toml</code>).</li>
+<li><strong>Write them as a literal tuple of strings.</strong> <code>eden list</code> reads the tags off the decorator without importing the
+  module, as it does the task name; the scan warns on a variable or an expression, and the task lists as untagged.</li>
+<li><strong>A port does not by itself carry <code>benchmarks</code>.</strong> <code>piano</code> carries the tag because it reproduces RoboPianist's
+  key-press F1; <code>mujoco_playground_getup</code> and <code>_handstand</code> do not, because MuJoCo Playground defines their rewards
+  and no success check or score. <code>omnireset</code> reproduces one task from the OmniReset paper, which is not a suite. The
+  <code>art_*</code> tasks are graded by RoboPaint's rules but copy Eden's own works and skip RoboPaint's registration step, so
+  their scores do not compare with RoboPaint's, and they do not carry it either.</li>
+<li><strong>Tags are not inherited.</strong> Modifiers pass from a registered base class to a subclass, but a tag describes the
+  task a registration names: <code>manipulation_lift_box_rgb</code> declares its own tags although it subclasses
+  <code>ManipulationLiftBoxConfig</code>.</li>
+</ul>
+<p><code>TASK_REGISTRY.task_tags(name)</code> returns a task's tags without importing it.</p>
 <h2 id="task-package-layout">Task Package Layout<a class="headerlink" href="#task-package-layout" title="Permanent link">&para;</a></h2>
 <p>The rules to follow when you add a task to <code>eden/tasks</code>. <code>tests/tasks/test_init.py</code> checks the naming,
 file and <code>__init__.py</code> rules across every built-in task.</p>
@@ -5927,6 +6018,11 @@ file and <code>__init__.py</code> rules across every built-in task.</p>
   import to find a task. A <code>custom_terms/__init__.py</code> may re-export its terms.
   <code>eden/tasks/libero/__init__.py</code> is the one exception, because it is a documented API surface.</li>
 <li><strong>Variants are TaskMods.</strong> See <a href="../task-mods/#a-taskmod-or-a-separate-task">A TaskMod or a separate task?</a></li>
+<li><strong>Every task is tagged, and its family table agrees.</strong> A built-in task carries at least one <a href="#tags">tag</a>, and the
+  family tables of <a href="../../tasks/">the task index</a> list a task only under a family whose tag it carries
+  (Locomotion → <code>locomotion</code>, Motion tracking → <code>motion_tracking</code>, Manipulation and dexterous hands →
+  <code>manipulation</code>, Ported benchmarks → <code>benchmarks</code>), and every task appears in one of those tables (a PolaRiS
+  <code>_batched</code> variant through its base task).</li>
 </ul>
 <h2 id="strict-fields">Strict fields<a class="headerlink" href="#strict-fields" title="Permanent link">&para;</a></h2>
 <p><code>ConfigurableOptions</code>, the base of every Eden options class, sets Pydantic's <code>extra="forbid"</code>. A
@@ -5987,16 +6083,16 @@ raises, and the term checks them again when it is built. Extension options are c
 <h3 id="subclass-and-override-fields-as-class-defaults">Subclass, and override fields as class defaults<a class="headerlink" href="#subclass-and-override-fields-as-class-defaults" title="Permanent link">&para;</a></h3>
 <p>A variant of a task is a subclass that redeclares the fields it changes. To change one part of an
 inherited option group, start from the parent's default and call <code>updated()</code>:</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">eden.options</span><span class="w"> </span><span class="kn">import</span> <span class="n">RewardManagerOptions</span>
-</span><span id="__span-7-2"><a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">eden.tasks.velocity_tracking.base_config</span><span class="w"> </span><span class="kn">import</span> <span class="n">VelocityTrackingBaseConfig</span>
-</span><span id="__span-7-3"><a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a>
-</span><span id="__span-7-4"><a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a><span class="n">base</span> <span class="o">=</span> <span class="n">VelocityTrackingBaseConfig</span><span class="o">.</span><span class="n">model_fields</span><span class="p">[</span><span class="s2">"reward_options"</span><span class="p">]</span><span class="o">.</span><span class="n">default</span>
-</span><span id="__span-7-5"><a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a>
-</span><span id="__span-7-6"><a id="__codelineno-7-6" name="__codelineno-7-6" href="#__codelineno-7-6"></a>
-</span><span id="__span-7-7"><a id="__codelineno-7-7" name="__codelineno-7-7" href="#__codelineno-7-7"></a><span class="k">class</span><span class="w"> </span><span class="nc">MyConfig</span><span class="p">(</span><span class="n">VelocityTrackingBaseConfig</span><span class="p">):</span>
-</span><span id="__span-7-8"><a id="__codelineno-7-8" name="__codelineno-7-8" href="#__codelineno-7-8"></a>    <span class="n">reward_options</span><span class="p">:</span> <span class="n">RewardManagerOptions</span> <span class="o">=</span> <span class="n">base</span><span class="o">.</span><span class="n">updated</span><span class="p">(</span>
-</span><span id="__span-7-9"><a id="__codelineno-7-9" name="__codelineno-7-9" href="#__codelineno-7-9"></a>        <span class="n">track_linear_velocity</span><span class="o">=</span><span class="n">base</span><span class="o">.</span><span class="n">track_linear_velocity</span><span class="o">.</span><span class="n">updated</span><span class="p">(</span><span class="n">weight</span><span class="o">=</span><span class="mf">0.0</span><span class="p">),</span>
-</span><span id="__span-7-10"><a id="__codelineno-7-10" name="__codelineno-7-10" href="#__codelineno-7-10"></a>    <span class="p">)</span>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-8-1"><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">eden.options</span><span class="w"> </span><span class="kn">import</span> <span class="n">RewardManagerOptions</span>
+</span><span id="__span-8-2"><a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">eden.tasks.velocity_tracking.base_config</span><span class="w"> </span><span class="kn">import</span> <span class="n">VelocityTrackingBaseConfig</span>
+</span><span id="__span-8-3"><a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a>
+</span><span id="__span-8-4"><a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a><span class="n">base</span> <span class="o">=</span> <span class="n">VelocityTrackingBaseConfig</span><span class="o">.</span><span class="n">model_fields</span><span class="p">[</span><span class="s2">"reward_options"</span><span class="p">]</span><span class="o">.</span><span class="n">default</span>
+</span><span id="__span-8-5"><a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a>
+</span><span id="__span-8-6"><a id="__codelineno-8-6" name="__codelineno-8-6" href="#__codelineno-8-6"></a>
+</span><span id="__span-8-7"><a id="__codelineno-8-7" name="__codelineno-8-7" href="#__codelineno-8-7"></a><span class="k">class</span><span class="w"> </span><span class="nc">MyConfig</span><span class="p">(</span><span class="n">VelocityTrackingBaseConfig</span><span class="p">):</span>
+</span><span id="__span-8-8"><a id="__codelineno-8-8" name="__codelineno-8-8" href="#__codelineno-8-8"></a>    <span class="n">reward_options</span><span class="p">:</span> <span class="n">RewardManagerOptions</span> <span class="o">=</span> <span class="n">base</span><span class="o">.</span><span class="n">updated</span><span class="p">(</span>
+</span><span id="__span-8-9"><a id="__codelineno-8-9" name="__codelineno-8-9" href="#__codelineno-8-9"></a>        <span class="n">track_linear_velocity</span><span class="o">=</span><span class="n">base</span><span class="o">.</span><span class="n">track_linear_velocity</span><span class="o">.</span><span class="n">updated</span><span class="p">(</span><span class="n">weight</span><span class="o">=</span><span class="mf">0.0</span><span class="p">),</span>
+</span><span id="__span-8-10"><a id="__codelineno-8-10" name="__codelineno-8-10" href="#__codelineno-8-10"></a>    <span class="p">)</span>
 </span></code></pre></div>
 <p><code>options.updated(field=value)</code> returns a deep copy with those fields replaced. It raises <code>ValueError</code> on
 a name the class (or, for a term, the registered term) does not accept, and the copy is always
@@ -6028,7 +6124,7 @@ for this reason.</p>
 </ul>
 <h2 id="saving-and-loading-configs">Saving and loading configs<a class="headerlink" href="#saving-and-loading-configs" title="Permanent link">&para;</a></h2>
 <h3 id="saving">Saving<a class="headerlink" href="#saving" title="Permanent link">&para;</a></h3>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-8-1"><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="n">config</span><span class="o">.</span><span class="n">save_as_json</span><span class="p">(</span><span class="s2">"logs/my_run/config.json"</span><span class="p">)</span>   <span class="c1"># or save_as_yaml(path), or save_as_file(path) by extension</span>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-9-1"><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="n">config</span><span class="o">.</span><span class="n">save_as_json</span><span class="p">(</span><span class="s2">"logs/my_run/config.json"</span><span class="p">)</span>   <span class="c1"># or save_as_yaml(path), or save_as_file(path) by extension</span>
 </span></code></pre></div>
 <p><code>save_as_json</code> and <code>save_as_yaml</code> take an optional path (by default <code>config.json</code> / <code>config.yaml</code> in the
 run's log directory) and raise <code>ValueError</code> on the wrong extension. Every save <strong>locks the config</strong>
@@ -6038,23 +6134,23 @@ its checkpoints.</p>
 <p>A saved file is an envelope. <code>_meta</code> records the config class and the Eden and Genesis that saved it;
 <code>config</code> holds the fields, and every nested options object is stamped with its own class so that the
 exact types come back on load:</p>
-<div class="language-json highlight"><pre><span></span><code><span id="__span-9-1"><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="p">{</span>
-</span><span id="__span-9-2"><a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a><span class="w">    </span><span class="nt">"_meta"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
-</span><span id="__span-9-3"><a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a><span class="w">        </span><span class="nt">"eden"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="nt">"version"</span><span class="p">:</span><span class="w"> </span><span class="s2">"..."</span><span class="p">,</span><span class="w"> </span><span class="nt">"commit"</span><span class="p">:</span><span class="w"> </span><span class="s2">"..."</span><span class="p">},</span>
-</span><span id="__span-9-4"><a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a><span class="w">        </span><span class="nt">"genesis"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="nt">"version"</span><span class="p">:</span><span class="w"> </span><span class="s2">"..."</span><span class="p">,</span><span class="w"> </span><span class="nt">"commit"</span><span class="p">:</span><span class="w"> </span><span class="kc">null</span><span class="p">},</span>
-</span><span id="__span-9-5"><a id="__codelineno-9-5" name="__codelineno-9-5" href="#__codelineno-9-5"></a><span class="w">        </span><span class="nt">"_option_module_"</span><span class="p">:</span><span class="w"> </span><span class="s2">"eden.tasks.benchmark.reacher.config"</span><span class="p">,</span>
-</span><span id="__span-9-6"><a id="__codelineno-9-6" name="__codelineno-9-6" href="#__codelineno-9-6"></a><span class="w">        </span><span class="nt">"_option_class_"</span><span class="p">:</span><span class="w"> </span><span class="s2">"ReacherConfig"</span>
-</span><span id="__span-9-7"><a id="__codelineno-9-7" name="__codelineno-9-7" href="#__codelineno-9-7"></a><span class="w">    </span><span class="p">},</span>
-</span><span id="__span-9-8"><a id="__codelineno-9-8" name="__codelineno-9-8" href="#__codelineno-9-8"></a><span class="w">    </span><span class="nt">"config"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
-</span><span id="__span-9-9"><a id="__codelineno-9-9" name="__codelineno-9-9" href="#__codelineno-9-9"></a><span class="w">        </span><span class="nt">"env_options"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="nt">"num_envs"</span><span class="p">:</span><span class="w"> </span><span class="mi">4096</span><span class="p">,</span><span class="w"> </span><span class="nt">"..."</span><span class="p">:</span><span class="w"> </span><span class="s2">"..."</span><span class="p">,</span><span class="w"> </span><span class="nt">"_option_module_"</span><span class="p">:</span><span class="w"> </span><span class="s2">"eden.options.envs"</span><span class="p">,</span><span class="w"> </span><span class="nt">"_option_class_"</span><span class="p">:</span><span class="w"> </span><span class="s2">"EnvOptions"</span><span class="p">},</span>
-</span><span id="__span-9-10"><a id="__codelineno-9-10" name="__codelineno-9-10" href="#__codelineno-9-10"></a><span class="w">        </span><span class="nt">"..."</span><span class="p">:</span><span class="w"> </span><span class="s2">"..."</span>
-</span><span id="__span-9-11"><a id="__codelineno-9-11" name="__codelineno-9-11" href="#__codelineno-9-11"></a><span class="w">    </span><span class="p">}</span>
-</span><span id="__span-9-12"><a id="__codelineno-9-12" name="__codelineno-9-12" href="#__codelineno-9-12"></a><span class="p">}</span>
+<div class="language-json highlight"><pre><span></span><code><span id="__span-10-1"><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="p">{</span>
+</span><span id="__span-10-2"><a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a><span class="w">    </span><span class="nt">"_meta"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-10-3"><a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a><span class="w">        </span><span class="nt">"eden"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="nt">"version"</span><span class="p">:</span><span class="w"> </span><span class="s2">"..."</span><span class="p">,</span><span class="w"> </span><span class="nt">"commit"</span><span class="p">:</span><span class="w"> </span><span class="s2">"..."</span><span class="p">},</span>
+</span><span id="__span-10-4"><a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a><span class="w">        </span><span class="nt">"genesis"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="nt">"version"</span><span class="p">:</span><span class="w"> </span><span class="s2">"..."</span><span class="p">,</span><span class="w"> </span><span class="nt">"commit"</span><span class="p">:</span><span class="w"> </span><span class="kc">null</span><span class="p">},</span>
+</span><span id="__span-10-5"><a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a><span class="w">        </span><span class="nt">"_option_module_"</span><span class="p">:</span><span class="w"> </span><span class="s2">"eden.tasks.benchmark.reacher.config"</span><span class="p">,</span>
+</span><span id="__span-10-6"><a id="__codelineno-10-6" name="__codelineno-10-6" href="#__codelineno-10-6"></a><span class="w">        </span><span class="nt">"_option_class_"</span><span class="p">:</span><span class="w"> </span><span class="s2">"ReacherConfig"</span>
+</span><span id="__span-10-7"><a id="__codelineno-10-7" name="__codelineno-10-7" href="#__codelineno-10-7"></a><span class="w">    </span><span class="p">},</span>
+</span><span id="__span-10-8"><a id="__codelineno-10-8" name="__codelineno-10-8" href="#__codelineno-10-8"></a><span class="w">    </span><span class="nt">"config"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-10-9"><a id="__codelineno-10-9" name="__codelineno-10-9" href="#__codelineno-10-9"></a><span class="w">        </span><span class="nt">"env_options"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="nt">"num_envs"</span><span class="p">:</span><span class="w"> </span><span class="mi">4096</span><span class="p">,</span><span class="w"> </span><span class="nt">"..."</span><span class="p">:</span><span class="w"> </span><span class="s2">"..."</span><span class="p">,</span><span class="w"> </span><span class="nt">"_option_module_"</span><span class="p">:</span><span class="w"> </span><span class="s2">"eden.options.envs"</span><span class="p">,</span><span class="w"> </span><span class="nt">"_option_class_"</span><span class="p">:</span><span class="w"> </span><span class="s2">"EnvOptions"</span><span class="p">},</span>
+</span><span id="__span-10-10"><a id="__codelineno-10-10" name="__codelineno-10-10" href="#__codelineno-10-10"></a><span class="w">        </span><span class="nt">"..."</span><span class="p">:</span><span class="w"> </span><span class="s2">"..."</span>
+</span><span id="__span-10-11"><a id="__codelineno-10-11" name="__codelineno-10-11" href="#__codelineno-10-11"></a><span class="w">    </span><span class="p">}</span>
+</span><span id="__span-10-12"><a id="__codelineno-10-12" name="__codelineno-10-12" href="#__codelineno-10-12"></a><span class="p">}</span>
 </span></code></pre></div>
 <h3 id="loading">Loading<a class="headerlink" href="#loading" title="Permanent link">&para;</a></h3>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-10-1"><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">eden.utils.configs</span><span class="w"> </span><span class="kn">import</span> <span class="n">EdenConfig</span>
-</span><span id="__span-10-2"><a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>
-</span><span id="__span-10-3"><a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a><span class="n">config</span> <span class="o">=</span> <span class="n">EdenConfig</span><span class="o">.</span><span class="n">load_from_file</span><span class="p">(</span><span class="s2">"logs/reacher/&lt;run&gt;/config.json"</span><span class="p">)</span>   <span class="c1"># returns a ReacherConfig</span>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-11-1"><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">eden.utils.configs</span><span class="w"> </span><span class="kn">import</span> <span class="n">EdenConfig</span>
+</span><span id="__span-11-2"><a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a>
+</span><span id="__span-11-3"><a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a><span class="n">config</span> <span class="o">=</span> <span class="n">EdenConfig</span><span class="o">.</span><span class="n">load_from_file</span><span class="p">(</span><span class="s2">"logs/reacher/&lt;run&gt;/config.json"</span><span class="p">)</span>   <span class="c1"># returns a ReacherConfig</span>
 </span></code></pre></div>
 <p><code>load_from_file</code> rebuilds the class the file records, so a generic loader does not need to know the
 task. The class you call it on still constrains the result: the saved class must be that class or a
@@ -6090,8 +6186,8 @@ class. <code>eden train --config</code> does; see
 </div>
 <h3 id="partial-overrides">Partial overrides<a class="headerlink" href="#partial-overrides" title="Permanent link">&para;</a></h3>
 <p>A partial override is a nested mapping of only the fields to change:</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-11-1"><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="n">config</span> <span class="o">=</span> <span class="n">config</span><span class="o">.</span><span class="n">with_overrides_from_dict</span><span class="p">({</span><span class="s2">"env_options"</span><span class="p">:</span> <span class="p">{</span><span class="s2">"num_envs"</span><span class="p">:</span> <span class="mi">64</span><span class="p">}})</span>
-</span><span id="__span-11-2"><a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a><span class="n">config</span> <span class="o">=</span> <span class="n">config</span><span class="o">.</span><span class="n">with_overrides_from_file</span><span class="p">(</span><span class="s2">"overrides.yaml"</span><span class="p">)</span>   <span class="c1"># .json, .yaml or .yml</span>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-12-1"><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a><span class="n">config</span> <span class="o">=</span> <span class="n">config</span><span class="o">.</span><span class="n">with_overrides_from_dict</span><span class="p">({</span><span class="s2">"env_options"</span><span class="p">:</span> <span class="p">{</span><span class="s2">"num_envs"</span><span class="p">:</span> <span class="mi">64</span><span class="p">}})</span>
+</span><span id="__span-12-2"><a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a><span class="n">config</span> <span class="o">=</span> <span class="n">config</span><span class="o">.</span><span class="n">with_overrides_from_file</span><span class="p">(</span><span class="s2">"overrides.yaml"</span><span class="p">)</span>   <span class="c1"># .json, .yaml or .yml</span>
 </span></code></pre></div>
 <p>Both return a new config and leave the original untouched. The override is deep-merged into the
 config: nested mappings merge key by key, and a key the override does not mention keeps its value. A

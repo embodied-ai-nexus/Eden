@@ -5816,6 +5816,10 @@ in <code>tests/tasks/test_init.py</code> check:</p>
   <code>&lt;package&gt;_&lt;task&gt;</code> (<code>PolarisPanCleanConfig</code> in <code>eden/tasks/polaris</code> is <code>polaris_pan_clean</code>). A task named
   exactly like its package is fine too.</li>
 <li>Task names are snake case.</li>
+<li>The registration passes <code>tags=</code> with every <a href="../../guides/task-config/#tags">tag</a> whose rule applies, written as a
+  literal tuple (<code>tags=("manipulation", "dexterous")</code>).</li>
+<li>The task has a row in a family table of the <a href="../../tasks/">task index</a> that matches one of its tags
+  (Locomotion, Motion tracking, Manipulation and dexterous hands, Ported benchmarks).</li>
 </ul>
 <p>No entry point is needed: <code>eden/tasks/</code> is always scanned. <a href="../../guides/task-config/">Task configuration</a> describes
 the package layout in full, and <a href="../../contributing/">Contributing</a> covers tests and pull requests.</p>

@@ -4832,6 +4832,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#eden.types.TaskTag" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;TaskTag
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#eden.types.VisMode" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -5827,6 +5838,17 @@
     <span class="md-ellipsis">
       
         <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;MorphLike
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#eden.types.TaskTag" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;TaskTag
       
     </span>
   </a>
@@ -6841,6 +6863,31 @@ EXPORT_SUCCEEDED_ONLY: Export only succeeded episodes to a single dataset file.<
     <div class="doc doc-contents ">
 
         <p>A morph or a list of morphs (used to seed deformable/rigid primitives).</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="eden.types.TaskTag" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-attribute"></code>            <span class="doc doc-object-name doc-attribute-name">TaskTag</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-module-attribute"><code>module-attribute</code></small>
+  </span>
+
+<a href="#eden.types.TaskTag" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="n">TaskTag</span><span class="p">:</span> <span class="n"><a class="autorefs autorefs-external" title="&lt;code&gt;typing.TypeAlias&lt;/code&gt;" href="https://docs.python.org/3/library/typing.html#typing.TypeAlias">TypeAlias</a></span> <span class="o">=</span> <span class="n"><a class="autorefs autorefs-external" title="&lt;code&gt;typing.Literal&lt;/code&gt;" href="https://docs.python.org/3/library/typing.html#typing.Literal">Literal</a></span><span class="p">[</span><span class="s1">'locomotion'</span><span class="p">,</span> <span class="s1">'motion_tracking'</span><span class="p">,</span> <span class="s1">'manipulation'</span><span class="p">,</span> <span class="s1">'dexterous'</span><span class="p">,</span> <span class="s1">'loco_manipulation'</span><span class="p">,</span> <span class="s1">'deformable'</span><span class="p">,</span> <span class="s1">'benchmarks'</span><span class="p">]</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>A task category tag (<code>@TASK_REGISTRY.register(tags=(...))</code>). The rule for each is in
+:data:<code>eden.tasks.registry.TASK_TAGS</code>, which holds the same names in the same order.</p>
 
     </div>
 

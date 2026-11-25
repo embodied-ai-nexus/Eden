@@ -4882,15 +4882,23 @@ command line refers to.</p>
 <p><code>eden list</code> prints every registered task with its variant modifiers:</p>
 <div class="language-bash highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>eden<span class="w"> </span>list
 </span></code></pre></div>
-<div class="language-text highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>Available Tasks in Eden: Task Name | Source | Modifiers
+<div class="language-text highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>Available Tasks in Eden: Task Name | Source | Tags | Modifiers
 </span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>  ...
-</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>  velocity_tracking_flat | eden | VelocityTrackingRobotMod, VelocityTrackingObsMod
+</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>  velocity_tracking_flat | eden | locomotion | VelocityTrackingRobotMod, VelocityTrackingObsMod
 </span><span id="__span-1-4"><a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>  ...
 </span></code></pre></div>
-<p>The first column is the name you pass to <code>--task</code>. The last column names the task's
-<a href="../guides/task-mods/">TaskMods</a>: typed presets that turn into command-line flags (<code>--robot</code>, <code>--difficulty</code>,
-<code>--song</code>, ...). A task's <code>--help</code> lists its flags with their choices and defaults:</p>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>eden<span class="w"> </span>train<span class="w"> </span>--task<span class="w"> </span>velocity_tracking_flat<span class="w"> </span>--help
+<p>The first column is the name you pass to <code>--task</code>. The Tags column files the task under categories, and
+<code>--tag</code> filters on them; a task can carry several, so <code>contrack</code> is <code>motion_tracking</code>, <code>manipulation</code> and
+<code>dexterous</code>:</p>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>eden<span class="w"> </span>list<span class="w"> </span>--tag<span class="w"> </span>locomotion
+</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>eden<span class="w"> </span>list<span class="w"> </span>--tag<span class="w"> </span>manipulation<span class="w"> </span>--tag<span class="w"> </span>dexterous<span class="w">   </span><span class="c1"># tasks carrying both</span>
+</span></code></pre></div>
+<p>The tags and the rule for each are under <a href="../guides/task-config/#tags">Tags</a>. Each family table below lists tasks
+that carry its tag, and a task with several tags appears in one of them; <code>eden list --tag &lt;tag&gt;</code> gives the full set.</p>
+<p>The last column names the task's <a href="../guides/task-mods/">TaskMods</a>: typed presets that turn into command-line
+flags (<code>--robot</code>, <code>--difficulty</code>, <code>--song</code>, ...). A task's <code>--help</code> lists its flags with their choices and
+defaults:</p>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>eden<span class="w"> </span>train<span class="w"> </span>--task<span class="w"> </span>velocity_tracking_flat<span class="w"> </span>--help
 </span></code></pre></div>
 <p>Every task registers itself with <code>@TASK_REGISTRY.register(...)</code> in a <code>config.py</code> under <code>eden/tasks/&lt;package&gt;/</code>;
 there is no central index. The task name defaults to the config class name in snake case with the trailing
@@ -4900,20 +4908,20 @@ there is no central index. The task name defaults to the config class name in sn
 the package layout.</p>
 <h2 id="the-commands-every-task-shares">The commands every task shares<a class="headerlink" href="#the-commands-every-task-shares" title="Permanent link">&para;</a></h2>
 <p>The same five commands work for any task. Substitute the task name and its flags.</p>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="c1"># Build the task with 2 envs and step it twice: a quick check that it builds on this machine.</span>
-</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>eden<span class="w"> </span>smoke<span class="w"> </span>--task<span class="w"> </span>reacher
-</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>
-</span><span id="__span-3-4"><a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="c1"># Train. num_envs is per GPU rank; each task sets its own default.</span>
-</span><span id="__span-3-5"><a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a>eden<span class="w"> </span>train<span class="w"> </span>--task<span class="w"> </span>reacher<span class="w"> </span>--difficulty<span class="w"> </span>hard<span class="w"> </span>--num_envs<span class="w"> </span><span class="m">2048</span><span class="w"> </span>--logger<span class="w"> </span>wandb
-</span><span id="__span-3-6"><a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a>
-</span><span id="__span-3-7"><a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a><span class="c1"># Resume the most recent run of this task (or a run id, or a run_name substring).</span>
-</span><span id="__span-3-8"><a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a>eden<span class="w"> </span>train<span class="w"> </span>--task<span class="w"> </span>reacher<span class="w"> </span>--resume<span class="w"> </span>latest
-</span><span id="__span-3-9"><a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a>
-</span><span id="__span-3-10"><a id="__codelineno-3-10" name="__codelineno-3-10" href="#__codelineno-3-10"></a><span class="c1"># Roll a checkpoint out. --rec records an mp4 into the run's log directory.</span>
-</span><span id="__span-3-11"><a id="__codelineno-3-11" name="__codelineno-3-11" href="#__codelineno-3-11"></a>eden<span class="w"> </span>inference<span class="w"> </span>--task<span class="w"> </span>reacher<span class="w"> </span>--checkpoint<span class="w"> </span>logs/reacher/&lt;run&gt;/model_&lt;iter&gt;.pt<span class="w"> </span>--rec
-</span><span id="__span-3-12"><a id="__codelineno-3-12" name="__codelineno-3-12" href="#__codelineno-3-12"></a>
-</span><span id="__span-3-13"><a id="__codelineno-3-13" name="__codelineno-3-13" href="#__codelineno-3-13"></a><span class="c1"># Export the policy for a runtime outside Eden (ONNX / TorchScript + policy_spec.json).</span>
-</span><span id="__span-3-14"><a id="__codelineno-3-14" name="__codelineno-3-14" href="#__codelineno-3-14"></a>eden<span class="w"> </span><span class="nb">export</span><span class="w"> </span>--task<span class="w"> </span>reacher<span class="w"> </span>--checkpoint<span class="w"> </span>logs/reacher/&lt;run&gt;/model_&lt;iter&gt;.pt
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="c1"># Build the task with 2 envs and step it twice: a quick check that it builds on this machine.</span>
+</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>eden<span class="w"> </span>smoke<span class="w"> </span>--task<span class="w"> </span>reacher
+</span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>
+</span><span id="__span-4-4"><a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="c1"># Train. num_envs is per GPU rank; each task sets its own default.</span>
+</span><span id="__span-4-5"><a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a>eden<span class="w"> </span>train<span class="w"> </span>--task<span class="w"> </span>reacher<span class="w"> </span>--difficulty<span class="w"> </span>hard<span class="w"> </span>--num_envs<span class="w"> </span><span class="m">2048</span><span class="w"> </span>--logger<span class="w"> </span>wandb
+</span><span id="__span-4-6"><a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a>
+</span><span id="__span-4-7"><a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a><span class="c1"># Resume the most recent run of this task (or a run id, or a run_name substring).</span>
+</span><span id="__span-4-8"><a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a>eden<span class="w"> </span>train<span class="w"> </span>--task<span class="w"> </span>reacher<span class="w"> </span>--resume<span class="w"> </span>latest
+</span><span id="__span-4-9"><a id="__codelineno-4-9" name="__codelineno-4-9" href="#__codelineno-4-9"></a>
+</span><span id="__span-4-10"><a id="__codelineno-4-10" name="__codelineno-4-10" href="#__codelineno-4-10"></a><span class="c1"># Roll a checkpoint out. --rec records an mp4 into the run's log directory.</span>
+</span><span id="__span-4-11"><a id="__codelineno-4-11" name="__codelineno-4-11" href="#__codelineno-4-11"></a>eden<span class="w"> </span>inference<span class="w"> </span>--task<span class="w"> </span>reacher<span class="w"> </span>--checkpoint<span class="w"> </span>logs/reacher/&lt;run&gt;/model_&lt;iter&gt;.pt<span class="w"> </span>--rec
+</span><span id="__span-4-12"><a id="__codelineno-4-12" name="__codelineno-4-12" href="#__codelineno-4-12"></a>
+</span><span id="__span-4-13"><a id="__codelineno-4-13" name="__codelineno-4-13" href="#__codelineno-4-13"></a><span class="c1"># Export the policy for a runtime outside Eden (ONNX / TorchScript + policy_spec.json).</span>
+</span><span id="__span-4-14"><a id="__codelineno-4-14" name="__codelineno-4-14" href="#__codelineno-4-14"></a>eden<span class="w"> </span><span class="nb">export</span><span class="w"> </span>--task<span class="w"> </span>reacher<span class="w"> </span>--checkpoint<span class="w"> </span>logs/reacher/&lt;run&gt;/model_&lt;iter&gt;.pt
 </span></code></pre></div>
 <p>A training run writes into <code>logs/&lt;task&gt;/&lt;timestamp&gt;-&lt;run id&gt;/</code>: the checkpoints <code>model_&lt;iter&gt;.pt</code>, the exact
 <code>config.json</code> the run trained with, and <code>progress.json</code>. See <a href="../guides/training-runs/">Training runs</a> for the
@@ -5039,7 +5047,7 @@ only warns, and the run is logged under the saved config's task.</p>
 </table>
 <h2 id="manipulation-and-dexterous-hands">Manipulation and dexterous hands<a class="headerlink" href="#manipulation-and-dexterous-hands" title="Permanent link">&para;</a></h2>
 <p><a href="manipulation/">Manipulation tasks</a> — arm-and-gripper lifting and reaching, in-hand reorientation, piano,
-assembly and hand-object tracking.</p>
+assembly and hand-object tracking; calligraphy and painting have <a href="art/">their own page</a>.</p>
 <table>
 <thead>
 <tr>
@@ -5099,11 +5107,21 @@ assembly and hand-object tracking.</p>
 <td>I2RT YAM arm</td>
 <td>Reach a sampled 3D target; the reference task-config template</td>
 </tr>
+<tr>
+<td><code>art_calligraphy_dai</code>, <code>art_calligraphy_san</code>, <code>art_calligraphy_ei</code>, <code>art_calligraphy_lettering_minimum</code></td>
+<td>Franka Panda</td>
+<td>Copy a calligraphy work with a Chinese brush or a pointed pen, graded by RoboPaint's rules (<a href="art/">Calligraphy and painting</a>)</td>
+</tr>
+<tr>
+<td><code>art_painting_fuji</code>, <code>art_painting_fuji_study</code>, <code>art_painting_sunset</code></td>
+<td>Franka Panda</td>
+<td>Copy an acrylic painting with a round brush and a palette (<a href="art/">Calligraphy and painting</a>)</td>
+</tr>
 </tbody>
 </table>
 <h2 id="ported-benchmarks">Ported benchmarks<a class="headerlink" href="#ported-benchmarks" title="Permanent link">&para;</a></h2>
-<p>These reimplement existing benchmark suites in Eden, keeping their scenes, success checks and robot setups. Each has
-its own page.</p>
+<p>These reimplement existing benchmark suites in Eden, keeping their scenes and success checks; the robot may differ
+(whiteboard runs a Panda). Each has its own page.</p>
 <table>
 <thead>
 <tr>
@@ -5142,11 +5160,6 @@ its own page.</p>
 <td>Whiteboard</td>
 <td><code>whiteboard_draw_table</code>, <code>whiteboard_write_in_colour</code>, <code>whiteboard_write_text</code></td>
 <td><a href="whiteboard/">Whiteboard</a></td>
-</tr>
-<tr>
-<td>Art</td>
-<td><code>art_calligraphy_dai</code>, <code>art_calligraphy_san</code>, <code>art_calligraphy_ei</code>, <code>art_calligraphy_lettering_minimum</code>, <code>art_painting_fuji</code>, <code>art_painting_fuji_study</code>, <code>art_painting_sunset</code></td>
-<td><a href="art/">Calligraphy and painting</a></td>
 </tr>
 </tbody>
 </table>
