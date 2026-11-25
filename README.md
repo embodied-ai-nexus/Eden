@@ -30,7 +30,7 @@ run the same policy on a real robot.
 - **245 composable MDP terms**, searchable with `eden terms --grep <text>`; any decorated function becomes a new term.
 - **47 robots and 11 composite rigs**: humanoids, quadrupeds, arms and dexterous hands.
 - **66 tasks**, from locomotion and piano to calligraphy, plus robosuite, LIBERO, SIMPLER and PolaRiS ports.
-- **Multi-physics**: every Genesis solver, plus Mochi for coupled rigid, cloth, soft-body and rod dynamics.
+- **Multi-physics**: every Genesis solver, plus GPU Mochi for coupled rigid, cloth, soft-body and rod dynamics.
 - **Sensing and rendering**: RGB-D, lidar, tactile, IMU and audio; batched Gaussian-splat scenes and path tracing.
 - **Motion data and teleop**: retarget human motion, teleoperate, and record HDF5 or LeRobot datasets.
 - **Train and deploy**: rsl-rl, rl_games, skrl or SB3 on multi-GPU DDP, then `eden deploy` to hardware or MuJoCo.
@@ -223,7 +223,7 @@ Eden builds on these open-source projects:
 - [ManiSkill](https://github.com/haosulab/ManiSkill): reference holistic environment for embodied agents.
 - [ProtoMotions](https://github.com/NVlabs/ProtoMotions) and [MimicKit](https://github.com/xbpeng/MimicKit): reference environments for human motion priors.
 - [Holosoma](https://github.com/amazon-far/holosoma) and [InstinctLab](https://github.com/project-instinct/InstinctLab): reference end-to-end humanoid frameworks.
-- [project_superdex](https://github.com/facebookresearch/project_superdex): original implementation of the Mochi solver.
+- [project_superdex](https://github.com/facebookresearch/project_superdex): original CPU implementation of the Mochi solver.
 
 ## Citation
 
