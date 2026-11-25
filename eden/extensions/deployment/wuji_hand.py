@@ -820,7 +820,7 @@ class WujiHandDeployment(DeploymentBase):
     policy. :meth:`check_safety` runs before every one of those ticks, and :meth:`ease_to` runs
     :meth:`check_hand` before every waypoint.
 
-    Attributes
+    Parameters
     ----------
     hand : {"hand1", "hand2"} | None
         Hardware generation. ``None`` infers it from the robot options (``WujiHand1*`` -> ``"hand1"``,
