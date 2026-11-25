@@ -87,6 +87,7 @@ def test_a_spec_keeps_the_assets_passive_dynamics_unless_it_sets_them():
 
 
 @pytest.mark.parametrize("actuator", _WUJI_HAND2, ids=lambda a: a.__name__)
-def test_a_wuji_hand2_motor_carries_its_joint_side_armature_damping_and_friction(actuator):
+def test_a_wuji_hand2_motor_carries_its_joint_side_armature_and_friction_but_not_damping(actuator):
+    """Damping is identified per joint and lives on the robot, so the motor keeps the asset's (``None``)."""
     assert actuator.GEAR_RATIO == 1.0 and actuator.ARMATURE() == actuator.ROTOR_INERTIA > 0
-    assert actuator.DAMPING >= 0 and actuator.FRICTIONLOSS > 0
+    assert actuator.DAMPING is None and actuator.FRICTIONLOSS > 0

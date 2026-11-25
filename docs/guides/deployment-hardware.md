@@ -452,9 +452,16 @@ simulator.
         limits were trained at (1.5 A for `WujiHand2Beta2`, upstream pen spin's operating point), or
         to 1.0 A for a robot that declares none. In `"mit_v2"`, the torque limit defaults to the
         robot's `default_dofs_force_limits`, and an explicit `effort_limit_a` becomes each joint's
-        torque through its motor's `TORQUE_CONSTANT` (so it needs the specs). An explicit value that
-        differs from `current_limit_a` is logged with the share of the trained torque ceiling it
-        leaves.
+        torque through its motor's `TORQUE_CONSTANT` (so it needs the specs). At connect the deploy
+        compares the torque ceiling it programs with the deployed robot's `default_dofs_force_limits`
+        and warns per joint where they differ, with the share of the trained ceiling the hand gets. In
+        either mode that catches an explicit `effort_limit_a`. In `"mit"` it also catches a checkpoint
+        replayed from a `config.json` saved before the Wuji Hand 2 calibration (kp 50, kd 5, 5 N·m on
+        every joint): its gains convert to MIT kp 59 to 235 and kd 5.9 to 23.5, against the firmware's
+        3.0 / 0.05, and at 1.5 A the hand gives 3% to 13% of the torque it trained with. Retrain such a
+        checkpoint on the calibrated hand before running it live. `"mit_v2"` programs that checkpoint's
+        5 N·m as its limit, so the check stays silent there. In `"mit"` without motor specs the ceiling
+        in N·m is unknown and is not checked.
 
 - **Streaming.** `stream_mode="sync"` (default) interpolates `servo_hz` (default 200) sub-targets
   across each control period and blocks until the period's deadline, chained from the previous one,

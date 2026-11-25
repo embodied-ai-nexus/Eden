@@ -59,6 +59,32 @@ class _WujiHand2Beta2(RobotOptions):
         p: m.TORQUE_CONSTANT * _CURRENT_LIMIT_A for p, (m, _) in _PEN_SPIN_MOTORS.items()
     }
 
+    # Joint damping [N*m*s/rad], per joint as upstream identified it on one right hand (``PEN_SPIN_HAND2_DAMPING``
+    # in the same file); the left hand reuses it. Upstream does not randomize damping, so unlike armature and
+    # friction loss it is not averaged into the motor specs.
+    default_dofs_damping: dict[str, float] = {
+        ".*_thumb_cmc_flex": 0.0026915050,
+        ".*_thumb_cmc_abd": 0.0042812198,
+        ".*_thumb_mcp": 0.0014135711,
+        ".*_thumb_ip": 0.0005131806,
+        ".*_index_finger_mcp_flex": 0.0010510923,
+        ".*_index_finger_mcp_abd": 0.0,
+        ".*_index_finger_pip": 0.0010302809,
+        ".*_index_finger_dip": 0.0000663526,
+        ".*_middle_finger_mcp_flex": 0.0021587672,
+        ".*_middle_finger_mcp_abd": 0.0008842859,
+        ".*_middle_finger_pip": 0.0012610488,
+        ".*_middle_finger_dip": 0.0001128493,
+        ".*_ring_finger_mcp_flex": 0.0014506542,
+        ".*_ring_finger_mcp_abd": 0.0,
+        ".*_ring_finger_pip": 0.0007149635,
+        ".*_ring_finger_dip": 0.0,
+        ".*_pinky_mcp_flex": 0.0,
+        ".*_pinky_mcp_abd": 0.0,
+        ".*_pinky_pip": 0.0016246495,
+        ".*_pinky_dip": 0.0,
+    }
+
 
 # Finger anatomy (per hand, 4 DOF each): CMC/MCP flexion + abduction, then the two
 # distal flexion joints (PIP/DIP for fingers, MCP/IP for the thumb). The empty

@@ -37,8 +37,22 @@ def _command(dofs_pos) -> RobotCommand:
 
 @pytest.fixture(scope="module")
 def envs():
-    """``envs(generation)``: a right Hand 1 or a left Hand 2 env, built on first use."""
-    robots = {"hand1": lambda: WujiHand1_R(dofs_name=H1_DOFS), "hand2": lambda: WujiHand2Beta2_L(dofs_name=H2_DOFS)}
+    """``envs(generation)``: a right Hand 1 or a left Hand 2 env, built on first use.
+
+    ``hand2_uncalibrated`` is the left Hand 2 as a ``config.json`` saved before the Wuji Hand 2 calibration rebuilds
+    it: kp 50, kd 5, 5 N·m force limits and armature 5e-4 on every joint.
+    """
+    robots = {
+        "hand1": lambda: WujiHand1_R(dofs_name=H1_DOFS),
+        "hand2": lambda: WujiHand2Beta2_L(dofs_name=H2_DOFS),
+        "hand2_uncalibrated": lambda: WujiHand2Beta2_L(
+            dofs_name=H2_DOFS,
+            default_dofs_kp={"*": 50.0},
+            default_dofs_kd={"*": 5.0},
+            default_dofs_force_limits={"*": 5.0},
+            default_dofs_armature={"*": 5.0e-4},
+        ),
+    }
     built = {}
 
     def get(generation):
@@ -59,7 +73,7 @@ def _deployer(generation):
     return fixture
 
 
-hand1, hand2 = _deployer("hand1"), _deployer("hand2")
+hand1, hand2, hand2_uncalibrated = _deployer("hand1"), _deployer("hand2"), _deployer("hand2_uncalibrated")
 
 
 def _connected(dep, transport):
@@ -189,14 +203,30 @@ def test_hand2_programs_the_nominal_gains_in_mit_units_by_default(hand2):
     assert gains.effort_limit == [1.5] * N, "the robot's current_limit_a, which its force limits trained at"
 
 
-def test_hand2_names_the_torque_an_explicit_current_limit_costs(hand2, eden_caplog):
-    assert hand2(effort_limit_a=1.0)._make_transport().gains.effort_limit == [1.0] * N
-    (warning,) = [r.message for r in eden_caplog.records if "effort_limit_a=1 A" in r.message]
-    assert "current_limit_a=1.5 A" in warning and "reaches 67% of the trained torque ceiling" in warning
+def _ceiling_warnings(caplog) -> list[str]:
+    return [r.message for r in caplog.records if "torque ceiling" in r.message]
+
+
+@pytest.mark.parametrize("control_mode", ["mit", "mit_v2"])
+def test_hand2_names_the_torque_an_explicit_current_limit_costs(hand2, eden_caplog, control_mode):
+    hand2(control_mode=control_mode, effort_limit_a=1.0)
+    (warning,) = _ceiling_warnings(eden_caplog)
+    assert "on 20 of 20 joints" in warning
+    assert "l_pinky_mcp_flex (trained 0.669 N·m, hand 0.446 N·m, 67%)" in warning  # 0.4461 N·m/A at 1.5 A, then 1 A
 
     eden_caplog.clear()
-    hand2(effort_limit_a=1.5)
-    assert not [r for r in eden_caplog.records if "effort_limit_a=" in r.message]
+    hand2(control_mode=control_mode, effort_limit_a=1.5)
+    hand2(control_mode=control_mode)
+    assert not _ceiling_warnings(eden_caplog), "1.5 A is the current the robot's force limits are derived from"
+
+
+def test_hand2_warns_when_a_pre_calibration_checkpoint_would_run_on_the_hand(hand2_uncalibrated, eden_caplog):
+    """Its config.json trained at 5 N·m and kp 50: the hand gives a fraction of the torque at MIT gains far above 3.0."""
+    gains = hand2_uncalibrated()._make_transport().gains
+    assert min(gains.kp) > 50.0, "kp 50 N·m/rad is over 50 MIT units on every motor"
+    (warning,) = _ceiling_warnings(eden_caplog)
+    assert "on 20 of 20 joints" in warning and "l_pinky_mcp_flex (trained 5 N·m, hand 0.669 N·m, 13%)" in warning
+    assert "predates the Wuji Hand 2 calibration" in warning
 
 
 def test_hand2_refuses_specs_that_leave_joints_unconverted(hand2, monkeypatch):

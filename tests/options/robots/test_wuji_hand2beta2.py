@@ -57,9 +57,10 @@ _TORQUE_CONSTANT = (
 )
 _MIT_KD = [0.075, 0.07, 0.05, 0.05] * 5
 _JOINT_GAIN = [kt * 1.9114709702965849 for kt in _TORQUE_CONSTANT]
-# Upstream's per-joint values, averaged over the joints of each of Wuji's seven motor models: thumb CMC flexion
-# with index / middle / ring MCP flexion; index / middle / ring abduction, PIP and DIP; little-finger abduction,
-# PIP and DIP; and thumb CMC abduction, thumb MCP, thumb IP and little-finger MCP flexion, one joint each.
+# Upstream's per-joint values. Armature and friction loss are averaged over the joints of each of Wuji's seven
+# motor models: thumb CMC flexion with index / middle / ring MCP flexion; index / middle / ring abduction, PIP and
+# DIP; little-finger abduction, PIP and DIP; and thumb CMC abduction, thumb MCP, thumb IP and little-finger MCP
+# flexion, one joint each. Damping is per joint, as upstream identified it.
 _MOTOR_JOINTS = [[0, 4, 8, 12], [5, 6, 7, 9, 10, 11, 13, 14, 15], [17, 18, 19], [1], [2], [3], [16]]
 _PER_JOINT = {
     "armature": [
@@ -93,15 +94,17 @@ _EXPECTED = {
     "kp": [3.0 * g for g in _JOINT_GAIN],
     "kd": [kd * g for kd, g in zip(_MIT_KD, _JOINT_GAIN)],
     "force_limits": [1.5 * kt for kt in _TORQUE_CONSTANT],
-    **{field: _motor_mean(values) for field, values in _PER_JOINT.items()},
+    "armature": _motor_mean(_PER_JOINT["armature"]),
+    "frictionloss": _motor_mean(_PER_JOINT["frictionloss"]),
+    "damping": _PER_JOINT["damping"],
 }
 
 
 @pytest.mark.parametrize("name", _HANDS)
-def test_the_motor_specs_reach_the_solver_joint_by_joint(env, name):
-    """Every value comes from the joint's motor spec, the robot setting none of armature, damping or friction loss."""
+def test_the_calibration_reaches_the_solver_joint_by_joint(env, name):
+    """Armature and friction loss come from the joint's motor spec, damping from the robot's per-joint table."""
     hand = env.entities[name]
-    assert not any(getattr(_HANDS[name][0](), f"default_dofs_{f}") for f in ("armature", "damping", "frictionloss"))
+    assert not any(getattr(_HANDS[name][0](), f"default_dofs_{f}") for f in ("armature", "frictionloss"))
     lower, upper = hand.get_dofs_force_range()
     for field, got in (
         ("kp", hand.get_dofs_kp()),

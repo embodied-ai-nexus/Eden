@@ -339,8 +339,10 @@ finger motors (`WujiHand2Flex`, `WujiHand2ThumbAbd`, `WujiHand2ThumbMcp`, `WujiH
 `WujiHand2Finger`, `WujiHand2PinkyFlex`, `WujiHand2Pinky`). The Wuji specs carry the motor's
 `TORQUE_CONSTANT` (N·m/A) and convert the firmware's MIT gains: `JOINT_GAIN(mit_gain)` gives the joint-space
 kp or kd, and `MIT_GAIN(joint_gain)` the reverse. Each is one of the hand's seven motor models and carries the
-mean of upstream's per-joint armature, damping and friction loss over the joints that model drives; the damping
-and friction loss were identified on one right hand, and the left-hand presets use the same values. The gains
+mean of upstream's per-joint armature and friction loss over the joints that model drives. Damping stays per joint
+on the robot (`_WujiHand2Beta2.default_dofs_damping`): upstream does not randomize it, and within the little
+finger's motor model alone it runs from 0 to 1.6e-3 N·m·s/rad. Damping and friction loss were identified on one right hand, and the
+left-hand presets use the same values. The gains
 convert at 1.91147 A per MIT unit, the factor of Wuji's published pen-spin configuration; firmware v2.13.1 and
 v3.0.0 use 1.98413, so on those versions the hand runs 3.8% stiffer than the simulated gains under legacy MIT;
 deploying with `control_mode="mit_v2"` (firmware 3.1.0+) programs the joint-space gains directly. The specs hold no

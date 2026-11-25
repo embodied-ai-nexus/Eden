@@ -46,7 +46,7 @@ from eden.extensions.deployment.utils.state import RobotCommand, RobotState
 from eden.options.actuators import WujiHand2Actuator
 from eden.options.robots.wuji_hand1 import _WujiHand1
 from eden.options.robots.wuji_hand2beta2 import _WujiHand2Beta2
-from eden.utils.string import resolve_matching_names_values
+from eden.utils.string import first_few, resolve_matching_names_values
 
 if TYPE_CHECKING:
     from eden.envs.base import EnvBase
@@ -941,6 +941,7 @@ class WujiHandDeployment(DeploymentBase):
             self._mit_kd = self._resolve_gain(
                 "mit_kd", self.mit_kd, None if per_unit is None else self.default_dof_kd / per_unit
             )
+            self._warn_on_torque_ceiling(motors)
 
         self.stream = StreamOptions(mode=self.stream_mode, servo_hz=self.servo_hz, interp_s=self.control_dt)
         if self.stream_mode == "sync":
@@ -1049,20 +1050,56 @@ class WujiHandDeployment(DeploymentBase):
     def _resolve_hand2_current_limit(self) -> np.ndarray:
         """Per deployment DOF, the current limit [A]: ``effort_limit_a``, else the robot's ``current_limit_a``, else 1.0.
 
-        ``current_limit_a`` is the current the robot's ``default_dofs_force_limits`` were trained at (the Wuji Hand 2
-        options derive them as ``TORQUE_CONSTANT * current_limit_a``), so an explicit value that differs is logged.
+        ``current_limit_a`` is the current the Wuji Hand 2 options derive ``default_dofs_force_limits`` from
+        (``TORQUE_CONSTANT * current_limit_a``). :meth:`_warn_on_torque_ceiling` checks the result against the
+        force limits the deployed robot actually carries.
         """
-        trained = getattr(self.robot_options, "current_limit_a", None)
         if self.effort_limit_a is None:
+            trained = getattr(self.robot_options, "current_limit_a", None)
             return np.full(self.num_dofs, 1.0 if trained is None else float(trained))
-        if trained is not None and not np.isclose(self.effort_limit_a, trained):
-            en.logger.warning(
-                f"[wuji] effort_limit_a={self.effort_limit_a:g} A, but {type(self.robot_options).__name__}'s force "
-                f"limits were trained at current_limit_a={trained:g} A, so the hand reaches "
-                f"{self.effort_limit_a / trained:.0%} of the trained torque ceiling. Leave effort_limit_a unset to "
-                "program the trained current."
-            )
         return np.full(self.num_dofs, float(self.effort_limit_a))
+
+    def _warn_on_torque_ceiling(self, motors: dict[str, type[WujiHand2Actuator]] | None) -> None:
+        """Warn per joint where the hand's torque ceiling is not the force limit the policy trained with.
+
+        The trained ceiling is the deployed robot's ``default_dofs_force_limits`` as the built entity resolved them:
+        for a checkpoint replayed from its ``config.json``, the limits it trained at. The hand's ceiling is the
+        programmed effort limit, in N·m under MIT_V2 and under legacy MIT the current times each motor's
+        ``TORQUE_CONSTANT``; without motor specs legacy MIT's ceiling in N·m is unknown and nothing is checked.
+        """
+        if self.control_mode == "mit_v2":
+            ceiling = self._effort_limit
+        elif motors is not None:
+            ceiling = self._effort_limit * np.array([motors[name].TORQUE_CONSTANT for name in self.dofs_name])
+        else:
+            return
+        entity = self._env.entities[self.entity_name]
+        trained = entity.get_default_dofs_force_limits(self.dofs_name)[0].cpu().numpy().astype(np.float64)
+        differing = [
+            f"{name} (trained {t:.3g} N·m, hand {c:.3g} N·m" + (f", {c / t:.0%})" if t > 0 else ")")
+            for name, t, c in zip(self.dofs_name, trained, ceiling, strict=True)
+            if not np.isclose(c, t, rtol=1e-3)
+        ]
+        if not differing:
+            return
+        robot = type(self.robot_options).__name__
+        if self.control_mode == "mit_v2":  # only an explicit effort_limit_a differs here
+            advice = (
+                f"The hand gets effort_limit_a={self.effort_limit_a:g} A times each motor's TORQUE_CONSTANT. Leave "
+                "effort_limit_a unset to program the robot's force limits."
+            )
+        else:
+            advice = (
+                f"The hand gets {self._effort_limit.min():g} A (effort_limit_a, else the robot's current_limit_a) "
+                "times each motor's TORQUE_CONSTANT. Leave effort_limit_a unset to program the robot's "
+                "current_limit_a. A checkpoint whose config.json predates the Wuji Hand 2 calibration (5 N·m force "
+                "limits, kp 50 / kd 5) trained on another hand model, and its gains convert to MIT gains far above "
+                "the firmware's kp 3.0 / kd 0.05: retrain it on WujiHand2Beta2 before running it on the hand."
+            )
+        en.logger.warning(
+            f"[wuji] The hand's torque ceiling is not the force limit {robot} trained with on {len(differing)} of "
+            f"{self.num_dofs} joints: {first_few(differing)}. {advice}"
+        )
 
     def _resolve_hand2_torque_limit(self, motors: dict[str, type[WujiHand2Actuator]] | None) -> np.ndarray:
         """MIT_V2's per-DOF torque limit [N·m].

@@ -359,12 +359,16 @@ class WujiHand2Actuator(ActuatorSpecOptions):
     factor applies there.
 
     Each subclass is one of the hand's seven motor models, as Wuji groups them. ``ROTOR_INERTIA`` (with
-    ``GEAR_RATIO`` 1, so it is the joint-side armature, as the LimX specs encode theirs), ``DAMPING`` and
-    ``FRICTIONLOSS`` are the mean of upstream's per-joint values over the joints that model drives:
-    upstream's armature is Wuji's per-joint table, and its damping and friction loss were identified on one
-    right hand (the left-hand presets use the same values), so joint-to-joint differences within a model are unit
-    spread (each joint sits within upstream's
-    domain-randomization band of its model's mean). A model driving one joint takes that joint's value.
+    ``GEAR_RATIO`` 1, so it is the joint-side armature, as the LimX specs encode theirs) and ``FRICTIONLOSS``
+    are the mean of upstream's per-joint values over the joints that model drives. Upstream's armature is
+    Wuji's per-joint table and its friction loss was identified on one right hand (the left-hand presets use
+    the same values), and every joint sits within upstream's domain-randomization band of its model's mean
+    (armature x0.5-2, friction loss x0.5-1.5), so the spread within a model is treated as unit spread. A model
+    driving one joint takes that joint's value.
+
+    ``DAMPING`` stays ``None``: upstream identified joint damping per joint on the same hand, from 0 to
+    4.3e-3 N*m*s/rad, and does not randomize it, so a model's mean would move some joints off zero and cut
+    others to a third. ``_WujiHand2Beta2.default_dofs_damping`` carries the per-joint values.
 
     The current a task runs the hand at, and so its torque ceiling, is the robot's operating point
     (``_WujiHand2Beta2.current_limit_a``), so ``EFFORT_LIMIT`` keeps the base's unknown default.
@@ -402,7 +406,6 @@ class WujiHand2Flex(WujiHand2Actuator):
     TORQUE_CONSTANT: ClassVar[float] = 0.4136
     ROTOR_INERTIA: ClassVar[float] = 1.4981e-4  # mean of 4 joints
     GEAR_RATIO: ClassVar[float] = 1.0
-    DAMPING: ClassVar[float] = 1.8380e-3
     FRICTIONLOSS: ClassVar[float] = 4.0709e-2
 
 
@@ -412,7 +415,6 @@ class WujiHand2ThumbAbd(WujiHand2Actuator):
     TORQUE_CONSTANT: ClassVar[float] = 0.3545
     ROTOR_INERTIA: ClassVar[float] = 1.366389e-4
     GEAR_RATIO: ClassVar[float] = 1.0
-    DAMPING: ClassVar[float] = 0.0042812198
     FRICTIONLOSS: ClassVar[float] = 0.0342266392
 
 
@@ -422,7 +424,6 @@ class WujiHand2ThumbMcp(WujiHand2Actuator):
     TORQUE_CONSTANT: ClassVar[float] = 0.2216
     ROTOR_INERTIA: ClassVar[float] = 1.273553e-4
     GEAR_RATIO: ClassVar[float] = 1.0
-    DAMPING: ClassVar[float] = 0.0014135711
     FRICTIONLOSS: ClassVar[float] = 0.0187921182
 
 
@@ -432,7 +433,6 @@ class WujiHand2ThumbIp(WujiHand2Actuator):
     TORQUE_CONSTANT: ClassVar[float] = 0.1329
     ROTOR_INERTIA: ClassVar[float] = 8.768902e-5
     GEAR_RATIO: ClassVar[float] = 1.0
-    DAMPING: ClassVar[float] = 0.0005131806
     FRICTIONLOSS: ClassVar[float] = 0.0122545518
 
 
@@ -442,7 +442,6 @@ class WujiHand2Finger(WujiHand2Actuator):
     TORQUE_CONSTANT: ClassVar[float] = 0.1673
     ROTOR_INERTIA: ClassVar[float] = 5.7249e-5  # mean of 9 joints
     GEAR_RATIO: ClassVar[float] = 1.0
-    DAMPING: ClassVar[float] = 4.5220e-4
     FRICTIONLOSS: ClassVar[float] = 1.9409e-2
 
 
@@ -452,7 +451,6 @@ class WujiHand2PinkyFlex(WujiHand2Actuator):
     TORQUE_CONSTANT: ClassVar[float] = 0.4461
     ROTOR_INERTIA: ClassVar[float] = 9.706259e-5
     GEAR_RATIO: ClassVar[float] = 1.0
-    DAMPING: ClassVar[float] = 0.0
     FRICTIONLOSS: ClassVar[float] = 0.0338251954
 
 
@@ -462,5 +460,4 @@ class WujiHand2Pinky(WujiHand2Actuator):
     TORQUE_CONSTANT: ClassVar[float] = 0.1115
     ROTOR_INERTIA: ClassVar[float] = 4.4114e-5  # mean of 3 joints
     GEAR_RATIO: ClassVar[float] = 1.0
-    DAMPING: ClassVar[float] = 5.4155e-4
     FRICTIONLOSS: ClassVar[float] = 1.7760e-2
