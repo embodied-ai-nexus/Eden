@@ -77,7 +77,9 @@ jobs:
         run: .venv/bin/mkdocs build --strict
   # Eden's rsl_rl algorithms, runners and runner mixins against every rsl-rl-lib major the `rsl-rl-lib>=3.0` pin
   # admits. The lock installs 5.5.2; `uv run --with` layers another release over it for the test run only. The tests
-  # run on CPU (eden.init's default backend), so no GPU runner is needed.
+  # run on CPU (eden.init's default backend), so no GPU runner is needed. The extreme_parkour training tests drive the
+  # RMA depth student, the one runner that runs its own loop through eden.envs.wrappers.rsl_rl_compat's logger and NaN
+  # helpers; they skip below rsl-rl-lib 5.5.1.
   rsl-rl:
     name: rsl_rl tests (rsl-rl-lib ${{ matrix.rsl-rl-lib }})
     runs-on: ubuntu-latest
@@ -116,4 +118,4 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libegl1 libegl-mesa0 libgl1-mesa-dri
       - name: Run the rsl_rl tests
         run: >-
-          uv run --no-sync --with rsl-rl-lib==${{ matrix.rsl-rl-lib }} pytest -q tests/envs/wrappers/test_rsl_rl_compat.py tests/learning/wrappers/rsl_rl tests/envs/wrappers/test_rsl_rl_env.py
+          uv run --no-sync --with rsl-rl-lib==${{ matrix.rsl-rl-lib }} pytest -q tests/envs/wrappers/test_rsl_rl_compat.py tests/learning/wrappers/rsl_rl tests/envs/wrappers/test_rsl_rl_env.py tests/tasks/extreme_parkour/test_training.py

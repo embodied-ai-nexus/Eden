@@ -57,6 +57,9 @@ from eden.envs.wrappers.rsl_rl_compat import MEAN_REWARD_KEY, UpdateResult, loss
 #: ``class_name`` string rsl_rl resolves to :class:`AmpPPO`.
 AMP_PPO_CLASS_NAME = "eden.learning.wrappers.rsl_rl.amp_ppo.ppo:AmpPPO"
 
+#: The ``process_env_step()`` key rsl-rl-lib >= 6.0's PPO reports the extrinsic reward under when RND is on.
+_RND_EXTRINSIC_REWARD_KEY = "Rnd/mean_extrinsic_reward"
+
 #: What :meth:`AmpPPO.save` adds to PPO's checkpoint.
 _AMP_CHECKPOINT_KEYS = ("amp_discriminator_state_dict", "amp_optimizer_state_dict", "amp_normalizer_state_dict")
 
@@ -147,8 +150,10 @@ class AmpPPO(PPO):
         Returns
         -------
         dict[str, torch.Tensor] or None
-            PPO's own result. On rsl-rl-lib >= 6.0 its ``Training/mean_reward`` is the env's reward without the style
-            reward, which is what the runner logs before 6.0; the style reward is logged as ``Loss/amp_style_reward``.
+            PPO's own result, with the rewards the runner logs before rsl-rl-lib 6.0: on 6.0 its
+            ``Training/mean_reward`` is the env's reward (plus RND's intrinsic reward, when RND is on) and its
+            ``Rnd/mean_extrinsic_reward`` the env's reward, both without the style reward, which is logged as
+            ``Loss/amp_style_reward``.
         """
         raw_windows, gate = self._split_amp_obs(obs)
         frames = raw_windows.view(-1, self.amp_num_frames, self.amp_expert.frame_dim)
@@ -159,8 +164,11 @@ class AmpPPO(PPO):
         self._style_reward_sum = self._style_reward_sum + style.mean()
         self._style_reward_steps += 1
         step = super().process_env_step(obs, rewards + style, dones, extras)
-        if step is not None and MEAN_REWARD_KEY in step:
-            step[MEAN_REWARD_KEY] = rewards
+        if step is not None:  # rsl-rl-lib >= 6.0: PPO reported the rewards it was handed, style reward included
+            if MEAN_REWARD_KEY in step:
+                step[MEAN_REWARD_KEY] = rewards + self.intrinsic_rewards if self.rnd else rewards
+            if _RND_EXTRINSIC_REWARD_KEY in step:
+                step[_RND_EXTRINSIC_REWARD_KEY] = rewards
         return step
 
     # ------------------------------------------------------------------

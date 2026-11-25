@@ -8,8 +8,8 @@ import pytest
 import torch
 from tensordict import TensorDict
 
-from eden.learning.wrappers.rsl_rl import MIN_RSL_RL_VERSION
 from eden.envs.wrappers.rsl_rl_compat import loss_dict_of
+from eden.learning.wrappers.rsl_rl import MIN_RSL_RL_VERSION
 from eden.options.learning.rsl_rl.translate import detect_rsl_rl_version, translate_runner_dict
 from eden.tasks import TASK_REGISTRY
 from tests.support.rsl_rl import runner_unpacks_stats
@@ -130,9 +130,8 @@ def test_per_mini_batch_advantage_normalization_is_applied_in_the_update():
             )
         alg.compute_returns(_obs(seed=NUM_STEPS))
     assert alg.storage.advantages.abs().max() > 100.0  # raw, as stock compute_returns leaves them under the flag
-    assert (
-        abs(loss_dict_of(alg.update())["surrogate"]) < 10.0
-    )  # O(1): each mini-batch was normalized before the surrogate
+    # O(1): each mini-batch was normalized before the surrogate.
+    assert abs(loss_dict_of(alg.update())["surrogate"]) < 10.0
 
 
 def test_a_recurrent_critic_is_refused():

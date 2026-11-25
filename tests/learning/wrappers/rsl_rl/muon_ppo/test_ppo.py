@@ -8,8 +8,8 @@ from tensordict import TensorDict
 
 from eden.envs.wrappers.rsl_rl_compat import loss_dict_of
 from eden.options.learning.rsl_rl.translate import detect_rsl_rl_major_version
-from tests.support.simba import NUM_ACTIONS, group_obs, runner_dict, simba_models
 from tests.support.rsl_rl import runner_unpacks_stats
+from tests.support.simba import NUM_ACTIONS, group_obs, runner_dict, simba_models
 
 pytestmark = pytest.mark.skipif(detect_rsl_rl_major_version() < 5, reason="MuonPPO needs rsl-rl-lib >= 5")
 

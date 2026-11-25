@@ -16,8 +16,8 @@ from eden.envs.wrappers.rsl_rl_compat import MEAN_REWARD_KEY
 from eden.learning.wrappers.rsl_rl.him import HIMPPO, HIMPPOAlgorithmOptions
 from eden.options.learning.rsl_rl.translate import detect_rsl_rl_major_version
 from eden.tasks import TASK_REGISTRY
-from tests.support.rsl_rl import runner_unpacks_stats
 from eden.tasks.homie.symmetry import ACTION_DIM
+from tests.support.rsl_rl import runner_unpacks_stats
 
 
 @pytest.fixture(scope="module")
@@ -132,7 +132,10 @@ def test_an_env_that_fell_over_on_the_step_it_timed_out_is_not_bootstrapped(wrap
         assert dones.tolist() == [1, 1, 1, 1] and extras["time_outs"].tolist() == [False, True, True, True]
         step = alg.process_env_step(obs, rewards, dones, extras)
         # What the installed runner hands its logger: the env's own rewards from rsl-rl-lib 6.0, nothing before.
-        assert step is None if not runner_unpacks_stats() else torch.equal(step[MEAN_REWARD_KEY], rewards)
+        if runner_unpacks_stats():
+            assert torch.equal(step[MEAN_REWARD_KEY], rewards)
+        else:
+            assert step is None
 
     bootstrapped = torch.tensor([0.0, 1.0, 1.0, 1.0], device=env.device)
     stored = alg.storage.rewards[0, :, 0]  # the step's own transition; its mirror is row 1

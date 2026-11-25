@@ -43,7 +43,12 @@ from tensordict import TensorDict
 from torch import nn
 
 from eden.envs.wrappers.rsl_rl_env import EDEN_RUNNER_MIXINS
-from eden.envs.wrappers.rsl_rl_compat import log_env_step, log_iteration, raise_if_env_step_nonfinite
+from eden.envs.wrappers.rsl_rl_compat import (
+    log_env_step,
+    log_iteration,
+    raise_if_nonfinite,
+    record_env_step_nonfinite,
+)
 from eden.learning.wrappers.rsl_rl.rma.depth_encoder import RecurrentDepthEncoder
 from eden.learning.wrappers.rsl_rl.rma.model import RmaActorModel
 from eden.utils import distributed as eden_dist
@@ -279,6 +284,7 @@ class RmaDepthDistillationRunner(*EDEN_RUNNER_MIXINS, OnPolicyRunner):
             action_diffs: list[torch.Tensor] = []
             yaw_errors: list[torch.Tensor] = []
             gate_fracs: list[torch.Tensor] = []  # 0-d tensors; one host sync per iteration
+            nonfinite: dict[str, torch.Tensor] = {}  # NaN / Inf flags per env output; raised after the rollout
             # NO torch.inference_mode (unlike PPO): the student's actions carry the graph the update backpropagates.
             for _ in range(self.cfg["num_steps_per_env"]):
                 # Clone: the yaw substitution must not leak into the env-owned observation buffer.
@@ -299,9 +305,10 @@ class RmaDepthDistillationRunner(*EDEN_RUNNER_MIXINS, OnPolicyRunner):
                 stepped = teacher_actions if it < alg.num_pretrain_iters else student_actions
                 obs, rewards, dones, extras = self.env.step(stepped.detach().to(self.env.device))
                 if check_for_nan:
-                    raise_if_env_step_nonfinite(obs, rewards, dones, extras)
+                    record_env_step_nonfinite(nonfinite, obs, rewards, dones, extras)
                 obs, rewards, dones = obs.to(self.device), rewards.to(self.device), dones.to(self.device)
                 log_env_step(self.logger, rewards, dones, extras)
+            raise_if_nonfinite(nonfinite)  # before the update trains on the rollout, as rsl_rl's runner does
 
             stop = time.time()
             collect_time, start = stop - start, stop

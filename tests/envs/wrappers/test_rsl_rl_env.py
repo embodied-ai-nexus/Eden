@@ -15,6 +15,7 @@ from importlib import metadata
 import gymnasium as gym
 import pytest
 import torch
+from tensordict import TensorDict
 
 from eden.envs.wrappers import rsl_rl_env
 from eden.envs.wrappers.rsl_rl_env import (
@@ -35,12 +36,12 @@ from eden.envs.wrappers.rsl_rl_env import (
     make_rsl_rl_runner,
     rsl_rl_runner_class,
 )
-from eden.envs.wrappers.rsl_rl_compat import log_env_step
+from eden.envs.wrappers.rsl_rl_compat import FINAL_OBS_KEY, log_env_step, stock_nan_check_reads_nested_groups
 from eden.options.learning.rsl_rl.translate import detect_rsl_rl_major_version
 from eden.utils.configs import EdenConfig, EdenRLConfig
 from eden.utils.warning import warn_once
 from tests.envs.conftest import trace_config
-from tests.envs.wrappers.conftest import rsl_rl_runner_options
+from tests.envs.wrappers.conftest import built_gym_pendulum_env, ending, rsl_rl_runner_options
 from tests.support.motion import build_mimic_env, manager_options, pin_clips, term_options, write_library
 
 INSTALLED = metadata.version("rsl-rl-lib")
@@ -117,6 +118,26 @@ def test_step_reports_dones_as_terminated_or_truncated_and_time_outs_only_where_
 
     _, _, dones, extras = wrapper.step(torch.zeros(env.num_envs, 1))
     assert dones.tolist() == [0, 0] and extras["time_outs"].tolist() == [False, False]
+
+
+def test_a_done_envs_last_observation_also_reaches_rsl_rl_as_final_obs(pendulum_file):
+    """rsl-rl-lib >= 6.0 reads ``extras["final_obs"]`` (its runner's NaN check, SAC); Eden's env publishes
+    ``extras["final_observations"]``, which Eden's own algorithms read. The wrapper hands rsl_rl the same tensors.
+    """
+    env = built_gym_pendulum_env(pendulum_file, num_envs=3)
+    try:
+        wrapper = RslRlVecEnvWrapper(env, options=rsl_rl_runner_options())
+        wrapper.step(torch.ones(3, 1))
+        with ending(env, [True, False, False]):
+            _, _, dones, extras = wrapper.step(torch.ones(3, 1))
+    finally:
+        env.destroy()
+
+    assert dones.tolist() == [1, 0, 0]
+    final, published = extras[FINAL_OBS_KEY], extras["final_observations"]
+    assert isinstance(final, TensorDict) and final.batch_size == torch.Size([3])
+    assert final["policy"] is published["policy"]  # no copy
+    assert final["critic", "dofs_pos"] is published["critic"]["dofs_pos"]  # a non-concatenated group stays nested
 
 
 def test_observation_spaces_follow_each_groups_layout(wrapper):
@@ -223,6 +244,22 @@ def test_progress_file_is_not_written_without_a_log_dir_or_on_a_logging_disabled
     disabled.logger.disable_logs = True  # what rsl_rl sets on a non-zero DDP rank
     disabled.learn(num_learning_iterations=1)
     assert not (tmp_path / "progress.json").exists()
+
+
+def test_a_nan_check_the_installed_rsl_rl_cannot_make_is_refused_before_the_first_step(wrapper, tmp_path):
+    """The pendulum's ``critic`` group keeps its terms apart, which rsl-rl-lib 6.0's ``find_nonfinite`` cannot read:
+    it would fail with an ``AttributeError`` naming no group at the end of the first rollout.
+    """
+    runner_dict = json.loads(json.dumps(wrapper.runner_dict))
+    runner_dict["check_for_nan"] = True
+    runner = MimicOnPolicyRunner(wrapper, runner_dict, log_dir=str(tmp_path), device="cpu")
+    steps_before = int(wrapper.unwrapped.common_step_counter)
+    if stock_nan_check_reads_nested_groups():
+        runner.learn(num_learning_iterations=1)  # 5.x's check_nan reads the group; 3.x and 4.x check nothing
+        return
+    with pytest.raises(ValueError, match=r"check_for_nan=True.*group\(s\) 'critic'.*concatenate_terms=True"):
+        runner.learn(num_learning_iterations=1)
+    assert int(wrapper.unwrapped.common_step_counter) == steps_before  # refused before the env stepped
 
 
 def test_a_non_zero_ddp_rank_runner_accumulates_no_episode_extras(wrapper, tmp_path, monkeypatch):

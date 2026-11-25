@@ -36,7 +36,7 @@ from tensordict import TensorDict
 import eden as en
 from eden.envs.base import MimicRLEnvBase
 from eden.envs.wrappers.core import EnvWrapperMixin, action_space, observation_space, time_outs
-from eden.envs.wrappers.rsl_rl_compat import episode_buffers
+from eden.envs.wrappers.rsl_rl_compat import FINAL_OBS_KEY, episode_buffers, stock_nan_check_reads_nested_groups
 from eden.options.learning.rsl_rl.translate import translate_runner_dict
 from eden.utils import distributed as eden_dist
 from eden.utils.assets import model_checkpoints
@@ -262,6 +262,11 @@ class RslRlVecEnvWrapper(EnvWrapperMixin, VecEnv, gym.Env):
         # extras["time_outs"], whatever `dones` says. Report it on every step:
         # withholding it makes PPO grade every time-out as a true terminal.
         extras["time_outs"] = time_outs(terminated, truncated)
+        # rsl-rl-lib >= 6.0 reads a done env's last observation from extras["final_obs"] (its runner's NaN check, SAC's
+        # bootstrap), as a TensorDict like the observations; Eden's env publishes it as a dict under
+        # "final_observations", which Eden's own algorithms keep reading. No copy: both hold the same tensors.
+        if (final_obs := extras.get("final_observations")) is not None:
+            extras[FINAL_OBS_KEY] = TensorDict(cast(dict[str, Any], final_obs), batch_size=[self.num_envs])
         return (
             TensorDict(cast(dict[str, Any], obs_dict), batch_size=[self.num_envs]),
             rew,
@@ -715,6 +720,34 @@ class SaveBeforeLearnMixin:
             logger.writer = None
 
 
+class StockNanCheckGuardMixin:
+    """Refuse a run whose ``check_for_nan`` rsl_rl's own training loop cannot make, before its first step.
+
+    rsl-rl-lib 6.0's NaN check fails on an observation group whose terms are not concatenated
+    (:func:`~eden.envs.wrappers.rsl_rl_compat.stock_nan_check_reads_nested_groups`), and only at the end of the first
+    rollout, with an ``AttributeError`` inside rsl_rl that names no group. This names the groups and the two settings
+    that avoid it as ``learn()`` starts. Composed only by the runners that run ``OnPolicyRunner.learn``, the loop
+    that makes the check: 6.0's ``DistillationRunner.learn`` makes none, and a runner that owns its loop, such as the
+    RMA depth student, makes its own (:func:`~eden.envs.wrappers.rsl_rl_compat.record_env_step_nonfinite`), which
+    reads such groups.
+    """
+
+    def learn(self, *args, **kwargs):  # type: ignore[no-untyped-def]
+        if self.cfg.get("check_for_nan", True) and not stock_nan_check_reads_nested_groups():
+            observations = self.env.get_observations()
+            nested = [group for group, value in observations.items() if not isinstance(value, torch.Tensor)]
+            if nested:
+                raise ValueError(
+                    f"runner_options.check_for_nan=True, but the installed rsl-rl-lib's NaN check "
+                    f"(rsl_rl.utils.find_nonfinite) cannot read the observation group(s) {', '.join(map(repr, nested))}, "
+                    "whose terms are not concatenated (ObservationGroupOptions.concatenate_terms=False): it would stop "
+                    "training at the end of the first rollout with AttributeError: 'int' object has no attribute 'to'. "
+                    "Fix: set concatenate_terms=True on those groups, or runner_options.check_for_nan=False to train "
+                    "without the check. rsl-rl-lib 5.x's check reads such groups."
+                )
+        return super().learn(*args, **kwargs)  # type: ignore[misc]
+
+
 #: What Eden adds to every rsl_rl runner it builds, in MRO order: ``progress.json``, the agent log theme, checkpoint
 #: retention, and saving before ``learn()`` on rsl-rl-lib 4.x. The runners for other rsl_rl-based learners (FlashSAC's
 #: ``OffPolicyRunner``, SuperMimic's, the RMA depth student's) compose the same tuple, so a feature added here reaches
@@ -725,7 +758,7 @@ class SaveBeforeLearnMixin:
 EDEN_RUNNER_MIXINS = (ProgressFileMixin, AgentIterationLogMixin, CheckpointRetentionMixin, SaveBeforeLearnMixin)
 
 
-class MimicOnPolicyRunner(*EDEN_RUNNER_MIXINS, MotionWeightCurriculumMixin, OnPolicyRunner):
+class MimicOnPolicyRunner(*EDEN_RUNNER_MIXINS, StockNanCheckGuardMixin, MotionWeightCurriculumMixin, OnPolicyRunner):
     """``OnPolicyRunner`` plus the per-iter motion-weight curriculum hook for mimic tasks."""
 
 
@@ -733,7 +766,9 @@ class MimicDistillationRunner(*EDEN_RUNNER_MIXINS, MotionWeightCurriculumMixin, 
     """``DistillationRunner`` plus the per-iter motion-weight curriculum hook for mimic tasks."""
 
 
-class DDPOnPolicyRunner(*EDEN_RUNNER_MIXINS, MotionWeightCurriculumMixin, DDPRunnerMixin, OnPolicyRunner):
+class DDPOnPolicyRunner(
+    *EDEN_RUNNER_MIXINS, StockNanCheckGuardMixin, MotionWeightCurriculumMixin, DDPRunnerMixin, OnPolicyRunner
+):
     """Drop-in replacement for :class:`OnPolicyRunner` for Eden's single-GPU-per-process setup.
 
     Expects the NCCL process group to be **already initialized** by

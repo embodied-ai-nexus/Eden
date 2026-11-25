@@ -28,17 +28,25 @@ mixin may replace ``logger.log`` on the instance with a ``*args, **kwargs`` wrap
 from __future__ import annotations
 
 import functools
+import importlib.util
 import inspect
-from collections.abc import Sequence
+from collections.abc import Iterator, Sequence
 from typing import Any, TypeAlias
 
 import torch
+
+from eden.utils.warning import warn_once
 
 #: What an rsl-rl-lib algorithm's ``update()`` returns: the loss dict (< 6.0), or ``(loss_dict, stats_dict)`` (>= 6.0).
 UpdateResult: TypeAlias = dict[str, float] | tuple[dict[str, float], dict[str, float]]
 
 #: The ``step_dict`` key rsl-rl-lib >= 6.0's ``Logger`` reports as the mean episode reward.
 MEAN_REWARD_KEY = "Training/mean_reward"
+
+#: The ``extras`` key rsl-rl-lib >= 6.0 reads a done env's last observation from (its NaN check, SAC's bootstrap). Eden's
+#: env publishes it as ``extras["final_observations"]``; :class:`~eden.envs.wrappers.rsl_rl_env.RslRlVecEnvWrapper`
+#: adds this key for rsl_rl.
+FINAL_OBS_KEY = "final_obs"
 
 
 @functools.cache
@@ -50,12 +58,17 @@ def _takes(cls: type, method: str, parameter: str) -> bool:
     return parameter in inspect.signature(getattr(cls, method)).parameters
 
 
+@functools.cache
 def runner_expects_stats() -> bool:
     """Whether the installed rsl_rl runner takes ``(loss_dict, stats_dict)`` from ``update()`` (rsl-rl-lib >= 6.0).
 
     The same runner then also takes a dict from ``process_env_step()``. Read off the ``Logger`` it hands both to: its
-    ``log()`` takes ``stats_dict`` from 6.0 on, and ``learning_rate`` / ``action_std`` before.
+    ``log()`` takes ``stats_dict`` from 6.0 on, and ``learning_rate`` / ``action_std`` before. rsl-rl-lib 3.0 and 3.1
+    have no ``rsl_rl.utils.logger`` module (their runner logs by itself), so a release without one is older than 6.0.
+    Cached: :func:`env_step_result` asks at every env step, and the installed release does not change within a run.
     """
+    if importlib.util.find_spec("rsl_rl.utils.logger") is None:
+        return False
     from rsl_rl.utils.logger import Logger
 
     return _takes(Logger, "log", "stats_dict")
@@ -217,36 +230,101 @@ def log_iteration(
         )
 
 
-def raise_if_env_step_nonfinite(obs: Any, rewards: torch.Tensor, dones: torch.Tensor, extras: dict) -> None:
-    """Raise a ``ValueError`` naming the outputs of an env step that hold NaN or Inf, as rsl_rl's ``check_for_nan`` does.
+def _terms(groups: Any, prefix: str = "") -> Iterator[tuple[str, torch.Tensor]]:
+    """``(path, tensor)`` for each tensor in an observation TensorDict, through groups whose terms are not concatenated.
 
-    Uses the installed release's own check: ``find_nonfinite`` + ``raise_if_nonfinite`` from 6.0, ``check_nan`` in
-    5.x. Releases before ``check_nan`` have no check of their own, and get the same one written here.
+    ``torch.isfinite(td).all()`` on a nested TensorDict returns a Python ``bool``, which ``~`` turns into an ``int``
+    (``~True == -2``), so a nested group is read term by term.
+    """
+    for key, value in groups.items():
+        path = f"{prefix}{key}"
+        if isinstance(value, torch.Tensor):
+            yield path, value
+        else:
+            yield from _terms(value, f"{path}/")
+
+
+@functools.cache
+def stock_nan_check_reads_nested_groups() -> bool:
+    """Whether the installed rsl_rl runner's NaN check reads an observation group whose terms are not concatenated.
+
+    Such a group (``ObservationGroupOptions.concatenate_terms=False``) reaches rsl_rl as a nested TensorDict.
+    rsl-rl-lib 6.0's ``find_nonfinite`` reduces it to a Python ``bool`` and inverts that into an ``int``, so its
+    ``raise_if_nonfinite`` fails with ``AttributeError: 'int' object has no attribute 'to'`` at the end of the first
+    rollout. 5.x's ``check_nan`` reads such a group, and the 3.x and 4.x runners make no check. Probed by running the
+    release's own ``find_nonfinite`` on a one-env nested TensorDict, so a release that fixes it reads as fixed.
+    """
+    import rsl_rl.utils as rsl_rl_utils
+    from tensordict import TensorDict
+
+    if not hasattr(rsl_rl_utils, "find_nonfinite"):
+        return True
+    nested = TensorDict({"group": {"term": torch.zeros(1, 1)}}, batch_size=[1])
+    flags = rsl_rl_utils.find_nonfinite(nested, torch.zeros(1), torch.zeros(1), None)
+    return all(isinstance(flag, torch.Tensor) for flag in flags.values())
+
+
+def record_env_step_nonfinite(
+    flags: dict[str, torch.Tensor], obs: Any, rewards: torch.Tensor, dones: torch.Tensor, extras: dict
+) -> None:
+    """OR one env step's NaN / Inf flags into ``flags``, without a host sync; :func:`raise_if_nonfinite` reads them.
+
+    The check rsl-rl-lib 6.0's runner makes (``rsl_rl.utils.find_nonfinite``), written here so a runner that drives
+    its own loop gets it under every release: one flag per observation group, the rewards, the dones, and each group
+    of ``extras["final_obs"]`` over the envs that are done. A group whose terms are not concatenated
+    (``concatenate_terms=False``) is a nested TensorDict, and gets one flag per term (``'critic/dofs_pos'``); 6.0's own
+    check cannot read it (:func:`stock_nan_check_reads_nested_groups`). Like 6.0's runner, record every step of a
+    rollout into one dict and raise once after it, which costs one host sync per rollout instead of one per step.
 
     Parameters
     ----------
+    flags : dict[str, torch.Tensor]
+        The rollout's flags so far, keyed by output name; updated in place.
     obs : TensorDict
         The step's observations.
     rewards, dones : torch.Tensor
         The step's rewards and dones.
     extras : dict
-        The step's extras; rsl-rl-lib >= 6.0 also checks the done envs' ``"final_obs"`` in it.
+        The step's extras. :class:`~eden.envs.wrappers.rsl_rl_env.RslRlVecEnvWrapper` publishes the done envs' last
+        observations under ``"final_obs"`` when the env records them (``EnvOptions.record_final_observations``).
     """
-    import rsl_rl.utils as rsl_rl_utils
+    step = {f"observation group '{path}'": ~torch.isfinite(term).all() for path, term in _terms(obs)}
+    step["rewards"] = ~torch.isfinite(rewards).all()
+    step["dones"] = ~torch.isfinite(dones).all()
+    final_obs = extras.get(FINAL_OBS_KEY)
+    if final_obs is not None:
+        done = dones.reshape(-1).bool()
+        for path, term in _terms(final_obs):
+            mask = done.to(term.device).reshape(-1, *([1] * (term.ndim - 1)))
+            step[f"final observation group '{path}'"] = ~(torch.isfinite(term) | ~mask).all()
+    for source, flag in step.items():
+        flags[source] = flags[source] | flag if source in flags else flag
 
-    if hasattr(rsl_rl_utils, "find_nonfinite"):
-        rsl_rl_utils.raise_if_nonfinite(rsl_rl_utils.find_nonfinite(obs, rewards, dones, extras))
-    elif hasattr(rsl_rl_utils, "check_nan"):
-        rsl_rl_utils.check_nan(obs, rewards, dones)
-    else:
-        outputs = {f"observation group '{key}'": value for key, value in obs.items()}
-        outputs |= {"rewards": rewards, "dones": dones}
-        nonfinite = [name for name, value in outputs.items() if not torch.isfinite(value).all()]
-        if nonfinite:
-            raise ValueError(
-                f"The {', '.join(nonfinite)} returned by the environment contain NaN or Inf values. This usually "
-                "indicates a bug in the environment's step() or reset() function."
-            )
+
+def raise_if_nonfinite(flags: dict[str, torch.Tensor]) -> None:
+    """Raise a ``ValueError`` naming every output :func:`record_env_step_nonfinite` flagged, as rsl-rl-lib 6.0 does.
+
+    Parameters
+    ----------
+    flags : dict[str, torch.Tensor]
+        The rollout's flags, keyed by output name.
+
+    Raises
+    ------
+    ValueError
+        If any flag is set.
+    """
+    if not flags:
+        return
+    device = next(iter(flags.values())).device
+    values = torch.stack([flag.to(device) for flag in flags.values()]).tolist()
+    sources = [source for source, value in zip(flags, values) if value]
+    if sources:
+        raise ValueError(
+            f"The {', '.join(sources)} returned by the environment contained NaN or Inf values. This usually indicates "
+            "a bug in the environment's step() or reset() function, such as a reward or observation term. Fix: find "
+            "the term with `eden smoke --task <task>`; setting runner_options.check_for_nan=False only hides it."
+        )
 
 
 def episode_buffers(logger: Any) -> tuple[Sequence[float], Sequence[float]]:
@@ -274,7 +352,18 @@ def episode_buffers(logger: Any) -> tuple[Sequence[float], Sequence[float]]:
     if hasattr(logger, "rewbuffer") and hasattr(logger, "lenbuffer"):
         return logger.rewbuffer, logger.lenbuffer
     if hasattr(logger, "step_buffers") and hasattr(logger, "length_buffer"):
-        return logger.step_buffers.get(MEAN_REWARD_KEY, ()), logger.length_buffer
+        rewards = logger.step_buffers.get(MEAN_REWARD_KEY)
+        if rewards is None and (logger.step_buffers or logger.length_buffer):
+            summed = ", ".join(map(repr, logger.step_buffers)) or "nothing"
+            warn_once(
+                f"The rsl_rl Logger has recorded env steps but sums no {MEAN_REWARD_KEY!r} per episode (it sums "
+                f"{summed}), so the mean episode reward reads as none: progress.json's mean_reward stays null. "
+                "rsl-rl-lib >= 6.0's Logger sums only what the algorithm's process_env_step() returns. Fix: return the "
+                f"env's rewards under {MEAN_REWARD_KEY!r} from process_env_step(), as rsl_rl's PPO does "
+                "(eden.envs.wrappers.rsl_rl_compat.env_step_result builds that dict for an algorithm written from "
+                "scratch)."
+            )
+        return (rewards if rewards is not None else ()), logger.length_buffer
     raise AttributeError(
         f"{type(logger).__module__}.{type(logger).__qualname__} holds no episode buffers: neither 'rewbuffer' / "
         "'lenbuffer' (rsl-rl-lib < 6.0) nor 'step_buffers' / 'length_buffer' (>= 6.0). Fix: a runner with its own "
