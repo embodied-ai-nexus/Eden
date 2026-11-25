@@ -218,3 +218,35 @@ def test_failed_export_leaves_the_destination_untouched(viewer, tmp_path, monkey
     assert not viewer.is_recording
     with pytest.raises(RuntimeError, match="No Viser recording"):
         viewer.stop_recording()
+
+
+def test_building_the_scene_leaves_a_moving_articulated_robot_untouched(tmp_path):
+    from eden.options.entities import RobotOptions
+
+    asset = tmp_path / "arm.xml"
+    asset.write_text(
+        """<mujoco model="arm"><worldbody><body name="base" pos="0 0 1"><freejoint/>
+        <geom type="sphere" size="0.05" mass="1"/><body name="link1"><joint name="j1" type="hinge" axis="0 1 0"/>
+        <geom type="capsule" fromto="0 0 0 0.3 0 0" size="0.03" mass="0.5"/></body></body></worldbody></mujoco>"""
+    )
+    env = build_env(
+        EdenConfig(
+            env_options=EnvOptions(num_envs=2),
+            scene_options=SceneOptions(robot=RobotOptions(file=str(asset), dofs_name=["j1"])),
+        ),
+        reset=True,
+    )
+    try:
+        solver = env.rigid_solver
+        solver.set_dofs_velocity(np.full((2, solver.n_dofs), 0.5))
+        qpos, vel = solver.get_qpos().clone(), solver.get_dofs_velocity().clone()
+        viewer = ViserViewer(env, port=0, enable_gui=False)
+        try:
+            viewer.build()
+            assert set(viewer._entity_handles) == {"/visual/robot_base", "/visual/robot_link1"}
+        finally:
+            viewer.close()
+        assert solver.get_qpos().equal(qpos)
+        assert solver.get_dofs_velocity().equal(vel)
+    finally:
+        env.destroy()

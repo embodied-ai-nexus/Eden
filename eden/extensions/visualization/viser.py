@@ -35,14 +35,10 @@ class LinkHandle:
         self,
         handle: viser.SceneNodeHandle,
         link: RigidLink,
-        canonical_pos: torch.Tensor,
-        canonical_quat: torch.Tensor,
         active_envs_idx: torch.Tensor | list | None = None,
     ):
         self.handle = handle
         self.link = link
-        self.canonical_pos = canonical_pos
-        self.canonical_quat = canonical_quat
         self.active_envs_idx = active_envs_idx
 
     def update(self, env_offset: np.ndarray | None = None):
@@ -202,11 +198,10 @@ class ViserViewer:
         # Check if entity is heterogeneous (grouped entity with multiple morphs)
         if entity.is_heterogeneous:
             self._add_heterogeneous_entity(name, entity, use_visual_mesh)
-        elif isinstance(entity.morph, (URDF, MJCF, USD)):
-            self._add_articulated_entity(name, entity, use_visual_mesh)
+        # Plane subclasses Primitive, so it must be tested before the branch below, which would batch it per env.
         elif isinstance(entity.morph, Plane):
             self._add_mesh_entity(name, entity, use_visual_mesh, is_batched=False)
-        elif isinstance(entity.morph, (Mesh, Primitive)):
+        elif isinstance(entity.morph, (URDF, MJCF, USD, Mesh, Primitive)):
             self._add_mesh_entity(name, entity, use_visual_mesh)
         else:
             raise ValueError(f"Entity type not supported: {type(entity.morph)}")
@@ -247,7 +242,7 @@ class ViserViewer:
             )
             num_instances = len(active_envs_idx) if active_envs_idx is not None else self.env.num_envs
 
-            mesh = geom.get_trimesh().copy()
+            mesh = geom.trimesh.copy()
             geom_pos = torch.from_numpy(geom.init_pos).float()
             geom_quat = torch.from_numpy(geom.init_quat).float()
             T = trans_quat_to_T(geom_pos.unsqueeze(0), geom_quat.unsqueeze(0))
@@ -255,19 +250,13 @@ class ViserViewer:
 
             viser_handle = self._create_batched_mesh_handle(handle_name, mesh, num_instances)
 
-            link_handle = LinkHandle(
-                handle=viser_handle,
-                link=link,
-                canonical_pos=geom.get_pos(relative=False).clone().detach(),
-                canonical_quat=geom.get_quat(relative=False).clone().detach(),
-                active_envs_idx=active_envs_idx,
-            )
+            link_handle = LinkHandle(handle=viser_handle, link=link, active_envs_idx=active_envs_idx)
             self._store_handle(handle_name, link_handle, use_visual_mesh)
 
     def _build_combined_mesh(self, geoms):
         meshes = []
         for geom in geoms:
-            mesh = geom.get_trimesh().copy()
+            mesh = geom.trimesh.copy()
             geom_pos = torch.from_numpy(geom.init_pos).float()
             geom_quat = torch.from_numpy(geom.init_quat).float()
             T = trans_quat_to_T(geom_pos.unsqueeze(0), geom_quat.unsqueeze(0))
@@ -299,13 +288,7 @@ class ViserViewer:
 
             viser_handle = self._create_batched_mesh_handle(handle_name, combined, num_envs)
 
-            link_handle = LinkHandle(
-                handle=viser_handle,
-                link=link,
-                canonical_pos=link.get_pos(relative=False).clone().detach(),
-                canonical_quat=link.get_quat(relative=False).clone().detach(),
-                active_envs_idx=active_envs_idx,
-            )
+            link_handle = LinkHandle(handle=viser_handle, link=link, active_envs_idx=active_envs_idx)
 
             self._store_handle(handle_name, link_handle, use_visual_mesh)
 
@@ -325,40 +308,6 @@ class ViserViewer:
             num_envs=self.env.num_envs if is_batched else 1,
             active_envs_idx=None if is_batched else [0],
         )
-
-    def _add_articulated_entity(
-        self,
-        name: str,
-        entity: Entity,
-        use_visual_mesh: bool = True,
-        allow_collision_as_visual: bool = False,
-    ):
-        qs_idx_local = slice(None)
-
-        tmp_qpos = entity.get_qpos(qs_idx_local=qs_idx_local).clone().detach()
-
-        canonical_qpos = torch.zeros_like(tmp_qpos)
-        # Index 3 is the free root's quaternion w — but only when a free root prefix exists.
-        # A welded child has none (``attach`` removed its root joint), so index 3 is an ordinary
-        # joint there and writing 1.0 into it would pose the robot instead of identity-ing it.
-        if not entity.has_immobile_base:
-            if canonical_qpos.ndim == 1:  # single instance
-                canonical_qpos[3] = 1.0
-            else:
-                canonical_qpos[:, 3] = 1.0  # w component of quaternion
-
-        entity.set_qpos(canonical_qpos, qs_idx_local=qs_idx_local)
-
-        self._add_entity_common(
-            name=name,
-            entity=entity,
-            use_visual_mesh=use_visual_mesh,
-            allow_collision_as_visual=allow_collision_as_visual,
-            num_envs=self.env.num_envs,
-            active_envs_idx=None,
-        )
-
-        entity.set_qpos(tmp_qpos, qs_idx_local=qs_idx_local)
 
     def add_point_cloud(self, name: str, points: np.ndarray, colors: np.ndarray):
         self.server.scene.add_point_cloud(
