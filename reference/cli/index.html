@@ -6157,6 +6157,14 @@ cannot be combined. See <a href="../../guides/training-runs/">Training runs</a> 
 <td>Open the Genesis viewer.</td>
 </tr>
 <tr>
+<td><code>--live_rewards [PORT]</code>, <code>--live-rewards</code></td>
+<td>Open the Viser browser viewer on <code>PORT</code> (default 8080; 0 lets the OS pick a free port) with per-term reward graphs, editable weights and interactive link impulses. Requires the <code>vis</code> extra and a task with a reward term of nonzero weight.</td>
+</tr>
+<tr>
+<td><code>--live_rewards_host HOST</code></td>
+<td>The interface the <code>--live_rewards</code> viewer binds. Default <code>localhost</code>. <code>0.0.0.0</code> serves every interface, which lets anyone who can reach the port change weights and push links.</td>
+</tr>
+<tr>
 <td><code>--rec</code></td>
 <td>Record an <code>.mp4</code> through a <code>rec</code> camera, saved in the run's log directory.</td>
 </tr>
@@ -6202,6 +6210,20 @@ cannot be combined. See <a href="../../guides/training-runs/">Training runs</a> 
 </tr>
 </tbody>
 </table>
+<p>With <code>--live_rewards</code>, open the URL printed by Viser and select <strong>Play</strong>. Until then the rollout waits, with no
+timeout, and logs that URL, so leave the flag off unattended runs. On a remote machine, either forward the port
+(<code>ssh -L 8080:localhost:8080 &lt;host&gt;</code>) or bind another interface with <code>--live_rewards_host</code>.</p>
+<p>Each curve shows the selected environment's weighted reward rate against episode time, which restarts at every
+episode. Multiplying the sum of the curves by the control timestep gives the scalar step reward. The plots keep the
+last 200 steps and start a new trace when the episode or selected environment changes. Each term shows its current
+value. Type a new <strong>Weight</strong> and click <strong>Set weight</strong> to rescore subsequent steps for all environments in this run;
+the button stays enabled while the field holds an edit that has not been applied. Under <strong>Disturbance</strong>, choose a
+movable link, enter a world-frame impulse in N·s, and click <strong>Apply impulse</strong> to push its center of mass on the
+next step in the selected environment.</p>
+<p>The <code>--async</code> timing report leaves out the time spent paused and drawing the viewer, so its step compute, overruns
+and real-time factor describe the policy and the sim. Drawing still takes wall time inside each step, and a policy
+that is already over its budget can use that time to finish, so its stale-action count can come out lower than
+without the viewer.</p>
 <h3 id="eden-export"><code>eden export</code><a class="headerlink" href="#eden-export" title="Permanent link">&para;</a></h3>
 <div class="language-bash highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>eden<span class="w"> </span><span class="nb">export</span><span class="w"> </span>--task<span class="w"> </span>&lt;task&gt;<span class="w"> </span>--checkpoint<span class="w"> </span>&lt;path/to/model.pt&gt;<span class="w"> </span><span class="o">[</span>flags<span class="o">]</span>
 </span></code></pre></div>
