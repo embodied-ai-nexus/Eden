@@ -137,5 +137,5 @@ def test_the_student_loop_spreads_episode_clocks_and_checks_for_nan(
         return obs, torch.full_like(rewards, float("nan")), dones, extras
 
     monkeypatch.setattr(wrapper, "step", nan_rewards)
-    with pytest.raises(ValueError, match=r"rewards returned by the environment contain NaN"):
+    with pytest.raises(ValueError, match=r"rewards returned by the environment contained NaN"):
         runner.learn(num_learning_iterations=1)

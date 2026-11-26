@@ -1,4 +1,4 @@
-"""Models, algorithms and runners for rsl-rl-lib 5, selected through their options' ``class_name``.
+"""Models, algorithms and runners for rsl-rl-lib >= 5, selected through their options' ``class_name``.
 
 - :mod:`.simba` — a SimBaV2 actor / critic behind one encoder per observation group.
 - :mod:`.muon_ppo` — PPO whose optimizer is Muon for the 2-D weights and AdamW for the rest.

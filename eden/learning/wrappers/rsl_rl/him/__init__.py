@@ -1,4 +1,4 @@
-"""HIMLoco — OpenHomie's learner (HIMPPO) — on rsl-rl-lib 3–5.
+"""HIMLoco — OpenHomie's learner (HIMPPO) — on rsl-rl-lib 3–6.
 
 :class:`HIMPPO` (rollout-time symmetry, actor + critic mirror losses), :class:`HIMActorCritic`
 (the actor sees the newest frame plus :class:`HIMEstimator`'s velocity and dynamics latent) and the

@@ -82,9 +82,9 @@ dependencies = [
   # recorder backend, and `eden lerobot convert` input. Prebuilt wheels bundle libhdf5; 3.11 is the first with
   # CPython 3.12 wheels.
   "h5py>=3.11.0",
-  # Deliberately spans both checkpoint layouts: 3.x saves one `model_state_dict`, 4.x/5.x
+  # Deliberately spans both checkpoint layouts: 3.x saves one `model_state_dict`, 4.x to 6.x
   # split it into `actor_state_dict`/`critic_state_dict`. Eden reads both — the legacy
-  # converter migrates a 3.x checkpoint into a 4.x/5.x runner (verified end to end against
+  # converter migrates a 3.x checkpoint into a 4.x to 6.x runner (verified end to end against
   # both real releases), and the version probes in `eden/envs/wrappers/rsl_rl_env.py` route
   # by structure. `run.json` records which version wrote a run so a cross-version replay
   # fails with a message naming both. The floor could be raised since migration works,

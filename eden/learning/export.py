@@ -107,7 +107,7 @@ def export_policy(
         raise TypeError(
             f"{type(runner).__qualname__} has no `alg.get_policy()`, so there is no policy model to export. Export "
             f"reads the model through it, as rsl-rl-lib >= 4's algorithms provide it; under rsl-rl-lib 3, upgrade "
-            f"(a 3.x checkpoint loads into a 4.x / 5.x runner)."
+            f"(a 3.x checkpoint loads into a 4.x to 6.x runner)."
         )
     policy = get_policy()
     obs_groups = policy_obs_groups(policy)

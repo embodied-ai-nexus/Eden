@@ -1,4 +1,4 @@
-"""HIMPPO — OpenHomie's ``HIMPPO`` (``HomieRL/rsl_rl/rsl_rl/algorithms/him_ppo.py``) for rsl-rl-lib 3–5.
+"""HIMPPO — OpenHomie's ``HIMPPO`` (``HomieRL/rsl_rl/rsl_rl/algorithms/him_ppo.py``) for rsl-rl-lib 3–6.
 
 Standard PPO plus three things from HIMLoco / OpenHomie:
 
@@ -11,7 +11,7 @@ Standard PPO plus three things from HIMLoco / OpenHomie:
 
 Task-agnostic: the mirror is the task's rsl-rl ``data_augmentation_func`` and the observation layout
 it needs is documented on :class:`~eden.learning.wrappers.rsl_rl.him.options.HIMPPOAlgorithmOptions`.
-Runs on rsl-rl-lib 3, 4 and 5. The 4 / 5 ``OnPolicyRunner`` builds it from
+Runs on rsl-rl-lib 3 to 6. The 4 to 6 ``OnPolicyRunner`` builds it from
 ``runner_options.algorithm.class_name`` through :meth:`HIMPPO.construct_algorithm`; the 3 runner builds the
 actor-critic and the algorithm itself, which :meth:`HIMPPOAlgorithmOptions.adapt_runner_dict
 <eden.learning.wrappers.rsl_rl.him.options.HIMPPOAlgorithmOptions.adapt_runner_dict>` routes to
@@ -30,6 +30,7 @@ import torch.optim as optim
 from rsl_rl.utils import resolve_callable, resolve_obs_groups
 from tensordict import TensorDict
 
+from eden.envs.wrappers.rsl_rl_compat import UpdateResult, env_step_result, ppo_stats, update_result
 from eden.learning.wrappers.rsl_rl.him.actor_critic import (
     _NO_OBS_NORMALIZATION,
     HIMActorCritic,
@@ -164,7 +165,7 @@ class HIMPPO:
 
     @classmethod
     def construct_algorithm(cls, obs, env, cfg: dict, device: str) -> HIMPPO:
-        """rsl-rl-lib 4 / 5's construction hook: build the actor-critic, the storage and the algorithm.
+        """rsl-rl-lib 4 to 6's construction hook: build the actor-critic, the storage and the algorithm.
 
         The mirror is run once on these observations' widths, so a layout it does not cover fails here,
         before a rollout.
@@ -260,7 +261,7 @@ class HIMPPO:
         return self.actor_critic
 
     def save(self) -> dict:
-        """rsl-rl-lib 4 / 5's checkpoint contents (v3's runner saves ``policy`` and ``optimizer`` itself)."""
+        """rsl-rl-lib 4 to 6's checkpoint contents (v3's runner saves ``policy`` and ``optimizer`` itself)."""
         return {
             "actor_critic_state_dict": self.actor_critic.state_dict(),
             "estimator_optimizer_state_dict": self.optimizer.estimator.state_dict(),
@@ -280,7 +281,7 @@ class HIMPPO:
             load_cfg = {"actor": True, "critic": True, "optimizer": True, "iteration": True}
         if "actor_critic_state_dict" not in loaded_dict:
             raise ValueError(
-                f"Not a HIMPPO checkpoint from rsl-rl-lib 4/5: no 'actor_critic_state_dict' among "
+                f"Not a HIMPPO checkpoint from rsl-rl-lib 4 to 6: no 'actor_critic_state_dict' among "
                 f"{sorted(loaded_dict)}. A stock-PPO or rsl-rl-lib 3 checkpoint cannot initialize HIMPPO; "
                 f"pass a checkpoint this algorithm saved."
             )
@@ -328,12 +329,14 @@ class HIMPPO:
     def act(self, obs) -> torch.Tensor:
         return self._act(obs[self.actor_obs_group], obs[self.critic_obs_group])
 
-    def process_env_step(self, obs, rewards, dones, extras) -> None:
+    def process_env_step(self, obs, rewards, dones, extras) -> dict[str, torch.Tensor] | None:
         """Record the step; ``obs`` is the observation *after* it, post-reset for the envs that ended.
 
         The estimator's target is the true next critic observation, so the ended envs take their
         pre-reset one from ``extras["final_observations"]`` — OpenHomie's
         ``next_critic_obs[termination_ids] = termination_privileged_obs``.
+
+        Returns the step's rewards for the logger on rsl-rl-lib >= 6.0 (``None`` before), as rsl_rl's PPO does.
         """
         final = extras.get("final_observations")
         if final is None:
@@ -342,6 +345,7 @@ class HIMPPO:
             dones.bool().unsqueeze(-1), final[self.critic_obs_group].to(self.device), obs[self.critic_obs_group]
         )
         self._process_env_step(rewards, dones, extras, next_critic_obs)
+        return env_step_result(rewards)
 
     def compute_returns(self, obs) -> None:
         last_values = self.actor_critic.evaluate(obs[self.critic_obs_group]).detach()
@@ -368,7 +372,7 @@ class HIMPPO:
         self.transition_sym.clear()
         self.actor_critic.reset(dones)
 
-    def update(self):
+    def update(self) -> UpdateResult:
         mean_value_loss = 0.0
         mean_surrogate_loss = 0.0
         mean_estimation_loss = 0.0
@@ -481,7 +485,7 @@ class HIMPPO:
 
         num_updates = self.num_learning_epochs * self.num_mini_batches
         self.storage.clear()
-        return {
+        loss_dict = {
             "value_loss": mean_value_loss / num_updates,
             "surrogate_loss": mean_surrogate_loss / num_updates,
             "estimation_loss": mean_estimation_loss / num_updates,
@@ -489,3 +493,4 @@ class HIMPPO:
             "actor_sym_loss": mean_actor_sym_loss / num_updates,
             "critic_sym_loss": mean_critic_sym_loss / num_updates,
         }
+        return update_result(loss_dict, ppo_stats(self.learning_rate, self.actor_critic.output_std))

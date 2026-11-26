@@ -261,16 +261,16 @@ the seeded RNGs. rsl-rl-lib never applies the field itself.
 ## Checkpoints need a matching rsl-rl-lib
 
 The layout of a `.pt` file belongs to rsl-rl-lib, not to Eden: rsl-rl-lib 3.x saves one `model_state_dict`, while
-4.x and 5.x split it into `actor_state_dict` and `critic_state_dict`. Eden's dependency (`rsl-rl-lib>=3.0`) admits both,
+4.x to 6.x split it into `actor_state_dict` and `critic_state_dict`. Eden's dependency (`rsl-rl-lib>=3.0`) admits both,
 so a checkpoint may not replay under the rsl-rl-lib you have installed.
 
 Eden handles the two directions differently:
 
-- **A 3.x checkpoint under 4.x/5.x** is converted: the file is rewritten into a `<name>.<std_type>.converted.pt`
+- **A 3.x checkpoint under 4.x to 6.x** is converted: the file is rewritten into a `<name>.<std_type>.converted.pt`
   sibling and loaded from there (your file is never modified). This also covers a `DistillationRunner`. The conversion
   needs the destination's `std_type`, read from the runner's `actor` (else `teacher`, else `student`) options; a
   runner config that states none raises instead of guessing.
-- **A 4.x/5.x checkpoint under 3.x** cannot load. The error names both versions and the keys the file holds, instead
+- **A 4.x to 6.x checkpoint under 3.x** cannot load. The error names both versions and the keys the file holds, instead
   of rsl_rl's bare `KeyError: 'model_state_dict'`.
 
 Before loading, Eden reads the checkpoint's sibling `run.json` (`rl_library`) and warns when the version that trained
@@ -335,7 +335,7 @@ How these options fit into a task config is covered in [Task Configuration](task
 
 ## Custom algorithms: `algorithm.class_name`
 
-rsl_rl 5.x resolves the algorithm class from a string, so a task can train with its own PPO variant without forking
+rsl_rl 5.x and 6.x resolve the algorithm class from a string, so a task can train with its own PPO variant without forking
 rsl_rl or touching Eden's runner code:
 
 ```python
@@ -417,11 +417,23 @@ Optional hooks Eden reads off these classes:
   construction differs adapts its own entries here.
 
 !!! note "Across rsl-rl-lib versions"
-    rsl-rl-lib 4 and 5 build every algorithm through `construct_algorithm`; 3 builds the model from
+    rsl-rl-lib 4 to 6 build every algorithm through `construct_algorithm`; 3 builds the model from
     `policy.class_name` and calls `AlgClass(model, storage, device=..., **alg_cfg)`. HIM covers 3 with two factories
     its `adapt_runner_dict` routes to (`HIMActorCritic.from_rsl_rl_v3`, `HIMPPO.from_rsl_rl_v3`). AMP-PPO and RMA need
     rsl-rl-lib 5.5.1 or newer. To check another major version without changing your environment:
     `uv run --with rsl-rl-lib==3.3.0 pytest tests/learning/wrappers/rsl_rl/him/test_ppo.py`.
+
+    rsl-rl-lib 6.0 changed what the runner expects back from an algorithm. `update()` returns
+    `(loss_dict, stats_dict)`, where `stats_dict` carries the learning rate and the policy std that older runners read
+    off the algorithm, and `process_env_step()` returns the per-env values the logger sums over each episode
+    (`{"Training/mean_reward": rewards}`). `eden.envs.wrappers.rsl_rl_compat` builds both shapes for the
+    installed release. A PPO subclass writes its extra losses into `loss_dict_of(super().update())`, returns that
+    result, and returns what `super().process_env_step()` returned. An algorithm written from scratch returns
+    `update_result(loss_dict, ppo_stats(lr, std))` and `env_step_result(rewards)`. A runner that drives rsl_rl's
+    `Logger` itself calls `log_env_step` and `log_iteration`. rsl-rl-lib 6.0 also renamed its TensorBoard tags
+    (`Train/mean_reward` is now `Training/mean_reward`, `Perf/*` is `Performance/*`, `Policy/mean_std` is
+    `Model/mean_policy_std`, and `Loss/learning_rate` is `Optimizer/learning_rate`), so curves from runs on either
+    side of 6.0 sit under different names.
 
 ### Custom runners: `runner_options.class_name`
 

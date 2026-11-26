@@ -75,3 +75,47 @@ jobs:
       # lowered to DEBUG by docs/hooks/griffe_warnings.py, so they do not count.
       - name: Build docs
         run: .venv/bin/mkdocs build --strict
+  # Eden's rsl_rl algorithms, runners and runner mixins against every rsl-rl-lib major the `rsl-rl-lib>=3.0` pin
+  # admits. The lock installs 5.5.2; `uv run --with` layers another release over it for the test run only. The tests
+  # run on CPU (eden.init's default backend), so no GPU runner is needed. The extreme_parkour training tests drive the
+  # RMA depth student, the one runner that runs its own loop through eden.envs.wrappers.rsl_rl_compat's logger and NaN
+  # helpers; they skip below rsl-rl-lib 5.5.1.
+  rsl-rl:
+    name: rsl_rl tests (rsl-rl-lib ${{ matrix.rsl-rl-lib }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        # Every release runs the same tests: one that a release cannot pass says so with its own skip or xfail mark.
+        rsl-rl-lib: ["3.3.0", "4.0.1", "5.5.2", "6.0.0"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          version: "0.13.7" # pinned: a uv release must not change CI resolution unannounced
+          python-version: "3.12"
+          enable-cache: true
+      # The default groups, for pytest.
+      - name: Sync dependencies
+        run: uv sync
+      # The robots, motion clips and meshes these tests build come from the Hugging Face hub on first use, and are
+      # fetched only when missing, unpinned. So the cache lives for one ISO week and is never restored from an older
+      # key: an asset updated on the hub reaches CI within the week.
+      - name: Cache week
+        id: week
+        run: echo "week=$(date -u +%G-W%V)" >> "$GITHUB_OUTPUT"
+      - name: Cache Eden assets
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/eden/assets
+          key: eden-assets-rsl-rl-${{ steps.week.outputs.week }}
+      # Building a scene builds Genesis' offscreen rasterizer, which needs an OpenGL context through EGL. The runner has
+      # no GPU, so Mesa's EGL provides a software device. Not OSMesa: PyOpenGL loads it, and with it the system LLVM, as
+      # Genesis is imported, and Triton's libtriton then segfaults while torch imports it. Mesa's EGL loads its driver
+      # only when the first context is made, after torch.
+      - name: Install Mesa EGL
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libegl1 libegl-mesa0 libgl1-mesa-dri
+      - name: Run the rsl_rl tests
+        run: >-
+          uv run --no-sync --with rsl-rl-lib==${{ matrix.rsl-rl-lib }} pytest -q tests/envs/wrappers/test_rsl_rl_compat.py tests/learning/wrappers/rsl_rl tests/envs/wrappers/test_rsl_rl_env.py tests/tasks/extreme_parkour/test_training.py

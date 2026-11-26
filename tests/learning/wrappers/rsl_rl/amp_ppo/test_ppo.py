@@ -9,11 +9,13 @@ import pytest
 import torch
 from tensordict import TensorDict
 
+from eden.envs.wrappers.rsl_rl_compat import MEAN_REWARD_KEY, UpdateResult, loss_dict_of
 from eden.extensions.policies.husky.constants import NUM_JOINTS
 from eden.learning.wrappers.rsl_rl import MIN_RSL_RL_VERSION
 from eden.options.learning.rsl_rl.translate import detect_rsl_rl_version, translate_runner_dict
 from eden.tasks import TASK_REGISTRY
 from tests.support.ddp import ddp_spawn
+from tests.support.rsl_rl import runner_unpacks_stats
 
 pytestmark = pytest.mark.skipif(detect_rsl_rl_version() < MIN_RSL_RL_VERSION, reason="AmpPPO needs rsl-rl-lib >= 5.5.1")
 
@@ -32,16 +34,20 @@ def _obs(gate: torch.Tensor, seed: int = 0) -> TensorDict:
     )
 
 
-def _husky_amp_ppo(obs: TensorDict, multi_gpu: dict | None = None, **alg_overrides):
+def _husky_amp_ppo(obs: TensorDict, multi_gpu: dict | None = None, obs_groups: dict | None = None, **alg_overrides):
     """rsl_rl's own ``construct_algorithm`` over the husky runner options (its ``algorithm`` is the AMP options)."""
     from rsl_rl.utils import resolve_callable
 
     options = TASK_REGISTRY.build("husky").runner_options
     cfg = translate_runner_dict(options.dict())
     cfg["algorithm"].update(alg_overrides)
+    cfg["obs_groups"].update(obs_groups or {})
     cfg["num_steps_per_env"] = NUM_STEPS
     cfg["multi_gpu"] = multi_gpu
-    env = types.SimpleNamespace(num_envs=NUM_ENVS, num_actions=NUM_ACTIONS)
+    # rsl_rl scales the RND weight by ``env.unwrapped.step_dt``; any positive step will do here.
+    env = types.SimpleNamespace(
+        num_envs=NUM_ENVS, num_actions=NUM_ACTIONS, unwrapped=types.SimpleNamespace(step_dt=0.02)
+    )
     return resolve_callable(cfg["algorithm"]["class_name"]).construct_algorithm(obs, env, cfg, "cpu")
 
 
@@ -61,12 +67,36 @@ def test_the_style_reward_lands_only_where_the_gate_is_set():
     alg = _husky_amp_ppo(obs)
     alg.act(obs)
     rewards = torch.zeros(NUM_ENVS)
-    alg.process_env_step(obs, rewards, torch.zeros(NUM_ENVS, dtype=torch.long), {})
+    step = alg.process_env_step(obs, rewards, torch.zeros(NUM_ENVS, dtype=torch.long), {})
 
     stored = alg.storage.rewards[0].squeeze(-1)
     assert (stored[~gate] == 0.0).all()
     assert (stored[gate] > 0.0).all()  # LSGAN reward is non-negative and a fresh discriminator scores near 0
+    # The logged episode reward is the env's own, as before rsl-rl-lib 6.0; the style reward has its own metric.
+    if runner_unpacks_stats():
+        assert torch.equal(step[MEAN_REWARD_KEY], rewards)
+    else:
+        assert step is None
     assert len(alg.amp_replay) == NUM_ENVS  # every window is banked, gated or not
+
+
+@pytest.mark.skipif(not runner_unpacks_stats(), reason="before rsl-rl-lib 6.0 the runner logs the env's rewards itself")
+def test_with_rnd_the_logged_rewards_keep_the_intrinsic_reward_and_leave_out_the_style_reward():
+    """What rsl-rl-lib 5.x's runner logged with RND: the env's reward plus the intrinsic one, and the env's alone."""
+    gate = torch.ones(NUM_ENVS, dtype=torch.bool)
+    obs = _obs(gate)
+    rnd_cfg = {"weight": 50.0, "num_outputs": 4, "predictor_hidden_dims": [8], "target_hidden_dims": [8]}
+    alg = _husky_amp_ppo(obs, obs_groups={"rnd_state": ["critic"]}, rnd_cfg=rnd_cfg)
+    alg.act(obs)
+    rewards = torch.linspace(-1.0, 1.0, NUM_ENVS)
+    step = alg.process_env_step(obs, rewards, torch.zeros(NUM_ENVS, dtype=torch.long), {})
+
+    assert alg.intrinsic_rewards.abs().sum() > 0
+    torch.testing.assert_close(step[MEAN_REWARD_KEY], rewards + alg.intrinsic_rewards)
+    torch.testing.assert_close(step["Rnd/mean_extrinsic_reward"], rewards)
+    torch.testing.assert_close(step["Rnd/mean_intrinsic_reward"], alg.intrinsic_rewards)
+    # PPO still trains on the style reward: every gate is set, and the style reward is positive.
+    assert (alg.storage.rewards[0].squeeze(-1) > step[MEAN_REWARD_KEY]).all()
 
 
 def test_an_update_trains_the_discriminator_and_a_checkpoint_round_trips_it():
@@ -80,7 +110,10 @@ def test_an_update_trains_the_discriminator_and_a_checkpoint_round_trips_it():
             _obs(gate, seed=step + 1), torch.randn(NUM_ENVS), torch.zeros(NUM_ENVS, dtype=torch.long), {}
         )
     alg.compute_returns(obs)
-    losses = alg.update()
+    result = alg.update()
+    # The shape the installed OnPolicyRunner unpacks: the loss dict before 6.0, (loss_dict, stats_dict) from 6.0.
+    assert isinstance(result, tuple) == runner_unpacks_stats()
+    losses = loss_dict_of(result)
 
     for key in ("amp", "amp_grad_pen", "amp_expert_d", "amp_policy_d", "amp_style_reward"):
         assert torch.isfinite(torch.tensor(losses[key])), key
@@ -103,7 +136,7 @@ def test_a_mis_sized_amp_group_names_the_expected_layout():
         alg.process_env_step(short, torch.zeros(NUM_ENVS), torch.zeros(NUM_ENVS, dtype=torch.long), {})
 
 
-def _rollout_and_update(alg, gate: torch.Tensor, seed: int = 0) -> dict[str, float]:
+def _rollout_and_update(alg, gate: torch.Tensor, seed: int = 0) -> UpdateResult:
     with torch.inference_mode():
         for step in range(NUM_STEPS):
             alg.act(_obs(gate, seed=seed + step))
@@ -186,3 +219,24 @@ def test_under_ddp_every_rank_keeps_the_same_discriminator_and_normalizer():
         for key, value in ranks[0][part].items():
             assert torch.allclose(value, ranks[1][part][key]), f"{part}.{key}"
     assert any(not torch.equal(ranks[0]["initial"][k], v) for k, v in ranks[0]["discriminator"].items())
+
+
+@pytest.mark.slow
+def test_the_installed_runner_trains_it_on_the_husky_env(tmp_path):
+    """One iteration through the installed rsl_rl ``OnPolicyRunner``: the only check of what the runner unpacks from
+    ``process_env_step()`` and ``update()``, which the algorithm-level tests above cannot make.
+    """
+    from eden.envs.wrappers.rsl_rl_env import RslRlVecEnvWrapper, make_rsl_rl_runner
+
+    cfg = TASK_REGISTRY.build("husky")
+    cfg.env_options.num_envs = 4
+    cfg.runner_options.num_steps_per_env = 4
+    cfg.runner_options.algorithm.num_mini_batches = 2
+    cfg.runner_options.logger = "tensorboard"
+    runner = make_rsl_rl_runner(RslRlVecEnvWrapper.from_config(cfg), log_dir=str(tmp_path))
+    before = {k: v.clone() for k, v in runner.alg.discriminator.state_dict().items()}
+
+    runner.learn(num_learning_iterations=1)
+
+    assert (tmp_path / "model_0.pt").exists()
+    assert any(not torch.equal(before[k], v) for k, v in runner.alg.discriminator.state_dict().items())

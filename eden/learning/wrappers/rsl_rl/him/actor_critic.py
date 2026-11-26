@@ -34,7 +34,7 @@ def _unsupported(field: str, value, supported, why: str) -> ValueError:
 
 
 def check_model_cfg(actor_cfg: dict, critic_cfg: dict) -> float:
-    """Refuse the rsl-rl-lib 4 / 5 model settings HIM would otherwise ignore; return the initial action std.
+    """Refuse the rsl-rl-lib 4 to 6 model settings HIM would otherwise ignore; return the initial action std.
 
     Reads both formats Eden hands the runner: 5's ``distribution_cfg`` and 4's flattened
     ``init_noise_std`` / ``noise_std_type`` / ``state_dependent_std`` (``translate_runner_dict``).
@@ -227,7 +227,7 @@ class HIMActorCritic(nn.Module):
         pass
 
     def forward(self, obs) -> torch.Tensor:
-        """The deterministic action for an observation TensorDict: what rsl-rl-lib 4/5's ``get_inference_policy``
+        """The deterministic action for an observation TensorDict: what rsl-rl-lib 4 to 6's ``get_inference_policy``
         serves.
         """
         return self.act_inference(obs)

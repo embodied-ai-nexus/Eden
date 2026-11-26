@@ -23,7 +23,7 @@ def rsl_rl_runner_options(**overrides):
         device="cpu",
         num_steps_per_env=4,
         logger="tensorboard",
-        # rsl-rl's NaN check cannot read the task's non-concatenated (nested) critic group.
+        # rsl-rl-lib 6.0's NaN check cannot read the task's non-concatenated (nested) critic group.
         check_for_nan=False,
         obs_groups={"actor": ["policy"], "critic": ["policy"]},
         actor=RslRlActorOptions(hidden_dims=[8], distribution_cfg=RslRlGaussianDistributionOptions(std_type="log")),
