@@ -106,6 +106,8 @@ Track it with `squeue -j <id>` / `sacct -j <id>` and read `slurm/eden_<id>.out`;
 | Camera recording contract | `Camera.start_recording` in `eden/entities/camera.py` |
 | Painting task state the scene doesn't render (ink, marks) onto a camera's frames | module docstring of `eden/entities/camera_overlays.py` |
 | Writing and running examples | `examples/AGENTS.md` |
+| Checking a robot or object asset for physics problems (`eden audit`: mass, armature fill, limits, self-contact, settle, hold) | `docs/reference/cli.md` ("eden audit"), `eden/utils/asset_audit.py` |
+| Robot workflows as agent skills: staged iteration, RL task authoring, scripted manipulation, MuJoCo sim-to-sim gate, hardware bring-up, asset audit | `.claude/skills/eden-{iterate,rl-task,manipulation,sim2sim,hardware-bringup,asset-audit}/SKILL.md` (plain Markdown; any agent can read them) |
 
 Three facts worth having before you open any of them:
 
@@ -138,4 +140,5 @@ One line each — follow the link before acting on any of them.
 - **`import eden` imports no term and no options namespace** — they re-export lazily, and each registry names the modules that fill it (`Registry(populated_by=...)`). A new term registry must list **every** module its terms are defined in (`TERMINATION_TERM_REGISTRY` also names `terms.metrics`), or a lookup reads as "no such term". `eden.utils.*` ↔ `eden.options.*` is an import cycle in both directions: a utils module may import `eden.options` at module scope only if nothing in `eden.options` imports *it* at module scope; defer the options→utils edge (see the `default_factory` in `eden/options/managers/recorders.py`).
 - **`eden/entities/support_mixin.py` cannot use `from __future__ import annotations`** — its `@qd.kernel` annotations must stay real objects.
 - **A checkpoint's `.pt` layout belongs to `rsl-rl-lib`, not to Eden** — 3.x and 4.x to 6.x differ and the pin admits both, so a checkpoint may not replay under the same Eden. → `docs/guides/training-runs.md`
+- **Code that moves real hardware asks first.** Confirm with the user before any command that moves a robot, never run one unattended, rehearse it with `eden deploy --mujoco`, and in hand-written scripts park the arm before releasing torque. → `.claude/rules/hardware-safety.md`
 - **Bit-exact obs/action parity does not mean a ported policy is correct** — mismatched dynamics (armature, gains, friction, control rate) diverge the trajectory; audit the *built* robot. → `docs/guides/policy-porting.md`

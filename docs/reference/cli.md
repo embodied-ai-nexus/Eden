@@ -37,6 +37,7 @@ Eden is installed.
 | [`eden teleop sonic ...`](#eden-teleop-sonic-robot) | SONIC whole-body teleoperation (robot process and operator station) |
 | [`eden wuji ...`](#eden-wuji-scan) | Find and monitor Wuji Gloves |
 | [`eden view`](#eden-view) / [`arrange`](#eden-arrange) / [`snap`](#eden-snap) | Look at an entity, arrange a scene, take a snapshot |
+| [`eden audit`](#eden-audit) | Check an entity or an asset file for physics problems before using it in a task |
 | [`eden gif`](#eden-gif) | Convert an `.mp4` to a `.gif` |
 | [`eden clean`](#eden-clean) | Remove empty log directories |
 
@@ -681,6 +682,42 @@ Renders one image of an entity.
 |---|---|
 | `-o`, `--output PATH` | The output image. Default `snapshot.png`. |
 | `-c`, `--collision` | Show collision geometry. |
+
+### `eden audit`
+
+```bash
+eden audit ur5e                                   # an entity by registry key or options class name
+eden audit path/to/arm.urdf --fixed-base          # a raw asset file; a URDF arm needs its base pinned
+eden audit path/to/mug.xml --json mug_audit.json  # also write the report as JSON
+```
+
+Builds the entity alone on a ground plane, on the CPU, and runs these checks on the built model:
+
+| Check | Fails or warns when |
+|---|---|
+| `collision` | The entity has no collision geometry (fail). |
+| `mass` | A movable link with collision geometry has no mass (fail) or less than 1e-4 kg (warn). |
+| `mass_ratio` | The heavier of two links joined by a DOF joint is more than 100× the lighter (warn). |
+| `armature` | A hinge or slide DOF carries the `default_armature` Genesis filled in because the asset authored none (warn). See [Armature defaults and the URDF 0.1 trap](../guides/entities.md#armature-defaults-and-the-urdf-01-trap). |
+| `joint_limits` | A hinge or slide DOF has an empty range (warn). Unlimited DOFs are listed. |
+| `self_contact` | Two links of the entity touch at its default pose (warn). |
+| `settle` | Free base only: dropped from 5 cm, the entity goes non-finite, moves faster than 20 m/s or 200 rad/s, sinks more than 1 cm into the plane, or falls through it (fail), or is still moving at the end (warn). |
+| `hold` | Fixed base only: commanding the default pose with the built PD gains, a DOF goes non-finite or faster than 50 (fail), or drifts more than 0.05 rad or m (warn). Skipped when every DOF has `kp = 0`. |
+
+A path ending in `.urdf`, `.xml`, `.mjcf`, a USD suffix or a mesh suffix is loaded as a file; anything else is looked up
+like `eden view` does. A file's base is free unless it is an MJCF whose top-level body has no free joint. Composite
+rigs are refused: audit the arm and the gripper separately. A build error (an inertia tensor that is not positive
+definite, a URDF `<inertial><density>`) is raised as is. The command exits with status 1 when any check fails.
+
+| Flag | Meaning |
+|---|---|
+| `--fixed-base` | Pin the base, so `hold` runs. An MJCF whose file declares its own base cannot be changed. |
+| `--free-base` | Free the base, so `settle` runs. |
+| `--seconds S` | Simulated time for `settle` and `hold`. Default 2.0. |
+| `--json PATH` | Also write the report as JSON. |
+
+The thresholds are fields of `eden.utils.asset_audit.AuditThresholds`; call `audit_entity(options, thresholds=...)`
+from Python to change them.
 
 ### `eden gif`
 

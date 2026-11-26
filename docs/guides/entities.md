@@ -526,7 +526,8 @@ hand = en.robots.XHand1_R(default_dofs_armature={"*": 1.0 / 300})
 ```
 
 Because the fill lands at build, the pre-build joint description still reads the raw asset value. Audit the
-built `get_dofs_armature()`, which is also what `default_dofs_armature` is seeded from.
+built `get_dofs_armature()`, which is also what `default_dofs_armature` is seeded from. `eden audit <Entity>`
+compares the two and names every DOF that received the fill (see [`eden audit`](../reference/cli.md#eden-audit)).
 `tests/entities/test_rigid.py` pins the fill rule.
 
 ### Implicit damping
