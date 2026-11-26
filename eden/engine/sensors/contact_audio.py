@@ -43,6 +43,7 @@ from typing import TYPE_CHECKING, Any, NamedTuple
 import genesis as gs
 import quadrants as qd
 import torch
+from genesis.engine.render_context import Points, Shape
 from genesis.engine.sensors.base_sensor import (
     RigidSensorMetadataMixin,
     RigidSensorMixin,
@@ -51,9 +52,10 @@ from genesis.engine.sensors.base_sensor import (
 )
 from genesis.engine.solvers.rigid.collider.collider import Collider
 from genesis.engine.solvers.rigid.rigid_solver import RigidSolver
+from genesis.engine.state_change import StateChange
 from genesis.options.sensors.options import RigidSensorOptionsMixin, SimpleSensorOptions
 from genesis.typing import PositiveInt
-from genesis.utils.misc import concat_with_tensor, tensor_to_array
+from genesis.utils.misc import concat_with_tensor
 from pydantic import Field
 
 import eden as en
@@ -63,15 +65,13 @@ from eden.engine.sensors.audio import AudioContext, AudioSource
 if TYPE_CHECKING:
     from genesis.engine.simulator import Simulator
     from genesis.engine.sensors.sensor_manager import SensorManager
-    from genesis.ext.pyrender.mesh import Mesh
-    from genesis.vis.rasterizer_context import RasterizerContext
 
 require_members(
     __name__,
     {
         # `_validate` is the hook `scene.add_sensor` runs, overridden here: a rename would leave the override dead
         RigidSensorOptionsMixin: ("_validate",),
-        SimpleSensor: ("_update_raw_data", "_get_return_format", "_get_cache_dtype", "build", "_draw_debug"),
+        SimpleSensor: ("_update_raw_data", "_get_return_format", "_get_cache_dtype", "build", "_update_markers"),
         RigidSensorMixin: ("_register_link", "set_pos_offset"),
         RigidSolver: ("get_links_vel", "get_links_ang"),
         Collider: ("get_contacts",),
@@ -729,7 +729,6 @@ class ContactAudioSensor(
         manager: "SensorManager",
     ):
         super().__init__(options, idx, shared_context, shared_metadata, manager)
-        self.debug_object: "Mesh | None" = None
 
     def build(self):
         """Create the class's voice if this is its first sensor, and add this sensor's column to it."""
@@ -776,21 +775,32 @@ class ContactAudioSensor(
         block = shared_metadata.voice.block  # (B, n_sensors, K)
         raw_data_T[:] = block.permute(1, 2, 0).reshape(-1, block.shape[0])
 
-    def _draw_debug(self, context: "RasterizerContext"):
-        """Draw a sphere at the link whose radius grows with the loudness of the last block.
+    def _update_markers(self, markers: tuple[Shape, ...], envs_idx: torch.Tensor | None) -> tuple[Points]:
+        """A sphere at the link whose radius grows with the loudness of the last block.
+
+        One radius serves every environment, so it follows the loudest of ``envs_idx``; the marker is remade at each
+        call for it, since a ``Points`` marker's radius is fixed.
 
         Parameters
         ----------
-        context : RasterizerContext
-            The viewer context to draw into.
+        markers : tuple[Shape, ...]
+            The marker the last call returned, none at the first call.
+        envs_idx : torch.Tensor | None
+            The environments to write, ``None`` in a scene without parallel environments.
         """
-        env_idx = context.rendered_envs_idx[0] if self._manager.sim.n_envs > 0 else None
-        pos = tensor_to_array(self._link.get_pos(env_idx).reshape((3,)))
-        amp = float(self.read(env_idx).reshape(-1).abs().max())
-
-        if self.debug_object is not None:
-            context.clear_debug_object(self.debug_object)
-            self.debug_object = None
-        self.debug_object = context.draw_debug_sphere(
-            pos=pos, radius=0.01 + min(amp, 1.0) * 0.05, color=(1.0, 0.3, 0.0, 0.6)
+        amp = float(self.read(envs_idx).abs().max())
+        pos = (
+            markers[0].pos
+            if markers
+            else torch.zeros((self._manager.n_envs_, 1, 3), dtype=gs.tc_float, device=gs.device)
+        )
+        pos[envs_idx] = self._link.get_pos(envs_idx, relative=False)[..., None, :]
+        return (
+            Points(
+                pos,
+                0.01 + min(amp, 1.0) * 0.05,
+                (1.0, 0.3, 0.0, 0.6),
+                is_active=torch.ones(pos.shape[:-1], dtype=gs.tc_bool, device=gs.device),
+                invalidated_by={self._link.entity.solver: (StateChange.GEOMETRY,), self: (StateChange.MODEL,)},
+            ),
         )

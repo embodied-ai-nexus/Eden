@@ -617,13 +617,16 @@ follows a mass or centre-of-mass write automatically.
 ### A pose setter clears every contact of the envs it writes
 
 `get_contacts`, `get_grouped_contacts` and the contact forces report the contacts found at the last
-`scene.step()`. Every pose setter of a rigid entity (`set_pos`, `set_quat`, `set_qpos`, `set_dofs_pos`) drops
-**all** of them in the environments it writes, not only the moved entity's, because they were found at the old
-pose; the constraint solver also starts those environments cold. They come back at the next step. So a term that
-teleports something after physics (an interval event, see [Environments](environments.md)) empties the contacts
-any later read sees in that step, and rewriting a marker every step costs every env its solver warm start. Write
-only the environments whose pose changes (as `LiberoStoveBurnerVisualization` in `eden/tasks/libero` does with a
-bool mask), or give a marker `KinematicMaterialOptions()`: the kinematic solver has no collider to clear.
+`scene.step()`. Every pose setter of a rigid entity (`set_pos`, `set_quat`, `set_qpos`, `set_dofs_pos`), and a
+reset, drops **all** of them in the environments it writes, not only the moved entity's, because they were found at
+the old pose. They come back at the next step. Genesis 1.5 refuses a contact read after any such write, in every
+environment; Eden reads what the last step left (`eden.entities.base.last_step_read`) and drops the written
+environments' contacts itself (`ContactStaleness`), so the other environments keep theirs.
+
+So a term that teleports something after physics (an interval event, see [Environments](environments.md)) empties
+the contacts any later read sees in that step. Write only the environments whose pose changes (as
+`LiberoStoveBurnerVisualization` in `eden/tasks/libero` does with a bool mask), or give a marker
+`KinematicMaterialOptions()`: the kinematic solver has no collider to clear.
 
 ### Trimmed and padded contact reads
 

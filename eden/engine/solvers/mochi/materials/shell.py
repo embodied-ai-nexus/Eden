@@ -1,6 +1,7 @@
-from typing import TYPE_CHECKING, Annotated, Any, Literal
+from typing import TYPE_CHECKING, Annotated, Any, ClassVar, Literal
 
 import genesis as gs
+from genesis.constants import STRUCTURE
 from genesis.typing import NonNegativeFloat, PositiveFloat, ValidFloat
 from pydantic import Field, StrictBool
 
@@ -58,6 +59,9 @@ class Shell(Base["MochiSoftEntity"]):
         distance to the second-nearest vertices must exceed this range plus the contact band. Must be larger than 1.
         Default is 1.5.
     """
+
+    # Drawn as a mesh the simulated vertices move, whose connectivity never changes (see `Material.structure`)
+    structure: ClassVar[STRUCTURE] = STRUCTURE.DEFORMABLE
 
     E: PositiveFloat = 1e4
     nu: Annotated[ValidFloat, Field(gt=-1.0, lt=0.5)] = 0.3

@@ -24,6 +24,10 @@ from functools import cached_property
 from typing import TYPE_CHECKING, Any, Callable, ClassVar, Generic, Self, TypeVar, get_args, get_origin
 
 import genesis as gs
+
+# genesis-world 1.5.0: `genesis.engine.couplers` imported before `genesis.engine.solvers` is a circular import
+# (couplers -> utils.sdf -> solvers -> collider -> utils.sdf, half-initialized), even after `gs.init()`.
+import genesis.engine.solvers  # noqa: F401
 import numpy as np
 import torch
 from genesis.options.renderers import BatchRenderer, Rasterizer, RendererOptions
@@ -32,11 +36,12 @@ from genesis.engine.couplers.sap_coupler import SAPErrorCode
 from genesis.engine.solvers.fem_solver import FEMErrorCode
 from genesis.engine.solvers.mpm_solver import MPMErrorCode
 from genesis.engine.solvers.rigid.data import RigidErrorCode
-from genesis.utils.misc import qd_from_torch, qd_to_torch
+from genesis.utils.misc import no_read_guard, qd_from_torch, qd_to_torch
 from genesis.typing import Vec2FType
 
 import eden as en
 from eden.constants import EventMode
+from eden.entities.base import ContactStaleness
 from eden.entities.camera import Camera
 from eden.engine.solvers.mochi.error_codes import MochiErrorCode
 from eden.entities.sensor import Sensor
@@ -193,7 +198,10 @@ def _zero_applied_control_force(solver, envs_idx: slice | torch.Tensor | None) -
     if not solver.is_active or solver.n_dofs == 0:
         return
     field = solver.dyn_state.dofs.qf_applied
-    forces = qd_to_torch(field, copy=not gs.use_zerocopy)  # (n_dofs, n_envs), the layout of the field
+    # As it stands: Genesis refuses a copy of a step output after the scene reset wrote the state, and the copy is
+    # written back whole, the reset envs zeroed and the others as they were.
+    with no_read_guard():
+        forces = qd_to_torch(field, copy=not gs.use_zerocopy)  # (n_dofs, n_envs), the layout of the field
     if envs_idx is None or isinstance(envs_idx, slice):
         forces[:, envs_idx if envs_idx is not None else slice(None)] = 0.0
     elif envs_idx.dtype == torch.bool:
@@ -310,6 +318,11 @@ class EnvBase(DrawDebugMixin, RBC, Generic[TConfig]):
 
     #: :attr:`fixed_shape_queries`, set only by :meth:`fixed_shape_query_scope`.
     _fixed_shape_queries: bool = False
+
+    #: Which envs of the rigid solver were written since they last stepped, for the contact reads to drop their
+    #: contacts (:class:`~eden.entities.base.ContactStaleness`). Set at :meth:`post_build_setup`; ``None`` before, and
+    #: in a scene whose rigid solver holds nothing to collide.
+    contact_staleness: ContactStaleness | None = None
 
     #: The metric manager, or ``None`` when the task declares no metric terms — which is what
     #: :meth:`_load_managers` leaves behind, and what every consumer in the tree (and the idiom
@@ -991,6 +1004,11 @@ class EnvBase(DrawDebugMixin, RBC, Generic[TConfig]):
 
     @assert_built
     def post_build_setup(self):
+        # Before anything below can write the state: an entity's post_build or a manager may set a pose.
+        rigid = self.scene.rigid_solver
+        self.contact_staleness = (
+            ContactStaleness(rigid) if rigid.is_active and getattr(rigid, "collider", None) is not None else None
+        )
         for entity in self.entities.values():
             entity.post_build()
 

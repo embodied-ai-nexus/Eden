@@ -487,9 +487,9 @@ def test_a_run_name_is_sanitized_into_the_middle_and_the_id_stays_last(frozen_no
 
 
 def test_import_eden_names_the_genesis_to_install_when_the_installed_one_predates_eden(monkeypatch, tmp_path):
-    """genesis-world 1.4.6 lacks the API Eden is written for, and the commits after it that have the API still call
-    themselves 1.4.6: the API tells them apart. Checked at `import eden`, ahead of the first module to import a part of
-    the API 1.4.6 lacks, without importing Genesis.
+    """genesis-world 1.4.7 lacks the API Eden is written for, and a commit after it that has the API still calls itself
+    1.4.7: the API tells them apart. Checked at `import eden`, ahead of the first module to import a part of the API
+    1.4.7 lacks, without importing Genesis.
     """
     import importlib.machinery
     import importlib.util
@@ -497,7 +497,7 @@ def test_import_eden_names_the_genesis_to_install_when_the_installed_one_predate
     from eden.utils.distribution import GENESIS_SOURCE
 
     old = tmp_path / "genesis"
-    (old / "options").mkdir(parents=True)  # a Genesis without `options/entities.py`
+    (old / "engine").mkdir(parents=True)  # a Genesis without `engine/render_context.py`
     find_spec = importlib.util.find_spec
     old_spec = importlib.machinery.ModuleSpec("genesis", None, is_package=True)
     old_spec.submodule_search_locations = [str(old)]
@@ -510,13 +510,13 @@ def test_import_eden_names_the_genesis_to_install_when_the_installed_one_predate
         en._require_genesis_api()
     assert "uv sync" in str(raised.value) and (GENESIS_SOURCE is None or GENESIS_SOURCE in str(raised.value))
     assert str(old) in str(raised.value)  # the Genesis it found, which may shadow the one installed
-    sourceless = old / "options" / "entities.pyc"
+    sourceless = old / "engine" / "render_context.pyc"
     sourceless.touch()
     en._require_genesis_api()
     sourceless.unlink()
-    (old / "options" / "entities").mkdir()  # a package
+    (old / "engine" / "render_context").mkdir()  # a package
     en._require_genesis_api()
-    (old / "options" / "entities").rmdir()
+    (old / "engine" / "render_context").rmdir()
     # A Genesis read from an archive cannot be looked into without importing it: the import decides
     old_spec.submodule_search_locations = [str(tmp_path / "genesis.zip" / "genesis")]
     en._require_genesis_api()

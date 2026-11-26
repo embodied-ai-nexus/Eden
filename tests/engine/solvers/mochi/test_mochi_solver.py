@@ -334,9 +334,8 @@ def test_moving_a_fixed_body_moves_its_collision_geom(show_viewer):
     assert_allclose(ball_z[0], 0.05, atol=2e-3)
     assert_allclose(ball_z[1], 0.25, atol=2e-3)
 
-    # A move with the forward kinematics deferred, and a rotation, move the geom too: a quarter turn about x stands the
-    # 0.2 m tall table 0.4 m tall.
-    table.set_pos(np.array([[0.0, 5.0, 0.1]]), envs_idx=[0], skip_forward=True)
+    # A second move, and a rotation, move the geom too: a quarter turn about x stands the 0.2 m tall table 0.4 m tall.
+    table.set_pos(np.array([[0.0, 5.0, 0.1]]), envs_idx=[0])
     assert_array_equal(is_inside_table([[0.0, 5.0, 0.1], [5.0, 0.0, 0.1]], 0), [True, False])
     table.set_quat(np.array([[np.sqrt(0.5), np.sqrt(0.5), 0.0, 0.0]]), envs_idx=[0])
     assert_array_equal(is_inside_table([[0.0, 5.0, 0.28]], 0), [True])
@@ -434,9 +433,9 @@ def test_moving_a_fixed_body_moves_the_geoms_of_its_fixed_descendants(tmp_path, 
             assert_array_equal(is_inside, [True, False])
 
     # Its base link, MJCF's world body at the origin, carries no geom, so it takes a pose per environment, as on the
-    # rigid solver, and the child's geom follows in that environment alone. The forward kinematics the move defers
-    # would carry the child link to its new pose, but not its geom.
-    stand.set_pos(np.array([[5.0, 0.0, 0.0]]), envs_idx=[0], skip_forward=True)
+    # rigid solver, and the child's geom follows in that environment alone. The forward kinematics Genesis runs as the
+    # link poses are next read would carry the child link to its new pose, but not its geom.
+    stand.set_pos(np.array([[5.0, 0.0, 0.0]]), envs_idx=[0])
     assert_top_at([5.0, 0.0])
     scene.step()
     assert_allclose(top.get_pos(), [[5.0, 0.0, 0.25], [0.0, 0.0, 0.25]], tol=1e-9)

@@ -25,6 +25,7 @@ from genesis.engine.solvers.rigid.data import (
     VertsInfo,
     VertsState,
 )
+from genesis.engine.state_change import StateChange
 from genesis.utils.data import ENVS, Config, Data, DataKind, field
 
 
@@ -983,8 +984,10 @@ class MochiSoftState:
     kind: ClassVar[DataKind] = DataKind.SCRATCH
     # Vertex positions (the unknowns) and finite-difference velocities, with their multistep history and the
     # step-start / stage-start references and line search reference of the current solve.
-    verts_pos: qd.Tensor = field(kind=DataKind.STATE)
-    verts_vel: qd.Tensor = field(kind=DataKind.STATE)
+    # Tracked by the change log as the world surface and its velocities (see `genesis.engine.state_change`), so a
+    # write of them redraws the deformable surfaces (see `MochiScopedRenderContext`).
+    verts_pos: qd.Tensor = field(kind=DataKind.STATE, change=StateChange.GEOMETRY)
+    verts_vel: qd.Tensor = field(kind=DataKind.STATE, change=StateChange.DYNAMICS)
     verts_pos_prev: qd.Tensor = field(kind=DataKind.STATE)
     verts_vel_prev: qd.Tensor = field(kind=DataKind.STATE)
     verts_pos_stage_start: qd.Tensor
@@ -1008,7 +1011,7 @@ class MochiSoftState:
     # (recentered to zero at every step start) with its finite-difference rate and history, stage-start axial strain
     # and stencil measures, and the Hessian blocks (3x3 axial per segment, 11x11 per stencil over
     # [x0, theta0, x1, theta1, x2]).
-    rod_elems_axis: qd.Tensor = field(kind=DataKind.STATE)
+    rod_elems_axis: qd.Tensor = field(kind=DataKind.STATE, change=StateChange.GEOMETRY)
     rod_elems_axis_stage_start: qd.Tensor
     rod_elems_axis_ls_ref: qd.Tensor
     rod_elems_twist: qd.Tensor = field(kind=DataKind.STATE)

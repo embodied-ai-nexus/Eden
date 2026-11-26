@@ -44,7 +44,7 @@ import json
 #: The envs forced to time out in every step of the ``task`` scenario.
 RESET_ENVS = slice(0, 4)
 
-#: The ``fresh_cache`` reward's per-step cache, emptied before every step as Genesis empties its query cache.
+#: The ``fresh_cache`` reward's per-step cache, emptied before every step.
 FRESH_CACHE: dict = {}
 
 

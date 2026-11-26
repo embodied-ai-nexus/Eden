@@ -468,7 +468,7 @@ class AssistMimicPairMotion(CommandTerm):
         for i, role in enumerate(ROLES):
             entity = self.resolve_entity(self._entity_names[role])
             s = state[:, i * (NQ + NV) : (i + 1) * (NQ + NV)]
-            entity.set_dofs_vel(s[:, NQ:], dofs_idx_local=self._dofs_idx, envs_idx=envs_mask, skip_forward=True)
+            entity.set_dofs_vel(s[:, NQ:], dofs_idx_local=self._dofs_idx, envs_idx=envs_mask)
             entity.set_qpos(s[:, :NQ], qs_idx_local=self._qs_idx, envs_idx=envs_mask, zero_velocity=False)
 
     # --- pair state capture and restore (PSI) --------------------------------------------------------------------

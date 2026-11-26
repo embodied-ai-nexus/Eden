@@ -89,7 +89,7 @@ def _refk_links_genesis(
     link_idxs_t = torch.as_tensor(link_idxs, dtype=torch.long, device=robot.device)
     for t in range(T):
         qt = torch.as_tensor(qpos[t], dtype=torch.float32, device=robot.device).unsqueeze(0)
-        robot.set_qpos(qt, zero_velocity=False, skip_forward=False)
+        robot.set_qpos(qt, zero_velocity=False)
         pos[t] = robot.get_links_pos(envs_idx=0)[0, link_idxs_t].cpu().numpy()
         quat[t] = robot.get_links_quat(envs_idx=0)[0, link_idxs_t].cpu().numpy()
     return pos, quat

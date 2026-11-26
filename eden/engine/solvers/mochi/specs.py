@@ -7,7 +7,7 @@ below to the MochiSolver of the scene, so a spec of either reaches it through ``
 """
 
 from collections.abc import Iterable
-from typing import Any, NoReturn, Self
+from typing import Any, ClassVar, NoReturn, Self
 
 import genesis as gs
 from genesis.options.morphs import Morph
@@ -43,6 +43,10 @@ class MochiRigidSpec(gs.entities.Rigid):
     the ``gs.entities.Rigid`` it derives from, which the RigidSolver simulates. Genesis offers no hook to refuse it there
     short of patching its classes, which the hosting never does; Eden's scenes install the solver themselves.
     """
+
+    # The MochiSolver draws its bodies as they look alone (see `MochiScopedRenderContext`), so a spec asking the debug
+    # view for a representation of one is refused (see `Spec._check_vis`).
+    _debug_vis_modes: ClassVar[tuple[str, ...]] = ()
 
     _admits_variants = False
 

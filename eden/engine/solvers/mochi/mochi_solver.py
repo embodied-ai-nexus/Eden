@@ -15,8 +15,10 @@ import numpy as np
 import quadrants as qd
 import torch
 from genesis.constants import link_ref_frame
-from genesis.engine.solvers.base_solver import GravityMixin, StateChange, Subscriber, TimeBasedMixin, mutates
-from genesis.engine.solvers.kinematic_solver import KinematicSolver
+from genesis.engine.solvers.base_solver import GravityMixin, TimeBasedMixin
+from genesis.engine.state_change import StateChange, Subscriber, mutates
+from genesis.engine.render_context import ArrayRef, DynamicMesh, ScopedRenderContext, Shape, ShapeRoles
+from genesis.engine.solvers.kinematic_solver import KinematicScopedRenderContext, KinematicSolver
 from genesis.engine.solvers.rigid.abd.accessor import (
     kernel_control_dofs_force,
     kernel_control_dofs_position,
@@ -111,7 +113,6 @@ from eden.engine.solvers.mochi.kinematics import (
     kernel_update_geom_aabbs,
     kernel_update_geoms,
     kernel_update_kinematics,
-    kernel_update_vgeoms,
 )
 from eden.engine.solvers.mochi.linear_solver import (
     kernel_condense_dense,
@@ -579,7 +580,7 @@ class MochiSolver(GravityMixin, TimeBasedMixin, KinematicSolver):
             n_nodes = len(self._entities) + len(self._soft_entities)
             self._nodes_idx = torch.arange(n_nodes, dtype=gs.tc_int, device=gs.device)
         self._init_sdf()
-        self.subscribe(self._external_state_subscriber)
+        self.changelog.subscribe(self._external_state_subscriber)
         kernel_reset_history(
             self._envs_idx, self.dyn_state, self.dyn_info, self.mochi_info, self.mochi_state, self.rigid_config
         )
@@ -587,6 +588,9 @@ class MochiSolver(GravityMixin, TimeBasedMixin, KinematicSolver):
         # The base solver built the entities of the kinematic tree; the deformable ones read the arrays of `_init_soft`
         for entity in self._soft_entities:
             entity._build()
+        # The base solver tracked the arrays of the kinematic tree as it built them; the solver's own structs exist only
+        # now. Those already tracked are skipped (see `ChangeLog.register_arrays`).
+        self.changelog.register_arrays(self.data)
 
     def _create_data_manager(self):
         super()._create_data_manager()
@@ -615,6 +619,10 @@ class MochiSolver(GravityMixin, TimeBasedMixin, KinematicSolver):
             (self.dyn_state, "free_verts", collision.free_verts_state),
             (self.dyn_state, "fixed_verts", collision.fixed_verts_state),
             (self.rigid_info, "geoms_init_AABB", self.geoms_init_AABB),
+            # The kinematic data manager leaves the dynamics of the dofs and the links as 0-d placeholders too; the
+            # solver records the control force each step applied, and the net contact force on each link.
+            (self.dyn_state.dofs, "qf_applied", V(dtype=gs.qd_float, shape=(self.n_dofs_, self.n_envs_))),
+            (self.dyn_state.links, "contact_force", V_VEC(3, dtype=gs.qd_float, shape=(self.n_links_, self.n_envs_))),
         ):
             object.__setattr__(struct, name, array)
 
@@ -1289,7 +1297,6 @@ class MochiSolver(GravityMixin, TimeBasedMixin, KinematicSolver):
                 self._rod_vverts_elem,
                 self._rod_vverts_offset,
             )
-        self._envs_offset = np.asarray(self._sim.scene.envs_offset, dtype=gs.np_float).reshape((_B, 3))
         if self.n_attachments > 0:
             self._init_attachments(verts_rest)
 
@@ -1752,7 +1759,7 @@ class MochiSolver(GravityMixin, TimeBasedMixin, KinematicSolver):
                 self.rigid_config,
             )
 
-    def _on_external_state_change(self, change, envs_idx):
+    def _on_external_state_change(self, change, envs_idx=None):
         self._mark_external_state_dirty(self._sim.sanitize_envs_idx(envs_idx))
 
     def _mark_external_state_dirty(self, envs_idx):
@@ -1860,9 +1867,6 @@ class MochiSolver(GravityMixin, TimeBasedMixin, KinematicSolver):
                 self._max_samples_per_soft_entity,
                 self._errno,
             )
-            self._update_vgeoms()
-            self._is_forward_pos_updated = True
-            self._is_forward_vel_updated = True
             self._is_contacts_recorded = False
             return
         if self._step_kernel == "monolith":
@@ -1896,9 +1900,6 @@ class MochiSolver(GravityMixin, TimeBasedMixin, KinematicSolver):
                 self._max_samples_per_soft_entity,
                 self._errno,
             )
-            self._update_vgeoms()
-            self._is_forward_pos_updated = True
-            self._is_forward_vel_updated = True
             self._is_contacts_recorded = False
             return
 
@@ -2011,8 +2012,6 @@ class MochiSolver(GravityMixin, TimeBasedMixin, KinematicSolver):
                 self.has_soft,
             )
         self._forward_kinematics()
-        self._is_forward_pos_updated = True
-        self._is_forward_vel_updated = True
         self._is_contacts_recorded = False
 
     def _assemble(self, *, assem_res, assem_dres, skip_ls_done, record=False):
@@ -2380,17 +2379,6 @@ class MochiSolver(GravityMixin, TimeBasedMixin, KinematicSolver):
                 self.mochi_info, self.mochi_state, self.island_state, self.rigid_config, True, self._errno
             )
 
-    def _update_vgeoms(self):
-        """Place the visual geoms on the links a single-kernel step left, which ran its own kinematics, once the last
-        substep of the scene step is over: only a step's end is drawn or read.
-
-        Genesis places them within its forward kinematics (`kernel_forward_kinematics`), which the pipelined step and
-        every setter end with, and its visualizer no longer refreshes them (see `kernel_update_vgeoms`).
-        """
-        is_last_substep = (self.sim.cur_substep_global + 1) % self._substeps == 0
-        if is_last_substep and self.n_vgeoms > 0:
-            kernel_update_vgeoms(self.dyn_state, self.dyn_info, self.rigid_config)
-
     def substep_post_coupling(self):
         if self.is_active and self.n_dofs > 0:
             kernel_record_dofs_control_force(self.dyn_state, self.dyn_info, self.rigid_info, self.rigid_config)
@@ -2399,18 +2387,15 @@ class MochiSolver(GravityMixin, TimeBasedMixin, KinematicSolver):
     # ------------------------------------ render ----------------------------------------
     # ------------------------------------------------------------------------------------
 
-    def get_soft_state_render(self):
-        """Environment-offset render vertex positions of the deformable surfaces, shape (n_vverts, B), as (positions,
-        None, None) (UVs and faces are read from the visual geoms).
+    def _update_soft_render(self):
+        """Write the render vertices of the deformable surfaces (`_soft_vverts_render`, shape (n_vverts, B)) from the
+        simulated ones, in the frame of each environment: the renderers place each at its offset.
         """
-        if not self.has_soft or self.n_soft_vverts == 0:
-            return None, None, None
         kernel_soft_get_state_render(
             self._soft_vverts_render,
             self._soft_vverts_vert_idx,
             self._soft_vverts_elem,
             self._soft_vverts_bary,
-            self._envs_offset,
             self.soft_info,
             self.soft_state,
             self.rigid_config,
@@ -2422,12 +2407,10 @@ class MochiSolver(GravityMixin, TimeBasedMixin, KinematicSolver):
                 self._rod_vverts_node,
                 self._rod_vverts_elem,
                 self._rod_vverts_offset,
-                self._envs_offset,
                 self.soft_info,
                 self.soft_state,
                 self.rigid_config,
             )
-        return self._soft_vverts_render, None, None
 
     # ------------------------------------------------------------------------------------
     # -------------------------------- state get/set -------------------------------------
@@ -2438,19 +2421,22 @@ class MochiSolver(GravityMixin, TimeBasedMixin, KinematicSolver):
         """Yield the arrays of the kinematic tree, then every array of the solver's own structs under its kind.
 
         A test walks the attributes of a built solver and fails on an array this leaves out, so a new array is declared
-        here or in its struct (see `tests/engine/solvers/mochi/test_checkpoint.py`).
+        here or in its struct (see `tests/engine/solvers/mochi/test_checkpoint.py`). The kinematic build registers
+        the data in the change log before the solver's own structs exist (see `build`), so a struct not built yet is
+        skipped.
         """
         yield from super().data
-        yield from iter_data(self, "mochi_config")
+        if getattr(self, "mochi_config", None) is not None:
+            yield from iter_data(self, "mochi_config")
         for name in _STRUCTS:
-            if getattr(self, name) is not None:
+            if getattr(self, name, None) is not None:
                 yield from iter_data(self, name)
         # The render maps of the deformable surfaces, and the scratch of the render and of the graph step kernel
         for name in _CONSTANT_ARRAYS:
-            if getattr(self, name) is not None:
+            if getattr(self, name, None) is not None:
                 yield from iter_data(self, name, DataKind.CONSTANT)
         for name in _SCRATCH_ARRAYS:
-            if getattr(self, name) is not None:
+            if getattr(self, name, None) is not None:
                 yield from iter_data(self, name, DataKind.SCRATCH)
 
     def set_state(self, state: SolverCheckpoint, envs_idx=None) -> None:
@@ -2471,13 +2457,13 @@ class MochiSolver(GravityMixin, TimeBasedMixin, KinematicSolver):
     def _resume(self, envs_idx) -> None:
         """Bring what a step reads before writing it up to date with a restored state, in the given environments."""
         # Every geom, the fixed ones included, since the state may hold a fixed link moved since (see
-        # `_set_base_links_pose`); their boxes are fitted along.
-        kernel_update_geoms(envs_idx, self.dyn_state, self.dyn_info, self.rigid_info, self.rigid_config, True)
+        # `_set_base_links_pose`); their boxes are fitted along. In every environment, as `_set_base_links_pose` does.
+        kernel_update_geoms(self._envs_idx, self.dyn_state, self.dyn_info, self.rigid_info, self.rigid_config, True)
         self._external_state_dirty_mask[tensor_to_array(envs_idx)] = False
         self._is_contacts_recorded = False
 
-    def set_qpos(self, qpos, qs_idx=None, envs_idx=None, *, skip_forward=False):
-        super().set_qpos(qpos, qs_idx, envs_idx, skip_forward=skip_forward)
+    def set_qpos(self, qpos, qs_idx=None, envs_idx=None):
+        super().set_qpos(qpos, qs_idx, envs_idx)
         # Setting the configuration of an environment clears its error, as restoring its state does.
         self.clear_errno(envs_idx)
 
@@ -2486,38 +2472,34 @@ class MochiSolver(GravityMixin, TimeBasedMixin, KinematicSolver):
         self.clear_errno(envs_idx)
 
     # The base-pose setters are tagged themselves so that the subscribers are notified once the geoms are placed.
-    @mutates(StateChange.GEOMETRY, links="links_idx")
-    def set_base_links_pos(self, pos, links_idx=None, envs_idx=None, *, relative=False, skip_forward=False):
-        self._set_base_links_pose(super().set_base_links_pos, "pos", pos, links_idx, envs_idx, relative, skip_forward)
+    @mutates
+    def set_base_links_pos(self, pos, links_idx=None, envs_idx=None, *, relative=False):
+        self._set_base_links_pose(super().set_base_links_pos, "pos", pos, links_idx, envs_idx, relative)
 
-    @mutates(StateChange.GEOMETRY, links="links_idx")
-    def set_base_links_quat(self, quat, links_idx=None, envs_idx=None, *, relative=False, skip_forward=False):
-        self._set_base_links_pose(
-            super().set_base_links_quat, "quat", quat, links_idx, envs_idx, relative, skip_forward
-        )
+    @mutates
+    def set_base_links_quat(self, quat, links_idx=None, envs_idx=None, *, relative=False):
+        self._set_base_links_pose(super().set_base_links_quat, "quat", quat, links_idx, envs_idx, relative)
 
-    def _set_base_links_pose(self, set_pose, kind, value, links_idx, envs_idx, relative, skip_forward):
+    def _set_base_links_pose(self, set_pose, kind, value, links_idx, envs_idx, relative):
         """Set the position (`kind` "pos") or orientation ("quat") of base links with the parent setter `set_pose`, and
         place the fixed geoms the move carries.
 
         Genesis' forward kinematics places no collision geom, and this solver's step places only those of movable
         links, so the geoms of a fixed link moved by `set_pos` or `set_quat`, or attached below one, would otherwise go
-        on colliding where they were. They are placed even under `skip_forward`, after a forward kinematics of their
-        own: the step's pass would carry the fixed links to their new pose and leave their geoms behind. Every geom of
-        the moved environments is placed then, the movable ones included; after a setter that moves no fixed geom,
-        the movable geoms follow at the next step, as the step places them.
+        on colliding where they were. Placing them reads the link poses, which Genesis refreshes first from the pose
+        just written. Every geom of the moved environments is placed then, the movable ones included; after a setter
+        that moves no fixed geom, the movable geoms follow at the next step, as the step places them.
         """
         if links_idx is None:
             targeted_links_idx = self._base_links_idx_host
         else:
             targeted_links_idx = tensor_to_array(sanitize_index(links_idx, -1, self.n_links, 0, "links_idx"))
         self._check_pose_shared_by_envs(targeted_links_idx, kind, value, envs_idx)
-        set_pose(value, links_idx, envs_idx, relative=relative, skip_forward=skip_forward)
+        set_pose(value, links_idx, envs_idx, relative=relative)
         if self._links_moves_fixed_geoms[targeted_links_idx].any():
-            envs_idx = self._sim.sanitize_envs_idx(envs_idx)
-            if skip_forward:
-                kernel_forward_kinematics(envs_idx, self.dyn_state, self.dyn_info, self.rigid_info, self.rigid_config)
-            kernel_update_geoms(envs_idx, self.dyn_state, self.dyn_info, self.rigid_info, self.rigid_config, True)
+            # Every environment, though only some moved: Genesis counts the geoms computed by the latest launch writing
+            # them, and a launch over some environments leaves them unreadable in the others (see `ChangeLog.is_fresh`).
+            kernel_update_geoms(self._envs_idx, self.dyn_state, self.dyn_info, self.rigid_info, self.rigid_config, True)
             # The contacts read back before the move were found against the geoms where they were
             self._is_contacts_recorded = False
 
@@ -2739,7 +2721,7 @@ class MochiSolver(GravityMixin, TimeBasedMixin, KinematicSolver):
     # ------------------------------------ control ---------------------------------------
     # ------------------------------------------------------------------------------------
 
-    @mutates(StateChange.MODEL)
+    @mutates
     def _set_dofs_info(self, tensor_list, dofs_idx, name, envs_idx=None):
         tensor_list = list(tensor_list)
         for j, tensor in enumerate(tensor_list):
@@ -2941,11 +2923,13 @@ class MochiSolver(GravityMixin, TimeBasedMixin, KinematicSolver):
         self._wake_nodes(dofs_idx, self._dofs_node, envs_idx_)
 
     def get_dofs_control_force(self, dofs_idx=None, envs_idx=None):
-        """The control force the last step applied, as the rigid solver reports it (see `substep_post_coupling`)."""
+        """The control force the last step applied, as the rigid solver reports it (see `substep_post_coupling`), None
+        after a change of the state or of the model until the next step computes it.
+        """
         tensor = self._read_data(self.dyn_state.dofs.qf_applied, envs_idx, dofs_idx, copy=True)
-        return tensor[0] if self.n_envs == 0 else tensor
+        return tensor if tensor is None or self.n_envs > 0 else tensor[0]
 
-    @mutates(StateChange.MODEL)
+    @mutates
     def set_links_contact_params(self, links_idx, **params):
         links_idx = tensor_to_array(links_idx).reshape((-1,))
         links = self.links  # a copy on every access
@@ -2956,7 +2940,8 @@ class MochiSolver(GravityMixin, TimeBasedMixin, KinematicSolver):
             if value is None:
                 continue
             field = self.mochi_info.geoms.__getattribute__(name)
-            values = qd_to_numpy(field)
+            # A copy: genesis-world 1.5 hands out its zero-copy numpy views read-only; the array is written back whole
+            values = qd_to_numpy(field, copy=True)
             values[geoms_idx] = value
             field.from_numpy(values)
         self._wake_nodes(self._nodes_idx, self._nodes_idx, self._envs_idx)
@@ -3002,7 +2987,7 @@ class MochiSolver(GravityMixin, TimeBasedMixin, KinematicSolver):
     def set_links_COM(self, com, links_idx=None, envs_idx=None):
         gs.raise_exception("`set_links_COM` is not supported by the MochiSolver: link inertials are fixed at build.")
 
-    @mutates(StateChange.MODEL)
+    @mutates
     def set_links_has_gravity(self, links_idx, has_gravity):
         links_idx = tensor_to_array(links_idx).reshape((-1,))
         values = qd_to_numpy(self.mochi_info.links.has_gravity)
@@ -3016,7 +3001,7 @@ class MochiSolver(GravityMixin, TimeBasedMixin, KinematicSolver):
         if self.mochi_config.use_sleeping:
             self._wake_nodes(self._nodes_idx, self._nodes_idx, self._sim.sanitize_envs_idx(envs_idx))
 
-    @mutates(StateChange.MODEL)
+    @mutates
     def enable_layer_contact(self, layer_a: str, layer_b: str, is_enabled: bool = True):
         """Enable or disable contact between two contact layers (symmetric)."""
         i_a, i_b = self._layers.index(layer_a), self._layers.index(layer_b)
@@ -3029,7 +3014,7 @@ class MochiSolver(GravityMixin, TimeBasedMixin, KinematicSolver):
             kernel_soft_set_pair_enabled(self._compute_soft_pair_enabled(), self.soft_info, self.rigid_config)
         self._wake_nodes(self._nodes_idx, self._nodes_idx, self._envs_idx)
 
-    @mutates(StateChange.MODEL)
+    @mutates
     def enable_entity_contact(self, entity_a, entity_b, is_enabled: bool = True):
         """Enable or disable contact between two entities (symmetric)."""
         is_soft_a = isinstance(entity_a, MochiSoftEntity)
@@ -3239,7 +3224,7 @@ class MochiSolver(GravityMixin, TimeBasedMixin, KinematicSolver):
             i_n = len(self._entities) + entity.idx_in_solver
             self._wake_nodes(self._nodes_idx[i_n : i_n + 1], self._nodes_idx, envs_idx)
 
-    @mutates(StateChange.MODEL)
+    @mutates
     def set_soft_entity_contact_params(self, entity, **params):
         material = entity.material
         keys = (
@@ -3264,6 +3249,52 @@ class MochiSolver(GravityMixin, TimeBasedMixin, KinematicSolver):
         )
         self._wake_nodes(self._nodes_idx, self._nodes_idx, self._envs_idx)
         self._is_contacts_recorded = False
+
+
+class MochiScopedRenderContext(KinematicScopedRenderContext, ScopedRenderContext[MochiSolver]):
+    """The visual geoms of the MochiSolver's rigid bodies, posed by their link as a kinematic solver's are, and the
+    surfaces of its deformable bodies.
+
+    Each render vertex of a deformable surface is written from the simulated vertices by `_update_soft_render`, as the
+    surface is read after its vertices moved: a step, or a setter of them.
+    """
+
+    def build(self) -> None:
+        super().build()
+        solver = self.owner
+        self._has_soft_shapes = solver.is_active and solver.has_soft and solver.n_soft_vverts > 0
+        if not self._has_soft_shapes:
+            return
+        # Every surface views the render vertices of the whole solver, so that a renderer reads them once for all
+        verts = ArrayRef(solver._soft_vverts_render)
+        soft_shapes = []
+        for entity in solver.soft_entities:
+            for vgeom in entity.vgeoms:
+                surface = vgeom.surface
+                if any(isinstance(texture, gs.textures.DynamicTexture) for _, texture in surface):
+                    gs.raise_exception(
+                        f"Deformable Mochi entity '{entity.name}' declares a gs.textures.DynamicTexture on its "
+                        "surface, which the MochiSolver does not draw. Give it a static texture or a color instead."
+                    )
+                soft_shapes.append(
+                    DynamicMesh(
+                        vgeom.vmesh.faces,
+                        surface,
+                        verts,
+                        vgeom.uvs,
+                        vgeom.seg_keys,
+                        verts_idx=torch.arange(vgeom.vvert_start, vgeom.vvert_end, dtype=gs.tc_int, device=gs.device),
+                        roles=ShapeRoles.of(entity.idx, is_looks=True, is_debug=False),
+                        invalidated_by={solver: (StateChange.GEOMETRY,)},
+                    )
+                )
+        self._shapes = (*self._shapes, *soft_shapes)
+
+    def update_shapes(self, envs_idx: torch.Tensor | None, view: str) -> tuple[Shape, ...]:
+        # The render vertices of every environment are written at once, as the kinematic solver places its visual geoms
+        if envs_idx is not None and self._has_soft_shapes:
+            self.owner._update_soft_render()
+        return super().update_shapes(envs_idx, view)
 
 
 @qd.kernel

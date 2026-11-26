@@ -19,6 +19,7 @@ from genesis.utils.geom import (  # noqa: F401 -- re-exported, see above
     T_to_quat,
     T_to_trans,
     T_to_trans_quat,
+    T_to_trans_quat_scale,
     axis_angle_to_quat,
     inv_quat,
     inv_transform_by_quat,

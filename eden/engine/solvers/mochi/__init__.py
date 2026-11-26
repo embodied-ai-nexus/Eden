@@ -22,10 +22,10 @@ instead, or in :mod:`~eden.engine.solvers.mochi.hosting`:
   does), and raising the kinematic kernels' parallelization level;
 - the serializer fix of https://github.com/Kashu7100/Genesis/pull/31, as the class name ``MochiRigid``
   (:mod:`.materials.rigid`);
-- in :mod:`.hosting`: constructing the solver for a scene, adding its entities, drawing them with the rasterizer, and
-  saving and restoring its state with the scene's;
-- the kinematic-state, geom-box and visual-geom kernels Genesis dropped or folded into its own kinematics
-  (:mod:`.kinematics`), and freeing the solver's arrays in ``MochiSolver.destroy``.
+- in :mod:`.hosting`: constructing the solver for a scene, adding its entities, and saving and restoring its state
+  with the scene's; the bodies are drawn through the scene's render context (``MochiScopedRenderContext``);
+- the kinematic-state and geom-box kernels Genesis dropped or folded into its own kinematics (:mod:`.kinematics`), and
+  freeing the solver's arrays in ``MochiSolver.destroy``.
 
 Left out: ``gs.init(cpu_threads=...)`` (set ``QD_NUM_THREADS`` instead), the interactive viewer's wait for a starved
 draw thread (a generic viewer fix, not a Mochi one), and the RayTracer path (refused by

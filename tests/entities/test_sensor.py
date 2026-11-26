@@ -41,7 +41,8 @@ def env():
                 sensor=gs.sensors.IMU(acc_noise=(0.1, 0.1, 0.1), gyro_noise=(0.1, 0.1, 0.1)),
                 attach_entity_name="robot",
             ),
-            static=SensorOptions(sensor=gs.sensors.Contact(pos_offset=(1.0, 2.0, 3.0))),
+            # An IMU: genesis-world 1.5 refuses an unattached Contact sensor, which measures nothing without its link
+            static=SensorOptions(sensor=gs.sensors.IMU(pos_offset=(1.0, 2.0, 3.0))),
             prox=SensorOptions(
                 sensor=gs.sensors.SurfaceDistanceProbe(
                     probe_local_pos=[(0.0, 0.0, 0.0)], probe_radius=1.0, track_link_idx=(0,)
@@ -59,7 +60,7 @@ def env():
             ),
         ),
     )
-    config.sensors_options.late = SensorOptions(sensor=gs.sensors.Contact(draw_debug=True))
+    config.sensors_options.late = SensorOptions(sensor=gs.sensors.IMU(draw_debug=True))
     env = build_env(config)
     env.step()
     yield env

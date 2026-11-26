@@ -7,9 +7,9 @@ its options class lives here and :func:`eden.engine.solvers.mochi.hosting.instal
 from typing import Any, Literal
 
 import genesis as gs
-from genesis.options.solvers import GravityMixin, TimeBasedMixin
+from genesis.options.solvers import GravityMixin, KinematicVisOptions, TimeBasedMixin
 from genesis.typing import NonNegativeFloat, NonNegativeInt, PositiveFloat, PositiveInt, UnitInterval
-from pydantic import StrictBool
+from pydantic import Field, StrictBool
 
 
 class MochiOptions(GravityMixin, TimeBasedMixin):
@@ -244,6 +244,10 @@ class MochiOptions(GravityMixin, TimeBasedMixin):
     batch_links_info: StrictBool = False
     batch_joints_info: StrictBool = False
     batch_dofs_info: StrictBool = False
+    vis: KinematicVisOptions = Field(default_factory=KinematicVisOptions)
+    """The markers the interactive viewer and the debug cameras draw for the solver's links (their frames), as for a
+    kinematic solver. Documented here rather than under ``Parameters``: the class inherits ``Options.__init__(**data)``,
+    so griffe flags every entry there (``docs/hooks/griffe_warnings.py``)."""
 
     def model_post_init(self, context: Any) -> None:
         if not (0.0 < self.linesearch_alpha < 1.0):

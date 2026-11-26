@@ -133,10 +133,10 @@ _DEFAULT_BACKEND = None
 def _require_genesis_api() -> None:
     """Raise, naming the command that fixes it, when the installed genesis-world predates the API Eden is written for.
 
-    genesis-world 1.4.7 is the first release with that API. The check reads the API rather than the version, because
-    the genesis-world commits between 1.4.6 and 1.4.7 that have it still call themselves 1.4.6. The entity specs
-    (``genesis/options/entities.py``) are the most recent part of that API Eden reads, and 1.4.6 lacks them; without
-    this check, the first Eden module to import a part it lacks fails with a bare ``ModuleNotFoundError``. Run at
+    genesis-world 1.5.0 is the first release with that API. The check reads the API rather than the version, because
+    a genesis-world commit between two releases calls itself the earlier one. The render context
+    (``genesis/engine/render_context.py``) is the most recent part of that API Eden reads, and 1.4.7 lacks it; without
+    this check, the first Eden module to import a part it lacks fails with a bare ``ImportError``. Run at
     ``import eden``, which imports no Genesis, so the package is located on disk rather than imported (``find_spec`` of
     a top-level name imports nothing). A missing Genesis is left to the ``import genesis`` that then fails.
     """
@@ -147,8 +147,9 @@ def _require_genesis_api() -> None:
     # A package read from an archive (a zipped or frozen install) cannot be looked into without importing it
     if not all(os.path.isdir(root) for root in roots):
         return
-    entities = ("entities.py", "entities.pyc", "entities")  # a source module, a sourceless one, or a package
-    if any(os.path.exists(os.path.join(root, "options", name)) for root in roots for name in entities):
+    # a source module, a sourceless one, or a package
+    render_context = ("render_context.py", "render_context.pyc", "render_context")
+    if any(os.path.exists(os.path.join(root, "engine", name)) for root in roots for name in render_context):
         return
     from eden.utils.distribution import GENESIS_SOURCE, installed_version
 
@@ -160,9 +161,9 @@ def _require_genesis_api() -> None:
     version = installed_version("genesis-world") or "of unknown version"
     raise ImportError(
         f"The Genesis found at {os.pathsep.join(roots)} (genesis-world {version}) predates the Genesis API Eden is "
-        "written for: it lacks `genesis.options.entities`, which genesis-world 1.4.7 is the first release to have. In "
-        "a checkout of Eden, run `uv sync`, which installs the Genesis that pyproject.toml pins; otherwise run "
-        f"{install}. If that path is not the environment you installed into, another Genesis shadows it (PYTHONPATH, "
+        "written for: it lacks `genesis.engine.render_context`, which genesis-world 1.5.0 is the first release to "
+        "have. In a checkout of Eden, run `uv sync`, which installs the Genesis that pyproject.toml pins; otherwise "
+        f"run {install}. If that path is not the environment you installed into, another Genesis shadows it (PYTHONPATH, "
         "an editable checkout)."
     )
 

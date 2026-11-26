@@ -221,6 +221,7 @@ _GENESIS_REEXPORTS = (
     "T_to_quat",
     "T_to_trans",
     "T_to_trans_quat",
+    "T_to_trans_quat_scale",
     "axis_angle_to_quat",
     "inv_quat",
     "inv_transform_by_T",
@@ -286,6 +287,13 @@ def _pose_inputs():
     return q, t, p, gg.quat_to_R(q), gg.trans_quat_to_T(t, q)
 
 
+def _scaled(T):
+    """``T`` with its rotation followed by the scale ``(2, 0.5, 3)`` along the rotated axes."""
+    scaled = T.clone()
+    scaled[..., :3, :3] = T[..., :3, :3] @ torch.diag(torch.tensor([2.0, 0.5, 3.0]))
+    return scaled
+
+
 def _apply_T(T, p):
     return (T[..., :3, :3] @ p[..., None])[..., 0] + T[..., :3, 3]
 
@@ -300,6 +308,18 @@ _REEXPORT_CHECKS = {
     "T_to_trans_quat": lambda q, t, p, R, T: (
         torch.cat([geom.T_to_trans_quat(T)[0], geom.quat_to_R(geom.T_to_trans_quat(T)[1]).flatten(-2)], -1),
         torch.cat([t, R.flatten(-2)], -1),
+    ),
+    # A transform scaled after its rotation splits back into the translation, the rotation and the scale.
+    "T_to_trans_quat_scale": lambda q, t, p, R, T: (
+        torch.cat(
+            [
+                geom.T_to_trans_quat_scale(_scaled(T))[0],
+                geom.quat_to_R(geom.T_to_trans_quat_scale(_scaled(T))[1]).flatten(-2),
+                geom.T_to_trans_quat_scale(_scaled(T))[2].flatten(-2),
+            ],
+            -1,
+        ),
+        torch.cat([t, R.flatten(-2), torch.diag(torch.tensor([2.0, 0.5, 3.0])).expand(len(t), 3, 3).flatten(-2)], -1),
     ),
     # A rotation about ``axis`` leaves ``axis`` fixed.
     "axis_angle_to_quat": lambda q, t, p, R, T: (geom.transform_by_quat(p, geom.axis_angle_to_quat(t[:, 0], p)), p),

@@ -16,16 +16,20 @@ morph at creation time and raises from ``set_pos`` / ``set_quat``, as does
 from __future__ import annotations
 
 import copy
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
+from contextlib import contextmanager
 from typing import TYPE_CHECKING, Any, Literal
 
 import genesis as gs
 import genesis.utils.geom as gu
 import numpy as np
 import torch
+from genesis.engine import state_change
+from genesis.engine.state_change import StateChange, Subscriber
 from genesis.engine.materials.base import Material
 from genesis.typing import UnitVec4FType, Vec3FType
 from genesis.utils.geom import inv_transform_by_quat, transform_by_quat
+from genesis.utils.misc import no_read_guard
 
 import eden as en
 from eden._logging import collapse_repeated_genesis_warnings
@@ -43,6 +47,105 @@ if TYPE_CHECKING:
     from genesis.options.surfaces import Surface
 
     from eden.envs.base import EnvBase
+
+
+class _ReadersLifted(dict):
+    """Genesis' registry of array readers (``state_change._ARRAY_READERS``) as a ``TrackedCache`` sees it inside
+    :func:`last_step_read`: no reader for any array, so the cache hands out its views as they stand. A kernel launch
+    looks its readers up by item, which reaches the registry itself, so a refresh inside the block runs as it would.
+    """
+
+    def __init__(self, readers: dict) -> None:
+        super().__init__()
+        self._readers = readers
+
+    def get(self, key, default=None):
+        return default
+
+    def __getitem__(self, key):
+        return self._readers[key]
+
+
+@contextmanager
+def last_step_read() -> Iterator[None]:
+    """Read what the last step computed (forces, contacts), as it stands.
+
+    Genesis refuses such a read (the getter returns ``None``) after any write to the state or the model, in any env,
+    until the next step computes it anew: a reset of one env, or a pose an interval event writes, would leave every
+    env's contacts unreadable for the observations of the same step and the actions of the next. Eden's step-output
+    getters read inside this block instead, so they return what the last step left: its value in every env the write
+    did not touch, and the previous episode's last value in an env just reset, as genesis-world 1.4 returned them. A
+    pose or a velocity is never read inside it: Genesis refreshes those as they are read.
+
+    Two guards are lifted: the one on copies of a solver array (``no_read_guard``), and the one on the views of the
+    contact arrays a ``TrackedCache`` holds, which reads ``genesis.engine.state_change._ARRAY_READERS`` itself.
+    """
+    readers = getattr(state_change, "_ARRAY_READERS", None)
+    if not isinstance(readers, dict):
+        raise RuntimeError(
+            "eden.entities.base.last_step_read: genesis.engine.state_change has no `_ARRAY_READERS` dict any more, so "
+            "the guard on the contact arrays cannot be lifted and a contact read after a state write would return "
+            "None. Genesis renamed or restructured it: update last_step_read to how TrackedCache.get now decides "
+            "whether an array is readable."
+        )
+    state_change._ARRAY_READERS = _ReadersLifted(readers)
+    try:
+        with no_read_guard():
+            yield
+    finally:
+        state_change._ARRAY_READERS = readers
+
+
+class ContactStaleness:
+    """Which envs of a rigid solver had their configuration written since the solver last stepped.
+
+    The contacts :func:`last_step_read` reads are those the last step found. An env written since (a reset, a pose an
+    event sets) holds the contacts of its old configuration, which genesis-world 1.4 dropped as the write happened and
+    1.5 keeps until the next step: :meth:`Entity._query_contacts` drops them from the read instead. An eager subscriber
+    to the solver's change log marks each env a write of the configuration reaches. A write of the model (a weld added
+    or deleted, a randomized mass) leaves the contacts as 1.4 did, though Genesis 1.5 refuses to read them after
+    it. The marks hold until the change log next commits, which every substep of a step does, and are dropped from
+    then on. Nothing here reads back to the host.
+
+    The change log counts its commits in ``_n_commits`` and offers no public count: a step counter of the simulator
+    would not do, since a reset sets it back to zero after the reset's own write was marked.
+
+    Parameters
+    ----------
+    solver : genesis RigidSolver
+        The solver whose contacts the reads return.
+    """
+
+    def __init__(self, solver) -> None:
+        self._changelog = solver.changelog
+        if not isinstance(getattr(self._changelog, "_n_commits", None), int):
+            raise RuntimeError(
+                "eden.entities.base.ContactStaleness: Genesis' ChangeLog has no `_n_commits` count any more, so the "
+                "envs a write reached since the last step cannot be told apart and their contacts would read as those "
+                "of their old configuration. Genesis renamed or restructured it: update ContactStaleness to how the "
+                "change log now counts its commits (see ChangeLog.commit)."
+            )
+        n_envs = max(solver.n_envs, 1)
+        self._is_written = torch.zeros(n_envs, dtype=torch.bool, device=gs.device)
+        self._marked_at = self._changelog._n_commits
+        self._changelog.subscribe(Subscriber(frozenset({StateChange.GEOMETRY}), self._on_change))
+
+    def _on_change(self, change: StateChange, envs_idx=None, **indices) -> None:
+        if self._changelog._n_commits != self._marked_at:  # the marks predate a step
+            self._is_written.zero_()
+            self._marked_at = self._changelog._n_commits
+        if envs_idx is None:
+            self._is_written.fill_(True)
+        else:
+            self._is_written[list(envs_idx) if isinstance(envs_idx, range) else envs_idx] = True
+
+    def stale_envs(self) -> torch.Tensor:
+        """``(n_envs,)`` bool: the envs written since the solver last stepped, whose contacts are of an old
+        configuration.
+        """
+        if self._changelog._n_commits != self._marked_at:
+            return torch.zeros_like(self._is_written)
+        return self._is_written
 
 
 class Entity(ConfigurableMixin[EntityOptions]):
@@ -361,7 +464,11 @@ class Entity(ConfigurableMixin[EntityOptions]):
                 material=material,
                 surface=self._parse_surface(),
                 visualize_contact=self.visualize_contact,
-                vis_mode=self.vis_mode,
+                # genesis-world 1.5.0 lets the material decide how an entity is drawn and deprecates `vis_mode`, so
+                # "visual" goes as unset. A debug representation ("collision", "sdf", "particle") stays on the surface,
+                # which Genesis keeps showing in every camera (with a deprecation warning), where its replacement,
+                # `EntityVisOptions(debug=True)`, shows it in the viewer and the debug cameras only.
+                vis_mode=None if self.vis_mode == "visual" else self.vis_mode,
                 name=name,
             )
 
@@ -476,10 +583,23 @@ class Entity(ConfigurableMixin[EntityOptions]):
         contacts can differ in its last bits. A padded result's invalid slots hold whatever an
         earlier step left there (a NaN force from a diverged env included), so their floating-point fields are
         zeroed: ``force * valid_mask`` and ``where(valid_mask, force, 0)`` then agree.
+
+        The query reads what the last step found (:func:`last_step_read`), less the contacts of the envs whose
+        configuration was written since they last stepped (:class:`ContactStaleness`): those envs report none until
+        their next step, and their slots are zeroed in either form.
         """
         padded = is_padded or self._env.fixed_shape_queries
-        contacts = query(padded)
-        if not padded:
+        with last_step_read():
+            contacts = query(padded)
+        staleness = self._env.contact_staleness
+        if (
+            staleness is not None
+            and self._entity.solver is self._env.rigid_solver
+            and contacts["valid_mask"].dim() == 2
+        ):
+            # The contacts of an env written since its last step are of its old configuration (see ContactStaleness)
+            contacts = {**contacts, "valid_mask": contacts["valid_mask"] & ~staleness.stale_envs()[:, None]}
+        elif not padded:
             return contacts
         valid = contacts["valid_mask"]
         return {

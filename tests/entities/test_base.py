@@ -392,3 +392,54 @@ def test_no_unreviewed_is_fixed_base_reads():
     )
     stale = sorted(reviewed - found)
     assert not stale, f"REVIEWED_IS_FIXED_BASE_READERS lists sites that no longer read it: {stale}"
+
+
+@pytest.fixture
+def resting_boxes():
+    """Three envs, a box resting on the plane in each, stepped until its contacts are found."""
+    env = build_env(
+        EdenConfig(
+            env_options=EnvOptions(num_envs=3),
+            scene_options=SceneOptions(
+                plane=PlaneOptions(), box=BoxOptions(size=(0.1, 0.1, 0.1), default_root_pos=(0.0, 0.0, 0.05))
+            ),
+        ),
+        reset=True,
+    )
+    for _ in range(3):
+        env.scene.step()
+    yield env
+    env.destroy()
+
+
+def _contacts_per_env(box) -> list[int]:
+    return box.get_contacts(is_padded=True)["valid_mask"].sum(-1).tolist()
+
+
+def test_a_pose_write_drops_the_written_envs_contacts_until_their_next_step(resting_boxes):
+    """genesis-world 1.5 refuses every env's contact read after a write to one; Eden keeps the untouched envs'."""
+    env, box = resting_boxes, resting_boxes.entities["box"]
+    resting = _contacts_per_env(box)
+    assert all(n > 0 for n in resting), resting
+
+    box.set_pos(torch.tensor([[0.0, 0.0, 1.0]], device=env.device), envs_idx=torch.tensor([0], device=env.device))
+    assert _contacts_per_env(box) == [0, resting[1], resting[2]]
+    assert box.get_contacts(is_padded=True)["force_a"][0].abs().sum() == 0  # the dropped slots are zeroed
+
+    env.scene.reset(state=env.reset_state, envs_idx=torch.tensor([2], device=env.device))
+    assert _contacts_per_env(box) == [0, resting[1], 0]
+
+    for _ in range(3):  # env 0 is still falling; env 2 settles onto the plane again, as the fixture's steps did
+        env.scene.step()
+    after = _contacts_per_env(box)
+    assert after[0] == 0 and after[1] > 0 and after[2] > 0, after
+
+
+def test_step_outputs_stay_readable_after_one_env_is_reset(resting_boxes):
+    """The forces of the last step, which Genesis computes once per step, read through a reset of another env."""
+    env, box = resting_boxes, resting_boxes.entities["box"]
+    before = box.get_links_net_contact_force()
+    env.scene.reset(state=env.reset_state, envs_idx=torch.tensor([0], device=env.device))
+    after = box.get_links_net_contact_force()
+    torch.testing.assert_close(after[1:], before[1:])
+    assert box.get_dofs_force() is not None

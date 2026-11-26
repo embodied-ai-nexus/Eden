@@ -49,9 +49,11 @@ classifiers = [
 ]
 dependencies = [
   # A released version, never a git reference: PyPI rejects a direct reference in the published metadata, and
-  # .github/workflows/release.yml refuses to publish one. 1.4.7 is genesis-world commit 0a9e28ac (tag v1.4.7), the
-  # first release with the solver API Eden's engine addons build on; Eden does not run on 1.4.6.
-  "genesis-world==1.4.7",
+  # .github/workflows/release.yml refuses to publish one. 1.5.0 is the first release with the render context and the
+  # lazily refreshed state Eden's engine addons build on; Eden does not run on 1.4.7. A checkout runs an unreleased
+  # commit past it, which `[tool.uv.sources]` below substitutes for this requirement; that commit still calls itself
+  # 1.5.0, so the requirement holds for both. See the note there before releasing.
+  "genesis-world==1.5.0",
   "torch>=2.9.2",
   "torchvision>=0.19.0",
   "numpy>=1.26.4",
@@ -146,10 +148,13 @@ onnx-gpu = [
 # so without this cap pip resolves to the broken pair. Lift it with the plugin floor once a plugin release
 # targets `BridgeSceneDesc`.
 #
-# BUMPING GENESIS: every plugin release so far (0.1.7 - 0.1.10) declares `genesis-world < 1.5.0`,
-# and uv resolves ONE universal lockfile (`tool.uv.required-environments` below). Moving the pin
-# above to a 1.5 version therefore makes `uv sync` / `uv run` fail for every user, nyx or not,
-# until a plugin release admits it. Raise the plugin floor to that release in the same change.
+# BROKEN ON GENESIS 1.5: every plugin release so far (0.1.7 - 0.1.10) declares `genesis-world < 1.5.0`, and reads
+# rigid-solver render state that genesis-world 1.5.0 moved into the simulator's render context
+# (https://github.com/Genesis-Embodied-AI/genesis-world/pull/3849). uv resolves ONE universal lockfile
+# (`tool.uv.required-environments` below), so the `genesis-world==1.5.0` override in `[tool.uv]` replaces the
+# plugin's cap to keep `uv sync` / `uv run` working for every user; `pip install eden-world[nyx]` still cannot
+# resolve, and the plugin, once installed, is not expected to run. Raise the plugin floor to the first release that
+# admits genesis-world 1.5 and drop that override in the same change.
 nyx = [
   "gs-nyx>=0.1.6,<0.1.10; platform_system != 'Darwin'",
   "gs-nyx-plugin>=0.1.10,<0.2; platform_system != 'Darwin'"
@@ -403,7 +408,7 @@ include = [
 [tool.uv]
 # pymeshlab<2025.7: pinned for compatibility with the [soma-retargeter] extra; newer pymeshlab
 # wheels conflict with py-soma-x's transitive expectations. Harmless when the extra isn't installed.
-# trimesh[easy]>=5.0.0,<6: genesis-world 1.4.7 requires trimesh>=5.0.0, while eden-soma-retargeter
+# trimesh[easy]>=5.0.0,<6: genesis-world 1.5.0 requires trimesh>=5.0.0, while eden-soma-retargeter
 # 0.4.0 pins trimesh==4.11.3, which makes the universal resolution unsatisfiable for every user.
 # soma_retargeter itself never imports trimesh; py-soma-x's `soma` only loads OBJ meshes with it
 # (`process=False`) and queries their closest points. On the 11 OBJ files of the `nvidia/soma-x`
@@ -412,7 +417,11 @@ include = [
 # override replaces every requirement on trimesh, extras and bounds included, so it keeps the `easy`
 # extra yourdfpy asks for (shapely for eden.utils.mesh, pycollada for .dae meshes) and viser's `<6`
 # cap. Drop it once an eden-soma-retargeter release admits trimesh 5.
+# genesis-world==1.5.0: the pin above, over gs-nyx-plugin's `genesis-world < 1.5.0` (see the `nyx` extra). It makes
+# `.github/scripts/swapped_requirements.py` refuse the release: the checkout installs `[nyx]`, which the wheel's
+# users cannot. Drop it once a gs-nyx-plugin release admits genesis-world 1.5.
 override-dependencies = [
+  "genesis-world==1.5.0",
   "pymeshlab<2025.7",
   "trimesh[easy]>=5.0.0,<6"
 ]
@@ -427,3 +436,17 @@ required-environments = [
   "sys_platform == 'darwin' and platform_machine == 'arm64'",
   "sys_platform == 'win32' and platform_machine == 'AMD64'"
 ]
+
+# genesis-world at an unreleased commit of its main branch, 15 commits past v1.5.0 (commit 4a8ee4bb). Among them,
+# https://github.com/Genesis-Embodied-AI/genesis-world/pull/3924 makes the rasterizer show the geometry behind a
+# transparent texel rather than the background. The commit still calls itself 1.5.0, which satisfies the requirement
+# above and the override in `[tool.uv]`. GitHub's archive of the commit rather than a `git` source: uv clones a git
+# source with every submodule, recursively, which for genesis-world is LuisaRender and its dependencies, none of which
+# the Python package holds.
+# uv applies a source wherever it builds Eden from source (`uv sync`, `uv pip install -e .`, a path or git dependency
+# of another project); pip ignores it, and a built wheel's metadata keeps `genesis-world==1.5.0` above, which installs
+# the 1.5.0 release, so .github/workflows/release.yml refuses to publish while this table names genesis-world. Once a
+# genesis-world release holds this commit, pin it above, drop the table, and set
+# `eden.utils.distribution.GENESIS_SOURCE` to None.
+[tool.uv.sources]
+genesis-world = {url = "https://github.com/Genesis-Embodied-AI/genesis-world/archive/7472e1a6960ca3fd7f1d859f9e4e6a9744d428d6.tar.gz"}

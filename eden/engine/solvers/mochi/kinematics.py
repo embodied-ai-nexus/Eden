@@ -166,26 +166,3 @@ def kernel_update_geoms(
         i_b = qd.cast(envs_idx[i_b_], qd.i32)
         i_l_root = rigid_info.roots_link_idx[i_r]
         func_update_geoms_root(i_l_root, i_b, dyn_state, dyn_info, rigid_info, rigid_config, force_update_all_geoms)
-
-
-@qd.kernel(fastcache=True)
-def kernel_update_vgeoms(dyn_state: DynState, dyn_info: DynInfo, rigid_config: qd.template()):
-    """Place every visual geom on its link, which the rasterizer draws.
-
-    Genesis places the visual geoms within its forward kinematics since
-    https://github.com/Genesis-Embodied-AI/genesis-world/pull/3831, and its visualizer no longer asks a solver to
-    refresh them before drawing. The single-kernel steps of the MochiSolver run their own kinematics, which place the
-    geoms alone, so the solver places the visual geoms after them (see `MochiSolver._update_vgeoms`).
-    """
-    qd.loop_config(serialize=qd.static(rigid_config.para_level < gs.PARA_LEVEL.PARTIAL))
-    for i_g, i_b in qd.ndrange(*dyn_state.vgeoms.pos.shape, axes=qd.static(eoa(dyn_state.vgeoms.pos))):
-        i_l = dyn_info.vgeoms.link_idx[i_g]
-        I_l = [i_l, i_b] if qd.static(rigid_config.batch_links_info) else i_l
-        # The visual geoms of a heterogeneous variant the environment does not carry stay where they are
-        if dyn_info.links.vgeom_start[I_l] <= i_g < dyn_info.links.vgeom_end[I_l]:
-            dyn_state.vgeoms.pos[i_g, i_b], dyn_state.vgeoms.quat[i_g, i_b] = gu.qd_transform_pos_quat_by_trans_quat(
-                dyn_info.vgeoms.pos[i_g],
-                dyn_info.vgeoms.quat[i_g],
-                dyn_state.links.pos[i_l, i_b],
-                dyn_state.links.quat[i_l, i_b],
-            )

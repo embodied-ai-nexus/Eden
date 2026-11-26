@@ -144,7 +144,7 @@ class GroundFirstFrame(DatasetModifier):
                     pad = chunk_size - chunk_len
                     qpos = torch.cat([qpos, qpos[-1:].expand(pad, -1)], dim=0)
 
-                robot.set_qpos(qpos, zero_velocity=False, skip_forward=False)
+                robot.set_qpos(qpos, zero_velocity=False)
                 aabb = robot.get_AABB()  # (chunk_size, 2, 3) — corners (min, max)
                 min_z = aabb[:chunk_len, 0, 2]  # drop padding entries
                 dz_chunks.append(torch.clamp(self.safety_margin_m - min_z, min=0.0))

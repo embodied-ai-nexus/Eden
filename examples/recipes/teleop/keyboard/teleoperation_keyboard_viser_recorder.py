@@ -200,19 +200,18 @@ def main():
             if entity is None:
                 continue
 
-            # Restore joint angles first (set_qpos with skip_forward=False triggers a
-            # physics forward step). For non-fixed entities the free-joint portion of
+            # Restore joint angles first. For non-fixed entities the free-joint portion of
             # qpos may be stale if the recording happened after set_pos/set_quat without
             # an intervening physics step, so we override with pos/quat afterwards.
             qpos = entity_state.get("qpos", None)
             if qpos is not None:
                 qpos_value = qpos.unsqueeze(0) if getattr(qpos, "ndim", 0) == 1 else qpos
-                entity.set_qpos(qpos_value, envs_idx=target_env_idx, zero_velocity=False, skip_forward=False)
+                entity.set_qpos(qpos_value, envs_idx=target_env_idx, zero_velocity=False)
 
             dofs_vel = entity_state.get("dofs_vel", None)
             if dofs_vel is not None:
                 dofs_vel_value = dofs_vel.unsqueeze(0) if getattr(dofs_vel, "ndim", 0) == 1 else dofs_vel
-                entity.set_dofs_vel(dofs_vel_value, envs_idx=target_env_idx, skip_forward=True)
+                entity.set_dofs_vel(dofs_vel_value, envs_idx=target_env_idx)
 
             # Restore Cartesian root pose last — this reliably sets the world position
             # for free-floating objects (plate, apple) whose pos/quat are authoritative.

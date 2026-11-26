@@ -38,7 +38,7 @@ from genesis.utils.misc import qd_from_torch, qd_to_torch
 
 import eden as en
 from eden.utils.contacts import aggregate_grouped_contacts, resolve_local_link_idx
-from eden.entities.base import Entity
+from eden.entities.base import Entity, last_step_read
 from eden.entities.dofs_default_mixin import DofDefaultsMixin
 from eden.entities.support_mixin import PLACEMENT_MARGIN, SupportSurfaceMixin, _kernel_broad_phase
 from eden.options.actuators import ActuatorSpecOptions
@@ -406,9 +406,9 @@ def _device_index(solver, indices: tuple[int, ...], device: torch.device) -> tor
 class StagedStateWrite:
     """Several rigid entities' state writes on one ``envs_idx``, applied as one Genesis call per kind.
 
-    **Why.** Every Genesis state setter resets the selected envs' collider and constraint state and,
-    unless told to skip it, runs forward kinematics over every link of those envs, whichever entity it
-    wrote. N entities written one by one pay N of each where one would do.
+    **Why.** Every Genesis state setter is a call of its own, with its own index sanitising and its own
+    write, so N entities written one by one pay N of each where one would do. (The link poses are not part
+    of the cost: Genesis refreshes them once, when they are next read, however many setters ran before.)
 
     **What.** ``set_dofs_pos`` / ``set_dofs_vel`` / ``set_qpos`` stand in for the
     :class:`RigidEntity` setters of the same names: each only records its entity's values, and
@@ -419,8 +419,8 @@ class StagedStateWrite:
 
     **Order.** :meth:`apply` writes per solver (a kinematic-material entity lives in its own):
 
-    1. velocities, ``skip_forward=True``, so the forward pass after them sees the fresh ones;
-    2. positions, as one qpos write and its forward pass. A staged DOF position becomes the qpos
+    1. velocities;
+    2. positions, as one qpos write. A staged DOF position becomes the qpos
        Genesis ``set_dofs_position`` would make of it (``qpos0 + value`` for a hinge or slide, the
        quaternion of a free or ball joint's Euler angles), placed before the staged qpos, so a qpos
        staged on the same coordinate wins.
@@ -479,7 +479,7 @@ class StagedStateWrite:
             stage.dofs_qpos.append((qs, gu.xyz_to_quat(_select(position, columns))))
 
     def set_dofs_vel(self, entity: RigidEntity, velocity: torch.Tensor, dofs_idx_local) -> None:
-        """Stage :meth:`RigidEntity.set_dofs_vel` for ``entity``; :meth:`apply` skips its forward pass."""
+        """Stage :meth:`RigidEntity.set_dofs_vel` for ``entity``."""
         self._stage_of(entity).dofs_vel.append((_global_indices(entity.dof_start, dofs_idx_local), velocity))
 
     def set_qpos(self, entity: RigidEntity, qpos: torch.Tensor, qs_idx_local) -> None:
@@ -498,7 +498,7 @@ class StagedStateWrite:
                 selection = _genesis_selection(dofs_idx)
                 on_device = isinstance(selection, range) and _solver_takes_every_row(solver)
                 velocity, envs = _mask_rows(velocity, envs_idx, on_device=on_device)
-                solver.set_dofs_velocity(velocity, selection, envs, skip_forward=True)
+                solver.set_dofs_velocity(velocity, selection, envs)
             positions = [*stage.dofs_qpos, *stage.qpos]
             if stage.dofs_pos:
                 offsets, qs_idx = self._join(solver, stage.dofs_pos)
@@ -516,7 +516,7 @@ class StagedStateWrite:
                 selection = _genesis_selection(qs_idx)
                 on_device = isinstance(selection, range) and _solver_takes_every_row(solver)
                 qpos, envs = _mask_rows(qpos, envs_idx, on_device=on_device)
-                solver.set_qpos(qpos, selection, envs, skip_forward=False)
+                solver.set_qpos(qpos, selection, envs)
         self._stages.clear()
 
     @staticmethod
@@ -845,13 +845,9 @@ class RigidEntity(Entity, SupportSurfaceMixin, DofDefaultsMixin):
     def _downgrade_kinematic_collision_vis_mode(self) -> None:
         """Render a kinematic entity's visual mesh when collision geometry was asked for.
 
-        Genesis' rasterizer walks the kinematic solver's entities together with the rigid
-        solver's and reads ``entity.geoms`` for every non-``"visual"`` vis mode
-        (``rasterizer_context.on_rigid``), so a kinematic entity set to ``"collision"`` /
-        ``"sdf"`` aborts ``scene.build()`` with ``AttributeError: 'KinematicEntity' object
-        has no attribute 'geoms'``. That is a rasterizer blind spot, not a rejected config:
-        ``Scene.add_entity`` accepts both modes for a kinematic material, and the raytracer
-        guards the same access with an ``isinstance(entity, RigidEntity)`` check.
+        A kinematic entity has no collision geometry, so ``"collision"`` / ``"sdf"`` has nothing
+        to draw. Genesis 1.5 drops such a mode itself, with a warning that names neither the
+        entity nor the mode it fell back to; this one names both.
 
         Collision-vis tooling sweeps *whole* scenes (``eden view --collision``,
         ``examples/recipes/rendering/pickup.py``) and scenes legitimately mix rigid bodies
@@ -2373,9 +2369,9 @@ class RigidEntity(Entity, SupportSurfaceMixin, DofDefaultsMixin):
             dofs_idx_local = self._genesis_dofs_idx
         else:
             dofs_idx_local = _genesis_selection(dofs_idx_local)
-        return _row_major_selection(
-            self._entity.get_dofs_control_force(dofs_idx_local=dofs_idx_local, envs_idx=envs_idx), dofs_idx_local
-        )
+        with last_step_read():
+            force = self._entity.get_dofs_control_force(dofs_idx_local=dofs_idx_local, envs_idx=envs_idx)
+        return _row_major_selection(force, dofs_idx_local)
 
     def get_dofs_force(self, dofs_idx_local=None, envs_idx=None):
         """Get the total internal force acting on the entity's dofs.
@@ -2396,9 +2392,9 @@ class RigidEntity(Entity, SupportSurfaceMixin, DofDefaultsMixin):
             dofs_idx_local = self._genesis_dofs_idx
         else:
             dofs_idx_local = _genesis_selection(dofs_idx_local)
-        return _row_major_selection(
-            self._entity.get_dofs_force(dofs_idx_local=dofs_idx_local, envs_idx=envs_idx), dofs_idx_local
-        )
+        with last_step_read():
+            force = self._entity.get_dofs_force(dofs_idx_local=dofs_idx_local, envs_idx=envs_idx)
+        return _row_major_selection(force, dofs_idx_local)
 
     def get_dofs_vel(self, dofs_idx_local=None, envs_idx=None):
         """
@@ -2770,10 +2766,11 @@ class RigidEntity(Entity, SupportSurfaceMixin, DofDefaultsMixin):
         return self._entity.get_pos(envs_idx=envs_idx, relative=relative)
 
     def get_base_pose_in_state(self, state, envs_idx=None) -> tuple[torch.Tensor, torch.Tensor]:
-        """Return the base link's pose in a ``scene.get_state()`` snapshot, such as ``env.reset_state``.
+        """Return the fixed base link's pose in a ``scene.get_state()`` snapshot, such as ``env.reset_state``.
 
-        The solver frame of ``get_pos()`` / ``get_quat()``, read from the snapshot's link arrays. Genesis names those
-        after the solver's data fields (``dyn_state.links.pos``) and lays them out ``(n_links, n_envs, ...)``.
+        The solver frame of ``get_pos()`` / ``get_quat()``. A snapshot holds the pose of each fixed root link of a
+        solver (``dyn_state.fixed_roots``, laid out ``(n_fixed_roots, n_envs, ...)`` in the order of the links), and
+        no link pose Genesis derives from the state: a moving base's pose is its free joint's coordinates.
 
         Parameters
         ----------
@@ -2794,8 +2791,16 @@ class RigidEntity(Entity, SupportSurfaceMixin, DofDefaultsMixin):
                 f"entity '{self.name}', so its link rows belong to other bodies. Fix: pass a scene.get_state() of "
                 f"the env that built '{self.name}', such as that env's env.reset_state."
             )
+        links = self.solver.links
+        base = links[self.entity.base_link_idx]
+        if not (base.parent_idx == -1 and base.is_fixed):
+            raise ValueError(
+                f"RigidEntity.get_base_pose_in_state: entity '{self.name}' has a moving base, whose pose a snapshot "
+                "holds as its free joint's coordinates, not as a link pose. Only a fixed base's pose is read here; "
+                f"read a moving base's from '{self.name}'.get_pos() / get_quat() after restoring the state."
+            )
         solver_name = type(self.solver).__name__
-        keys = ("dyn_state.links.pos", "dyn_state.links.quat")
+        keys = ("dyn_state.fixed_roots.pos", "dyn_state.fixed_roots.quat")
         arrays = state.solvers[solver_name].arrays if solver_name in state.solvers else {}
         missing = [key for key in keys if key not in arrays]
         if missing:
@@ -2803,13 +2808,14 @@ class RigidEntity(Entity, SupportSurfaceMixin, DofDefaultsMixin):
                 f"RigidEntity.get_base_pose_in_state: entity '{self.name}' is in solver {solver_name}, but the state "
                 f"holds no {missing} for it (solvers in the state: {list(state.solvers)}). Genesis' checkpoint format "
                 "has changed. Fix: update get_base_pose_in_state in eden/entities/rigid.py to the arrays that "
-                "Genesis' Solver.data now names for the link poses."
+                "Genesis' Solver.data now names for the fixed root poses."
             )
-        i_l = self.entity.base_link_idx
+        # The fixed roots are numbered in the order of their links, as Genesis' KinematicSolver numbers them
+        i_r = sum(1 for link in links[: base.idx] if link.parent_idx == -1 and link.is_fixed)
         rows = sanitize_envs_idx(envs_idx, self._env.num_envs)
         # A copy: the snapshot's own rows are what every later reset restores.
         pos, quat = (
-            torch.as_tensor(arrays[key][i_l], device=self.device)[rows].to(gs.tc_float, copy=True) for key in keys
+            torch.as_tensor(arrays[key][i_r], device=self.device)[rows].to(gs.tc_float, copy=True) for key in keys
         )
         return pos, quat
 
@@ -2976,6 +2982,13 @@ class RigidEntity(Entity, SupportSurfaceMixin, DofDefaultsMixin):
         acc = self._entity.get_links_acc(
             links_idx_local=_genesis_selection(ls_idx_local), envs_idx=envs_idx, relative=relative
         )
+        if acc is None:
+            raise RuntimeError(
+                f"RigidEntity.get_links_acc: the link accelerations of entity '{self.name}' are unknown until the "
+                "next step: Genesis computes them with a kernel that reads the last step's accelerations, and "
+                "refuses that read after any write to the state (a reset, a pose an event sets), in any env. Read them "
+                "in the graded phase of the step (a metric, a termination, a reward), which runs before any such write."
+            )
         return _row_major_selection(acc, ls_idx_local)
 
     def get_links_acc_ang(self, ls_idx_local=None, envs_idx=None):
@@ -2993,7 +3006,10 @@ class RigidEntity(Entity, SupportSurfaceMixin, DofDefaultsMixin):
         acc_ang : torch.Tensor, shape (n_links, 3) or (n_envs, n_links, 3)
             The link angular accelerations, in rad/s^2.
         """
-        acc_ang = self._entity.get_links_acc_ang(links_idx_local=_genesis_selection(ls_idx_local), envs_idx=envs_idx)
+        with last_step_read():
+            acc_ang = self._entity.get_links_acc_ang(
+                links_idx_local=_genesis_selection(ls_idx_local), envs_idx=envs_idx
+            )
         return _row_major_selection(acc_ang, ls_idx_local)
 
     def get_links_inertial_mass(self, ls_idx_local=None, envs_idx=None) -> torch.Tensor:
@@ -3077,7 +3093,8 @@ class RigidEntity(Entity, SupportSurfaceMixin, DofDefaultsMixin):
         force : torch.Tensor, shape (n_links, 3) or (n_envs, n_links, 3)
             The net contact force on each link, in N.
         """
-        return self._entity.get_links_net_contact_force()
+        with last_step_read():
+            return self._entity.get_links_net_contact_force()
 
     def get_contacts(
         self, with_entity: Entity | None = None, exclude_self_contact: bool = False, *, is_padded: bool = False
@@ -3300,7 +3317,6 @@ class RigidEntity(Entity, SupportSurfaceMixin, DofDefaultsMixin):
         envs_idx=None,
         *,
         zero_velocity=True,
-        skip_forward=False,
     ) -> None:
         """Teleport the entity by setting its generalized coordinates.
 
@@ -3318,9 +3334,6 @@ class RigidEntity(Entity, SupportSurfaceMixin, DofDefaultsMixin):
         zero_velocity : bool, optional
             Whether to zero the entity's velocities after the write, so the teleport does
             not leave stale momentum behind. Defaults to True.
-        skip_forward : bool, optional
-            Whether to skip the forward-kinematics pass that refreshes link poses. Set True
-            only when a later setter in the same reset will trigger it anyway. Defaults to False.
         """
         if qs_idx_local is None:
             qs_idx_local = self._genesis_qs_idx
@@ -3334,7 +3347,6 @@ class RigidEntity(Entity, SupportSurfaceMixin, DofDefaultsMixin):
             qs_idx_local,
             envs_idx=envs_idx,
             zero_velocity=zero_velocity,
-            skip_forward=skip_forward,
         )
 
     def set_friction(self, friction: float) -> None:
@@ -3754,8 +3766,6 @@ class RigidEntity(Entity, SupportSurfaceMixin, DofDefaultsMixin):
         velocity=None,
         dofs_idx_local=None,
         envs_idx=None,
-        *,
-        skip_forward=False,
     ) -> None:
         """Set the entity's dofs' velocity.
 
@@ -3769,9 +3779,6 @@ class RigidEntity(Entity, SupportSurfaceMixin, DofDefaultsMixin):
             Local DOF indices. If None, all of the entity's dofs in dofs_name order. Defaults to None.
         envs_idx : None | array_like, optional
             The indices of the environments. If None, all environments will be considered. Defaults to None.
-        skip_forward : bool, optional
-            Whether to skip the forward pass that propagates the new velocities. Set True
-            only when a later setter in the same reset will trigger it anyway. Defaults to False.
         """
         if dofs_idx_local is None:
             dofs_idx_local = self._genesis_dofs_idx
@@ -3780,7 +3787,7 @@ class RigidEntity(Entity, SupportSurfaceMixin, DofDefaultsMixin):
         velocity, envs_idx = _mask_rows(
             velocity, envs_idx, on_device=isinstance(dofs_idx_local, range) and self.setters_take_every_row
         )
-        self._entity.set_dofs_velocity(velocity, dofs_idx_local, envs_idx, skip_forward=skip_forward)
+        self._entity.set_dofs_velocity(velocity, dofs_idx_local, envs_idx)
 
     def set_dofs_frictionloss(self, frictionloss, dofs_idx_local=None, envs_idx=None) -> None:
         """Set the dry-friction loss (stick band) of the entity's dofs.
@@ -3932,18 +3939,15 @@ class RigidEntity(Entity, SupportSurfaceMixin, DofDefaultsMixin):
             dofs_idx_local = _genesis_selection(dofs_idx_local, control=True)
         _control_dofs(self._entity.control_dofs_position, position, dofs_idx_local, envs_idx)
 
-    def zero_all_dofs_velocity(self, envs_idx=None, *, skip_forward: bool = False) -> None:
+    def zero_all_dofs_velocity(self, envs_idx=None) -> None:
         """Zero the velocity of every one of the entity's dofs, including a floating base.
 
         Parameters
         ----------
         envs_idx : None | array_like, optional
             The indices of the environments. If None, all environments will be considered. Defaults to None.
-        skip_forward : bool, optional
-            Skip the forward-kinematics pass. Only when a later write to the same envs runs one (for example a
-            ``set_dofs_pos``) before anything reads link state. Defaults to False.
         """
-        self._entity.zero_all_dofs_velocity(envs_idx, skip_forward=skip_forward)
+        self._entity.zero_all_dofs_velocity(envs_idx)
 
     # ------------------------------------------------------------------------------------
     # ---------------------------- support surface related -------------------------------

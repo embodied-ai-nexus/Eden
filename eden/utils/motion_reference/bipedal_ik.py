@@ -371,12 +371,12 @@ def _interp_qpos(q_start: np.ndarray, q_end: np.ndarray, alpha: float) -> np.nda
 
 
 def _set_qpos(robot: "RigidEntity", qpos: np.ndarray) -> None:
-    """``robot.set_qpos`` with a numpy qpos. Triggers FK as a side effect."""
+    """``robot.set_qpos`` with a numpy qpos; the link poses follow it at their next read."""
     t = torch.as_tensor(qpos, dtype=torch.float32, device=robot.device).unsqueeze(0)
     # ``zero_velocity=False`` matches MuJoCo's ``mj_forward`` behaviour: we
     # only want kinematics updated, not the velocity buffer cleared on each
     # IK iteration.
-    robot.set_qpos(t, zero_velocity=False, skip_forward=False)
+    robot.set_qpos(t, zero_velocity=False)
 
 
 def _site_pos_rot(

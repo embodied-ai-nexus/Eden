@@ -2299,7 +2299,6 @@ def kernel_rod_get_state_render(
     rod_vverts_node: qd.Tensor,
     rod_vverts_elem: qd.Tensor,
     rod_vverts_offset: qd.Tensor,
-    envs_offset: qd.types.ndarray(),
     soft_info: MochiSoftInfo,
     soft_state: MochiSoftState,
     rigid_config: qd.template(),
@@ -2318,7 +2317,7 @@ def kernel_rod_get_state_render(
         tangent = func_rod_tangent(i_r, i_b, soft_state.verts_pos, soft_info)
         pos = soft_state.verts_pos[i_v, i_b] + offset[0] * axis + offset[1] * tangent.cross(axis)
         for k in qd.static(range(3)):
-            vverts_render[rod_vverts_vvert[i_vv], i_b][k] = qd.cast(pos[k] + envs_offset[i_b, k], qd.f32)
+            vverts_render[rod_vverts_vvert[i_vv], i_b][k] = qd.cast(pos[k], qd.f32)
 
 
 @qd.kernel
@@ -2346,7 +2345,6 @@ def kernel_soft_get_state_render(
     vverts_vert_idx: qd.Tensor,
     vverts_elem: qd.Tensor,
     vverts_bary: qd.Tensor,
-    envs_offset: qd.types.ndarray(),
     soft_info: MochiSoftInfo,
     soft_state: MochiSoftState,
     rigid_config: qd.template(),
@@ -2366,7 +2364,7 @@ def kernel_soft_get_state_render(
         else:
             pos = soft_state.verts_pos[vverts_vert_idx[i_vv], i_b]
         for k in qd.static(range(3)):
-            vverts_render[i_vv, i_b][k] = qd.cast(pos[k] + envs_offset[i_b, k], qd.f32)
+            vverts_render[i_vv, i_b][k] = qd.cast(pos[k], qd.f32)
 
 
 @qd.kernel

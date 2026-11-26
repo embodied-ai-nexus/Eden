@@ -28,6 +28,9 @@ the path the plugin uses for an MJCF.
 This is a shim over plugin internals, written against ``gs-nyx-plugin`` 0.1.10; it belongs upstream
 in ``nyx-for-genesis`` once the plugin learns about the Mochi solver. Call :func:`install` once,
 after ``eden.init()`` and before the scene is built.
+
+On genesis-world 1.5 and later :func:`install` raises: Genesis moved the render state of its solvers
+into a render context, so the bridge and the plugin both read arrays that no longer exist.
 """
 
 import os
@@ -211,6 +214,19 @@ def _write_hdr(path: str, rgb: np.ndarray) -> None:
 
 def install():
     """Patch ``gs_nyx_plugin`` in place so a Mochi scene renders, and animates, under Nyx."""
+    from genesis.engine.solvers.fem_solver import FEMSolver
+
+    # genesis-world 1.5 moved the visual data of every solver into a render context: the visual geom poses
+    # (`dyn_state.vgeoms`) and `FEMSolver.get_state_render`, which this bridge and every gs-nyx-plugin release
+    # read, are gone, so the plugin would draw nothing or raise deep in its exporter.
+    if not hasattr(FEMSolver, "get_state_render"):
+        raise RuntimeError(
+            f"The Nyx bridge for Mochi scenes (examples/recipes/mochi/_nyx.py) reads the per-solver render state that "
+            f"genesis-world {gs.__version__} removed (`dyn_state.vgeoms`, `FEMSolver.get_state_render`), as does every "
+            "gs-nyx-plugin release so far (all declare `genesis-world < 1.5.0`). Render this recipe without Nyx (drop "
+            "the Nyx camera), or run it on genesis-world 1.4.7 until a gs-nyx-plugin release targets the 1.5 render "
+            "context."
+        )
     from gs_nyx_plugin import nyx_renderer, nyx_scene_exporter, nyx_scene_utils
 
     if getattr(nyx_renderer, "_eden_mochi_bridge", False):

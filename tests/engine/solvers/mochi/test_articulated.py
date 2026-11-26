@@ -8,7 +8,7 @@ import xml.etree.ElementTree as ET
 import genesis as gs
 import numpy as np
 import pytest
-from genesis.engine.solvers.base_solver import StateChange, Subscriber
+from genesis.engine.state_change import StateChange, Subscriber
 from genesis.utils.misc import tensor_to_array
 
 from eden.engine.solvers.mochi import MochiOptions, create_mochi_scene
@@ -114,7 +114,8 @@ def test_the_control_force_is_the_one_the_last_step_applied(pendulum_urdf_path, 
     scene.build()
     pendulum.set_dofs_kp([kp])
     pendulum.set_dofs_kv([kv])
-    assert_allclose(pendulum.get_dofs_control_force(), 0.0, atol=0.0)  # no step has applied any force yet
+    # No step has computed one since the gains were written, which genesis-world 1.5 reports as unknown
+    assert pendulum.get_dofs_control_force() is None
 
     pendulum.control_dofs_position([0.3])
     scene.step()
@@ -156,11 +157,12 @@ def test_arm_pd_control_limits_and_contact(show_viewer):
     kv = np.array([450.0, 450.0, 350.0, 350.0, 200.0, 200.0, 200.0, 10.0, 10.0])
     q_target = np.array([0.0, -0.5, 0.0, -2.0, 0.0, 1.5, 0.8, 0.02, 0.02])
     # Setting the gains notifies the subscribers of model changes.
-    model_subscriber = Subscriber(frozenset((StateChange.MODEL,)))
-    scene.mochi_solver.subscribe(model_subscriber)
+    model_changes = []
+    model_subscriber = Subscriber(frozenset((StateChange.MODEL,)), lambda change, **_: model_changes.append(change))
+    scene.mochi_solver.changelog.subscribe(model_subscriber)
     franka.set_dofs_kp(kp)
     franka.set_dofs_kv(kv)
-    assert model_subscriber.pending == {StateChange.MODEL}
+    assert model_changes == [StateChange.MODEL, StateChange.MODEL]
     # The per-DOF info written by the setters reads back through the same getters the rigid solver has.
     assert_allclose(franka.get_dofs_kp(), kp, atol=0.0, rtol=1e-12)
     assert_allclose(franka.get_dofs_kv(), kv, atol=0.0, rtol=1e-12)

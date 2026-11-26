@@ -65,7 +65,6 @@ from torch.utils._python_dispatch import TorchDispatchMode
 from torch.utils._pytree import tree_leaves
 
 from eden.utils.common import frozen_value
-from eden.utils.genesis_runtime import clear_rigid_query_caches
 
 if TYPE_CHECKING:
     from eden.envs.base import RLEnvBase
@@ -76,9 +75,9 @@ if TYPE_CHECKING:
 _ENV_CONSTANTS = ("dt", "max_episode_length", "training")
 
 #: The top-level packages whose objects the binding walk never enters: the simulator, the kernel backend it runs
-#: on, and torch. Their objects hold the simulation's state and its per-step query caches (which Genesis empties
-#: every step), not a term's: a term reads the simulation through Eden's handles, which the walk follows. Matched
-#: by the name the classes are defined under, so an editable checkout of one is skipped as well.
+#: on, and torch. Their objects hold the simulation's state, not a term's: a term reads the simulation through
+#: Eden's handles, which the walk follows. Matched by the name the classes are defined under, so an editable
+#: checkout of one is skipped as well.
 _UNWALKED_PACKAGES = frozenset({"genesis", "quadrants", "torch"})
 
 #: The ``eden`` package directory, and where term code lives inside it (relative to it), for naming the line a
@@ -196,10 +195,6 @@ class GradedPhaseGraph:
         reads = _ReadRecorder()
 
         def capture_and_replay() -> None:
-            # Genesis serves a query it already answered this step from a per-step cache (contacts, equality
-            # constraints). Served to the capture, those cached tensors would be read by every replay at an
-            # address the graph does not own: drop the cache so the capture records the query itself.
-            clear_rigid_query_caches(self._env.rigid_solver)
             try:
                 with self._env.graded_capture_scope(), torch.cuda.graph(graph), reads:
                     self._outputs = self._compute()

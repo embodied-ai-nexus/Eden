@@ -11,7 +11,7 @@
 [![PyPI Downloads](https://static.pepy.tech/personalized-badge/eden-world?period=total&units=ABBREVIATION&left_color=GREY&right_color=BLUE&left_text=downloads)](https://pepy.tech/projects/eden-world)
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.12%2B-blue.svg)](pyproject.toml)
-[![Genesis 1.4.7](https://img.shields.io/badge/genesis-1.4.7-ff69b4.svg)](https://github.com/Genesis-Embodied-AI/genesis-world/releases/tag/v1.4.7)
+[![Genesis 7472e1a](https://img.shields.io/badge/genesis-1.5.0%2B15%20(7472e1a)-ff69b4.svg)](https://github.com/Genesis-Embodied-AI/genesis-world/commit/7472e1a6960ca3fd7f1d859f9e4e6a9744d428d6)
 [![Docs](https://img.shields.io/badge/docs-online-brightgreen.svg)](https://embodied-ai-nexus.github.io/Eden)
 
 [Installation](#installation) · [Quick start](#quick-start) · [Gallery](#gallery) · [Documentation](https://embodied-ai-nexus.github.io/Eden) · [Citation](#citation)

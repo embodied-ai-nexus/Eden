@@ -1759,13 +1759,11 @@ def test_geom_options_on_a_kinematic_entity_are_skipped_with_a_warning(mjcf_buil
 
 
 def test_collision_vis_on_a_kinematic_entity_falls_back_to_visual_and_says_so(mjcf_build):
-    """Genesis' rasterizer reads ``geoms`` for any non-visual mode; a kinematic entity has only ``vgeoms``.
-
-    It used to abort ``scene.build()`` with an ``AttributeError``. The downgrade is render-time only, so
-    ``env.config`` still round-trips what was asked for.
+    """A kinematic entity has no collision geometry to draw. The downgrade is render-time only, so ``env.config``
+    still round-trips what was asked for.
     """
     env, warnings, _ = mjcf_build
-    assert env.entities["vis_marker"].entity.surface.vis_mode == "visual"
+    assert env.entities["vis_marker"].entity.surface.vis_mode is None  # drawn as it looks, the material deciding how
     assert env.entities["vis_block"].entity.surface.vis_mode == "collision"  # it has collision geoms
     assert env.config.scene_options.vis_marker.vis_mode == "collision"
     assert any("vis_marker" in w and "collision" in w for w in warnings), warnings
@@ -1863,7 +1861,7 @@ def test_genesis_setters_write_only_the_masked_envs_given_a_dof_range(control_en
     qpos[:, :3] += torch.tensor([0.5, -0.25, 0.75])
     vel = torch.full((3, 6), 0.3)
 
-    box.set_dofs_vel(vel, dofs_idx_local=range(6), envs_idx=mask, skip_forward=True)
+    box.set_dofs_vel(vel, dofs_idx_local=range(6), envs_idx=mask)
     box.set_qpos(qpos, qs_idx_local=range(7), envs_idx=mask, zero_velocity=False)
 
     torch.testing.assert_close(box.get_qpos()[mask], qpos[mask])
@@ -1910,7 +1908,7 @@ def test_setters_take_every_row_reads_the_solvers_own_hibernation_flag():
     qpos = qpos_before.clone()
     qpos[:, :3] += torch.tensor([0.5, -0.25, 0.75])
     vel = torch.full((3, 6), 0.3)
-    box.set_dofs_vel(vel[mask], dofs_idx_local=torch.arange(6), envs_idx=mask, skip_forward=True)
+    box.set_dofs_vel(vel[mask], dofs_idx_local=torch.arange(6), envs_idx=mask)
     box.set_qpos(qpos[mask], qs_idx_local=torch.arange(7), envs_idx=mask, zero_velocity=False)
     torch.testing.assert_close(box.get_qpos()[mask], qpos[mask])
     assert torch.equal(box.get_qpos()[~mask], qpos_before[~mask])
@@ -2235,7 +2233,7 @@ def test_a_staged_write_leaves_what_each_entitys_own_setters_leave(staged_env):
     write.apply(staged)
 
     robot.set_dofs_pos(fingers, envs_idx=direct, zero_velocity=False)
-    cube.set_dofs_vel(cube_vel, envs_idx=direct, skip_forward=True)
+    cube.set_dofs_vel(cube_vel, envs_idx=direct)
     cube.set_qpos(_box_qpos(env, -1.0), envs_idx=direct, zero_velocity=False)
     placed.set_qpos(_box_qpos(env, -2.0), envs_idx=direct, zero_velocity=False)
 

@@ -129,16 +129,14 @@ def reset_dofs_by_offset(
         entity.set_dofs_pos(dofs_pos, envs_idx=envs_idx)
         return
 
-    # Velocities first, without forward kinematics: the position write below runs the one pass over these envs,
-    # and that pass refreshes link velocities from the dof velocities written here; writing velocities after
-    # the positions would run a second pass. Final state: every dof's velocity zero (the base's too, as
-    # `set_dofs_pos`' default zeroing would leave it), then the sampled joint velocities.
+    # Final state: every dof's velocity zero (the base's too, as `set_dofs_pos`' default zeroing would leave it), then
+    # the sampled joint velocities. The position write keeps them (`zero_velocity=False`).
     dofs_vel = _rows_to_write(
         sample_uniform(dofs_vel_range[0], dofs_vel_range[1], (env.num_envs, entity.num_dofs), device=env.device),
         envs_idx,
     )
-    entity.zero_all_dofs_velocity(envs_idx=envs_idx, skip_forward=True)
-    entity.set_dofs_vel(dofs_vel, envs_idx=envs_idx, skip_forward=True)
+    entity.zero_all_dofs_velocity(envs_idx=envs_idx)
+    entity.set_dofs_vel(dofs_vel, envs_idx=envs_idx)
     entity.set_dofs_pos(dofs_pos, envs_idx=envs_idx, zero_velocity=False)
 
 

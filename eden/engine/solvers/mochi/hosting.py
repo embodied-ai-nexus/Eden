@@ -1,16 +1,18 @@
 """Host the MochiSolver in a scene of stock Genesis.
 
-Upstream Genesis has no seam for a solver it does not ship: ``Simulator.__init__`` builds a fixed list of solvers,
-``Scene.add_entity`` decides a surface's defaults from a closed chain of ``isinstance`` checks on the entity spec, and
-the visualizer names each solver it draws. This module stands in for the edits a Genesis fork would make, one scene at
+Upstream Genesis has no seam for a solver it does not ship: ``Simulator.__init__`` builds a fixed list of solvers, and
+``Scene.add_entity`` decides a surface's defaults from a closed chain of ``isinstance`` checks on the entity spec. (The
+renderers need no seam: they read the render context, where the solver registers its own scoped context.) This module
+stands in for the edits a Genesis fork would make, one scene at
 a time and never on a class, so a scene without a Mochi entity runs exactly the upstream code:
 
 * :func:`install_mochi_solver` builds the solver, appends it to the simulator's solvers and maps the Mochi entity specs
   (:mod:`~eden.engine.solvers.mochi.specs`) to it in the simulator's dispatch. From then on the scene takes Mochi
-  materials and specs in ``scene.add_entity``, holds the solver as ``scene.mochi_solver`` and draws its bodies with the
-  rasterizer. The simulator saves, restores and frees the solver's arrays as it does a stock solver's (see
-  ``MochiSolver.data``). It refuses ``scene.export``, ``scene.save_checkpoint``, a trajectory recording and a
-  pickle: Genesis rebuilds a scene from any of them on stock Genesis, without the solver;
+  materials and specs in ``scene.add_entity`` and holds the solver as ``scene.mochi_solver``. The solver draws its
+  bodies through the render context every renderer reads (``MochiScopedRenderContext``). The simulator saves, restores
+  and frees the solver's arrays as it does a stock solver's (see ``MochiSolver.data``). It refuses ``scene.export``,
+  ``scene.save_checkpoint``, a trajectory recording and a pickle: Genesis rebuilds a scene from any of them on stock
+  Genesis, without the solver;
 * :func:`create_mochi_scene` is ``gs.Scene(..., mochi_options=...)`` of the fork: a new scene, installed;
 * :func:`add_mochi_entity` is what ``scene.add_entity`` does for a Mochi material or spec;
 * :func:`find_mochi_solver` returns the solver of a scene, or None.
@@ -23,14 +25,9 @@ import types
 from typing import TYPE_CHECKING
 
 import genesis as gs
-import genesis.utils.mesh as mu
-import numpy as np
-import trimesh
 from genesis.engine.scene import Scene
 from genesis.engine.simulator import Simulator
-from genesis.ext import pyrender
-from genesis.utils.misc import qd_to_numpy
-from genesis.vis.rasterizer_context import RasterizerContext
+from genesis.utils.warnings import warn_once
 from genesis.vis.visualizer import Visualizer
 
 from eden.engine._surface import require_members
@@ -55,17 +52,7 @@ require_members(
             "visualizer",
         ),
         Simulator: ("add_entity", "solvers"),
-        Visualizer: ("batch_renderer", "context", "raytracer"),
-        RasterizerContext: (
-            "_rigid_solvers",
-            "add_node",
-            "build",
-            "create_node_seg",
-            "on_fem",
-            "update_fem",
-            "update_link_frame",
-            "update_rigid",
-        ),
+        Visualizer: ("batch_renderer", "raytracer"),
     },
 )
 
@@ -93,7 +80,7 @@ def install_mochi_solver(scene: Scene, options: MochiOptions | None = None) -> M
     Parameters
     ----------
     scene : Scene
-        The unbuilt scene. Its renderer must be the rasterizer, the only one the solver is bound to.
+        The unbuilt scene. Its renderer must be the rasterizer, the only one Eden draws the solver's bodies with.
     options : MochiOptions | None
         The solver's options. Their unset ``dt`` and ``gravity`` come from the scene's ``SimOptions``.
 
@@ -109,9 +96,9 @@ def install_mochi_solver(scene: Scene, options: MochiOptions | None = None) -> M
     renderer = scene.visualizer.raytracer or scene.visualizer.batch_renderer
     if renderer is not None:
         gs.raise_exception(
-            f"The MochiSolver cannot be drawn by {type(renderer).__name__}: Eden binds it to the rasterizer only, "
-            "which every camera of this scene would then skip. Pass `renderer=gs.renderers.Rasterizer()`, or render a "
-            "Mochi scene with a Nyx camera (examples/recipes/mochi/_nyx.py)."
+            f"The MochiSolver cannot be drawn by {type(renderer).__name__}: Eden draws its bodies with the rasterizer "
+            "only (its render context, `MochiScopedRenderContext`, is checked against no other renderer). Pass "
+            "`renderer=gs.renderers.Rasterizer()`."
         )
 
     sim = scene.sim
@@ -127,7 +114,6 @@ def install_mochi_solver(scene: Scene, options: MochiOptions | None = None) -> M
     # The name a scene of the fork holds the solver under, which the code written for the fork reads.
     scene.mochi_solver = solver
     _bind_add_entity(scene)
-    _bind_rasterizer(scene, solver)
     _bind_scene_files(scene)
     return solver
 
@@ -150,6 +136,15 @@ def create_mochi_scene(mochi_options: MochiOptions | None = None, **scene_kwargs
     scene = gs.Scene(**scene_kwargs)
     install_mochi_solver(scene, mochi_options)
     return scene
+
+
+def _refuse_debug_vis_mode(vis_mode: str, material) -> None:
+    """Raise for a `vis_mode` other than "visual": the MochiSolver draws no debug representation of its bodies."""
+    if vis_mode != "visual":
+        gs.raise_exception(
+            f"`vis_mode='{vis_mode}'` on a {type(material).__name__} body: the MochiSolver draws its bodies as they "
+            "look only, so this body would be drawn by nothing. Leave `vis_mode` unset."
+        )
 
 
 def add_mochi_entity(
@@ -178,6 +173,8 @@ def add_mochi_entity(
         if not isinstance(material, mochi_materials.Base):
             gs.raise_exception(f"`add_mochi_entity` takes a Mochi material, got {type(material).__name__}.")
         if vis_mode is not None:
+            # Ahead of the spec, which refuses a debug mode on a deformable material with a message about debug views
+            _refuse_debug_vis_mode(vis_mode, material)
             surface = (gs.surfaces.Default() if surface is None else surface).model_copy(update={"vis_mode": vis_mode})
         spec = mochi_specs.mochi_spec(morph, material, surface, visualize_contact, name)
     elif any(value is not None for value in (morph, material, surface, visualize_contact, vis_mode, name)):
@@ -197,14 +194,20 @@ def add_mochi_entity(
         surface.smooth = False
     if surface.double_sided is None:
         surface.double_sided = isinstance(spec.material, mochi_materials.Shell)
-    if surface.vis_mode is None:
-        surface.vis_mode = "visual"
-    allowed = ("visual",) if isinstance(spec, mochi_specs.MochiSoftSpec) else ("visual", "collision", "sdf")
-    if surface.vis_mode not in allowed:
-        gs.raise_exception(
-            f"Unsupported `surface.vis_mode` for material {type(spec.material).__name__}: '{surface.vis_mode}'. "
-            f"Expected one of: {list(allowed)}."
+    # Genesis deprecated `vis_mode`: the material decides how an entity is drawn. The MochiSolver draws its bodies as
+    # they look alone, having no debug representation of them (see `MochiScopedRenderContext`), so "visual" is the
+    # only value that keeps a body drawn.
+    if surface.vis_mode is not None:
+        _refuse_debug_vis_mode(surface.vis_mode, spec.material)
+        warn_once(
+            scene,
+            "'vis_mode=\"visual\"' is deprecated. Leave it unset, since the material decides how an entity is drawn.",
         )
+        surface.vis_mode = None
+    # How the debug view draws the entity resolves on a copy of its vis options, as upstream's `Scene.add_entity` does.
+    # The MochiSolver draws no debug representation, which the spec refuses to be asked for (see `MochiRigidSpec`).
+    vis = gs.options.EntityVisOptions() if spec.vis is None else spec.vis.model_copy()
+    spec = spec._held_copy(update={"vis": vis})
     # Mochi contact samples the authored collision triangles, so a file mesh is kept as it is unless asked otherwise.
     # The rigid-entity description would otherwise convexify it, since a `MochiRigid` is a `Rigid`. The morph resolves
     # in place, as upstream's does.
@@ -263,85 +266,3 @@ def _bind_scene_files(scene: Scene) -> None:
     )
     # `pickle` looks `__reduce__` up on the instance once the class defines its own, as Scene does
     scene.__reduce__ = types.MethodType(lambda self: refuse("pickle it"), scene)
-
-
-def _bind_rasterizer(scene: Scene, solver: MochiSolver) -> None:
-    """Draw the MochiSolver's bodies with the rasterizer of ``scene`` (its cameras and its interactive viewer).
-
-    The rasterizer draws the rigid-like bodies of the solvers ``_rigid_solvers`` yields, and the deformable ones of the
-    FEMSolver; each gains the MochiSolver here, on this scene's instances. The visual geoms it draws are placed by the
-    solver itself (``MochiSolver._update_vgeoms``): Genesis' visualizer no longer refreshes them.
-
-    A setter between two steps syncs the rasterizer with the nodes of the solvers it changed alone
-    (``RasterizerContext._updates_solvers``, filled at the build), so the update of the rigid-like and the deformable
-    nodes also runs for the MochiSolver.
-    """
-    context = scene.visualizer.context
-    rigid_solvers = context._rigid_solvers
-
-    def _rigid_solvers(self):
-        yield from rigid_solvers()
-        if solver.is_active:
-            yield solver
-
-    on_fem, update_fem = context.on_fem, context.update_fem
-
-    def _soft_vverts(self):
-        vverts_pos, _, _ = solver.get_soft_state_render()
-        return qd_to_numpy(vverts_pos, self.rendered_envs_idx, transpose=True)
-
-    def on_fem_with_mochi(self):
-        on_fem()
-        if not solver.has_soft:
-            return
-        vverts_all = _soft_vverts(self)
-        for entity in solver.soft_entities:
-            if entity.surface.vis_mode != "visual":
-                continue
-            for i_g, vgeom in enumerate(entity.vgeoms):
-                visual = mu.surface_uvs_to_trimesh_visual(vgeom.surface, uvs=vgeom.uvs, n_verts=vgeom.n_vverts)
-                seg_key = (entity.idx, i_g) if self.segmentation_level == "geom" else entity.idx
-                vverts = vverts_all[:, vgeom.vvert_start : vgeom.vvert_end]
-                for env_i, i_b in enumerate(self.rendered_envs_idx):
-                    mesh = trimesh.Trimesh(vverts[env_i], vgeom.vmesh.faces, process=False)
-                    mesh.visual = visual
-                    node = pyrender.Mesh.from_trimesh(
-                        mesh, smooth=vgeom.surface.smooth, double_sided=vgeom.surface.double_sided, envs=env_i
-                    )
-                    static_node = self.add_node(node)
-                    self.static_nodes[(i_b, vgeom.uid)] = static_node
-                    self.create_node_seg(seg_key, static_node)
-
-    def update_fem_with_mochi(self):
-        update_fem()
-        if not solver.has_soft:
-            return
-        vverts_all = _soft_vverts(self)
-        for entity in solver.soft_entities:
-            if entity.surface.vis_mode != "visual":
-                continue
-            for vgeom in entity.vgeoms:
-                vverts = vverts_all[:, vgeom.vvert_start : vgeom.vvert_end]
-                for env_i, i_b in enumerate(self.rendered_envs_idx):
-                    node = self.static_nodes[(i_b, vgeom.uid)]
-                    render_verts = vverts[env_i].astype(np.float32, copy=False)
-                    update_data = self._scene.reorder_vertices(node, render_verts)
-                    self.jit.update_buffer(node, "pos", update_data)
-                    normal_data = self.jit.update_normal(node, update_data)
-                    if normal_data is not None:
-                        self.jit.update_buffer(node, "normal", normal_data)
-
-    build = context.build
-
-    def build_with_mochi(self, *args, **kwargs):
-        build(*args, **kwargs)
-        drawing_mochi = (self.update_link_frame, self.update_rigid, self.update_fem)
-        self._updates_solvers = tuple(
-            (update, (*update_solvers, solver) if update in drawing_mochi else update_solvers)
-            for update, update_solvers in self._updates_solvers
-        )
-
-    context._rigid_solvers = types.MethodType(_rigid_solvers, context)
-    context.build = types.MethodType(build_with_mochi, context)
-    context.on_fem = types.MethodType(on_fem_with_mochi, context)
-    context.update_fem = types.MethodType(update_fem_with_mochi, context)

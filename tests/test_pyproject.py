@@ -213,10 +213,10 @@ def test_the_release_refuses_what_the_checkout_installs_and_the_wheel_would_not(
         "foo ([tool.uv] dev-dependencies)",
         "genesis-world (group 'dev')",
     ]
-    # Today's pin: the release waits for a genesis-world release holding the commit
+    # Today's pin: the release waits for a gs-nyx-plugin release admitting genesis-world 1.5, which drops the override
     assert module.swapped_requirements(_load_pyproject()) == (
         ["genesis-world ([tool.uv.sources])"] if _genesis_source() else []
-    )
+    ) + ["genesis-world ([tool.uv] override-dependencies)"]
 
 
 def _genesis_source() -> str | None:

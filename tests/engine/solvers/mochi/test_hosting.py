@@ -11,7 +11,6 @@ import numpy as np
 import pytest
 import torch
 from genesis.engine.scene import SCENE_FORMAT
-from genesis.utils.misc import qd_to_torch
 
 from eden.engine.solvers.mochi import (
     MochiOptions,
@@ -70,7 +69,7 @@ def test_a_mochi_spec_reaches_the_mochi_solver_and_a_genesis_spec_of_a_mochi_mat
         )
     )
     assert plane in scene.mochi_solver.entities and cube in scene.mochi_solver.soft_entities
-    assert cube.surface.vis_mode == "visual" and not scene.sim.rigid_solver.entities
+    assert cube.surface.vis_mode is None and not scene.sim.rigid_solver.entities
 
     with pytest.raises(gs.GenesisException, match="Pass a spec of `eden.engine.solvers.mochi.specs` instead"):
         scene.add_entity(spec=gs.entities.Rigid(morph=gs.morphs.Plane(), material=mochi_materials.Rigid()))
@@ -92,11 +91,15 @@ def test_a_mochi_entity_gets_the_surface_defaults_of_its_kind():
         gs.morphs.Box(size=(0.4, 0.4, 0.01), pos=(0.0, 0.0, 1.0)), material=mochi_materials.Shell()
     )
 
-    assert box.surface.vis_mode == "visual" and box.surface.smooth is False and box.surface.double_sided is False
+    assert box.surface.vis_mode is None and box.surface.smooth is False and box.surface.double_sided is False
     assert sheet.surface.double_sided is True
-    with pytest.raises(gs.GenesisException, match="Unsupported `surface.vis_mode`.*Expected one of: \\['visual'\\]"):
+    # The MochiSolver draws no debug representation, so a deprecated `vis_mode` naming one would draw the body nowhere
+    for material in (mochi_materials.Elastic(), mochi_materials.Rigid()):
+        with pytest.raises(gs.GenesisException, match="`vis_mode='collision'` on a .* would be drawn by nothing"):
+            scene.add_entity(gs.morphs.Sphere(radius=0.1, pos=(1.0, 0.0, 0.5)), material=material, vis_mode="collision")
+    with pytest.raises(gs.GenesisException, match="is visual only and has no debug representation"):
         scene.add_entity(
-            gs.morphs.Sphere(radius=0.1, pos=(1.0, 0.0, 0.5)), material=mochi_materials.Elastic(), vis_mode="collision"
+            spec=MochiRigidSpec(morph=gs.morphs.Plane(), vis=gs.options.EntityVisOptions(debug=True)),
         )
 
 
@@ -143,7 +146,6 @@ def test_a_scene_without_the_solver_runs_the_upstream_code():
     assert not hasattr(scene, "mochi_solver")
     # Nothing is bound on the instance: these resolve to the classes' own methods.
     assert "add_entity" not in vars(scene) and "reset" not in vars(scene.sim)
-    assert "on_fem" not in vars(scene.visualizer.context)
 
 
 def test_a_rigid_scene_loads_back_with_the_upstream_rigid_material(tmp_path):
@@ -185,8 +187,8 @@ def test_the_rasterizer_draws_the_rigid_and_the_deformable_bodies():
 
 
 def test_a_frame_drawn_after_a_setter_shows_the_body_where_the_setter_put_it():
-    """A setter between two steps syncs the rasterizer with the nodes of the solver it changed alone, as the
-    interactive viewer does on every change of a body's geometry; the camera's next frame draws from those nodes.
+    """A setter between two steps makes the solver's shapes stale in the render context, which a forced frame
+    refreshes as it reads them.
     """
     scene = _scene()
     scene.add_entity(gs.morphs.Plane(), material=mochi_materials.Rigid())
@@ -200,12 +202,12 @@ def test_a_frame_drawn_after_a_setter_shows_the_body_where_the_setter_put_it():
     scene.step()
 
     def n_red() -> int:
-        rgb = np.asarray(camera.render()[0])
+        # Forced: the rasterizer syncs the scene once per step, and the frame after the setter is the step's second
+        rgb = np.asarray(camera.render(force_render=True)[0])
         return int(((rgb[..., 0] > 150) & (rgb[..., 1] < 80) & (rgb[..., 2] < 80)).sum())
 
     assert n_red() > 50
     ball.set_pos(torch.tensor([50.0, 0.0, 0.3], dtype=gs.tc_float, device=gs.device))
-    scene.visualizer.sync(frozenset((scene.mochi_solver,)))
     assert n_red() == 0
 
 
@@ -249,9 +251,9 @@ def test_a_saved_state_restores_the_mochi_bodies_of_the_environments_it_is_given
 
 @pytest.mark.parametrize("step_kernel", ["monolith", "pipeline", "graph"])
 def test_the_visual_geoms_follow_the_links_after_a_step_of_every_kernel(step_kernel):
-    """Genesis places the visual geoms in its own forward kinematics, which the pipelined step ends with; the
-    single-kernel steps run Mochi's, and the solver places them itself after the last substep. A geom left behind
-    would draw the body frozen where it was built.
+    """The render context places the visual geoms on the link poses the step leaves, whichever kernel ran it: the
+    single-kernel steps write the poses with Mochi's own kinematics. A geom left behind would draw the body frozen where
+    it was built.
     """
     scene = create_mochi_scene(
         sim_options=gs.options.SimOptions(**SIM_OPTIONS, substeps=2),
@@ -263,10 +265,8 @@ def test_the_visual_geoms_follow_the_links_after_a_step_of_every_kernel(step_ker
     scene.build(n_envs=2)
     for _ in range(3):
         scene.step()
-    solver = scene.mochi_solver
-    vgeoms_pos = qd_to_torch(solver.dyn_state.vgeoms.pos)  # (n_vgeoms, n_envs, 3)
     for vgeom in box.vgeoms:
-        torch.testing.assert_close(vgeoms_pos[vgeom.idx], box.get_pos(), rtol=0.0, atol=1e-5)
+        torch.testing.assert_close(vgeom.get_pos(relative=False), box.get_pos(), rtol=0.0, atol=1e-5)
     assert float(box.get_pos()[:, 2].max()) < 0.5 - 1e-3  # it fell: the check is not of the build pose
 
 

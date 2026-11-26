@@ -1,5 +1,6 @@
-from typing import TYPE_CHECKING, Annotated, Any, Literal
+from typing import TYPE_CHECKING, Annotated, Any, ClassVar, Literal
 
+from genesis.constants import STRUCTURE
 from genesis.typing import NonNegativeFloat, PositiveFloat, ValidFloat
 from pydantic import Field
 
@@ -45,6 +46,9 @@ class Elastic(Base["MochiSoftEntity"]):
         inside the body, the activation threshold is zero), "none" makes the body collide only through its own samples.
         Default is "auto".
     """
+
+    # Drawn as a mesh the simulated vertices move, whose connectivity never changes (see `Material.structure`)
+    structure: ClassVar[STRUCTURE] = STRUCTURE.DEFORMABLE
 
     E: PositiveFloat = 1e5
     nu: Annotated[ValidFloat, Field(gt=-1.0, lt=0.5)] = 0.45

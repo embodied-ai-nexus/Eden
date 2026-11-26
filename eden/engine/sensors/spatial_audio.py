@@ -24,16 +24,18 @@ from typing import TYPE_CHECKING, Literal
 
 import genesis as gs
 import torch
+from genesis.engine.render_context import Points, Shape
 from genesis.engine.sensors.base_sensor import (
     KinematicSensorMetadataMixin,
     KinematicSensorMixin,
     SimpleSensor,
     SimpleSensorMetadata,
 )
+from genesis.engine.state_change import StateChange
 from genesis.options.sensors.options import KinematicSensorOptionsMixin, SimpleSensorOptions
 from genesis.typing import PositiveFloat, PositiveInt
 from genesis.utils.geom import transform_by_quat
-from genesis.utils.misc import concat_with_tensor, make_tensor_field, tensor_to_array
+from genesis.utils.misc import concat_with_tensor, make_tensor_field
 from pydantic import StrictBool
 
 from eden.engine._surface import require_members
@@ -41,13 +43,18 @@ from eden.engine.sensors.audio import AudioContext
 
 if TYPE_CHECKING:
     from genesis.engine.sensors.sensor_manager import SensorManager
-    from genesis.ext.pyrender.mesh import Mesh
-    from genesis.vis.rasterizer_context import RasterizerContext
 
 require_members(
     __name__,
     {
-        SimpleSensor: ("_update_raw_data", "_get_return_format", "_get_cache_dtype", "reset", "build", "_draw_debug"),
+        SimpleSensor: (
+            "_update_raw_data",
+            "_get_return_format",
+            "_get_cache_dtype",
+            "reset",
+            "build",
+            "_update_markers",
+        ),
         KinematicSensorMixin: ("_register_link", "set_pos_offset"),
     },
 )
@@ -155,7 +162,6 @@ class SpatialAudioSensor(KinematicSensorMixin, SimpleSensor[SpatialAudio, AudioC
         manager: "SensorManager",
     ):
         super().__init__(options, idx, shared_context, shared_metadata, manager)
-        self.debug_object: "Mesh | None" = None
 
     def build(self):
         """Claim the scene's sample rate and append this listener's column."""
@@ -302,22 +308,36 @@ class SpatialAudioSensor(KinematicSensorMixin, SimpleSensor[SpatialAudio, AudioC
         out = (gain_k * sample).sum(dim=2)  # (B, nL, K)
         raw_data_T[:] = out.permute(1, 2, 0).reshape(n_listeners * K, B)
 
-    def _draw_debug(self, context: "RasterizerContext"):
-        """Draw a sphere at the microphone whose radius grows with the loudness of the last block.
+    def _update_markers(self, markers: tuple[Shape, ...], envs_idx: torch.Tensor | None) -> tuple[Points]:
+        """A sphere at the microphone whose radius grows with the loudness of the last block.
+
+        One radius serves every environment, so it follows the loudest of ``envs_idx``; the marker is remade at each
+        call for it, since a ``Points`` marker's radius is fixed.
 
         Parameters
         ----------
-        context : RasterizerContext
-            The viewer context to draw into.
+        markers : tuple[Shape, ...]
+            The marker the last call returned, none at the first call.
+        envs_idx : torch.Tensor | None
+            The environments to write, ``None`` in a scene without parallel environments.
         """
-        env_idx = context.rendered_envs_idx[0] if self._manager.sim.n_envs > 0 else None
-        pos = self._listener_positions(self._shared_metadata)[0 if env_idx is None else env_idx, self._idx]
-        amp = float(self.read(env_idx).reshape(-1).abs().max())
-
-        if self.debug_object is not None:
-            context.clear_debug_object(self.debug_object)
-            self.debug_object = None
-        radius = 0.02 + min(amp, 1.0) * 0.05
-        self.debug_object = context.draw_debug_sphere(
-            pos=tensor_to_array(pos), radius=radius, color=(0.2, 0.6, 1.0, 0.6)
+        amp = float(self.read(envs_idx).abs().max())
+        pos = (
+            markers[0].pos
+            if markers
+            else torch.zeros((self._manager.n_envs_, 1, 3), dtype=gs.tc_float, device=gs.device)
+        )
+        # The positions hold a row in a scene without parallel environments too
+        rows = 0 if envs_idx is None else envs_idx
+        pos[envs_idx] = self._listener_positions(self._shared_metadata)[rows, self._idx][..., None, :]
+        # An attached microphone moves with its link, a static one with nothing
+        invalidated_by = {group.solver: (StateChange.GEOMETRY,) for group in self._shared_metadata.solver_groups}
+        return (
+            Points(
+                pos,
+                0.02 + min(amp, 1.0) * 0.05,
+                (0.2, 0.6, 1.0, 0.6),
+                is_active=torch.ones(pos.shape[:-1], dtype=gs.tc_bool, device=gs.device),
+                invalidated_by={**invalidated_by, self: (StateChange.MODEL,)},
+            ),
         )

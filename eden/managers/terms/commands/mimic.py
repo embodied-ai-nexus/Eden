@@ -761,14 +761,11 @@ class MotionCommand(CommandTerm):
         # Every env's row where Genesis keeps the mask on the device, else just the selected rows
         # (`build` says which).
         rows = slice(None) if self._reset_through_mask else envs_idx
-        # Order matters: set_dofs_vel(skip_forward=True) FIRST, set_qpos(zero_velocity=False) SECOND, so
-        # set_qpos's FK sees the fresh qvel and leaves both solver forward flags True (the next scene.step
-        # skips a full-batch velocity FK). See MotionEndResync._teleport for the analysis.
+        # set_qpos keeps the velocities written before it (zero_velocity=False).
         self.robot.set_dofs_vel(
             torch.cat([root_lin_vel, root_ang_vel_b, self.dofs_vel], dim=1)[rows],
             dofs_idx_local=self._reset_dofs_idx,
             envs_idx=envs_idx,
-            skip_forward=True,
         )
         self.robot.set_qpos(
             torch.cat([root_pos, root_ori, dofs_pos], dim=1)[rows],

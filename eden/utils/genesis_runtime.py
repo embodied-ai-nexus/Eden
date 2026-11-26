@@ -88,31 +88,3 @@ def transient_robot_env(
         yield env, env.entities["robot"]
     finally:
         env.destroy()
-
-
-#: The rigid solver's per-step query caches, as ``(owner attribute on the solver, cache attribute on it)``:
-#: Genesis answers a repeated query of one step (contacts, equality-constraint info) from these.
-_RIGID_QUERY_CACHES = (("collider", "_contact_data_cache"), ("constraint_solver", "_eq_const_info_cache"))
-
-
-def clear_rigid_query_caches(rigid_solver) -> None:
-    """Drop the rigid solver's per-step query caches, so the next query of the step is answered afresh.
-
-    The part of Genesis' ``RigidSolver._restart`` that Eden needs, and only that part: ``_restart`` also re-arms
-    every drone's once-per-step propeller guard, which a mid-step call must not do. Genesis exposes no public
-    call for this, so the cache attributes are named here, in one place, and a Genesis that renamed one raises
-    rather than leaving a cache that would be served stale.
-    """
-    for owner_name, cache_name in _RIGID_QUERY_CACHES:
-        owner = getattr(rigid_solver, owner_name, None)
-        if owner is None:  # a solver with nothing of this kind built (no collider in an all-Mochi scene, say)
-            continue
-        cache = getattr(owner, cache_name, None)
-        if not isinstance(cache, dict):
-            raise RuntimeError(
-                f"Genesis' {type(owner).__name__} has no per-step query cache '{cache_name}' (a dict) any more, "
-                f"so eden.utils.genesis_runtime.clear_rigid_query_caches cannot drop it: this Genesis renamed or "
-                "restructured it. Update _RIGID_QUERY_CACHES to the new attribute (see RigidSolver._restart in "
-                "Genesis); skipping the clear would serve a cached query stale."
-            )
-        cache.clear()

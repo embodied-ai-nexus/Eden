@@ -5,6 +5,7 @@ import numpy as np
 import pytest
 import quadrants as qd
 import trimesh
+from genesis.engine.render_context import DynamicMesh
 from genesis.utils.misc import qd_to_numpy, tensor_to_array
 
 from eden.engine.solvers.mochi import MochiOptions, create_mochi_scene
@@ -215,8 +216,9 @@ def test_embedded_visual_mesh_follows_deformation(tmp_path, show_viewer):
     assert vgeom.elems_idx is not None and vgeom.n_vverts == len(visual.vertices)
 
     def render_verts():
-        vverts, _, _ = solver.get_soft_state_render()
-        return qd_to_numpy(vverts)[vgeom.vvert_start : vgeom.vvert_end, 0].astype(np.float64)
+        # The surface the render context hands the renderers, which views the render vertices of the whole solver
+        (mesh,) = [shape for shape in solver.render_context.get_shapes() if isinstance(shape, DynamicMesh)]
+        return tensor_to_array(mesh.verts[0][mesh.verts_idx]).astype(np.float64)
 
     # The visual mesh is placed in the frame of the simulation mesh (a primitive morph: its local frame plus the
     # morph position).
