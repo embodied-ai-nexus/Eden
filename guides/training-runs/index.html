@@ -5706,15 +5706,15 @@ the seeded RNGs. rsl-rl-lib never applies the field itself.</p>
 </ul>
 <h2 id="checkpoints-need-a-matching-rsl-rl-lib">Checkpoints need a matching rsl-rl-lib<a class="headerlink" href="#checkpoints-need-a-matching-rsl-rl-lib" title="Permanent link">&para;</a></h2>
 <p>The layout of a <code>.pt</code> file belongs to rsl-rl-lib, not to Eden: rsl-rl-lib 3.x saves one <code>model_state_dict</code>, while
-4.x and 5.x split it into <code>actor_state_dict</code> and <code>critic_state_dict</code>. Eden's dependency (<code>rsl-rl-lib&gt;=3.0</code>) admits both,
+4.x to 6.x split it into <code>actor_state_dict</code> and <code>critic_state_dict</code>. Eden's dependency (<code>rsl-rl-lib&gt;=3.0</code>) admits both,
 so a checkpoint may not replay under the rsl-rl-lib you have installed.</p>
 <p>Eden handles the two directions differently:</p>
 <ul>
-<li><strong>A 3.x checkpoint under 4.x/5.x</strong> is converted: the file is rewritten into a <code>&lt;name&gt;.&lt;std_type&gt;.converted.pt</code>
+<li><strong>A 3.x checkpoint under 4.x to 6.x</strong> is converted: the file is rewritten into a <code>&lt;name&gt;.&lt;std_type&gt;.converted.pt</code>
   sibling and loaded from there (your file is never modified). This also covers a <code>DistillationRunner</code>. The conversion
   needs the destination's <code>std_type</code>, read from the runner's <code>actor</code> (else <code>teacher</code>, else <code>student</code>) options; a
   runner config that states none raises instead of guessing.</li>
-<li><strong>A 4.x/5.x checkpoint under 3.x</strong> cannot load. The error names both versions and the keys the file holds, instead
+<li><strong>A 4.x to 6.x checkpoint under 3.x</strong> cannot load. The error names both versions and the keys the file holds, instead
   of rsl_rl's bare <code>KeyError: 'model_state_dict'</code>.</li>
 </ul>
 <p>Before loading, Eden reads the checkpoint's sibling <code>run.json</code> (<code>rl_library</code>) and warns when the version that trained
@@ -5849,7 +5849,7 @@ a spawned viewer) follow it. It sets Genesis' theme too; to choose a different G
 Install it with <code>pip install 'eden-world[rl-games]'</code> (or <code>uv sync --inexact --extra rl-games</code> in a checkout).</p>
 <p>How these options fit into a task config is covered in <a href="../task-config/">Task Configuration</a>.</p>
 <h2 id="custom-algorithms-algorithmclass_name">Custom algorithms: <code>algorithm.class_name</code><a class="headerlink" href="#custom-algorithms-algorithmclass_name" title="Permanent link">&para;</a></h2>
-<p>rsl_rl 5.x resolves the algorithm class from a string, so a task can train with its own PPO variant without forking
+<p>rsl_rl 5.x and 6.x resolve the algorithm class from a string, so a task can train with its own PPO variant without forking
 rsl_rl or touching Eden's runner code:</p>
 <div class="language-python highlight"><pre><span></span><code><span id="__span-9-1"><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="n">algorithm</span><span class="o">=</span><span class="n">RslRlPpoAlgorithmOptions</span><span class="p">(</span>
 </span><span id="__span-9-2"><a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>    <span class="n">class_name</span><span class="o">=</span><span class="s2">"my_package.trainers:MyPPO"</span><span class="p">,</span>   <span class="c1"># "module.path:ClassName"; default "PPO"</span>
@@ -5973,11 +5973,22 @@ them: give the runner the options class made for the algorithm. The check covers
 </ul>
 <div class="admonition note">
 <p class="admonition-title">Across rsl-rl-lib versions</p>
-<p>rsl-rl-lib 4 and 5 build every algorithm through <code>construct_algorithm</code>; 3 builds the model from
+<p>rsl-rl-lib 4 to 6 build every algorithm through <code>construct_algorithm</code>; 3 builds the model from
 <code>policy.class_name</code> and calls <code>AlgClass(model, storage, device=..., **alg_cfg)</code>. HIM covers 3 with two factories
 its <code>adapt_runner_dict</code> routes to (<code>HIMActorCritic.from_rsl_rl_v3</code>, <code>HIMPPO.from_rsl_rl_v3</code>). AMP-PPO and RMA need
 rsl-rl-lib 5.5.1 or newer. To check another major version without changing your environment:
 <code>uv run --with rsl-rl-lib==3.3.0 pytest tests/learning/wrappers/rsl_rl/him/test_ppo.py</code>.</p>
+<p>rsl-rl-lib 6.0 changed what the runner expects back from an algorithm. <code>update()</code> returns
+<code>(loss_dict, stats_dict)</code>, where <code>stats_dict</code> carries the learning rate and the policy std that older runners read
+off the algorithm, and <code>process_env_step()</code> returns the per-env values the logger sums over each episode
+(<code>{"Training/mean_reward": rewards}</code>). <code>eden.envs.wrappers.rsl_rl_compat</code> builds both shapes for the
+installed release. A PPO subclass writes its extra losses into <code>loss_dict_of(super().update())</code>, returns that
+result, and returns what <code>super().process_env_step()</code> returned. An algorithm written from scratch returns
+<code>update_result(loss_dict, ppo_stats(lr, std))</code> and <code>env_step_result(rewards)</code>. A runner that drives rsl_rl's
+<code>Logger</code> itself calls <code>log_env_step</code> and <code>log_iteration</code>. rsl-rl-lib 6.0 also renamed its TensorBoard tags
+(<code>Train/mean_reward</code> is now <code>Training/mean_reward</code>, <code>Perf/*</code> is <code>Performance/*</code>, <code>Policy/mean_std</code> is
+<code>Model/mean_policy_std</code>, and <code>Loss/learning_rate</code> is <code>Optimizer/learning_rate</code>), so curves from runs on either
+side of 6.0 sit under different names.</p>
 </div>
 <h3 id="custom-runners-runner_optionsclass_name">Custom runners: <code>runner_options.class_name</code><a class="headerlink" href="#custom-runners-runner_optionsclass_name" title="Permanent link">&para;</a></h3>
 <p>When the training <strong>loop</strong> itself differs (a distillation that backpropagates through the rollout, a fork of rsl_rl

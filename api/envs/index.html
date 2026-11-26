@@ -16086,7 +16086,12 @@ which has no <code>__init__.py</code>, so the API generator cannot render them h
 <tbody>
 <tr>
 <td><code>eden/envs/wrappers/rsl_rl_env.py</code></td>
-<td><code>RslRlVecEnvWrapper</code>, <code>make_rsl_rl_runner</code>, <code>load_runner_checkpoint</code>, <code>DDPOnPolicyRunner</code>, <code>MimicOnPolicyRunner</code></td>
+<td><code>RslRlVecEnvWrapper</code>, <code>make_rsl_rl_runner</code>, <code>load_runner_checkpoint</code>, <code>DDPOnPolicyRunner</code>, <code>MimicOnPolicyRunner</code>; <code>SaveBeforeLearnMixin</code> (a checkpoint saved before <code>learn()</code> on rsl-rl-lib 4.x); <code>StockNanCheckGuardMixin</code> (refuses, as <code>learn()</code> starts, a <code>check_for_nan</code> run whose check the installed rsl_rl cannot make)</td>
+<td>rsl-rl-lib</td>
+</tr>
+<tr>
+<td><code>eden/envs/wrappers/rsl_rl_compat.py</code></td>
+<td><code>loss_dict_of</code>, <code>update_result</code>, <code>env_step_result</code>, <code>log_env_step</code>, <code>log_iteration</code>, <code>episode_buffers</code>: the algorithm, runner and logger contracts rsl-rl-lib 6.0 changed, for 3.x to 6.x. <code>record_env_step_nonfinite</code>, <code>raise_if_nonfinite</code>: the NaN check for a runner that runs its own loop, which reads groups with <code>concatenate_terms=False</code>. <code>stock_nan_check_reads_nested_groups</code>: whether the installed rsl_rl's own check reads them. <code>FINAL_OBS_KEY</code>: the <code>extras</code> key rsl-rl-lib 6.0 reads a done env's last observation from</td>
 <td>rsl-rl-lib</td>
 </tr>
 <tr>
