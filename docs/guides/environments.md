@@ -480,7 +480,7 @@ env.training              # False when built with eval_mode=True
 env.episode_length_buf    # (num_envs,) steps into the current episode
 env.max_episode_length    # steps per episode (RLEnvBase and subclasses)
 env.max_episode_length_s  # seconds per episode (RLEnvBase and subclasses)
-env.common_step_counter   # control steps since construction (RLEnvBase and subclasses)
+env.common_step_counter   # control steps since construction, plus a resumed checkpoint's (RLEnvBase and subclasses)
 print(env.summary())      # every manager and its terms
 ```
 

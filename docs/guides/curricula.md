@@ -82,10 +82,12 @@ training run ended at:
 
 To evaluate at a later level, set that level in the config the eval builds from.
 
-!!! note "A resumed run restarts every curriculum"
-    `env.common_step_counter` starts at 0 when an env is constructed, and Eden does not restore it, or any
-    curriculum term's internal state, from a checkpoint. A run resumed from a checkpoint replays its
-    step-scheduled stages from the first one, and adaptive terms restart their averages.
+!!! note "What a resumed run restores"
+    Each rsl_rl and rl_games checkpoint records `env.common_step_counter`, and a training run that resumes from it
+    (`eden train --resume` or `--checkpoint`) sets the counter back to that value, so step-scheduled stages continue
+    where the checkpoint left them. A checkpoint saved before the counter was recorded resumes an rsl_rl run at
+    `iteration * num_steps_per_env` and an rl_games run at 0, with a warning. Eden does not restore any curriculum
+    term's internal state, so adaptive terms restart their averages.
 
 ## Built-in curriculum terms
 

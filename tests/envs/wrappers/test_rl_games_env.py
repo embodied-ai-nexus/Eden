@@ -395,3 +395,34 @@ def test_an_agent_a_caller_registered_is_kept_and_still_prunes(rl_config, tmp_pa
         agent.save(str(nn_dir / f"last_pendulum_ep_{epoch}_rew_0.5"))
 
     assert [epoch for epoch, _ in rl_games_checkpoints(str(nn_dir), "pendulum")] == [2]
+
+
+def test_a_restored_checkpoint_continues_the_step_counter_it_saved(rl_config, tmp_path, monkeypatch):
+    """Step-scheduled curricula read the counter: a resume that restarted it at 0 restarted their schedule (#47)."""
+    trained = _trained_checkpoints(rl_config, tmp_path / "run", monkeypatch)
+    (nn_dir,) = (tmp_path / "run").glob("runs/*/nn")
+    checkpoint = str(nn_dir / trained[-1][1])
+    saved = torch.load(checkpoint, weights_only=False)["env_state"]["common_step_counter"]
+    assert saved > 0
+
+    agent = _agent(_runner(rl_config))
+    agent.restore(checkpoint)
+
+    assert agent.vec_env.unwrapped.common_step_counter == saved
+
+
+def test_a_checkpoint_without_the_record_restarts_the_counter_and_says_so(
+    rl_config, tmp_path, monkeypatch, eden_caplog
+):
+    trained = _trained_checkpoints(rl_config, tmp_path / "run", monkeypatch)
+    (nn_dir,) = (tmp_path / "run").glob("runs/*/nn")
+    checkpoint = str(nn_dir / trained[-1][1])
+    state = torch.load(checkpoint, weights_only=False)
+    state["env_state"] = None  # what rl_games saved before Eden's wrapper returned one
+    torch.save(state, checkpoint)
+
+    agent = _agent(_runner(rl_config))
+    agent.restore(checkpoint)
+
+    assert agent.vec_env.unwrapped.common_step_counter == 0
+    assert "records no env step counter" in eden_caplog.text

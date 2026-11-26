@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import contextlib
 import copy
+import functools
 import inspect
 import io
 import json
@@ -703,6 +704,81 @@ class CheckpointRetentionMixin:
             )
 
 
+#: The ``infos`` entry a checkpoint records the env's step counter under (:class:`StepCounterCheckpointMixin`).
+STEP_COUNTER_INFOS_KEY = "env_step_counter"
+
+
+class StepCounterCheckpointMixin:
+    """Save ``env.common_step_counter`` with each checkpoint and restore it when a training run loads one.
+
+    Step-scheduled curricula (``VelocityCommandCurriculum``, ``StageRewardWeightCurriculum``) and step-ramped events
+    (``ObjectVelocityDisturbance``) read the counter, which the env sets to 0 when it is built. Without this a resumed
+    run continues the iteration count while those schedules start over from their first stage.
+
+    ``save`` adds ``infos[STEP_COUNTER_INFOS_KEY] = {"common_step_counter", "iteration"}`` to what the runner saves.
+    ``load`` (wrapped per instance, keeping the runner's own signature) restores the counter when the load resumed
+    that iteration. A load that does not resume the iteration, such as a teacher checkpoint loaded into a fresh
+    distillation run, starts the counter at 0 along with the iterations. An eval env (``eval_mode=True``) keeps its
+    own count: its curricula are frozen, and ``eden inference`` replays from step 0 as it did before.
+
+    A checkpoint saved before this record existed restores ``iteration * num_steps_per_env``, which assumes the run
+    kept one ``num_steps_per_env`` throughout, and says so in a warning.
+    """
+
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        # Wrapped per instance rather than overridden as `load(*args, **kwargs)`: `functools.wraps` keeps the
+        # runner's own signature, which `load_runner_checkpoint` reads to decide whether to pass `strict=`.
+        load = self.load  # type: ignore[attr-defined]
+
+        @functools.wraps(load)
+        def load_and_restore_step_counter(*load_args, **load_kwargs):  # type: ignore[no-untyped-def]
+            iteration_before = getattr(self, "current_learning_iteration", 0)
+            infos = load(*load_args, **load_kwargs)
+            path = load_args[0] if load_args else load_kwargs.get("path")
+            self._restore_step_counter(infos, iteration_before, path=path)
+            return infos
+
+        self.load = load_and_restore_step_counter
+
+    def save(self, path: str, infos: dict | None = None) -> None:
+        record = {
+            "common_step_counter": int(self.env.unwrapped.common_step_counter),  # type: ignore[attr-defined]
+            "iteration": int(getattr(self, "current_learning_iteration", 0)),
+        }
+        super().save(path, {**(infos or {}), STEP_COUNTER_INFOS_KEY: record})  # type: ignore[misc]
+
+    def _restore_step_counter(self, infos: Any, iteration_before: int, path: str | None) -> None:
+        env = self.env.unwrapped  # type: ignore[attr-defined]
+        if not env.training:
+            return
+        iteration = int(getattr(self, "current_learning_iteration", 0))
+        record = infos.get(STEP_COUNTER_INFOS_KEY) if isinstance(infos, dict) else None
+        if record is not None:
+            if int(record["iteration"]) == iteration:
+                env.common_step_counter = int(record["common_step_counter"])
+            return
+        if iteration == iteration_before:
+            return  # the load did not resume an iteration, so the run starts its own schedule at step 0
+        steps_per_iteration = (getattr(self, "cfg", None) or {}).get("num_steps_per_env")
+        if steps_per_iteration is None:
+            en.logger.warning(
+                f"Checkpoint {path} records no env step counter (it was saved before Eden recorded one), and this "
+                "runner has no num_steps_per_env to derive one from, so env.common_step_counter restarts at 0: "
+                "step-scheduled curricula and events start over from their first stage. To keep their schedule, "
+                "subtract the steps the checkpoint trained for from each stage's `step` with --override."
+            )
+            return
+        env.common_step_counter = iteration * int(steps_per_iteration)
+        en.logger.warning(
+            f"Checkpoint {path} records no env step counter (it was saved before Eden recorded one), so "
+            f"env.common_step_counter, which step-scheduled curricula and events read, resumes at iteration "
+            f"{iteration} x num_steps_per_env {steps_per_iteration} = {env.common_step_counter}. That is the step the "
+            "run reached only if it kept this num_steps_per_env throughout; a checkpoint this run saves records the "
+            "exact count."
+        )
+
+
 class SaveBeforeLearnMixin:
     """Let a runner save a checkpoint before ``learn()`` under rsl-rl-lib 4.x.
 
@@ -749,13 +825,19 @@ class StockNanCheckGuardMixin:
 
 
 #: What Eden adds to every rsl_rl runner it builds, in MRO order: ``progress.json``, the agent log theme, checkpoint
-#: retention, and saving before ``learn()`` on rsl-rl-lib 4.x. The runners for other rsl_rl-based learners (FlashSAC's
-#: ``OffPolicyRunner``, SuperMimic's, the RMA depth student's) compose the same tuple, so a feature added here reaches
-#: every learner. The one exception is ``ContrackOnPolicyRunner``, which composes only
-#: :class:`CheckpointRetentionMixin`: its fork's runner has no rsl_rl ``Logger`` for the others to read, and sets its
-#: own ``writer`` in ``__init__``. :class:`MotionWeightCurriculumMixin` is not in the tuple: it steps the curriculum once
-#: per PPO iteration (a rollout of ``num_steps_per_env`` steps), which is not what an off-policy iteration is.
-EDEN_RUNNER_MIXINS = (ProgressFileMixin, AgentIterationLogMixin, CheckpointRetentionMixin, SaveBeforeLearnMixin)
+#: retention, the env step counter in each checkpoint, and saving before ``learn()`` on rsl-rl-lib 4.x. The runners for
+#: other rsl_rl-based learners (FlashSAC's ``OffPolicyRunner``, SuperMimic's, the RMA depth student's) compose the same
+#: tuple, so a feature added here reaches every learner. The one exception is ``ContrackOnPolicyRunner``, which composes
+#: only :class:`CheckpointRetentionMixin`: its fork's runner has no rsl_rl ``Logger`` for the others to read, and sets
+#: its own ``writer`` in ``__init__``. :class:`MotionWeightCurriculumMixin` is not in the tuple: it steps the curriculum
+#: once per PPO iteration (a rollout of ``num_steps_per_env`` steps), which is not what an off-policy iteration is.
+EDEN_RUNNER_MIXINS = (
+    ProgressFileMixin,
+    AgentIterationLogMixin,
+    CheckpointRetentionMixin,
+    StepCounterCheckpointMixin,
+    SaveBeforeLearnMixin,
+)
 
 
 class MimicOnPolicyRunner(*EDEN_RUNNER_MIXINS, StockNanCheckGuardMixin, MotionWeightCurriculumMixin, OnPolicyRunner):

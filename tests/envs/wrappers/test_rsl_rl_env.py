@@ -6,6 +6,7 @@ files saved by a real runner (or rewritten from one into an older layout).
 
 from __future__ import annotations
 
+import inspect
 import json
 import logging
 import os
@@ -15,6 +16,7 @@ from importlib import metadata
 import gymnasium as gym
 import pytest
 import torch
+from rsl_rl.runners import OnPolicyRunner
 from tensordict import TensorDict
 
 from eden.envs.wrappers import rsl_rl_env
@@ -445,6 +447,91 @@ def test_a_save_outside_the_model_checkpoint_naming_prunes_nothing(wrapper, tmp_
     runner.save(str(tmp_path / "export.pt"))
 
     assert sorted(p.name for p in tmp_path.glob("*.pt")) == ["export.pt", "model_2.pt"]
+
+
+# ---------------------------------------------------------------------------
+# The env step counter across a resume
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def step_counter(wrapper):
+    """The shared env, with the ``common_step_counter`` a test rewinds or resumes put back afterwards."""
+    env = wrapper.unwrapped
+    before = env.common_step_counter
+    yield env
+    env.common_step_counter = before
+
+
+def _trained_checkpoint(wrapper, log_dir) -> str:
+    """Train 2 iterations into ``log_dir``; return the path of the newest checkpoint the run saved."""
+    runner_dict = {**wrapper.runner_dict, "save_interval": 1}
+    MimicOnPolicyRunner(wrapper, runner_dict, log_dir=str(log_dir), device="cpu").learn(num_learning_iterations=2)
+    return os.path.join(log_dir, rsl_rl_env.model_checkpoints(str(log_dir))[-1][1])
+
+
+def test_a_resumed_run_continues_the_step_counter_its_checkpoint_saved(wrapper, step_counter, tmp_path):
+    """Step-scheduled curricula read the counter: a resume that restarted it at 0 restarted their schedule (#47)."""
+    checkpoint = _trained_checkpoint(wrapper, tmp_path / "run")
+    reached = step_counter.common_step_counter
+    assert reached > 0
+    step_counter.common_step_counter = 0  # what the resumed run's freshly built env starts from
+
+    resumed = make_rsl_rl_runner(wrapper, checkpoint=checkpoint, log_dir=str(tmp_path / "resumed"))
+
+    assert step_counter.common_step_counter == reached
+    assert resumed.current_learning_iteration == rsl_rl_env.model_checkpoints(str(tmp_path / "run"))[-1][0]
+    # The restoring wrapper keeps the runner's own signature, which `load_runner_checkpoint` reads for `strict=`.
+    assert ("strict" in inspect.signature(resumed.load).parameters) == (
+        "strict" in inspect.signature(OnPolicyRunner.load).parameters
+    )
+
+
+def test_a_checkpoint_without_the_record_resumes_the_counter_from_its_iteration(
+    wrapper, runner, step_counter, tmp_path, eden_caplog
+):
+    """A checkpoint saved before the record existed: ``iteration * num_steps_per_env``, with a warning saying so."""
+    path = str(tmp_path / "model_7.pt")
+    runner.current_learning_iteration = 7
+    runner.save(path)
+    state = torch.load(path, weights_only=False)
+    del state["infos"][rsl_rl_env.STEP_COUNTER_INFOS_KEY]
+    torch.save(state, path)
+    step_counter.common_step_counter = 0
+
+    make_rsl_rl_runner(wrapper, checkpoint=path, log_dir=str(tmp_path / "resumed"))
+
+    assert step_counter.common_step_counter == 7 * wrapper.runner_dict["num_steps_per_env"]
+    assert _warnings(eden_caplog, "records no env step counter")
+
+
+@split_layout
+def test_a_teacher_loaded_into_a_fresh_distillation_leaves_the_counter_at_its_start(
+    runner, distiller, step_counter, tmp_path
+):
+    """The distillation starts its own iterations at 0, so its schedules start there too."""
+    path = str(tmp_path / "model_7.pt")
+    step_counter.common_step_counter = 7 * 4
+    runner.current_learning_iteration = 7
+    runner.save(path)
+    step_counter.common_step_counter = 0
+
+    load_runner_checkpoint(distiller, path)
+
+    assert distiller.current_learning_iteration == 0
+    assert step_counter.common_step_counter == 0
+
+
+def test_an_eval_env_keeps_its_own_step_counter(pendulum_file, wrapper, step_counter, tmp_path):
+    """Its curricula are frozen, and ``eden inference`` replays from step 0 as it did before the record existed."""
+    checkpoint = _trained_checkpoint(wrapper, tmp_path / "run")
+    config = trace_config(pendulum_file, str(tmp_path / "recordings"))
+    config.runner_options = rsl_rl_runner_options()
+    evaluation = RslRlVecEnvWrapper.from_config(config, eval_mode=True)
+
+    make_rsl_rl_runner(evaluation, checkpoint=checkpoint, log_dir=None, for_inference=True)
+
+    assert evaluation.unwrapped.common_step_counter == 0
 
 
 # ---------------------------------------------------------------------------
