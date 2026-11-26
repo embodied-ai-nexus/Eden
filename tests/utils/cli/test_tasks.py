@@ -1545,6 +1545,66 @@ def test_run_deploy_runs_the_given_backend_class_through_the_given_loop(tmp_path
             env.destroy()
 
 
+def test_safety_options_read_the_same_from_yaml_and_json(tmp_path):
+    from eden.options.extensions.deployment import DeploySafetyOptions, LinkBoxOptions
+
+    (tmp_path / "limits.yaml").write_text(
+        "dofs_pos_margin: 0.05\n"
+        "max_dofs_step_from_sent: {j1: 0.1}\n"
+        "link_boxes:\n"
+        "  bench: {links: [link2], lower: [null, null, 0.5]}\n"
+    )
+    (tmp_path / "limits.json").write_text(
+        json.dumps(
+            {
+                "dofs_pos_margin": 0.05,
+                "max_dofs_step_from_sent": {"j1": 0.1},
+                "link_boxes": {"bench": {"links": ["link2"], "lower": [None, None, 0.5]}},
+            }
+        )
+    )
+    expected = DeploySafetyOptions(
+        dofs_pos_margin=0.05,
+        max_dofs_step_from_sent={"j1": 0.1},
+        link_boxes={"bench": LinkBoxOptions(links=("link2",), lower=(None, None, 0.5))},
+    )
+
+    assert tasks._load_safety_options(str(tmp_path / "limits.yaml")) == expected
+    assert tasks._load_safety_options(str(tmp_path / "limits.json")) == expected
+
+
+@pytest.mark.parametrize(
+    "content, match",
+    [
+        ("dofs_pos_margins: 0.1\n", "Did you mean 'dofs_pos_margin'"),
+        ("- 0.1\n", "holds a list, not a mapping"),
+        (None, "no such file"),
+    ],
+)
+def test_a_safety_file_that_holds_no_safety_options_exits_naming_the_file(tmp_path, content, match):
+    path = tmp_path / "limits.yaml"
+    if content is not None:
+        path.write_text(content)
+
+    with pytest.raises(SystemExit, match=match) as exc:
+        tasks._load_safety_options(str(path))
+
+    assert str(exc.value).startswith(f"--safety {path}:")
+
+
+def test_the_safety_flag_reaches_run_deploy(tmp_path, monkeypatch, restore_run_globals):
+    monkeypatch.chdir(tmp_path)
+    deployed = []
+    monkeypatch.setattr(tasks, "_run_deploy", lambda config, **kwargs: deployed.append(kwargs))
+
+    tasks.deploy_task(
+        ["--task", "velocity_tracking_flat", "--cpu", "--checkpoint", str(tmp_path / "model_0.pt")]
+        + ["--safety", "limits.yaml"]
+    )
+
+    assert deployed[0]["safety"] == "limits.yaml"
+
+
 def test_run_deploy_refuses_a_backend_class_under_mujoco():
     """``--mujoco`` picks its own backend, so a given class would be dropped without a word."""
     with pytest.raises(ValueError, match="deployment_cls=LoopbackDeployment and mujoco=True"):

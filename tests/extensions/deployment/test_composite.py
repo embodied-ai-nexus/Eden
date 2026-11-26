@@ -11,13 +11,14 @@ import pytest
 import torch
 
 import eden.extensions.deployment.base as deployment_base
-from eden.extensions.deployment.base import DEPLOYMENT_REGISTRY, bind_deployment, resolve_deployment_for
+from eden.extensions.deployment.base import DEPLOYMENT_REGISTRY, DeployStop, bind_deployment, resolve_deployment_for
 from eden.extensions.deployment.base import DeploymentBase
 from eden.extensions.deployment.composite import PART_HOOKS, CompositeDeployment
 from eden.extensions.deployment.utils.operator_input import CMD_INIT, CMD_START
 from eden.extensions.deployment.utils.record import load_deploy_record
 from eden.extensions.deployment.utils.state import RobotStateEntity
 from eden.options.entities import RobotOptions
+from eden.options.extensions.deployment import DeploySafetyOptions, LinkBoxOptions
 from eden.options.robots.composite.base import DexManipulatorOptions, HumanoidOptions
 from eden.utils.cli.tasks import (
     _check_composite_deploy,
@@ -354,6 +355,39 @@ def test_one_action_reaches_each_part_as_its_own_targets(rig_env, deploy):
     np.testing.assert_array_equal(hand.sent[-1].dofs_kp, [5.0, 5.0])
 
 
+def test_the_rigs_safety_layer_caps_each_parts_slice_of_the_policys_targets(rig_env, deploy):
+    """``safety`` is the composite's own option: one layer over the rig's joints, end to end."""
+    dep = deploy(safety_options=DeploySafetyOptions(max_dofs_step_from_measured={"finger_.*": 0.05}))
+    dep.connect()
+    dep.reset()
+    dep.request_start()
+    dep.step(None)  # the START tick holds
+
+    dep.write_dofs_targets(torch.tensor([0.2, -0.3, 0.6, 0.7]), dep.dofs_name)
+    dep.step(None)
+
+    assert [limit.shape for limit in dep.dofs_pos_limits()] == [(4,), (4,)]
+    np.testing.assert_allclose(dep.parts["robot"].sent[-1].dofs_pos, [0.2, -0.3], atol=1e-6)
+    np.testing.assert_allclose(dep.parts["hand"].sent[-1].dofs_pos, [HAND_DEFAULT + 0.05] * 2, atol=1e-6)
+
+
+def test_a_link_box_without_an_entity_watches_the_rigs_primary_part(rig_env, deploy):
+    dep = deploy(safety_options=DeploySafetyOptions(link_boxes={"reach": LinkBoxOptions(links=(".*",))}))
+
+    assert [box.entity_name for box in dep._safety.link_boxes] == ["robot"]
+
+
+def test_a_link_box_on_a_parts_entity_stops_the_rig(rig_env, deploy):
+    box = LinkBoxOptions(entity_name="hand", links=("f1",), upper=(None, None, -5.0))
+    dep = deploy(safety_options=DeploySafetyOptions(link_boxes={"pit": box}))
+    dep.connect()
+    dep.reset()
+    dep.request_init()
+
+    with pytest.raises(DeployStop, match="link 'f1' of 'hand' at .* is outside box 'pit'"):
+        dep.step(None)
+
+
 def test_observations_read_every_parts_reading(rig_env, deploy):
     dep = deploy()
     dep.parts["robot"].readings.append(robot_state(2, dofs_pos=[0.3, -0.2]))
@@ -407,6 +441,16 @@ def test_a_single_robot_backend_deploys_the_part_its_entity_name_names(rig_env, 
         assert [isinstance(rig_env.entities[name], RobotStateEntity) for name in ("robot", "hand")] == [
             name == entity_name for name in ("robot", "hand")
         ]
+
+
+def test_a_link_box_on_a_part_another_backend_deploys_is_refused(rig_env, bindings):
+    """Deployed alone, the hand's backend syncs the hand only: the arm's links would never move with its readings."""
+    box = LinkBoxOptions(entity_name="robot", links=(".*",), upper=(None, None, 5.0))
+    with (
+        deployments(rig_env) as make,
+        pytest.raises(ValueError, match=r"entity_name='robot', which is in the scene but .* syncs: \['hand'\]"),
+    ):
+        make(LoopbackDeployment, entity_name="hand", safety_options=DeploySafetyOptions(link_boxes={"b": box}))
 
 
 def test_the_composite_backend_refuses_a_part_that_is_not_a_rig(rig_env, bindings):

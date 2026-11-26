@@ -231,6 +231,7 @@ or the keys `n` and `1` to `9`; nine at most).
 | `--deploy_kp_kd_scale S` | Scale on the default Kp/Kd. Ramp up from 0.2 to 1.0 when commissioning. |
 | `--gain_ramp_steps N` | Control steps over which a slot switch ramps to the new slot's gains. Backend default 50; 0 jumps. |
 | `--target_lpf A` | First-order low-pass on the commanded joint targets, `a` in (0, 1]; 1.0 is off. |
+| `--safety FILE` | YAML or JSON `DeploySafetyOptions`: clamp and cap the policy's joint targets, and stop the run when a reading crosses a limit. See [Limits from a file](../guides/deployment.md#limits-from-a-file-safety). |
 | `--init_steps N` | Control cycles of the ramp to the start pose before the policy takes over. Default 250; 0 disables it. |
 | `--init_target {default,motion,motion_rsi}` | Where that ramp drives the joints: the default pose, or frame 0 of the tracked clip. `motion_rsi` also teleports the base and works only with `--mujoco`. |
 | `--velocity_command {constant,keyboard,gamepad,task}` | What drives the task's velocity command. Default `constant` (holds `--base_command`). `task` keeps the training-time random command generator. |
