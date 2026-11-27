@@ -529,6 +529,37 @@ Every mechanism below is on by default; this list is the place to check before a
     The loop warns when the held command goes stale; the soft shutdown in `close()` is the only
     orderly way down, so stop the process (KILL, Ctrl-C) or hit the e-stop.
 
+### Before a first hardware run
+
+- Run the same command with `--mujoco` first (and `--menagerie` where the robot has a mapping); see
+  [Sim-to-sim validation with MuJoCo](#sim-to-sim-validation-with-mujoco).
+- On a robot new to the machine, run its state-check recipe under `examples/recipes/deployment/` and resolve
+  every mismatch it flags ([State-check recipes](deployment-hardware.md#state-check-recipes)).
+- Commission a new policy at `--deploy_kp_kd_scale 0.2` and raise it toward 1.0 over successive runs.
+- Someone stands next to the robot with the e-stop in reach, and the workspace is clear.
+
+### Scripts that command hardware outside `eden deploy`
+
+<!-- Adapted from google-deepmind/robotics-antigravity-plugin, plugins/robotics/rules/physical_robot_safety.md
+(Copyright 2026 Google LLC, Apache License 2.0); reworded for Eden. -->
+
+A script that drives a robot through its SDK directly, as the state-check and teleoperation recipes do, gets none
+of the mechanisms above. Give it these:
+
+- **Speed.** Use the robot's documented default and ceiling. For an unknown or uncalibrated robot, default to
+  0.5 rad/s per joint and stay under 1.0 rad/s. Interpolate every move with zero velocity at both ends (cosine or
+  minimum-jerk); never send one large jump.
+- **Park before letting go.** Never disable torque, exit, or close the SDK while an arm is raised. Return to a
+  rest pose in `finally:` and in `SIGINT` / `SIGTERM` handlers, interpolating from the *measured* joint positions
+  at 0.5 rad/s or slower so a step or velocity guard cannot reject the move. Holding an object or inside a bin,
+  retreat vertically first. Never leave a raised arm in a zero-gravity or gravity-compensation-only mode.
+- **Keep the control loop fed.** Short computation (OpenCV, NumPy, IK under about 50 ms) in the process that owns
+  the motors is fine; multi-second stalls (video encoding, network or model calls, `input()`) are not. Run them in
+  another process or after parking. Keep one long-lived process per bus, never two on the same CAN, serial or DDS
+  interface, and never exit expecting another script to take over a raised arm.
+- **Heat.** Clamping a gripper or motor against a hard stop for tens of seconds can trip a thermal fault that
+  drops every joint on the bus. Holding a grasp for the seconds of a transfer is fine.
+
 ## Timing and diagnostics
 
 ### Control-loop timing

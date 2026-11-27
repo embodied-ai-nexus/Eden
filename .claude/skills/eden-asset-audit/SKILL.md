@@ -1,53 +1,32 @@
 ---
 name: eden-asset-audit
-description: Audit and fix a robot or object asset (URDF, MJCF, USD, mesh, or an Eden entity preset) for Genesis physics problems with `eden audit`, then fix what it finds in the asset or the entity options. Covers missing collision, massless or very light links, bad mass ratios, the armature 0.1 fill, empty joint ranges, self-contact and pairs Genesis drops, objects that sink or jitter, and arms that drift under their gains. Use when importing a new asset, adding a robot preset, or when an entity explodes, sinks, jitters or sags in simulation. Don't use for MuJoCo-only MJCF authoring with no Eden entity in view.
+description: Audit and fix a robot or object asset (URDF, MJCF, USD, mesh, an Eden entity preset, or a task's scene entity) for Genesis physics problems with `eden audit`, then fix what it finds in the asset or the entity options. Covers missing collision, massless or very light links, bad mass ratios, the armature 0.1 fill, empty joint ranges, self-contact and dropped collision pairs, objects that sink or jitter, and arms that drift under their gains. Use when importing a new asset, adding a robot preset, or when an entity explodes, sinks, jitters or sags in simulation. Don't use for MuJoCo-only MJCF authoring with no Eden entity in view.
 allowed-tools: Read, Grep, Glob, Bash, Edit, Write
 ---
 
 # Auditing an asset with `eden audit`
 
-`eden audit` builds the entity alone on a ground plane, on the CPU, and checks what Genesis made of it. The full
-description of each check is in `docs/reference/cli.md` ("eden audit") and the module docstring of
-`eden/utils/asset_audit.py`.
-
-```bash
-eden audit <RobotClass-or-key>                      # a preset, as tasks build it
-eden audit path/to/arm.urdf --fixed-base            # a URDF arm: pin it so the hold check runs
-eden audit path/to/mug.obj                          # a mesh object: dropped and watched
-eden audit path/to/model.xml --json audit.json      # MJCF: the base comes from the file
-eden audit yam --task reacher                       # at the physics of the task that uses it
-```
-
-It exits 1 when a check fails. Composite rigs are refused: audit the arm and the gripper separately.
+Read the command reference (`docs/reference/cli.md`, "eden audit") for what each check measures and every flag,
+and `docs/guides/entities.md`, "Auditing a built entity", for what to do about each finding. This skill is the order
+of work.
 
 ## Order of work
 
-1. Run the audit as the task will build the entity: the preset with its options, and `--task <task>` so the
-   timestep, substeps and integrator are the task's. `hold` and `settle` depend on them.
-2. Fix the failures, then the warnings, one at a time, re-running after each fix.
+1. Audit the entity as the task builds it: `eden audit --task <task> [--entity <name>]` (the task's variant flags
+   and `--override` work as in `eden smoke`). For an asset no task uses yet, name the file or preset and add
+   `--task <task>` for the physics it will run at: `hold` and `settle` depend on the timestep and integrator.
+2. Fix the failures, then the warnings, one at a time, re-running the audit after each fix. Fix the asset or the
+   entity options; never loosen `AuditThresholds` to make a finding go away.
 3. Look at the collision geometry: `eden view <Entity> -c`.
 4. For a preset, pin what you fixed in `tests/options/robots/test_<module>.py` (or the object family's test).
+5. Report which checks still warn and why that is acceptable, quoting the audit line.
 
-## Fixing what it finds
+## Checklist before calling an asset done
 
-| Check | Fix |
-|---|---|
-| Build raises on inertia | The asset's inertia tensor is not physical. Fix it in the asset, or set `recompute_inertia=True` to derive it from the collision geometry and the material density. |
-| Build raises on `<inertial><density>` | Genesis' URDF parser needs explicit `<mass>` and `<inertia>`. |
-| `collision` | No collision shapes: add them to the asset, or check that `collision=False` and `collision_link_patterns` are not hiding them. |
-| `mass` | Give massless links a `<mass>`. A link lighter than 1e-4 kg with stiff contacts (finger pads) can jitter; raise it if nothing depends on it. |
-| `mass_ratio` | Over 100x across a joint slows the solver and jitters. Lump tiny links into their parent, or make the masses realistic. |
-| `armature` | Set `default_dofs_armature` from the source asset or the motor datasheet, or `default_armature=0.0` (`docs/guides/entities.md`, "Armature defaults and the URDF 0.1 trap"). For a URDF every hinge gets the 0.1 fill. |
-| `joint_limits` | An empty range is a fixed joint authored as a hinge: make it fixed. |
-| `self_contact`, live pairs | Two links touch at the default pose: trim the shapes, or move `default_dofs_pos`. |
-| `self_contact`, dropped pairs | Genesis never collides pairs that touch at the asset's zero pose. Usually intended (adjacent shells). If the pair must collide, fix the overlap in the asset, or set `EnvOptions.enable_neutral_collision=True` scene-wide. |
-| `settle` explodes or rests deep in the ground | Check mass and inertia first, then thin or concave collision meshes (`convexify`, `decompose_object_error_threshold`, `coacd_threshold`). Stiffen one object with `default_geoms_sol_params`, never a global `constraint_timeconst`. A deep `peak_penetration` with a shallow `rest_penetration` is the impact, not a defect. |
-| `settle` still moving | A round body may just roll. Jitter in place points at contacts or inertia. |
-| `hold` skipped | No gains: set `default_dofs_kp` / `default_dofs_kd` (from the source stack: Isaac Lab's `stiffness` is Eden's kp). |
-| `hold` drifts | The gains do not hold the arm against gravity, or the default pose sits on a limit. Compare with the source stack's gains and armature; a closed-loop gripper also needs `max_substep_dt`. |
-
-The thresholds are `eden.utils.asset_audit.AuditThresholds`; call `audit_entity(options, thresholds=...)` from
-Python for other limits or a longer `seconds`.
+- No `fail` line, and every `warn` either fixed or explained.
+- `armature` names no DOF, or the 0.1 is what the source asset or datasheet says.
+- `hold` passes at the task's physics for an arm; `settle` passes or only warns that a round body still rolls.
+- `dropped_pairs` lists no pair that must collide in the task (fingers against each other, a hand against the arm).
 
 ## What it does not check
 

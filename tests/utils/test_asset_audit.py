@@ -182,10 +182,11 @@ class TestSloppyArm:
         contact = sloppy_arm_report.check("self_contact")
         assert contact.details["pairs"] == []
         assert contact.details["dropped_pairs"] == [["base", "fore"]]
-        assert "base/fore" in contact.message and "enable_neutral_collision" in contact.message
+        assert contact.details["dropped_shape_pairs"] == {"base/fore": [1, 1]}
+        assert "base/fore (1 of 1 shape pairs)" in contact.message and "enable_neutral_collision" in contact.message
 
-    def test_the_dropped_pair_is_found_at_the_zero_pose_not_the_default(self, tmp_path):
-        """Swung 1.4 rad away, the forearm clears the base at the default pose; the probe still poses it at zero."""
+    def test_the_dropped_pair_does_not_depend_on_the_default_pose(self, tmp_path):
+        """Swung 1.4 rad away, the forearm clears the base at the default pose; Genesis dropped the pair at build."""
         path = tmp_path / "sloppy_arm.xml"
         path.write_text(SLOPPY_ARM)
         options = options_for_file(str(path)).model_copy(
@@ -217,11 +218,14 @@ def test_armature_set_in_the_options_is_not_reported_as_filled(tmp_path):
     assert armature.details["filled"] == ["wrist"]
 
 
-def test_report_serializes_and_formats(free_box_report):
-    data = json.loads(json.dumps(free_box_report.to_dict()))
+def test_report_serializes_and_renders(free_box_report, tmp_path):
+    path = tmp_path / "report.json"
+    free_box_report.to_json(str(path))
+    data = json.loads(path.read_text())
+    assert data == json.loads(json.dumps(free_box_report.as_dict()))
     assert data["failed"] is False
     assert [c["name"] for c in data["checks"]] == [c.name for c in free_box_report.checks]
-    text = free_box_report.format()
+    text = free_box_report.render()
     assert text.splitlines()[0].startswith("Audit of ")
     assert "PASS  settle" in text
 
@@ -284,7 +288,7 @@ class TestPhysics:
             "sim_substeps": defaults.sim_substeps,
             "integrator": defaults.integrator,
         }
-        assert f"sim_dt={defaults.sim_dt}" in free_box_report.format().splitlines()[0]
+        assert f"sim_dt={defaults.sim_dt}" in free_box_report.render().splitlines()[0]
 
     def test_runs_at_the_given_env_options(self, free_box_path):
         report = audit_entity(
@@ -334,3 +338,33 @@ class TestThresholds:
     def test_every_limit_must_be_positive(self, field, value):
         with pytest.raises(ValueError, match=rf"must be a positive number; got {field}="):
             AuditThresholds(**{field: value})
+
+
+def test_genesis_still_keeps_its_collision_candidates_where_self_contact_reads_them(tmp_path):
+    """``self_contact`` diffs ``Collider._valid_collision_pairs`` across two builds; a rename upstream breaks it here.
+
+    Built with the neutral filter, the sloppy arm keeps no candidate between its base and forearm; built without
+    it, it does.
+    """
+    from eden.utils.asset_audit import AUDIT_ENTITY_NAME, _build_audit_env, _collision_pairs, _link_pairs
+
+    path = tmp_path / "sloppy_arm.xml"
+    path.write_text(SLOPPY_ARM)
+    options = options_for_file(str(path))
+    pairs = {}
+    for keep in (False, True):
+        env = _build_audit_env(options.model_copy(deep=True), enable_neutral_collision=keep)
+        try:
+            pairs[keep] = _link_pairs(env, env.entities[AUDIT_ENTITY_NAME], _collision_pairs(env))
+        finally:
+            env.destroy()
+    assert ("base", "fore") not in pairs[False]
+    assert ("base", "fore") in pairs[True]
+
+
+def test_a_partly_dropped_link_pair_is_reported_with_its_shape_counts():
+    """Genesis drops 6 shape pairs between the YAM's fingers at build and keeps the rest, so they still collide."""
+    contact = audit_entity(ROBOT_REGISTRY.get("yam")()).check("self_contact")
+    dropped, total = contact.details["dropped_shape_pairs"]["lf_down/rf_down"]
+    assert dropped == 6
+    assert total > dropped

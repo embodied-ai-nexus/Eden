@@ -26,19 +26,18 @@ rather than from scratch:
 
 ## Gripper physics first
 
-Most "the grasp slips" bugs are physics, not planning:
+Most "the grasp slips" bugs are physics, not planning. Before blaming the controller, check against
+`docs/guides/entities.md`:
 
-- A closed-loop gripper (Robotiq 2F-85) needs an effective substep `sim_dt / sim_substeps` of at most 1 ms. Its
-  options declare `max_substep_dt`.
-- Stiffen the grasped object with its own `default_geoms_sol_params`. Never set a global
-  `EnvOptions.constraint_timeconst`: it ejects mesh objects from the table.
-- Contact friction combines as `max` of the two geoms. Torsional friction is off unless the scene enables it, and
-  an MJCF geom without `condim >= 4` parses it as 0, so a pinched object spins out of the jaws.
-- Audit a new gripper or object with `eden audit` (the `eden-asset-audit` skill) before blaming the controller.
+- the effective substep against the gripper's `max_substep_dt` ("Closed-loop grippers and constraint fidelity");
+- the grasped object's own `default_geoms_sol_params`, never a global `constraint_timeconst` (same section);
+- friction combination and torsional friction ("Friction combines as `max`, not `min`", "Torsional and rolling
+  friction are opt-in, and their strength is per geom");
+- the gripper and the object with `eden audit` (the `eden-asset-audit` skill).
 
 ## Perception in simulation
 
-Read object poses with `get_pos(relative=True)` / `get_quat(relative=True)` (the authored frame). For a
+Read object poses in the authored frame (`docs/guides/entities.md`, "Poses and frames"). For a
 camera-only controller, use the task camera's RGB-D and segmentation (`docs/guides/sensors-and-rendering.md`);
 `eden datagen --camera_only` runs the demonstrators that support it this way. Localize a movable place target
 (bin, plate, stack base) before picking, while the gripper is empty and out of view.

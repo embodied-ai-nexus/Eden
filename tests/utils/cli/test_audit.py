@@ -1,4 +1,4 @@
-"""Tests for ``eden.utils.cli.audit``: how ``eden audit`` resolves its target, and the command end to end.
+"""Tests for ``eden.utils.cli.audit``: how ``eden audit`` picks the entity and its physics, and the command end to end.
 
 The checks themselves are tested in ``tests/utils/test_asset_audit.py``; here the command runs in-process through
 ``eden.__main__.main`` on a small MJCF.
@@ -118,9 +118,52 @@ def test_eden_audit_task_runs_at_the_tasks_physics(monkeypatch, tmp_path):
 
 
 @pytest.mark.parametrize("seconds", ["-1", "0", "0.25", "nan"])
-def test_eden_audit_refuses_a_run_too_short_to_grade_before_initializing(monkeypatch, tmp_path, seconds):
+def test_eden_audit_refuses_a_run_too_short_to_grade_as_a_usage_error(monkeypatch, tmp_path, capsys, seconds):
     """``--seconds -1`` used to simulate one step and report the box, still in the air, as at rest."""
     path = tmp_path / "box.xml"
     path.write_text(FREE_BOX)
-    with pytest.raises(ValueError, match=r"AuditThresholds: .*seconds="):
-        _run_main(monkeypatch, "audit", str(path), "--seconds", seconds)
+    assert _run_main(monkeypatch, "audit", str(path), "--seconds", seconds) == 2
+    assert "AuditThresholds:" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize(
+    "argv, message",
+    [
+        ([], "name an entity or asset file to audit, or pass --task"),
+        (["--task", "reacherr"], "reacher"),
+        (["ur5e", "--entity", "robot"], "--entity picks a scene entity of --task"),
+        (["--task", "reacher", "--fixed-base"], "--fixed-base / --free-base apply to a target"),
+        (["--task", "reacher", "--entity", "nope"], "has no scene entity 'nope'; its entities are"),
+        (["ur5e_2f85"], "composite rig"),
+        (["NoSuchEntityAnywhere"], "No entity options found"),
+        (["ur5e", "--json", "/no/such/dir/report.json"], "does not exist"),
+    ],
+)
+def test_eden_audit_reports_argument_errors_as_usage_errors(monkeypatch, capsys, argv, message):
+    """Every one is refused by argparse (exit 2) before Eden initializes, naming the problem."""
+    assert _run_main(monkeypatch, "audit", *argv) == 2
+    assert message in capsys.readouterr().err
+
+
+def test_eden_audit_takes_the_shared_task_flags(monkeypatch, tmp_path):
+    """``--override`` reaches the task's env_options exactly as it does for ``eden smoke``."""
+    path = tmp_path / "box.xml"
+    path.write_text(FREE_BOX)
+    out = tmp_path / "report.json"
+
+    argv = ["audit", str(path), "--task", "reacher", "--override", "env_options: {sim_dt: 0.004}", "--seconds", "1.0"]
+    assert _run_main(monkeypatch, *argv, "--json", str(out)) is None
+
+    assert json.loads(out.read_text())["physics"]["sim_dt"] == 0.004
+
+
+def test_eden_audit_task_alone_audits_the_tasks_robot_at_its_physics(monkeypatch, tmp_path):
+    """No target: the scene entity and the physics both come from the config reacher builds."""
+    out = tmp_path / "report.json"
+
+    assert _run_main(monkeypatch, "audit", "--task", "reacher", "--cpu", "--json", str(out)) is None
+
+    report = json.loads(out.read_text())
+    assert report["target"] == "reacher:robot"
+    assert report["physics"] == {"sim_dt": 0.01, "sim_substeps": 2, "integrator": "approximate_implicitfast"}
+    assert {c["name"]: c["status"] for c in report["checks"]}["hold"] in ("pass", "warn")

@@ -1,6 +1,7 @@
 """Physics audit of one entity: build it alone on a ground plane and check what Genesis made of the asset.
 
-``eden audit <entity-or-file>`` (handler in :mod:`eden.utils.cli.audit`) calls :func:`audit_entity`. The audit
+``eden audit`` (handler in :mod:`eden.utils.cli.audit`: a task's scene entity, an entity name or an asset file)
+calls :func:`audit_entity`. The audit
 reads the *built* model, so it sees what the solver will simulate rather than what the asset file says: the
 armature Genesis filled in, the masses after scaling, the collision geometry after convexification.
 
@@ -17,9 +18,9 @@ Static checks (one build, no stepping):
 
 Dynamic checks:
 
-- ``self_contact``: pairs of links of the entity whose collision shapes touch at its default pose, plus the pairs
-  that touch at the asset's zero pose, which Genesis drops from collision for good unless
-  ``EnvOptions.enable_neutral_collision`` is set (found in a second build that keeps them).
+- ``self_contact``: pairs of links of the entity whose collision shapes touch at its default pose, plus the shape
+  pairs Genesis drops from collision for good because they overlap at the asset's zero pose (the candidate pairs a
+  second build with ``enable_neutral_collision=True`` keeps and the audited build does not), per link pair.
 - ``settle`` (free base): drop the entity from :attr:`AuditThresholds.drop_height` above the plane and simulate.
   Fails on non-finite state, a link faster than the explosion limits, falling through the plane, or ground
   penetration deeper than :attr:`AuditThresholds.max_penetration` over the final
@@ -152,7 +153,7 @@ class AuditReport:
                 return check
         raise KeyError(f"no audit check named {name!r}; this report has {[c.name for c in self.checks]}")
 
-    def to_dict(self) -> dict[str, Any]:
+    def as_dict(self) -> dict[str, Any]:
         """A JSON-serializable form of the report."""
         return {
             "target": self.target,
@@ -161,8 +162,15 @@ class AuditReport:
             "checks": [asdict(check) for check in self.checks],
         }
 
-    def format(self) -> str:
-        """One line per check, status first."""
+    def to_json(self, path: str) -> None:
+        """Write :meth:`as_dict` to ``path`` as indented JSON."""
+        import json
+
+        with open(path, "w") as fh:
+            json.dump(self.as_dict(), fh, indent=2)
+
+    def render(self) -> str:
+        """One line per check, status first, under a header naming the target and the physics."""
         width = max(len(check.name) for check in self.checks)
         physics = ", ".join(f"{key}={value}" for key, value in self.physics.items())
         lines = [f"Audit of {self.target}" + (f" ({physics})" if physics else "")]
@@ -497,63 +505,76 @@ def _check_joint_limits(entity: RigidEntity) -> AuditCheck:
 # --- dynamic checks -------------------------------------------------------------------------------
 
 
-def _self_contact_pairs(env: EnvBase, entity: RigidEntity, *, zero_pose: bool) -> list[tuple[str, str]]:
-    """Name pairs of two links of the entity whose collision shapes touch, without stepping the physics.
-
-    The entity is at its default pose after ``env.reset()``; ``zero_pose`` moves every hinge and slide joint to the
-    asset's own zero (``joint.init_qpos``), the configuration Genesis tests when it drops neutral-overlap pairs.
-    ``detect_collision`` runs the narrow phase on the posed shapes through the scene's collision filter, so a pair
-    that filter dropped never appears.
-    """
-    import torch
-
-    env.reset()
-    if zero_pose:
-        joints = _rotor_joints(entity)
-        if joints:
-            dofs = [dof for joint in joints for dof in joint.dofs_idx_local]
-            zero = torch.tensor(
-                [[float(q) for joint in joints for q in joint.init_qpos]], dtype=torch.float32, device=env.device
-            )
-            entity.set_dofs_pos(zero, dofs)
-    geom_pairs = entity.detect_collision()
-    env.reset()
-
+def _link_pair(env: EnvBase, entity: RigidEntity, geom_a: int, geom_b: int) -> tuple[str, str] | None:
+    """The sorted link names of two scene-global geoms, if both are on different links of ``entity``; else ``None``."""
     geoms = env.rigid_solver.geoms
+    link_a, link_b = geoms[geom_a].link, geoms[geom_b].link
     start, end = entity.link_start, entity.link_end
-    pairs = set()
-    for geom_a, geom_b in geom_pairs.tolist():
-        link_a, link_b = geoms[geom_a].link, geoms[geom_b].link
-        if link_a.idx != link_b.idx and start <= link_a.idx < end and start <= link_b.idx < end:
-            pairs.add(tuple(sorted((link_a.name, link_b.name))))
-    return sorted(pairs)
+    if link_a.idx == link_b.idx or not (start <= link_a.idx < end and start <= link_b.idx < end):
+        return None
+    return tuple(sorted((link_a.name, link_b.name)))
+
+
+def _link_pairs(env: EnvBase, entity: RigidEntity, geom_pairs) -> set[tuple[str, str]]:
+    """Name pairs of two different links of ``entity``, from an ``(n, 2)`` array of scene-global geom indices."""
+    return {pair for a, b in geom_pairs.tolist() if (pair := _link_pair(env, entity, a, b)) is not None}
+
+
+def _collision_pairs(env: EnvBase):
+    """The scene's collision candidate geom pairs, after Genesis' adjacency and neutral-overlap filters.
+
+    Genesis keeps them only in the private ``Collider._valid_collision_pairs``; it logs, but does not store, the
+    pairs it dropped. ``tests/utils/test_asset_audit.py`` pins the attribute.
+    """
+    return env.rigid_solver.collider._valid_collision_pairs
 
 
 def _check_self_contact(env: EnvBase, entity: RigidEntity, options, env_options: EnvOptions | None) -> AuditCheck:
-    """Link pairs touching at the default pose, and the pairs Genesis dropped because they touch at the zero pose.
+    """Link pairs touching at the default pose, and the shape pairs Genesis dropped from collision at build.
 
-    Genesis drops, for good, every self-collision pair that already overlaps at the asset's zero pose
-    (``EnvOptions.enable_neutral_collision=False``, the default): those links pass through each other in every
-    task that keeps the default. A second build that keeps them, posed at zero, finds them.
+    Genesis drops, for good, every self-collision shape pair it finds overlapping at the asset's zero pose
+    (``EnvOptions.enable_neutral_collision=False``, the default): those shapes pass through each other in every task
+    that keeps the default. The neutral filter is the only difference between ``env`` and a second build with
+    ``enable_neutral_collision=True``, and both number their geoms alike, so the candidate pairs only that build keeps
+    are exactly the dropped ones. They are reported per link pair, as dropped of all candidate shape pairs.
     """
     if entity.num_links < 2:
         return AuditCheck("self_contact", "skip", "single link")
-    live = _self_contact_pairs(env, entity, zero_pose=False)
+    env.reset()
+    live = sorted(_link_pairs(env, entity, entity.detect_collision()))
     probe = _build_audit_env(options.model_copy(deep=True), env_options, enable_neutral_collision=True)
     try:
-        at_zero = _self_contact_pairs(probe, probe.entities[AUDIT_ENTITY_NAME], zero_pose=True)
+        if len(probe.rigid_solver.geoms) != len(env.rigid_solver.geoms):
+            raise RuntimeError(
+                f"eden audit: the probe build has {len(probe.rigid_solver.geoms)} geoms and the audited build "
+                f"{len(env.rigid_solver.geoms)}; their collision pairs cannot be compared. This is a bug in the audit."
+            )
+        candidates = {tuple(pair) for pair in _collision_pairs(probe).tolist()}
     finally:
         probe.destroy()
-    # A pair the task's env still collides was not dropped (the task may set enable_neutral_collision itself).
-    kept_at_zero = set(_self_contact_pairs(env, entity, zero_pose=True))
-    dropped = sorted(set(at_zero) - kept_at_zero)
+    kept = {tuple(pair) for pair in _collision_pairs(env).tolist()}
+    total: dict[tuple[str, str], int] = {}
+    dropped_count: dict[tuple[str, str], int] = {}
+    for geom_a, geom_b in candidates:
+        pair = _link_pair(env, entity, geom_a, geom_b)
+        if pair is None:
+            continue
+        total[pair] = total.get(pair, 0) + 1
+        if (geom_a, geom_b) not in kept:
+            dropped_count[pair] = dropped_count.get(pair, 0) + 1
+    dropped = sorted(dropped_count)
 
-    details = {"pairs": [list(p) for p in live], "dropped_pairs": [list(p) for p in dropped]}
+    details = {
+        "pairs": [list(p) for p in live],
+        "dropped_pairs": [list(p) for p in dropped],
+        "dropped_shape_pairs": {f"{a}/{b}": [dropped_count[(a, b)], total[(a, b)]] for a, b in dropped},
+    }
     note = ""
     if dropped:
+        described = (f"{a}/{b} ({dropped_count[(a, b)]} of {total[(a, b)]} shape pairs)" for a, b in dropped)
         note = (
-            f" Genesis also dropped {len(dropped)} pairs that touch at the asset's zero pose, so they never collide: "
-            f"{_names(f'{a}/{b}' for a, b in dropped)} (EnvOptions.enable_neutral_collision=True keeps them)."
+            f" Genesis also dropped shape pairs that overlap at the asset's zero pose, so those shapes never "
+            f"collide: {_names(described)} (EnvOptions.enable_neutral_collision=True keeps them)."
         )
     if live:
         return AuditCheck(

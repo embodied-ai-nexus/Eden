@@ -5,7 +5,7 @@ allowed-tools: Read, Grep, Glob, Bash, Edit, Write, Agent
 ---
 
 <!--
-The candidate-comparison discipline and the pre-hardware review are adapted from
+The pre-hardware review and the safety veto are adapted from
 google-deepmind/robotics-antigravity-plugin, plugins/robotics/skills/sim2real-iteration/SKILL.md and
 references/critic_rubric.md (Copyright 2026 Google LLC, Apache License 2.0). Modified for Eden: the gauntlet
 library is replaced by Eden's deploy loop, MuJoCo backend and event terms.
@@ -56,10 +56,11 @@ latency, pushes) so a failure names its cause.
 
 ## Comparing two candidates
 
-- Same task config, same seeds, same number of episodes, same event settings: only the checkpoint differs. Pair
-  each episode of candidate B with the episode of candidate A on the same seed.
-- One seed proves nothing. Count the pairs where exactly one candidate succeeded; with fewer than about six such
-  pairs, the candidates are indistinguishable and the simpler one stays.
+- Change only the checkpoint: same task config, event settings, seeds and number of episodes
+  (`eden inference --episodes N` on each).
+- Judge on success rates over many episodes, not on one rollout; GPU contact rollouts differ between runs at a
+  fixed seed. If the difference is within a few episodes, call the candidates indistinguishable and keep the simpler
+  one.
 - A safety regression (falls, joint-limit hits, self-collision, torque saturation) vetoes a task-score gain.
 
 ## Review before a hardware run

@@ -46,10 +46,8 @@ agents that read images rather than video, and Eden's frame and reset pitfalls w
 
 - Decide success from state read after the robot has let go and the scene has settled for a second of sim time.
   A commanded pose and a printed "SUCCESS" are not evidence. Check every goal condition before you finish.
-- Read object poses with `get_pos(relative=True)` / `get_quat(relative=True)`. The default reads the solver's
-  center-of-mass frame, which sits 2.9 to 14.8 cm from the authored origin on the DexToolBench tools.
-  Quaternions are wxyz.
-- In an `RLEnvBase`, the observation `step()` returns for a finished env is already the reset state. Measure the
-  episode's outcome from the reward or metric terms, or before the step that ends it.
+- Read poses in the frame you mean: `docs/guides/entities.md`, "Poses and frames". In an `RLEnvBase` the
+  observation of a finished env is already the reset state (`docs/guides/environments.md`), so measure an
+  episode's outcome from its reward or metric terms.
 - Contact-rich rollouts can differ between runs at a fixed seed on the GPU. Judge a behavior over several seeds or
   envs, not one rollout.

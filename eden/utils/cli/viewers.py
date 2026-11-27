@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 import argparse
-import difflib
 import os
+
 import numpy as np
 
 
@@ -153,58 +153,6 @@ def view_splat(ply_path: str, multiplier: float = 1.0, env_brightness: float = 0
         cv2.destroyAllWindows()
 
 
-def _composite_robots() -> dict[str, type]:
-    """Name -> class for every registered composite rig, keyed by class name *and* registry key."""
-    from eden.options.robots import COMPOSITE_ROBOT_REGISTRY
-
-    return {name: cls for key, cls in COMPOSITE_ROBOT_REGISTRY for name in (cls.__name__, key)}
-
-
-def _find_entity_options(entity_name: str):
-    """Look up an EntityOptions or composite-rig Options class by class name or registry key.
-
-    Single entities are resolved by :func:`eden.options.catalog.find_entity_options`, which
-    reads a cached index (rebuilt only when the scanned option sources change) and imports
-    just the single module defining the match. Accepts class names (``RoboLabYcbBanana``) and
-    registry keys (``robolab/ycb/banana``); recurses into subpackages like
-    ``eden.options.objects.robolab``.
-
-    Composite rigs are not :class:`~eden.options.entities.BaseEntityOptions` subclasses, so that
-    index never sees them; they resolve from
-    :data:`~eden.options.robots.COMPOSITE_ROBOT_REGISTRY` instead, by class name (``OliWuji``) or
-    registry key (``oli_wuji``). The two namespaces *can* collide, and the single entity wins, so
-    adding a rig can never quietly change what an existing name resolves to; reach a shadowed rig
-    by its class name, which is unique.
-    """
-    from eden.options.catalog import find_entity_options
-
-    try:
-        return find_entity_options(entity_name)
-    except ValueError as err:
-        composites = _composite_robots()
-        if entity_name in composites:
-            return composites[entity_name]
-        # The catalog's "did you mean" only knows single entities, so a near-miss on a rig
-        # name would otherwise draw unrelated suggestions (or none at all).
-        close = difflib.get_close_matches(entity_name, sorted(composites), n=5)
-        if not close:
-            raise
-        suggestions = ", ".join(close)
-        raise ValueError(f"{err} Composite rigs matching: {suggestions}.") from err
-
-
-def _declaration_reaches_base(opts) -> bool:
-    """Whether setting ``is_fixed_base`` on ``opts`` pins or frees the entity it builds.
-
-    Genesis has no ``fixed`` switch for MJCF: the file's own root joint decides, and the entity
-    raises at build on a declaration that disagrees. So a viewer leaves a plain MJCF on its class's
-    declaration — a free one (a G1) cannot be pinned, a jointless one (a Panda) cannot be freed —
-    while a family that rewrites its MJCF from the flag (``EntityOptions.mjcf_follows_is_fixed_base``:
-    the robosuite / LIBERO objects) is pinned or freed like a URDF.
-    """
-    return not getattr(opts, "file", "").endswith(".xml") or opts.mjcf_follows_is_fixed_base
-
-
 def _viewer_scene_entities(options_cls, *, show_collision: bool, fixed_base: bool, hold_pose: bool):
     """Instantiate a resolved Options class for a viewer scene.
 
@@ -215,10 +163,11 @@ def _viewer_scene_entities(options_cls, *, show_collision: bool, fixed_base: boo
     under its own ``primary_name``. So the knobs go to its *sub*-entities (only the root is
     pinned; welded children stay free-base so their parent link keeps posing them) and the rig
     goes in whole, leaving the env build loop to expand it and wire the welds. Pinning skips an
-    MJCF that cannot be pinned (see :func:`_declaration_reaches_base`). ``hold_pose`` gravity-compensates
+    MJCF that cannot be pinned (see :func:`~eden.options.catalog.base_follows_is_fixed_base`). ``hold_pose`` gravity-compensates
     anything with DOFs so slider targets don't sag, set *on* an existing material so a rig that
     declares its own friction keeps it.
     """
+    from eden.options.catalog import base_follows_is_fixed_base
     from eden.options.entities import CompositeEntityOptions
     from eden.options.materials import RigidMaterialOptions
 
@@ -229,7 +178,7 @@ def _viewer_scene_entities(options_cls, *, show_collision: bool, fixed_base: boo
 
     def prepare(opts, *, pin: bool) -> None:
         opts.vis_mode = vis_mode
-        if pin and _declaration_reaches_base(opts):
+        if pin and base_follows_is_fixed_base(opts):
             opts.is_fixed_base = True
         if hold_pose and dofs_of(opts):
             if opts.material is None:
@@ -259,9 +208,10 @@ def show_entity(entity_name: str, show_collision: bool = False):
     from eden.envs.base import EnvBase
     from eden.managers.terms.actions.joint_actions import ImplicitPDController
     from eden.options import ActionManagerOptions, EnvOptions, SceneOptions
+    from eden.options.catalog import find_entity_or_rig_options
     from eden.utils.devices.gui_slider import SliderGUI
 
-    entity_options = _find_entity_options(entity_name)
+    entity_options = find_entity_or_rig_options(entity_name)
 
     en.init(debug=True)
 
@@ -341,7 +291,7 @@ def arrange(
     """Interactively arrange entities with ImGui sliders (base 6-DoF + joints).
 
     Each entity is spawned free-base on a ground plane (an MJCF whose file declares no
-    free joint stays welded, see :func:`_declaration_reaches_base`); sliders kinematically
+    free joint stays welded, see :func:`~eden.options.catalog.base_follows_is_fixed_base`); sliders kinematically
     place the base (xyz + roll/pitch/yaw) and every articulated joint. The
     panel also offers drop-to-support-surface, overlap checking, physics settling, and
     exports the final arrangement as a ``SceneOptions`` snippet (printed on
@@ -351,6 +301,7 @@ def arrange(
     from eden.entities.rigid import RigidEntity
     from eden.envs.base import EnvBase
     from eden.options import EnvOptions, SceneOptions
+    from eden.options.catalog import base_follows_is_fixed_base, find_entity_or_rig_options
     from eden.options.entities import CompositeEntityOptions, PlaneOptions
     from eden.utils.gui_arrange import ArrangeGUI
     from eden.utils.misc import to_snake_case
@@ -358,7 +309,7 @@ def arrange(
     # Resolve options classes and derive unique scene keys (MicrowaveOptions -> microwave).
     entities_options: dict[str, tuple[str, object]] = {}
     for i, cls_name in enumerate(entity_names):
-        entity_options = _find_entity_options(cls_name)
+        entity_options = find_entity_or_rig_options(cls_name)
         if issubclass(entity_options, CompositeEntityOptions):
             # This command owns one free-base entity per scene key and exports a flat
             # SceneOptions snippet; placing a welded rig's parts independently breaks its welds.
@@ -374,7 +325,7 @@ def arrange(
             n += 1
         vis_mode = "collision" if show_collision else "visual"
         opts = entity_options(vis_mode=vis_mode)
-        if _declaration_reaches_base(opts):
+        if base_follows_is_fixed_base(opts):
             # Through the constructor, where a primitive reconciles ``fixed`` with ``is_fixed_base``.
             opts = entity_options(is_fixed_base=False, vis_mode=vis_mode)
         # Spread entities along x so they don't spawn on top of each other.
@@ -420,8 +371,9 @@ def snap_entity(entity_name: str, show_collision: bool = False, output_path: str
     from eden.envs.base import EnvBase
     from eden.options import EnvOptions, SceneOptions
     from eden.options.camera import CameraOptions, CamerasOptions
+    from eden.options.catalog import find_entity_or_rig_options
 
-    entity_options = _find_entity_options(entity_name)
+    entity_options = find_entity_or_rig_options(entity_name)
 
     en.init(debug=True)
 

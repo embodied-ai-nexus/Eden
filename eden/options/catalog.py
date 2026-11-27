@@ -489,3 +489,46 @@ def find_entity_options(name: str) -> type[BaseEntityOptions]:
         hint = f" Did you mean: {', '.join(close)}?" if close else ""
         raise ValueError(f"No entity options found for {name}.{hint}")
     return _resolve(target)
+
+
+def composite_robots_by_name() -> dict[str, type]:
+    """Every registered composite rig, keyed by its class name *and* its registry key."""
+    from eden.options.robots import COMPOSITE_ROBOT_REGISTRY  # robots imports this module at load
+
+    return {name: cls for key, cls in COMPOSITE_ROBOT_REGISTRY for name in (cls.__name__, key)}
+
+
+def find_entity_or_rig_options(name: str) -> type:
+    """Resolve a single entity's Options class, or a composite rig's, by class name or registry key.
+
+    Single entities resolve through :func:`find_entity_options`. Composite rigs are not
+    :class:`~eden.options.entities.BaseEntityOptions` subclasses, so the auto-scan index never sees them;
+    they resolve from :data:`~eden.options.robots.COMPOSITE_ROBOT_REGISTRY` by class name (``OliWuji``) or
+    registry key (``oli_wuji``). The two namespaces *can* collide, and the single entity wins, so adding a rig
+    can never quietly change what an existing name resolves to; reach a shadowed rig by its class name, which
+    is unique. Backs ``eden view`` / ``snap`` / ``arrange`` / ``audit``.
+    """
+    try:
+        return find_entity_options(name)
+    except ValueError as err:
+        composites = composite_robots_by_name()
+        if name in composites:
+            return composites[name]
+        # The index's "did you mean" only knows single entities, so a near-miss on a rig name would
+        # otherwise draw unrelated suggestions (or none at all).
+        close = difflib.get_close_matches(name, sorted(composites), n=5)
+        if not close:
+            raise
+        raise ValueError(f"{err} Composite rigs matching: {', '.join(close)}.") from err
+
+
+def base_follows_is_fixed_base(options: BaseEntityOptions) -> bool:
+    """Whether setting ``is_fixed_base`` on ``options`` pins or frees the entity it builds.
+
+    Genesis has no ``fixed`` switch for MJCF: the file's own root joint decides, and the entity raises at build on
+    a declaration that disagrees. So a plain MJCF keeps its class's declaration (a free one such as a G1 cannot be
+    pinned, a jointless one such as a Panda cannot be freed), while a family that rewrites its MJCF from the flag
+    (``EntityOptions.mjcf_follows_is_fixed_base``: the robosuite / LIBERO objects) is pinned or freed like a URDF,
+    a mesh or a primitive.
+    """
+    return not getattr(options, "file", "").endswith(".xml") or options.mjcf_follows_is_fixed_base

@@ -22,7 +22,7 @@ import sys
 
 import eden
 from eden._logging import LOG_THEME_ENV_VAR
-from eden.utils.cli.audit import _configure_audit, _run_audit
+from eden.utils.cli.audit import audit_command
 from eden.utils.cli.dataset import _run_datagen, _run_lerobot_convert
 from eden.utils.cli.devices import (
     _run_gello_calibrate,
@@ -336,9 +336,10 @@ COMMANDS: tuple[Command, ...] = (
     Command("snap", "Take a snapshot of the scene/entity", handler=_run_snap, configure=_configure_snap),
     Command(
         "audit",
-        "Check an entity or asset file for physics problems: mass, armature, limits, contacts, settling, holding",
-        handler=_run_audit,
-        configure=_configure_audit,
+        "Check an entity, an asset file or a task's robot for physics problems: mass, armature, limits, contacts, "
+        "settling, holding",
+        handler=audit_command,
+        forwards_extra=True,
     ),
     Command("clean", "Clean up logs", handler=_run_clean),
 )
