@@ -43,6 +43,13 @@ class TestResolveTarget:
         assert type(options) is EntityOptions
         assert options.is_fixed_base is False
 
+    def test_an_existing_file_with_another_suffix_is_refused_as_a_file(self, tmp_path):
+        """Not looked up as an entity name, which would answer with unrelated suggestions."""
+        path = tmp_path / "model.sdf"
+        path.write_text("")
+        with pytest.raises(ValueError, match="not an asset file Eden loads"):
+            _resolve_audit_target(str(path), None)
+
     def test_a_missing_file_is_not_looked_up_as_a_name(self, tmp_path):
         with pytest.raises(FileNotFoundError, match="arm.urdf"):
             _resolve_audit_target(str(tmp_path / "arm.urdf"), None)
@@ -93,3 +100,18 @@ def test_eden_audit_exits_1_when_a_check_fails(monkeypatch, tmp_path, capsys):
 
     assert _run_main(monkeypatch, "audit", str(path)) == 1
     assert "FAIL  collision" in capsys.readouterr().out
+
+
+def test_eden_audit_task_runs_at_the_tasks_physics(monkeypatch, tmp_path):
+    """``reacher`` steps at sim_dt=0.01 with two substeps, not EnvOptions' 0.005 and one."""
+    path = tmp_path / "box.xml"
+    path.write_text(FREE_BOX)
+    out = tmp_path / "report.json"
+
+    assert (
+        _run_main(monkeypatch, "audit", str(path), "--task", "reacher", "--seconds", "0.5", "--json", str(out)) is None
+    )
+
+    physics = json.loads(out.read_text())["physics"]
+    assert physics["sim_dt"] == 0.01
+    assert physics["sim_substeps"] == 2

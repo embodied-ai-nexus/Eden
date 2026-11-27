@@ -8,8 +8,11 @@ import json
 
 import pytest
 
-from eden.options.entities import EntityOptions
+from eden.options import EnvOptions
+from eden.options.entities import MESH_FILE_SUFFIXES, TET_MESH_FILE_SUFFIXES, EntityOptions
+from eden.options.robots import ROBOT_REGISTRY
 from eden.utils.asset_audit import (
+    ASSET_FILE_SUFFIXES,
     AuditReport,
     AuditThresholds,
     audit_entity,
@@ -124,7 +127,8 @@ class TestFreeBox:
     def test_drops_settles_and_passes(self, free_box_report):
         settle = free_box_report.check("settle")
         assert settle.status == "pass", settle.message
-        assert settle.details["max_penetration"] < AuditThresholds().max_penetration
+        assert settle.details["rest_penetration"] < AuditThresholds().max_penetration
+        assert settle.details["peak_penetration"] >= settle.details["rest_penetration"]
         assert not free_box_report.failed
 
     def test_skips_what_a_single_free_body_cannot_have(self, free_box_report):
@@ -179,6 +183,25 @@ class TestSloppyArm:
         assert contact.details["dropped_pairs"] == [["base", "fore"]]
         assert "base/fore" in contact.message and "enable_neutral_collision" in contact.message
 
+    def test_the_dropped_pair_is_found_at_the_zero_pose_not_the_default(self, tmp_path):
+        """Swung 1.4 rad away, the forearm clears the base at the default pose; the probe still poses it at zero."""
+        path = tmp_path / "sloppy_arm.xml"
+        path.write_text(SLOPPY_ARM)
+        options = options_for_file(str(path)).model_copy(
+            update={"dofs_name": ["shoulder", "elbow", "wrist"], "default_dofs_pos": {"shoulder": 1.4}}
+        )
+        contact = audit_entity(options).check("self_contact")
+        assert contact.details["pairs"] == []
+        assert contact.details["dropped_pairs"] == [["base", "fore"]]
+
+    def test_a_task_that_keeps_neutral_pairs_reports_none_dropped(self, tmp_path):
+        path = tmp_path / "sloppy_arm.xml"
+        path.write_text(SLOPPY_ARM)
+        report = audit_entity(options_for_file(str(path)), env_options=EnvOptions(enable_neutral_collision=True))
+        contact = report.check("self_contact")
+        assert contact.details["dropped_pairs"] == []
+        assert ["base", "fore"] in contact.details["pairs"]
+
     def test_warnings_do_not_fail_the_report(self, sloppy_arm_report):
         assert not sloppy_arm_report.failed
 
@@ -226,10 +249,11 @@ class TestOptionsForFile:
         with pytest.raises(FileNotFoundError, match="nope.urdf"):
             options_for_file(str(tmp_path / "nope.urdf"))
 
-    def test_unknown_suffix_lists_the_known_ones(self, tmp_path):
-        path = tmp_path / "notes.txt"
+    @pytest.mark.parametrize("name", ["notes.txt", "model.mjcf", "model.dae"])
+    def test_a_suffix_the_loader_cannot_build_lists_the_known_ones(self, tmp_path, name):
+        path = tmp_path / name
         path.write_text("")
-        with pytest.raises(ValueError, match=r"\.urdf"):
+        with pytest.raises(ValueError, match=r"not an asset file Eden loads.*\.urdf"):
             options_for_file(str(path))
 
     def test_returns_entity_options_with_an_absolute_path(self, free_box_path):
@@ -249,3 +273,40 @@ def test_folded_default_pose_collides_with_the_base(tmp_path):
     assert contact.status == "warn"
     assert ["base", "fore"] in contact.details["pairs"]
     assert contact.details["dropped_pairs"] == []
+
+
+class TestPhysics:
+    def test_defaults_to_env_options_defaults_and_records_them(self, free_box_report):
+        defaults = EnvOptions()
+        assert free_box_report.physics == {
+            "sim_dt": defaults.sim_dt,
+            "sim_substeps": defaults.sim_substeps,
+            "integrator": defaults.integrator,
+        }
+        assert f"sim_dt={defaults.sim_dt}" in free_box_report.format().splitlines()[0]
+
+    def test_runs_at_the_given_env_options(self, free_box_path):
+        report = audit_entity(
+            options_for_file(free_box_path), env_options=EnvOptions(num_envs=4096, sim_dt=0.01, sim_substeps=2)
+        )
+        assert report.physics["sim_dt"] == 0.01
+        assert report.physics["sim_substeps"] == 2
+
+    def test_a_closed_loop_gripper_gets_the_substeps_it_declares(self):
+        gripper = ROBOT_REGISTRY.get("robotiq2f85")
+        report = audit_entity(gripper())
+        dt = report.physics["sim_dt"] / report.physics["sim_substeps"]
+        assert dt <= gripper.max_substep_dt + 1e-12
+
+
+@pytest.mark.parametrize("key", ["go1", "oli", "franka_emika_panda"])
+def test_known_good_presets_do_not_fail(key):
+    """Presets the repo trains and deploys. An unpowered legged robot lands hard; only resting depth is graded."""
+    report = audit_entity(ROBOT_REGISTRY.get(key)(), target=key)
+    failed = [f"{c.name}: {c.message}" for c in report.checks if c.status == "fail"]
+    assert not failed, failed
+
+
+def test_file_suffixes_are_the_ones_the_entity_loader_builds():
+    surface_meshes = tuple(s for s in MESH_FILE_SUFFIXES if s not in TET_MESH_FILE_SUFFIXES)
+    assert set(ASSET_FILE_SUFFIXES) == {".urdf", ".xml", ".usd", ".usda", ".usdc", ".usdz", *surface_meshes}

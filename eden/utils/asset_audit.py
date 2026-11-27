@@ -17,15 +17,20 @@ Static checks (one build, no stepping):
 
 Dynamic checks:
 
-- ``self_contact``: contacts between two different links of the entity at its default pose, plus the pairs Genesis
-  dropped from collision because they overlap at the asset's zero pose (found by a second build with
-  ``enable_neutral_collision=True``).
+- ``self_contact``: pairs of links of the entity whose collision shapes touch at its default pose, plus the pairs
+  that touch at the asset's zero pose, which Genesis drops from collision for good unless
+  ``EnvOptions.enable_neutral_collision`` is set (found in a second build that keeps them).
 - ``settle`` (free base): drop the entity from :attr:`AuditThresholds.drop_height` above the plane and simulate.
-  Fails on non-finite state, ground penetration deeper than :attr:`AuditThresholds.max_penetration`, a link
-  faster than the explosion limits, or falling through the plane; warns when it is still moving at the end.
+  Fails on non-finite state, a link faster than the explosion limits, falling through the plane, or ground
+  penetration deeper than :attr:`AuditThresholds.max_penetration` over the final
+  :attr:`AuditThresholds.rest_window` (the transient on impact is reported, not graded); warns when it is still
+  moving at the end.
 - ``hold`` (fixed base): command the default pose with the built PD gains and simulate. Fails on non-finite state
   or a DOF faster than :attr:`AuditThresholds.max_dof_speed`; warns when a DOF drifts further than
   :attr:`AuditThresholds.max_hold_drift`.
+
+The scene runs at the physics settings of the ``env_options`` given (a task's, for ``eden audit --task``), else
+at :class:`~eden.options.EnvOptions`' defaults, with one env; the report records them under ``physics``.
 
 Build errors are not caught: a non-physical inertia tensor or a URDF ``<inertial><density>`` raises from
 Genesis with its own message, which is the finding.
@@ -41,6 +46,7 @@ from typing import TYPE_CHECKING, Any, Literal
 if TYPE_CHECKING:
     from eden.entities.rigid import RigidEntity
     from eden.envs.base import EnvBase
+    from eden.options import EnvOptions
     from eden.options.entities import EntityOptions
 
 Status = Literal["pass", "warn", "fail", "skip"]
@@ -48,22 +54,10 @@ Status = Literal["pass", "warn", "fail", "skip"]
 #: Name the audited entity takes in the scene.
 AUDIT_ENTITY_NAME = "asset"
 
-#: File suffixes ``eden audit`` loads as a raw asset path rather than an entity name.
-ASSET_FILE_SUFFIXES = (
-    ".urdf",
-    ".xml",
-    ".mjcf",
-    ".usd",
-    ".usda",
-    ".usdc",
-    ".usdz",
-    ".obj",
-    ".stl",
-    ".glb",
-    ".gltf",
-    ".ply",
-    ".dae",
-)
+#: File suffixes ``eden audit`` loads as a raw asset path: the ones ``Entity`` builds a rigid morph from
+#: (``eden/entities/base.py``): URDF, MJCF (``.xml``), USD and the surface meshes of ``MESH_FILE_SUFFIXES``.
+#: ``tests/utils/test_asset_audit.py`` pins the mesh part against that constant.
+ASSET_FILE_SUFFIXES = (".urdf", ".xml", ".usd", ".usda", ".usdc", ".usdz", ".obj", ".stl", ".ply", ".glb", ".gltf")
 
 
 @dataclass(frozen=True)
@@ -78,7 +72,7 @@ class AuditThresholds:
     min_link_mass: float = 1e-4
     #: Heavier-to-lighter mass ratio across a DOF joint above which ``mass_ratio`` warns.
     max_mass_ratio: float = 100.0
-    #: Deepest ground penetration ``settle`` accepts, in m.
+    #: Deepest ground penetration ``settle`` accepts over the final :attr:`rest_window`, in m.
     max_penetration: float = 0.01
     #: Link linear speed treated as an explosion, in m/s.
     max_link_speed: float = 20.0
@@ -112,6 +106,8 @@ class AuditReport:
 
     target: str
     checks: tuple[AuditCheck, ...]
+    #: The physics settings the audit scene ran at: ``sim_dt``, ``sim_substeps``, ``integrator``.
+    physics: dict[str, Any] = field(default_factory=dict)
 
     @property
     def failed(self) -> bool:
@@ -127,12 +123,18 @@ class AuditReport:
 
     def to_dict(self) -> dict[str, Any]:
         """A JSON-serializable form of the report."""
-        return {"target": self.target, "failed": self.failed, "checks": [asdict(check) for check in self.checks]}
+        return {
+            "target": self.target,
+            "failed": self.failed,
+            "physics": dict(self.physics),
+            "checks": [asdict(check) for check in self.checks],
+        }
 
     def format(self) -> str:
         """One line per check, status first."""
         width = max(len(check.name) for check in self.checks)
-        lines = [f"Audit of {self.target}"]
+        physics = ", ".join(f"{key}={value}" for key, value in self.physics.items())
+        lines = [f"Audit of {self.target}" + (f" ({physics})" if physics else "")]
         lines += [f"  {check.status.upper():<4}  {check.name:<{width}}  {check.message}" for check in self.checks]
         counts = {
             status: sum(check.status == status for check in self.checks) for status in ("pass", "warn", "fail", "skip")
@@ -156,7 +158,7 @@ def options_for_file(path: str, *, fixed_base: bool | None = None) -> EntityOpti
             f"eden audit: {path!r} is not an asset file Eden loads; expected one of {', '.join(ASSET_FILE_SUFFIXES)}."
         )
     if fixed_base is None:
-        fixed_base = path.lower().endswith((".xml", ".mjcf")) and not mjcf_has_free_root(path)
+        fixed_base = path.lower().endswith(".xml") and not mjcf_has_free_root(path)
     # A fixed base is what ``hold`` runs on, and it needs the file's PD gains, which load only on an actuated entity.
     # A mesh is one rigid body, so only a description file (URDF, MJCF, USD) can be articulated or actuated.
     articulated = not path.lower().endswith(MESH_FILE_SUFFIXES)
@@ -208,7 +210,11 @@ def check_auditable(options, target: str) -> None:
 
 
 def audit_entity(
-    options: EntityOptions, *, target: str | None = None, thresholds: AuditThresholds | None = None
+    options: EntityOptions,
+    *,
+    env_options: EnvOptions | None = None,
+    target: str | None = None,
+    thresholds: AuditThresholds | None = None,
 ) -> AuditReport:
     """Build ``options`` alone on a ground plane and run every check on it.
 
@@ -219,6 +225,10 @@ def audit_entity(
     ----------
     options : EntityOptions
         The entity to audit, as a task would declare it.
+    env_options : EnvOptions, optional
+        The physics to audit under, usually a task's ``config.env_options``: its ``sim_dt``, ``sim_substeps``,
+        integrator and solver settings apply, with one env, no CUDA graph and no gradients. Defaults to
+        ``EnvOptions()``.
     target : str, optional
         Label for the report. Defaults to the options class name.
     thresholds : AuditThresholds, optional
@@ -233,15 +243,20 @@ def audit_entity(
     target = target or type(options).__name__
     check_auditable(options, target)
 
-    env = _build_audit_env(options.model_copy(deep=True))
+    env = _build_audit_env(options.model_copy(deep=True), env_options)
     try:
-        checks = _run_checks(env, options, thresholds)
+        checks = _run_checks(env, options, env_options, thresholds)
+        physics = {
+            "sim_dt": env.env_options.sim_dt,
+            "sim_substeps": env.env_options.sim_substeps,
+            "integrator": env.env_options.integrator,
+        }
     finally:
         env.destroy()
-    return AuditReport(target=target, checks=tuple(checks))
+    return AuditReport(target=target, checks=tuple(checks), physics=physics)
 
 
-def _run_checks(env: EnvBase, options, thresholds: AuditThresholds) -> list[AuditCheck]:
+def _run_checks(env: EnvBase, options, env_options: EnvOptions | None, thresholds: AuditThresholds) -> list[AuditCheck]:
     entity = env.entities[AUDIT_ENTITY_NAME]
     checks = [
         _check_collision(entity),
@@ -249,7 +264,7 @@ def _run_checks(env: EnvBase, options, thresholds: AuditThresholds) -> list[Audi
         _check_mass_ratio(entity, thresholds),
         _check_armature(entity, options),
         _check_joint_limits(entity),
-        _check_self_contact(env, entity, options),
+        _check_self_contact(env, entity, options, env_options),
     ]
     if entity.has_immobile_base:
         checks.append(AuditCheck("settle", "skip", "fixed base: nothing to drop"))
@@ -267,13 +282,23 @@ def _run_checks(env: EnvBase, options, thresholds: AuditThresholds) -> list[Audi
 # --- scene ----------------------------------------------------------------------------------------
 
 
-def _build_audit_env(options, *, enable_neutral_collision: bool = False) -> EnvBase:
-    """One env, a ground plane and the entity, with the substep the entity's closed-loop gripper needs."""
+def _build_audit_env(
+    options, env_options: EnvOptions | None = None, *, enable_neutral_collision: bool = False
+) -> EnvBase:
+    """One env, a ground plane and the entity, at ``env_options``' physics and the substep a closed-loop gripper needs.
+
+    ``enable_neutral_collision=True`` keeps the self-collision pairs that overlap at the zero pose; otherwise the
+    setting of ``env_options`` stands.
+    """
     from eden.envs.base import EnvBase
     from eden.options import EnvOptions, SceneOptions
     from eden.options.entities import PlaneOptions
 
-    env_options = EnvOptions(num_envs=1, enable_neutral_collision=enable_neutral_collision)
+    # One env on whatever backend Eden was initialized with: a captured CUDA graph or gradients serve training only.
+    update: dict[str, Any] = {"num_envs": 1, "cuda_graph_options": None, "requires_grad": False}
+    if enable_neutral_collision:
+        update["enable_neutral_collision"] = True
+    env_options = (env_options or EnvOptions()).model_copy(deep=True, update=update)
     max_substep_dt = getattr(type(options), "max_substep_dt", None)
     if isinstance(max_substep_dt, float):
         env_options.sim_substeps = max(env_options.sim_substeps, math.ceil(env_options.sim_dt / max_substep_dt - 1e-9))
@@ -441,45 +466,62 @@ def _check_joint_limits(entity: RigidEntity) -> AuditCheck:
 # --- dynamic checks -------------------------------------------------------------------------------
 
 
-def _self_contact_pairs(env: EnvBase, entity: RigidEntity) -> list[tuple[str, str]]:
-    """Name pairs of two different links of the entity in contact one step after reset, at its default pose."""
+def _self_contact_pairs(env: EnvBase, entity: RigidEntity, *, zero_pose: bool) -> list[tuple[str, str]]:
+    """Name pairs of two links of the entity whose collision shapes touch, without stepping the physics.
+
+    The entity is at its default pose after ``env.reset()``; ``zero_pose`` moves every hinge and slide joint to the
+    asset's own zero (``joint.init_qpos``), the configuration Genesis tests when it drops neutral-overlap pairs.
+    ``detect_collision`` runs the narrow phase on the posed shapes through the scene's collision filter, so a pair
+    that filter dropped never appears.
+    """
+    import torch
+
     env.reset()
-    env.scene.step()
-    contacts = entity.get_contacts(with_entity=entity)
-    link_a, link_b = contacts["link_a"][0].tolist(), contacts["link_b"][0].tolist()
-    valid = contacts["valid_mask"][0].tolist() if "valid_mask" in contacts else [True] * len(link_a)
+    if zero_pose:
+        joints = _rotor_joints(entity)
+        if joints:
+            dofs = [dof for joint in joints for dof in joint.dofs_idx_local]
+            zero = torch.tensor(
+                [[float(q) for joint in joints for q in joint.init_qpos]], dtype=torch.float32, device=env.device
+            )
+            entity.set_dofs_pos(zero, dofs)
+    geom_pairs = entity.detect_collision()
+    env.reset()
+
+    geoms = env.rigid_solver.geoms
     start, end = entity.link_start, entity.link_end
-    links = env.rigid_solver.links
-    pairs = {
-        tuple(sorted((links[a].name, links[b].name)))
-        for a, b, ok in zip(link_a, link_b, valid)
-        if ok and a != b and start <= a < end and start <= b < end
-    }
-    env.reset()
+    pairs = set()
+    for geom_a, geom_b in geom_pairs.tolist():
+        link_a, link_b = geoms[geom_a].link, geoms[geom_b].link
+        if link_a.idx != link_b.idx and start <= link_a.idx < end and start <= link_b.idx < end:
+            pairs.add(tuple(sorted((link_a.name, link_b.name))))
     return sorted(pairs)
 
 
-def _check_self_contact(env: EnvBase, entity: RigidEntity, options) -> AuditCheck:
-    """Link pairs touching at the default pose, and the pairs Genesis dropped from collision altogether.
+def _check_self_contact(env: EnvBase, entity: RigidEntity, options, env_options: EnvOptions | None) -> AuditCheck:
+    """Link pairs touching at the default pose, and the pairs Genesis dropped because they touch at the zero pose.
 
     Genesis drops, for good, every self-collision pair that already overlaps at the asset's zero pose
-    (``EnvOptions.enable_neutral_collision=False``, the default). Those pairs never touch in ``env``, so a second
-    build that keeps them finds them: they pass through each other in every task that keeps the default.
+    (``EnvOptions.enable_neutral_collision=False``, the default): those links pass through each other in every
+    task that keeps the default. A second build that keeps them, posed at zero, finds them.
     """
     if entity.num_links < 2:
         return AuditCheck("self_contact", "skip", "single link")
-    live = _self_contact_pairs(env, entity)
-    probe = _build_audit_env(options.model_copy(deep=True), enable_neutral_collision=True)
+    live = _self_contact_pairs(env, entity, zero_pose=False)
+    probe = _build_audit_env(options.model_copy(deep=True), env_options, enable_neutral_collision=True)
     try:
-        dropped = sorted(set(_self_contact_pairs(probe, probe.entities[AUDIT_ENTITY_NAME])) - set(live))
+        at_zero = _self_contact_pairs(probe, probe.entities[AUDIT_ENTITY_NAME], zero_pose=True)
     finally:
         probe.destroy()
+    # A pair the task's env still collides was not dropped (the task may set enable_neutral_collision itself).
+    kept_at_zero = set(_self_contact_pairs(env, entity, zero_pose=True))
+    dropped = sorted(set(at_zero) - kept_at_zero)
 
     details = {"pairs": [list(p) for p in live], "dropped_pairs": [list(p) for p in dropped]}
     note = ""
     if dropped:
         note = (
-            f" Genesis also dropped {len(dropped)} pairs that overlap at the asset's zero pose, so they never collide: "
+            f" Genesis also dropped {len(dropped)} pairs that touch at the asset's zero pose, so they never collide: "
             f"{_names(f'{a}/{b}' for a, b in dropped)} (EnvOptions.enable_neutral_collision=True keeps them)."
         )
     if live:
@@ -507,7 +549,7 @@ def _check_settle(env: EnvBase, entity: RigidEntity, thresholds: AuditThresholds
     plane = env.entities["plane"]
     n_steps = _steps(env, thresholds.seconds)
     rest_steps = min(n_steps, _steps(env, thresholds.rest_window))
-    max_speed = max_ang_speed = max_penetration = 0.0
+    max_speed = max_ang_speed = peak_penetration = rest_penetration = 0.0
     tail_speed = tail_ang_speed = 0.0
     for step in range(n_steps):
         env.scene.step()
@@ -521,10 +563,13 @@ def _check_settle(env: EnvBase, entity: RigidEntity, thresholds: AuditThresholds
         depth = contacts["penetration"][0]
         if "valid_mask" in contacts:
             depth = depth[contacts["valid_mask"][0]]
-        if depth.numel():
-            max_penetration = max(max_penetration, depth.max().item())
+        deepest = depth.max().item() if depth.numel() else 0.0
+        peak_penetration = max(peak_penetration, deepest)
+        # Graded only once the drop is over: an unpowered robot landing at several m/s overshoots for a few
+        # steps on any contact model, which says nothing about the asset.
         if step >= n_steps - rest_steps:
             tail_speed, tail_ang_speed = max(tail_speed, lin), max(tail_ang_speed, ang)
+            rest_penetration = max(rest_penetration, deepest)
     top = float(entity.get_AABB()[0, 1, 2])
     env.reset()
 
@@ -532,7 +577,8 @@ def _check_settle(env: EnvBase, entity: RigidEntity, thresholds: AuditThresholds
         "seconds": thresholds.seconds,
         "max_link_speed": max_speed,
         "max_link_ang_speed": max_ang_speed,
-        "max_penetration": max_penetration,
+        "peak_penetration": peak_penetration,
+        "rest_penetration": rest_penetration,
         "final_speed": tail_speed,
         "final_ang_speed": tail_ang_speed,
     }
@@ -547,12 +593,13 @@ def _check_settle(env: EnvBase, entity: RigidEntity, thresholds: AuditThresholds
             "the collision shapes for overlaps.",
             details,
         )
-    if max_penetration > thresholds.max_penetration:
+    if rest_penetration > thresholds.max_penetration:
         return AuditCheck(
             "settle",
             "fail",
-            f"sank {max_penetration * 1000:.1f} mm into the ground (limit {thresholds.max_penetration * 1000:.0f} mm). "
-            "Thin or concave collision shapes, or a very heavy body on soft contacts, do this.",
+            f"rests {rest_penetration * 1000:.1f} mm deep in the ground over the last {thresholds.rest_window} s "
+            f"(limit {thresholds.max_penetration * 1000:.0f} mm). Thin or concave collision shapes, or a very heavy "
+            "body on soft contacts, do this.",
             details,
         )
     if tail_speed > thresholds.rest_speed or tail_ang_speed > thresholds.rest_ang_speed:
@@ -567,7 +614,8 @@ def _check_settle(env: EnvBase, entity: RigidEntity, thresholds: AuditThresholds
     return AuditCheck(
         "settle",
         "pass",
-        f"at rest after {thresholds.seconds} s, peak {max_speed:.2f} m/s, deepest contact {max_penetration * 1000:.1f} mm",
+        f"at rest after {thresholds.seconds} s, {rest_penetration * 1000:.1f} mm deep (peak {max_speed:.2f} m/s and "
+        f"{peak_penetration * 1000:.1f} mm on impact)",
         details,
     )
 

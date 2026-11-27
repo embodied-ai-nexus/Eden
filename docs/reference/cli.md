@@ -689,6 +689,7 @@ Renders one image of an entity.
 eden audit ur5e                                   # an entity by registry key or options class name
 eden audit path/to/arm.urdf --fixed-base          # a raw asset file; a URDF arm needs its base pinned
 eden audit path/to/mug.xml --json mug_audit.json  # also write the report as JSON
+eden audit yam --task reacher                     # at the physics reacher runs (sim_dt, substeps, integrator)
 ```
 
 Builds the entity alone on a ground plane, on the CPU, and runs these checks on the built model:
@@ -700,12 +701,19 @@ Builds the entity alone on a ground plane, on the CPU, and runs these checks on 
 | `mass_ratio` | The heavier of two links joined by a DOF joint is more than 100× the lighter (warn). |
 | `armature` | A hinge or slide DOF carries the `default_armature` Genesis filled in because the asset authored none (warn). See [Armature defaults and the URDF 0.1 trap](../guides/entities.md#armature-defaults-and-the-urdf-01-trap). |
 | `joint_limits` | A hinge or slide DOF has an empty range (warn). Unlimited DOFs are listed. |
-| `self_contact` | Two links of the entity touch at its default pose (warn). |
-| `settle` | Free base only: dropped from 5 cm, the entity goes non-finite, moves faster than 20 m/s or 200 rad/s, sinks more than 1 cm into the plane, or falls through it (fail), or is still moving at the end (warn). |
+| `self_contact` | Two links of the entity touch at its default pose (warn). Also lists the pairs that touch at the asset's zero pose, which Genesis drops from collision for good unless `EnvOptions.enable_neutral_collision` is set, found in a second build that keeps them. |
+| `settle` | Free base only: dropped from 5 cm, the entity goes non-finite, moves faster than 20 m/s or 200 rad/s, falls through the plane, or rests more than 1 cm deep in it over the last 0.25 s (fail), or is still moving at the end (warn). The deeper overshoot on impact is reported, not graded: an unpowered robot lands at several m/s. |
 | `hold` | Fixed base only: commanding the default pose with the built PD gains, a DOF goes non-finite or faster than 50 (fail), or drifts more than 0.05 rad or m (warn). Skipped when every DOF has `kp = 0`. |
 
-A path ending in `.urdf`, `.xml`, `.mjcf`, a USD suffix or a mesh suffix is loaded as a file; anything else is looked up
-like `eden view` does. A file's base is free unless it is an MJCF whose top-level body has no free joint. Composite
+An existing file, or a path ending in a suffix the entity loader builds (`.urdf`, `.xml` for MJCF, `.usd`, `.usda`,
+`.usdc`, `.usdz`, `.obj`, `.stl`, `.ply`, `.glb`, `.gltf`), is loaded as a file, and any other suffix is refused with
+that list; anything else is looked up like `eden view` does. A file's base is free unless it is an MJCF whose
+top-level body has no free joint.
+
+The scene runs at `EnvOptions()`' physics (`sim_dt=0.005`, one substep, the default integrator), or at a task's with
+`--task`, with one env; the first line of the report names the settings. Hold drift and settling depend on them, so
+audit at the physics of the task that will use the entity. A closed-loop gripper's `max_substep_dt` raises the
+substeps either way. Composite
 rigs are refused: audit the arm and the gripper separately. A build error (an inertia tensor that is not positive
 definite, a URDF `<inertial><density>`) is raised as is. The command exits with status 1 when any check fails.
 
@@ -714,10 +722,11 @@ definite, a URDF `<inertial><density>`) is raised as is. The command exits with 
 | `--fixed-base` | Pin the base, so `hold` runs. An MJCF whose file declares its own base cannot be changed. |
 | `--free-base` | Free the base, so `settle` runs. |
 | `--seconds S` | Simulated time for `settle` and `hold`. Default 2.0. |
+| `--task TASK` | Run at this registered task's `env_options` (timestep, substeps, integrator, solver), without its CUDA graph or gradients. |
 | `--json PATH` | Also write the report as JSON. |
 
-The thresholds are fields of `eden.utils.asset_audit.AuditThresholds`; call `audit_entity(options, thresholds=...)`
-from Python to change them.
+The thresholds are fields of `eden.utils.asset_audit.AuditThresholds`; call
+`audit_entity(options, env_options=..., thresholds=...)` from Python to change them or the physics.
 
 ### `eden gif`
 

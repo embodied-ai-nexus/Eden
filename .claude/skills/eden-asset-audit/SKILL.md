@@ -15,13 +15,15 @@ eden audit <RobotClass-or-key>                      # a preset, as tasks build i
 eden audit path/to/arm.urdf --fixed-base            # a URDF arm: pin it so the hold check runs
 eden audit path/to/mug.obj                          # a mesh object: dropped and watched
 eden audit path/to/model.xml --json audit.json      # MJCF: the base comes from the file
+eden audit yam --task reacher                       # at the physics of the task that uses it
 ```
 
 It exits 1 when a check fails. Composite rigs are refused: audit the arm and the gripper separately.
 
 ## Order of work
 
-1. Run the audit as the task will build the entity (the preset, with its options).
+1. Run the audit as the task will build the entity: the preset with its options, and `--task <task>` so the
+   timestep, substeps and integrator are the task's. `hold` and `settle` depend on them.
 2. Fix the failures, then the warnings, one at a time, re-running after each fix.
 3. Look at the collision geometry: `eden view <Entity> -c`.
 4. For a preset, pin what you fixed in `tests/options/robots/test_<module>.py` (or the object family's test).
@@ -38,8 +40,8 @@ It exits 1 when a check fails. Composite rigs are refused: audit the arm and the
 | `armature` | Set `default_dofs_armature` from the source asset or the motor datasheet, or `default_armature=0.0` (`docs/guides/entities.md`, "Armature defaults and the URDF 0.1 trap"). For a URDF every hinge gets the 0.1 fill. |
 | `joint_limits` | An empty range is a fixed joint authored as a hinge: make it fixed. |
 | `self_contact`, live pairs | Two links touch at the default pose: trim the shapes, or move `default_dofs_pos`. |
-| `self_contact`, dropped pairs | Genesis never collides pairs that overlap at the asset's zero pose. Usually intended (adjacent shells). If the pair must collide, fix the overlap in the asset, or set `EnvOptions.enable_neutral_collision=True` scene-wide. |
-| `settle` explodes or sinks | Check mass and inertia first, then thin or concave collision meshes (`convexify`, `decompose_object_error_threshold`, `coacd_threshold`). Stiffen one object with `default_geoms_sol_params`, never a global `constraint_timeconst`. |
+| `self_contact`, dropped pairs | Genesis never collides pairs that touch at the asset's zero pose. Usually intended (adjacent shells). If the pair must collide, fix the overlap in the asset, or set `EnvOptions.enable_neutral_collision=True` scene-wide. |
+| `settle` explodes or rests deep in the ground | Check mass and inertia first, then thin or concave collision meshes (`convexify`, `decompose_object_error_threshold`, `coacd_threshold`). Stiffen one object with `default_geoms_sol_params`, never a global `constraint_timeconst`. A deep `peak_penetration` with a shallow `rest_penetration` is the impact, not a defect. |
 | `settle` still moving | A round body may just roll. Jitter in place points at contacts or inertia. |
 | `hold` skipped | No gains: set `default_dofs_kp` / `default_dofs_kd` (from the source stack: Isaac Lab's `stiffness` is Eden's kp). |
 | `hold` drifts | The gains do not hold the arm against gravity, or the default pose sits on a limit. Compare with the source stack's gains and armature; a closed-loop gripper also needs `max_substep_dt`. |
