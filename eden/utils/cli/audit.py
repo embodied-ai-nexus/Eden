@@ -9,7 +9,9 @@ The entity comes from one of two places:
 - a target: an entity name or registry key, or an asset file. With ``--task`` it is audited at that task's
   physics, without it at ``EnvOptions()``'s.
 - ``--task`` alone: the task's own scene entity named ``--entity`` (default ``robot``), at the task's physics, so
-  both come from the config the task builds.
+  both come from the config the task builds. An entity the task welds to another (a composite rig's gripper, an
+  ``attachments_dict`` child) declares a free base for its weld; audited alone, it gets back the base its parent
+  gives it in the task (see :func:`_as_held`).
 """
 
 from __future__ import annotations
@@ -50,15 +52,56 @@ def _resolve_audit_target(target: str, fixed_base: bool | None):
     return options_cls(is_fixed_base=fixed_base)
 
 
+def _welds(scene_options) -> dict[str, str]:
+    """Scene entity name -> the entity it is welded to: the scene's ``attachments_dict`` and every rig's own welds."""
+    from eden.options.entities import CompositeEntityOptions
+
+    welds = {child: spec[0] for child, spec in scene_options.attachments_dict.items()}
+    for value in (scene_options.model_extra or {}).values():
+        if isinstance(value, CompositeEntityOptions):
+            welds.update({child: spec[0] for child, spec in value.attachments().items()})
+    return welds
+
+
+def _as_held(options):
+    """A welded entity's options with the base its parent gives it in the task, and whether that base is fixed.
+
+    A part welded to an arm declares ``is_fixed_base=False`` so the weld can carry it, but in the task its base never
+    moves on its own. Built alone that declaration would drop it, or contradict an MJCF whose root has no free joint,
+    so it is pinned wherever the flag reaches the asset; a plain MJCF keeps the base its file declares.
+    """
+    from eden.options.catalog import base_follows_is_fixed_base
+    from eden.options.entities import PrimitiveOptions
+    from eden.utils.asset_audit import mjcf_has_free_root
+
+    if base_follows_is_fixed_base(options):
+        fixed = True
+    else:
+        fixed = not mjcf_has_free_root(options.fetch_asset(options.resolve_runtime_file()))
+    update = {"is_fixed_base": fixed}
+    if isinstance(options, PrimitiveOptions):
+        update["fixed"] = fixed  # a primitive's own switch, kept in step with is_fixed_base
+    return options.model_copy(deep=True, update=update), fixed
+
+
 def _task_entity_options(config, task: str, entity: str):
-    """The options of scene entity ``entity`` in the built task ``config`` (composite rigs expanded into parts)."""
+    """The options of scene entity ``entity`` in the built task ``config``, and the label to report it under.
+
+    Composite rigs are expanded into their parts. A welded entity comes back as :func:`_as_held` makes it, and its
+    label says so.
+    """
     entities = config.scene_options.named_entities()
     if entity not in entities:
         raise KeyError(
             f"eden audit: task {task!r} has no scene entity {entity!r}; its entities are {sorted(entities)}. "
             f"Pass one with --entity, or name an entity or asset file as the target."
         )
-    return entities[entity]
+    parent = _welds(config.scene_options).get(entity)
+    if parent is None:
+        return entities[entity], f"{task}:{entity}"
+    options, fixed = _as_held(entities[entity])
+    base = "fixed" if fixed else "free"
+    return options, f"{task}:{entity} (welded to {parent}; audited alone with a {base} base)"
 
 
 def audit_command(extra_args: list[str]) -> None:
@@ -123,8 +166,7 @@ def audit_command(extra_args: list[str]) -> None:
             fixed_base = True if args.fixed_base else False if args.free_base else None
             options, label = _resolve_audit_target(args.target, fixed_base), args.target
         else:
-            entity = args.entity or DEFAULT_TASK_ENTITY
-            options, label = _task_entity_options(config, args.task, entity), f"{args.task}:{entity}"
+            options, label = _task_entity_options(config, args.task, args.entity or DEFAULT_TASK_ENTITY)
         check_auditable(options, label)
     except (FileNotFoundError, KeyError, TypeError, ValueError) as err:
         parser.error(err.args[0] if err.args else str(err))

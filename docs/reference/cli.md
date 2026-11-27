@@ -707,7 +707,10 @@ Builds one entity alone on a ground plane, with one env, and runs these checks o
 | `hold` | Fixed base only: commanding the default pose with the built PD gains, a DOF goes non-finite or faster than 50 (fail), or drifts more than 0.05 rad or m (warn). Skipped when every DOF has `kp = 0`. |
 
 **Which entity.** With `--task` and no target, the task's scene entity named `--entity` (default `robot`) as the
-task's config builds it; a composite rig's parts are addressed by their scene names and audited alone, unwelded.
+task's config builds it; a composite rig's parts are addressed by their scene names. A part the task welds to
+another entity (a rig's gripper, an `attachments_dict` child) declares a free base for its weld; audited alone it
+gets back the base its parent gives it, pinned wherever `is_fixed_base` reaches the asset and as its file declares
+for a plain MJCF, and the report's first line says so.
 Otherwise the target names it: an existing file, or a path ending in a suffix the entity loader builds (`.urdf`,
 `.xml` for MJCF, `.usd`, `.usda`, `.usdc`, `.usdz`, `.obj`, `.stl`, `.ply`, `.glb`, `.gltf`), is loaded as a file and
 any other suffix is refused with that list; anything else is looked up like `eden view` does. A file's base is free

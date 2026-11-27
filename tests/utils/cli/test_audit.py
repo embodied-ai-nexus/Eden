@@ -167,3 +167,68 @@ def test_eden_audit_task_alone_audits_the_tasks_robot_at_its_physics(monkeypatch
     assert report["target"] == "reacher:robot"
     assert report["physics"] == {"sim_dt": 0.01, "sim_substeps": 2, "integrator": "approximate_implicitfast"}
     assert {c["name"]: c["status"] for c in report["checks"]}["hold"] in ("pass", "warn")
+
+
+class TestWeldedTaskEntities:
+    """A part a task welds to an arm declares a free base for its weld, which used to crash the audit."""
+
+    def test_welds_come_from_rigs_and_from_attachments_dict(self):
+        from eden.tasks import TASK_REGISTRY
+        from eden.utils.cli.audit import _welds
+
+        rig_task = TASK_REGISTRY.build("robosuite_lift", robot="ur5e_2f85")
+        assert _welds(rig_task.scene_options) == {"robot_gripper": "robot"}
+        attached = TASK_REGISTRY.build("manipulation_lift_box")
+        assert _welds(attached.scene_options) == {"gripper": "robot"}
+
+    @pytest.mark.parametrize(
+        "task, entity, kind, parent",
+        [
+            ("robosuite_lift", "robot_gripper", "FrankaHand", "robot"),  # plain MJCF without a free joint
+            ("manipulation_dex_lift", "hand", "XHand1_L", "robot"),  # URDF
+            ("robosuite_two_arm_peg_in_hole", "peg", "CylinderOptions", "robot0"),  # primitive
+            ("robosuite_two_arm_peg_in_hole", "hole", "RobosuitePlateWithHole", "robot1"),  # MJCF following the flag
+        ],
+    )
+    def test_a_welded_part_gets_back_a_fixed_base(self, task, entity, kind, parent):
+        from eden.tasks import TASK_REGISTRY
+        from eden.utils.cli.audit import _task_entity_options
+
+        config = TASK_REGISTRY.build(task)
+        declared = config.scene_options.named_entities()[entity]
+        assert type(declared).__name__ == kind
+        assert declared.is_fixed_base is False
+
+        options, label = _task_entity_options(config, task, entity)
+        assert options.is_fixed_base is True
+        assert getattr(options, "fixed", True) is True
+        assert label == f"{task}:{entity} (welded to {parent}; audited alone with a fixed base)"
+        assert declared.is_fixed_base is False  # the task's config is not modified
+
+    def test_an_unwelded_entity_is_audited_as_declared(self):
+        from eden.tasks import TASK_REGISTRY
+        from eden.utils.cli.audit import _task_entity_options
+
+        config = TASK_REGISTRY.build("reacher")
+        options, label = _task_entity_options(config, "reacher", "robot")
+        assert options is config.scene_options.named_entities()["robot"]
+        assert label == "reacher:robot"
+
+    @pytest.mark.parametrize(
+        "argv",
+        [
+            ["--task", "robosuite_lift", "--robot", "ur5e_2f85", "--entity", "robot_gripper"],  # the documented example
+            ["--task", "manipulation_lift_box", "--entity", "gripper"],  # attachments_dict
+        ],
+    )
+    def test_eden_audit_runs_on_a_welded_part(self, monkeypatch, tmp_path, argv):
+        out = tmp_path / "report.json"
+
+        assert _run_main(monkeypatch, "audit", *argv, "--cpu", "--json", str(out)) is None
+
+        report = json.loads(out.read_text())
+        assert "audited alone with a fixed base" in report["target"]
+        statuses = {c["name"]: c["status"] for c in report["checks"]}
+        assert statuses["settle"] == "skip"
+        assert statuses["hold"] in ("pass", "warn", "skip")
+        assert not report["failed"]
