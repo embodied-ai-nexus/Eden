@@ -159,7 +159,7 @@ class TestCleanArm:
     def test_holds_its_default_pose_with_its_gains(self, clean_arm_report):
         hold = clean_arm_report.check("hold")
         assert hold.status == "pass", hold.message
-        assert set(hold.details["max_drift"]) == {"shoulder", "elbow"}
+        assert set(hold.details["drift"]) == {"shoulder", "elbow"}
         assert clean_arm_report.check("settle").status == "skip"
 
     def test_without_gains_hold_is_skipped_with_the_fix(self, clean_arm_path):
@@ -187,8 +187,7 @@ class TestSloppyArm:
         """The forearm overlaps the base at the zero pose, so Genesis never collides them; only the probe sees it."""
         contact = sloppy_arm_report.check("self_contact")
         assert contact.details["pairs"] == []
-        assert contact.details["dropped_pairs"] == [["base", "fore"]]
-        assert contact.details["dropped_shape_pairs"] == {"base/fore": [1, 1]}
+        assert contact.details["dropped_pairs"] == {"base/fore": [1, 1]}
         assert "base/fore (1 of 1 shape pairs)" in contact.message and "enable_neutral_collision" in contact.message
 
     def test_the_dropped_pair_does_not_depend_on_the_default_pose(self, tmp_path):
@@ -200,15 +199,15 @@ class TestSloppyArm:
         )
         contact = audit_entity(options).check("self_contact")
         assert contact.details["pairs"] == []
-        assert contact.details["dropped_pairs"] == [["base", "fore"]]
+        assert contact.details["dropped_pairs"] == {"base/fore": [1, 1]}
 
     def test_a_task_that_keeps_neutral_pairs_reports_none_dropped(self, tmp_path):
         path = tmp_path / "sloppy_arm.xml"
         path.write_text(SLOPPY_ARM)
         report = audit_entity(options_for_file(str(path)), env_options=EnvOptions(enable_neutral_collision=True))
         contact = report.check("self_contact")
-        assert contact.details["dropped_pairs"] == []
-        assert ["base", "fore"] in contact.details["pairs"]
+        assert contact.details["dropped_pairs"] == {}
+        assert "base/fore" in contact.details["pairs"]
 
     def test_warnings_do_not_fail_the_report(self, sloppy_arm_report):
         assert not sloppy_arm_report.failed
@@ -282,8 +281,8 @@ def test_folded_default_pose_collides_with_the_base(tmp_path):
     )
     contact = audit_entity(options).check("self_contact")
     assert contact.status == "warn"
-    assert ["base", "fore"] in contact.details["pairs"]
-    assert contact.details["dropped_pairs"] == []
+    assert "base/fore" in contact.details["pairs"]
+    assert contact.details["dropped_pairs"] == {}
 
 
 class TestPhysics:
@@ -352,7 +351,7 @@ def test_genesis_still_keeps_its_collision_candidates_where_self_contact_reads_t
     Built with the neutral filter, the sloppy arm keeps no candidate between its base and forearm; built without
     it, it does.
     """
-    from eden.utils.asset_audit import AUDIT_ENTITY_NAME, _build_audit_env, _collision_pairs, _link_pairs
+    from eden.utils.asset_audit import AUDIT_ENTITY_NAME, _build_audit_env, _collision_pairs, _link_pair
 
     path = tmp_path / "sloppy_arm.xml"
     path.write_text(SLOPPY_ARM)
@@ -361,7 +360,8 @@ def test_genesis_still_keeps_its_collision_candidates_where_self_contact_reads_t
     for keep in (False, True):
         env = _build_audit_env(options.model_copy(deep=True), enable_neutral_collision=keep)
         try:
-            pairs[keep] = _link_pairs(env, env.entities[AUDIT_ENTITY_NAME], _collision_pairs(env))
+            entity = env.entities[AUDIT_ENTITY_NAME]
+            pairs[keep] = {_link_pair(env, entity, a, b) for a, b in _collision_pairs(env).tolist()}
         finally:
             env.destroy()
     assert ("base", "fore") not in pairs[False]
@@ -371,7 +371,7 @@ def test_genesis_still_keeps_its_collision_candidates_where_self_contact_reads_t
 def test_a_partly_dropped_link_pair_is_reported_with_its_shape_counts():
     """Genesis drops 6 shape pairs between the YAM's fingers at build and keeps the rest, so they still collide."""
     contact = audit_entity(ROBOT_REGISTRY.get("yam")()).check("self_contact")
-    dropped, total = contact.details["dropped_shape_pairs"]["lf_down/rf_down"]
+    dropped, total = contact.details["dropped_pairs"]["lf_down/rf_down"]
     assert dropped == 6
     assert total > dropped
 

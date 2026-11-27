@@ -16,7 +16,10 @@ The entity comes from one of two places:
 
 from __future__ import annotations
 
+import argparse
 import os
+from collections.abc import Iterator
+from contextlib import contextmanager
 
 #: The scene entity ``eden audit --task`` audits when ``--entity`` is not given.
 DEFAULT_TASK_ENTITY = "robot"
@@ -30,6 +33,15 @@ class AuditArgumentError(ValueError):
     """
 
 
+@contextmanager
+def _argument_errors(*types: type[Exception]) -> Iterator[None]:
+    """Re-raise exactly the exceptions ``types`` from the block as :class:`AuditArgumentError`."""
+    try:
+        yield
+    except types as err:
+        raise AuditArgumentError(err.args[0]) from err
+
+
 def _resolve_audit_target(target: str, fixed_base: bool | None):
     """Entity options for ``target``: an asset file when it exists or ends in a known suffix, else an entity name.
 
@@ -37,26 +49,18 @@ def _resolve_audit_target(target: str, fixed_base: bool | None):
     :func:`~eden.utils.asset_audit.options_for_file` reads from a file).
     """
     from eden.options.catalog import base_follows_is_fixed_base, find_entity_or_rig_options
-    from eden.options.entities import CompositeEntityOptions
     from eden.utils.asset_audit import ASSET_FILE_SUFFIXES, check_asset_file, check_auditable, options_for_file
 
     if os.path.isfile(target) or target.lower().endswith(ASSET_FILE_SUFFIXES):
-        try:
+        with _argument_errors(FileNotFoundError, ValueError):
             check_asset_file(target)
-        except (FileNotFoundError, ValueError) as err:
-            raise AuditArgumentError(err.args[0]) from err
         return options_for_file(target, fixed_base=fixed_base)
 
-    try:
+    with _argument_errors(ValueError):  # the catalog's "no entity options found", with its suggestions
         options_cls = find_entity_or_rig_options(target)
-    except ValueError as err:  # the catalog's "no entity options found", with its suggestions
-        raise AuditArgumentError(err.args[0]) from err
-    if issubclass(options_cls, CompositeEntityOptions):
-        try:
-            check_auditable(options_cls(), target)
-        except TypeError as err:  # always, for a rig: names the parts to audit instead
-            raise AuditArgumentError(err.args[0]) from err
     options = options_cls()
+    with _argument_errors(TypeError):  # a composite rig names its parts; a terrain or a soft body is refused
+        check_auditable(options, target)
     if fixed_base is None or fixed_base == options.is_fixed_base:
         return options
     if not base_follows_is_fixed_base(options):
@@ -108,24 +112,29 @@ def _task_entity_options(config, task: str, entity: str):
     Composite rigs are expanded into their parts. A welded entity comes back as :func:`_as_held` makes it, and its
     label says so.
     """
+    from eden.utils.asset_audit import check_auditable
+
     entities = config.scene_options.named_entities()
     if entity not in entities:
         raise AuditArgumentError(
             f"eden audit: task {task!r} has no scene entity {entity!r}; its entities are {sorted(entities)}. "
             f"Pass one with --entity, or name an entity or asset file as the target."
         )
+    label = f"{task}:{entity}"
+    with _argument_errors(TypeError):  # a terrain, a soft body or a grouped entity is refused
+        check_auditable(entities[entity], label)
     parent = _welds(config.scene_options).get(entity)
     if parent is None:
-        return entities[entity], f"{task}:{entity}"
+        return entities[entity], label
     options, fixed = _as_held(entities[entity])
-    base = "fixed" if fixed else "free"
-    return options, f"{task}:{entity} (welded to {parent}; audited alone with a {base} base)"
+    return options, f"{label} (welded to {parent}; audited alone with a {'fixed' if fixed else 'free'} base)"
 
 
-def audit_command(extra_args: list[str]) -> None:
-    """Parse ``eden audit``'s arguments, audit the chosen entity, print the report; exit 1 when a check fails."""
-    from eden.tasks.parser import get_task_argparser, get_task_config_from_args
-    from eden.utils.asset_audit import AuditThresholds, audit_entity, check_auditable
+def _parse_args(extra_args: list[str]):
+    """Parse and check ``eden audit``'s arguments: ``(parser, args, thresholds)``, or exit 2 with a usage message."""
+    from eden.tasks import TASK_REGISTRY
+    from eden.tasks.parser import get_task_argparser
+    from eden.utils.asset_audit import AuditThresholds
 
     parser = get_task_argparser(
         description="Build one entity alone on a ground plane and check it for physics problems.",
@@ -144,8 +153,20 @@ def audit_command(extra_args: list[str]) -> None:
         help=f"With --task and no target: the scene entity to audit (default: {DEFAULT_TASK_ENTITY}).",
     )
     base = parser.add_mutually_exclusive_group()
-    base.add_argument("--fixed-base", action="store_true", help="Pin the target's base (a URDF arm needs this).")
-    base.add_argument("--free-base", action="store_true", help="Free the target's base, so the settle check drops it.")
+    base.add_argument(
+        "--fixed-base",
+        dest="fixed_base",
+        action="store_const",
+        const=True,
+        help="Pin the target's base (a URDF arm needs this).",
+    )
+    base.add_argument(
+        "--free-base",
+        dest="fixed_base",
+        action="store_const",
+        const=False,
+        help="Free the target's base, so the settle check drops it.",
+    )
     parser.add_argument(
         "--seconds",
         type=float,
@@ -155,9 +176,6 @@ def audit_command(extra_args: list[str]) -> None:
     )
     parser.add_argument("--json", default=None, help="Also write the report as JSON to this path.")
     args = parser.parse_args(extra_args)
-
-    # Every argument is checked here, before Eden initializes or anything is built.
-    from eden.tasks import TASK_REGISTRY
 
     # The shared task parser adds these for the commands that train or replay; the audit has no use for them.
     unused = [flag for flag, value in (("--checkpoint", args.checkpoint), ("--run_name", args.run_name)) if value]
@@ -170,36 +188,47 @@ def audit_command(extra_args: list[str]) -> None:
         parser.error(TASK_REGISTRY.missing_task_message(args.task))
     if args.entity is not None and (args.target is not None or not args.task):
         parser.error("--entity picks a scene entity of --task; it cannot be combined with a target.")
-    if args.target is None and (args.fixed_base or args.free_base):
+    if args.target is None and args.fixed_base is not None:
         parser.error("--fixed-base / --free-base apply to a target; a task's entity is audited as the task builds it.")
-    if args.json and not os.path.isdir(os.path.dirname(os.path.abspath(args.json))):
-        parser.error(
-            f"--json {args.json!r}: the directory {os.path.dirname(os.path.abspath(args.json))!r} does not exist."
-        )
+    if args.json:
+        json_dir = os.path.dirname(os.path.abspath(args.json))
+        if not os.path.isdir(json_dir):
+            parser.error(f"--json {args.json!r}: the directory {json_dir!r} does not exist.")
     try:
         thresholds = AuditThresholds(seconds=args.seconds)
     except ValueError as err:
         parser.error(str(err))
+    return parser, args, thresholds
+
+
+def _resolve(parser: argparse.ArgumentParser, args):
+    """The entity to audit, the physics to audit it at, and its report label: ``(options, env_options, label)``."""
+    from eden.tasks.parser import get_task_config_from_args
 
     config = get_task_config_from_args(args) if args.task else None
-    env_options = config.env_options if config is not None else None
     try:
         if args.target is not None:
-            fixed_base = True if args.fixed_base else False if args.free_base else None
-            options, label = _resolve_audit_target(args.target, fixed_base), args.target
+            options, label = _resolve_audit_target(args.target, args.fixed_base), args.target
         else:
             options, label = _task_entity_options(config, args.task, args.entity or DEFAULT_TASK_ENTITY)
-        try:
-            check_auditable(options, label)  # a terrain, a non-rigid material, a grouped entity
-        except TypeError as err:
-            raise AuditArgumentError(err.args[0]) from err
     except AuditArgumentError as err:
         parser.error(str(err))
+    return options, (config.env_options if config is not None else None), label
 
-    # ``eden`` is already imported (through ``eden.tasks.parser`` above), so genesis loads after it as required.
+
+def audit_command(extra_args: list[str]) -> None:
+    """Parse ``eden audit``'s arguments, audit the chosen entity, print the report; exit 1 when a check fails.
+
+    Every argument is checked before Eden initializes or anything is built.
+    """
+    parser, args, thresholds = _parse_args(extra_args)
+    options, env_options, label = _resolve(parser, args)
+
+    # ``eden`` is already imported (through ``eden.tasks`` in the parsing), so genesis loads after it as required.
     import genesis as gs
 
     import eden as en
+    from eden.utils.asset_audit import audit_entity
 
     en.init(backend=gs.cpu if args.cpu else gs.gpu)
     report = audit_entity(options, env_options=env_options, target=label, thresholds=thresholds)

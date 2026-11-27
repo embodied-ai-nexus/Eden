@@ -46,6 +46,8 @@ from __future__ import annotations
 
 import math
 import os
+from collections import Counter
+from collections.abc import Callable
 from dataclasses import asdict, dataclass, field, fields
 from typing import TYPE_CHECKING, Any, Literal
 
@@ -67,6 +69,15 @@ LANDING_SECONDS = 0.5
 
 #: Standard gravity, for the fall time of :attr:`AuditThresholds.drop_height`, in m/s^2.
 _GRAVITY = 9.81
+
+#: Relative tolerance for "a built armature equals ``default_armature``": the solver stores it in float32.
+_ARMATURE_FILL_RTOL = 1e-6
+
+#: Slack under ``ceil`` when counting substeps, so a ratio that is whole up to rounding is not rounded up.
+_CEIL_SLACK = 1e-9
+
+#: How many names a check message lists before it says how many more there are.
+_MAX_LISTED = 8
 
 #: File suffixes ``eden audit`` loads as a raw asset path: the ones ``Entity`` builds a rigid morph from
 #: (``eden/entities/base.py``): URDF, MJCF (``.xml``), USD and the surface meshes of ``MESH_FILE_SUFFIXES``.
@@ -188,10 +199,11 @@ class AuditReport:
         physics = ", ".join(f"{key}={value}" for key, value in self.physics.items())
         lines = [f"Audit of {self.target}" + (f" ({physics})" if physics else "")]
         lines += [f"  {check.status.upper():<4}  {check.name:<{width}}  {check.message}" for check in self.checks]
-        counts = {
-            status: sum(check.status == status for check in self.checks) for status in ("pass", "warn", "fail", "skip")
-        }
-        lines.append("  " + ", ".join(f"{n} {status}" for status, n in counts.items() if n))
+        counts = Counter(check.status for check in self.checks)
+        lines.append(
+            "  "
+            + ", ".join(f"{counts[status]} {status}" for status in ("pass", "warn", "fail", "skip") if counts[status])
+        )
         return "\n".join(lines)
 
 
@@ -300,9 +312,13 @@ def audit_entity(
     target = target or type(options).__name__
     check_auditable(options, target)
 
+    def build_probe() -> EnvBase:
+        """The same scene with ``enable_neutral_collision=True``, for ``self_contact``."""
+        return _build_audit_env(options.model_copy(deep=True), env_options, enable_neutral_collision=True)
+
     env = _build_audit_env(options.model_copy(deep=True), env_options)
     try:
-        checks = _run_checks(env, options, env_options, thresholds)
+        checks = _run_checks(env, options, thresholds, build_probe)
         physics = {
             "sim_dt": env.env_options.sim_dt,
             "sim_substeps": env.env_options.sim_substeps,
@@ -313,7 +329,9 @@ def audit_entity(
     return AuditReport(target=target, checks=tuple(checks), physics=physics)
 
 
-def _run_checks(env: EnvBase, options, env_options: EnvOptions | None, thresholds: AuditThresholds) -> list[AuditCheck]:
+def _run_checks(
+    env: EnvBase, options, thresholds: AuditThresholds, build_probe: Callable[[], EnvBase]
+) -> list[AuditCheck]:
     entity = env.entities[AUDIT_ENTITY_NAME]
     checks = [
         _check_collision(entity),
@@ -321,7 +339,7 @@ def _run_checks(env: EnvBase, options, env_options: EnvOptions | None, threshold
         _check_mass_ratio(entity, thresholds),
         _check_armature(entity, options),
         _check_joint_limits(entity),
-        _check_self_contact(env, entity, options, env_options),
+        _check_self_contact(env, entity, build_probe),
     ]
     if entity.has_immobile_base:
         checks.append(AuditCheck("settle", "skip", "fixed base: nothing to drop"))
@@ -331,7 +349,7 @@ def _run_checks(env: EnvBase, options, env_options: EnvOptions | None, threshold
         checks.append(_check_settle(env, entity, thresholds))
     else:
         checks.append(AuditCheck("settle", "skip", "no collision geometry to land on (see collision)"))
-    hint = " (pass --fixed-base to run it on an arm)" if _rotor_dofs(entity) else ""
+    hint = " (pass --fixed-base to run it on an arm)" if _rotor_joints(entity) else ""
     checks.append(AuditCheck("hold", "skip", f"free base: holding a pose needs a fixed base{hint}"))
     return checks
 
@@ -358,9 +376,10 @@ def _build_audit_env(
     # Through validation, so an override that a field refuses raises here rather than deep in the build.
     base = env_options or EnvOptions()
     env_options = type(base).model_validate({**base.model_dump(), **update})
-    max_substep_dt = getattr(type(options), "max_substep_dt", None)
-    if isinstance(max_substep_dt, float):
-        env_options.sim_substeps = max(env_options.sim_substeps, math.ceil(env_options.sim_dt / max_substep_dt - 1e-9))
+    max_substep_dt = getattr(options, "max_substep_dt", None)  # a closed-loop gripper's, on its options class
+    if max_substep_dt is not None:
+        needed = math.ceil(env_options.sim_dt / max_substep_dt - _CEIL_SLACK)
+        env_options.sim_substeps = max(env_options.sim_substeps, needed)
     env = EnvBase(
         env_options=env_options,
         scene_options=SceneOptions(plane=PlaneOptions(), **{AUDIT_ENTITY_NAME: options}),
@@ -378,16 +397,23 @@ def _rotor_joints(entity: RigidEntity) -> list:
     return [joint for joint in entity.joints if joint.type in (gs.JOINT_TYPE.REVOLUTE, gs.JOINT_TYPE.PRISMATIC)]
 
 
-def _rotor_dofs(entity: RigidEntity) -> list[int]:
-    """Local DOF indices of the entity's hinge and slide joints."""
-    return [dof for joint in _rotor_joints(entity) for dof in joint.dofs_idx_local]
+def _rotors(entity: RigidEntity) -> tuple[list[int], list[str], list[bool]]:
+    """The hinge and slide DOFs, one per joint: local DOF index, joint name, and whether it slides."""
+    import genesis as gs
+
+    joints = _rotor_joints(entity)
+    return (
+        [joint.dofs_idx_local[0] for joint in joints],
+        [joint.name for joint in joints],
+        [joint.type == gs.JOINT_TYPE.PRISMATIC for joint in joints],
+    )
 
 
 def _steps(env: EnvBase, seconds: float) -> int:
     return max(1, math.ceil(seconds / env.scene.dt))
 
 
-def _names(items, limit: int = 8) -> str:
+def _names(items, limit: int = _MAX_LISTED) -> str:
     items = list(items)
     shown = ", ".join(str(item) for item in items[:limit])
     return shown + (f", ... ({len(items) - limit} more)" if len(items) > limit else "")
@@ -483,7 +509,7 @@ def _check_armature(entity: RigidEntity, options) -> AuditCheck:
     ``ARMATURE()``); a DOF either selects is configured, whatever value it carries.
     """
     default = getattr(options, "default_armature", None)
-    joints = [joint for joint in _rotor_joints(entity) if joint.n_dofs == 1]
+    joints = _rotor_joints(entity)
     if not joints:
         return AuditCheck("armature", "skip", "no hinge or slide joints")
     built = entity.get_dofs_armature([joint.dofs_idx_local[0] for joint in joints])[0].tolist()
@@ -495,7 +521,7 @@ def _check_armature(entity: RigidEntity, options) -> AuditCheck:
         if joint.name not in configured
         and not joint.desc.dofs_armature.any()
         and default
-        and math.isclose(value, default, rel_tol=1e-6)
+        and math.isclose(value, default, rel_tol=_ARMATURE_FILL_RTOL)
     ]
     details = {"armature": {joint.name: value for joint, value in zip(joints, built)}, "filled": filled}
     if filled:
@@ -511,10 +537,9 @@ def _check_armature(entity: RigidEntity, options) -> AuditCheck:
 
 
 def _check_joint_limits(entity: RigidEntity) -> AuditCheck:
-    dofs = _rotor_dofs(entity)
+    dofs, names, _ = _rotors(entity)
     if not dofs:
         return AuditCheck("joint_limits", "skip", "no hinge or slide joints")
-    names = [joint.name for joint in _rotor_joints(entity) for _ in joint.dofs_idx_local]
     lower, upper = (bound[0].tolist() for bound in entity.get_dofs_limit(dofs))
     empty = [f"{n} [{lo:.3g}, {hi:.3g}]" for n, lo, hi in zip(names, lower, upper) if lo >= hi]
     unlimited = [n for n, lo, hi in zip(names, lower, upper) if math.isinf(lo) or math.isinf(hi)]
@@ -544,11 +569,6 @@ def _link_pair(env: EnvBase, entity: RigidEntity, geom_a: int, geom_b: int) -> t
     return tuple(sorted((link_a.name, link_b.name)))
 
 
-def _link_pairs(env: EnvBase, entity: RigidEntity, geom_pairs) -> set[tuple[str, str]]:
-    """Name pairs of two different links of ``entity``, from an ``(n, 2)`` array of scene-global geom indices."""
-    return {pair for a, b in geom_pairs.tolist() if (pair := _link_pair(env, entity, a, b)) is not None}
-
-
 def _collision_pairs(env: EnvBase):
     """The scene's collision candidate geom pairs, after Genesis' adjacency and neutral-overlap filters.
 
@@ -558,20 +578,22 @@ def _collision_pairs(env: EnvBase):
     return env.rigid_solver.collider._valid_collision_pairs
 
 
-def _check_self_contact(env: EnvBase, entity: RigidEntity, options, env_options: EnvOptions | None) -> AuditCheck:
+def _check_self_contact(env: EnvBase, entity: RigidEntity, build_probe: Callable[[], EnvBase]) -> AuditCheck:
     """Link pairs touching at the default pose, and the shape pairs Genesis dropped from collision at build.
 
     Genesis drops, for good, every self-collision shape pair it finds overlapping at the asset's zero pose
     (``EnvOptions.enable_neutral_collision=False``, the default): those shapes pass through each other in every task
-    that keeps the default. The neutral filter is the only difference between ``env`` and a second build with
-    ``enable_neutral_collision=True``, and both number their geoms alike, so the candidate pairs only that build keeps
-    are exactly the dropped ones. They are reported per link pair, as dropped of all candidate shape pairs.
+    that keeps the default. The neutral filter is the only difference between ``env`` and the probe that
+    ``build_probe`` returns, and both number their geoms alike, so the candidate pairs only the probe keeps are
+    exactly the dropped ones. They are reported per link pair, as dropped of all candidate shape pairs.
     """
     if entity.num_links < 2:
         return AuditCheck("self_contact", "skip", "single link")
     env.reset()
-    live = sorted(_link_pairs(env, entity, entity.detect_collision()))
-    probe = _build_audit_env(options.model_copy(deep=True), env_options, enable_neutral_collision=True)
+    live = sorted(
+        {pair for a, b in entity.detect_collision().tolist() if (pair := _link_pair(env, entity, a, b)) is not None}
+    )
+    probe = build_probe()
     try:
         if len(probe.rigid_solver.geoms) != len(env.rigid_solver.geoms):
             raise RuntimeError(
@@ -582,25 +604,18 @@ def _check_self_contact(env: EnvBase, entity: RigidEntity, options, env_options:
     finally:
         probe.destroy()
     kept = {tuple(pair) for pair in _collision_pairs(env).tolist()}
-    total: dict[tuple[str, str], int] = {}
-    dropped_count: dict[tuple[str, str], int] = {}
+    total, dropped = Counter(), Counter()
     for geom_a, geom_b in candidates:
-        pair = _link_pair(env, entity, geom_a, geom_b)
-        if pair is None:
-            continue
-        total[pair] = total.get(pair, 0) + 1
-        if (geom_a, geom_b) not in kept:
-            dropped_count[pair] = dropped_count.get(pair, 0) + 1
-    dropped = sorted(dropped_count)
+        if (pair := _link_pair(env, entity, geom_a, geom_b)) is not None:
+            total[pair] += 1
+            if (geom_a, geom_b) not in kept:
+                dropped[pair] += 1
+    dropped = {f"{a}/{b}": [n, total[(a, b)]] for (a, b), n in sorted(dropped.items())}
 
-    details = {
-        "pairs": [list(p) for p in live],
-        "dropped_pairs": [list(p) for p in dropped],
-        "dropped_shape_pairs": {f"{a}/{b}": [dropped_count[(a, b)], total[(a, b)]] for a, b in dropped},
-    }
+    details = {"pairs": [f"{a}/{b}" for a, b in live], "dropped_pairs": dropped}
     note = ""
     if dropped:
-        described = (f"{a}/{b} ({dropped_count[(a, b)]} of {total[(a, b)]} shape pairs)" for a, b in dropped)
+        described = (f"{pair} ({n} of {of} shape pairs)" for pair, (n, of) in dropped.items())
         note = (
             f" Genesis also dropped shape pairs that overlap at the asset's zero pose, so those shapes never "
             f"collide: {_names(described)} (EnvOptions.enable_neutral_collision=True keeps them)."
@@ -609,7 +624,7 @@ def _check_self_contact(env: EnvBase, entity: RigidEntity, options, env_options:
         return AuditCheck(
             "self_contact",
             "warn",
-            f"links in contact at the default pose: {_names(f'{a}/{b}' for a, b in live)}. Overlapping collision "
+            f"links in contact at the default pose: {_names(details['pairs'])}. Overlapping collision "
             f"shapes push the joints apart every step; trim the shapes or move the default pose.{note}",
             details,
         )
@@ -634,9 +649,9 @@ def _check_settle(env: EnvBase, entity: RigidEntity, thresholds: AuditThresholds
     plane = env.entities["plane"]
     n_steps = _steps(env, thresholds.seconds)
     rest_steps = min(n_steps, _steps(env, thresholds.rest_window))
-    lin, ang, depth, finite = (torch.empty(n_steps, device=env.device) for _ in range(4))
-    tail_path = torch.zeros(entity.num_links, device=env.device)
-    tail_start = last = None
+    lin, ang, depth = (torch.empty(n_steps, device=env.device) for _ in range(3))
+    finite = torch.empty(n_steps, dtype=torch.bool, device=env.device)
+    rest_pos = torch.empty(rest_steps, entity.num_links, 3, device=env.device)  # link positions over the window
     for step in range(n_steps):
         env.scene.step()
         lin[step] = entity.get_links_vel()[0].norm(dim=-1).max()
@@ -647,24 +662,22 @@ def _check_settle(env: EnvBase, entity: RigidEntity, thresholds: AuditThresholds
         contacts = entity.get_contacts(with_entity=plane, is_padded=True)
         penetration = contacts["penetration"][0] * contacts["valid_mask"][0]
         depth[step] = penetration.amax() if penetration.numel() else 0.0
-        if step == n_steps - rest_steps:
-            tail_start = links_pos.clone()
-        elif step > n_steps - rest_steps:
-            tail_path += (links_pos - last).norm(dim=-1)
-        last = links_pos.clone()
-    tail_travel = (last - tail_start).norm(dim=-1)
+        if step >= n_steps - rest_steps:
+            rest_pos[step - (n_steps - rest_steps)] = links_pos
     top = float(entity.get_AABB()[0, 1, 2])
     env.reset()
 
-    # One host transfer for the whole run.
+    # Over the rest window, per link: the path covered and the net displacement.
+    path = rest_pos.diff(dim=0).norm(dim=-1).sum(dim=0).cpu()
+    travel = (rest_pos[-1] - rest_pos[0]).norm(dim=-1).cpu()
+    # One host transfer for the per-step readings.
     lin, ang, depth, finite = (t.cpu() for t in (lin, ang, depth, finite))
-    tail_path, tail_travel = tail_path.cpu(), tail_travel.cpu()
-    non_finite = (~finite.bool()).nonzero()
+    non_finite = (~finite).nonzero()
     tail = slice(n_steps - rest_steps, n_steps)
-    # The link that covered the longest path over the rest window: how far it got, against how far it went.
-    mover = int(tail_path.argmax())
+    mover = int(path.argmax())  # the link that covered the longest path over the window
     run = SettleRun(
-        first_non_finite_s=float(non_finite[0]) * env.scene.dt if len(non_finite) else None,
+        # A reading follows its step, so step index i is the state after i + 1 steps.
+        first_non_finite_s=(int(non_finite[0]) + 1) * env.scene.dt if len(non_finite) else None,
         top_z=top,
         max_speed=float(lin.max()),
         max_ang_speed=float(ang.max()),
@@ -672,7 +685,7 @@ def _check_settle(env: EnvBase, entity: RigidEntity, thresholds: AuditThresholds
         rest_penetration=float(depth[tail].max()),
         tail_speed=float(lin[tail].max()),
         tail_ang_speed=float(ang[tail].max()),
-        travel_ratio=float(tail_travel[mover] / tail_path[mover]) if float(tail_path[mover]) > 0.0 else 1.0,
+        travel_ratio=float(travel[mover] / path[mover]) if float(path[mover]) > 0.0 else 1.0,
     )
     return grade_settle(run, thresholds)
 
@@ -698,69 +711,51 @@ class SettleRun:
 
 
 def grade_settle(run: SettleRun, thresholds: AuditThresholds) -> AuditCheck:
-    """The ``settle`` verdict for the measurements ``run``."""
+    """The ``settle`` verdict for the measurements ``run``; its details are ``run``'s fields and ``seconds``."""
     if run.first_non_finite_s is not None:
         return AuditCheck("settle", "fail", f"state became non-finite at {run.first_non_finite_s:.3f} s")
-    max_speed, max_ang_speed = run.max_speed, run.max_ang_speed
-    tail_speed, tail_ang_speed = run.tail_speed, run.tail_ang_speed
-    peak_penetration, rest_penetration = run.peak_penetration, run.rest_penetration
-    travel_ratio, top = run.travel_ratio, run.top_z
-    details = {
-        "seconds": thresholds.seconds,
-        "max_link_speed": max_speed,
-        "max_link_ang_speed": max_ang_speed,
-        "peak_penetration": peak_penetration,
-        "rest_penetration": rest_penetration,
-        "final_speed": tail_speed,
-        "final_ang_speed": tail_ang_speed,
-        "final_travel_ratio": travel_ratio,
-    }
-    if top < 0.0:
+    details = {"seconds": thresholds.seconds, **asdict(run)}
+    if run.top_z < 0.0:
         return AuditCheck("settle", "fail", "fell through the ground plane", details)
-    if max_speed > thresholds.max_link_speed or max_ang_speed > thresholds.max_link_ang_speed:
+    if run.max_speed > thresholds.max_link_speed or run.max_ang_speed > thresholds.max_link_ang_speed:
         return AuditCheck(
             "settle",
             "fail",
-            f"exploded: peak link speed {max_speed:.3g} m/s, {max_ang_speed:.3g} rad/s (limits "
+            f"exploded: peak link speed {run.max_speed:.3g} m/s, {run.max_ang_speed:.3g} rad/s (limits "
             f"{thresholds.max_link_speed} m/s, {thresholds.max_link_ang_speed} rad/s). Check mass, inertia and "
             "the collision shapes for overlaps.",
             details,
         )
-    if rest_penetration > thresholds.max_penetration:
+    if run.rest_penetration > thresholds.max_penetration:
         return AuditCheck(
             "settle",
             "fail",
-            f"rests {rest_penetration * 1000:.1f} mm deep in the ground over the last {thresholds.rest_window} s "
+            f"rests {run.rest_penetration * 1000:.1f} mm deep in the ground over the last {thresholds.rest_window} s "
             f"(limit {thresholds.max_penetration * 1000:.0f} mm). Thin or concave collision shapes, or a very heavy "
             "body on soft contacts, do this.",
             details,
         )
-    impact = f"(peak {max_speed:.2f} m/s and {peak_penetration * 1000:.1f} mm on impact)"
-    moving = tail_speed > thresholds.rest_speed or tail_ang_speed > thresholds.rest_ang_speed
-    if moving and travel_ratio < thresholds.min_travel_ratio:
+    depth = f"{run.rest_penetration * 1000:.1f} mm deep"
+    impact = f"(peak {run.max_speed:.2f} m/s and {run.peak_penetration * 1000:.1f} mm on impact)"
+    moving = run.tail_speed > thresholds.rest_speed or run.tail_ang_speed > thresholds.rest_ang_speed
+    if moving and run.travel_ratio < thresholds.min_travel_ratio:
         return AuditCheck(
             "settle",
             "warn",
-            f"jitters in place after {thresholds.seconds} s: {tail_speed:.3g} m/s, {tail_ang_speed:.3g} rad/s over "
-            f"the last {thresholds.rest_window} s while its fastest link gets only {travel_ratio:.0%} as far as it "
-            "moves. That points at contacts or inertia: overlapping or thin collision shapes, a tiny link mass.",
+            f"jitters in place after {thresholds.seconds} s: {run.tail_speed:.3g} m/s, {run.tail_ang_speed:.3g} rad/s "
+            f"over the last {thresholds.rest_window} s while its fastest link gets only {run.travel_ratio:.0%} as far "
+            "as it moves. That points at contacts or inertia: overlapping or thin collision shapes, a tiny link mass.",
             details,
         )
     if moving:
         return AuditCheck(
             "settle",
             "pass",
-            f"still moving steadily after {thresholds.seconds} s ({tail_speed:.3g} m/s, {travel_ratio:.0%} of its path "
-            f"is net travel): rolling, or an unpowered robot still folding, not jitter. "
-            f"{rest_penetration * 1000:.1f} mm deep {impact}",
+            f"still moving steadily after {thresholds.seconds} s ({run.tail_speed:.3g} m/s, {run.travel_ratio:.0%} of "
+            f"its path is net travel): rolling, or an unpowered robot still folding, not jitter. {depth} {impact}",
             details,
         )
-    return AuditCheck(
-        "settle",
-        "pass",
-        f"at rest after {thresholds.seconds} s, {rest_penetration * 1000:.1f} mm deep {impact}",
-        details,
-    )
+    return AuditCheck("settle", "pass", f"at rest after {thresholds.seconds} s, {depth} {impact}", details)
 
 
 def _check_hold(env: EnvBase, entity: RigidEntity, thresholds: AuditThresholds) -> AuditCheck:
@@ -769,15 +764,11 @@ def _check_hold(env: EnvBase, entity: RigidEntity, thresholds: AuditThresholds) 
     Hinge DOFs are graded in radians and slide DOFs in metres, each against its own limits. Readings stay on the
     device until the run ends.
     """
-    import genesis as gs
     import torch
 
-    joints = _rotor_joints(entity)
-    dofs = [dof for joint in joints for dof in joint.dofs_idx_local]
+    dofs, names, linear = _rotors(entity)
     if not dofs:
         return AuditCheck("hold", "skip", "no hinge or slide joints")
-    names = [joint.name for joint in joints for _ in joint.dofs_idx_local]
-    linear = [joint.type == gs.JOINT_TYPE.PRISMATIC for joint in joints for _ in joint.dofs_idx_local]
     env.reset()
     kp = entity.get_dofs_kp(dofs)[0].tolist()
     driven = [i for i, gain in enumerate(kp) if gain > 0.0]
@@ -832,13 +823,7 @@ def grade_hold(run: HoldRun, thresholds: AuditThresholds) -> AuditCheck:
             "hold", "fail", f"state became non-finite while holding the default pose for {thresholds.seconds} s"
         )
     names, drift, speed = list(run.drift), run.drift, run.speed
-    details = {
-        "seconds": thresholds.seconds,
-        "max_drift": drift,
-        "max_dof_speed": speed,
-        "linear_dofs": sorted(run.linear),
-        "n_driven": len(names),
-    }
+    details = {"seconds": thresholds.seconds, "drift": drift, "speed": speed, "linear_dofs": sorted(run.linear)}
     unit = {
         n: ("m", thresholds.max_hold_drift_linear, thresholds.max_dof_linear_speed)
         if n in run.linear
