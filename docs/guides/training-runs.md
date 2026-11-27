@@ -169,6 +169,12 @@ eden train --task velocity_tracking_flat --resume lower_lr       # by run_name
 
 `--checkpoint PATH` also loads weights before training, from any file, without the run lookup.
 
+Either way the run continues the checkpoint's iteration count. It also continues the checkpoint's
+`env.common_step_counter`, which step-scheduled curricula and events read, when the checkpoint was trained on this
+task's config class (see [Curricula](curricula.md)). A checkpoint of another task, loaded to warm-start this one,
+starts the counter at 0, so this task's stages start from the first one. Teacher weights loaded into a fresh
+distillation run start both counts at 0.
+
 ## Replay a checkpoint
 
 ```bash
@@ -442,8 +448,11 @@ with its own runner), set the runner options' `class_name` to an import path. `e
 build that class instead of Eden's `OnPolicyRunner` / `DistillationRunner`:
 
 - It is called as `cls(env, runner_dict, log_dir=..., device=...)` and must provide `learn`, `load` and
-  `get_inference_policy`. It composes Eden's runner mixins (checkpoint retention, progress file) itself; they are
-  listed in `eden.envs.wrappers.rsl_rl_env.EDEN_RUNNER_MIXINS`.
+  `get_inference_policy`. It composes Eden's runner mixins (checkpoint retention, progress file, the env state a
+  resume restores) itself; they are listed in `eden.envs.wrappers.rsl_rl_env.EDEN_RUNNER_MIXINS`. The mixins wrap
+  `learn`, `save` and `load` through `super()`, so define those in a base class and compose the tuple on top,
+  `MyRunner(*EDEN_RUNNER_MIXINS, _MyRunner)`, as `SuperMimicRunner` and `RmaDepthDistillationRunner` do. A method
+  written in the same class body as the tuple runs instead of the mixins'.
 - A `checkpoint_required` message on the class makes `eden train` exit before anything is written when neither
   `--checkpoint` nor `--resume` is given.
 - Under a distributed launch it must compose `DDPRunnerMixin`, or it is refused.

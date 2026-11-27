@@ -308,6 +308,26 @@ def test_reset_sees_the_finished_episode_length_and_post_reset_the_zeroed_one(tr
     assert term.lengths_at_post_reset[1] == lengths[1] + 1  # the env still running keeps counting
 
 
+def test_the_env_state_round_trips_and_a_newer_key_is_skipped_by_name(trace_envs, eden_caplog):
+    """What a checkpoint carries for a resume (``EnvStateCheckpointMixin``, rl_games' ``env_state``)."""
+    env = _env_for(trace_envs, frozenset())
+    before = env.common_step_counter
+    try:
+        env.common_step_counter = 41
+        state = env.state_dict()
+        env.common_step_counter = 0
+
+        env.load_state_dict({**state, "curricula": {}})
+
+        assert state == {"common_step_counter": 41}
+        assert env.common_step_counter == 41
+        assert "keys this Eden does not know: ['curricula']" in eden_caplog.text
+        with pytest.raises(KeyError, match="has no 'common_step_counter'"):
+            env.load_state_dict({})
+    finally:
+        env.common_step_counter = before
+
+
 def test_reset_runs_both_halves_then_observes(trace_envs):
     """``EnvBase.reset`` is the path with no ``step`` around it; it dispatches ``post_reset`` too."""
     env = _env_for(trace_envs, frozenset())

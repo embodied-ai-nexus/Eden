@@ -131,7 +131,9 @@ Besides the [shared flags](#flags-shared-by-the-task-commands):
 | `--resume REF` | Continue a previous run of this task, found under `logs/<task>/`: `latest` (the most recently modified), a run id, or a substring of a run name. Loads that run's latest checkpoint into a new run directory, which records its parent. Cannot be combined with `--checkpoint`. |
 | `--wandb_group GROUP` | The W&B group for this run. Default: the task name. Ignored unless `--logger wandb`. |
 
-`--checkpoint` starts training from that checkpoint's weights.
+`--checkpoint` starts training from that checkpoint's weights and iteration count. A checkpoint of the same task
+also restores `env.common_step_counter`, so step-scheduled curricula continue their schedule; one of another task
+starts the counter at 0.
 
 ### `eden inference`
 

@@ -210,8 +210,12 @@ class RmaDepthDistillation:
         return True
 
 
-class RmaDepthDistillationRunner(*EDEN_RUNNER_MIXINS, OnPolicyRunner):
-    """Runs :class:`RmaDepthDistillation`'s DAgger loop; see the module docstring for the loop and its contracts."""
+class _RmaDepthDistillationRunner(OnPolicyRunner):
+    """Runs :class:`RmaDepthDistillation`'s DAgger loop; see the module docstring for the loop and its contracts.
+
+    Its own ``learn`` and ``load`` live here, below :data:`~eden.envs.wrappers.rsl_rl_env.EDEN_RUNNER_MIXINS`, so the
+    mixins that :class:`RmaDepthDistillationRunner` composes on top wrap them.
+    """
 
     alg: RmaDepthDistillation
 
@@ -398,3 +402,12 @@ class RmaDepthDistillationRunner(*EDEN_RUNNER_MIXINS, OnPolicyRunner):
                 return alg.student_actions(flat, state["latent"])
 
         return act
+
+
+class RmaDepthDistillationRunner(*EDEN_RUNNER_MIXINS, _RmaDepthDistillationRunner):
+    """:class:`_RmaDepthDistillationRunner` with what Eden adds to every rsl_rl runner: ``progress.json``, the agent log
+    theme, checkpoint retention and the env state in each checkpoint.
+
+    Named by ``RslRlRmaDepthDistillationRunnerOptions.class_name``, so ``eden train`` / ``eden inference`` build it
+    through :func:`~eden.envs.wrappers.rsl_rl_env.make_rsl_rl_runner`.
+    """

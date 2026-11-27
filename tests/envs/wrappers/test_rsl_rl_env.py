@@ -6,6 +6,8 @@ files saved by a real runner (or rewritten from one into an older layout).
 
 from __future__ import annotations
 
+import copy
+import inspect
 import json
 import logging
 import os
@@ -15,6 +17,7 @@ from importlib import metadata
 import gymnasium as gym
 import pytest
 import torch
+from rsl_rl.runners import OnPolicyRunner
 from tensordict import TensorDict
 
 from eden.envs.wrappers import rsl_rl_env
@@ -38,7 +41,7 @@ from eden.envs.wrappers.rsl_rl_env import (
 )
 from eden.envs.wrappers.rsl_rl_compat import FINAL_OBS_KEY, log_env_step, stock_nan_check_reads_nested_groups
 from eden.options.learning.rsl_rl.translate import detect_rsl_rl_major_version
-from eden.utils.configs import EdenConfig, EdenRLConfig
+from eden.utils.configs import EdenConfig, EdenRLConfig, config_qualname
 from eden.utils.warning import warn_once
 from tests.envs.conftest import trace_config
 from tests.envs.wrappers.conftest import built_gym_pendulum_env, ending, rsl_rl_runner_options
@@ -445,6 +448,302 @@ def test_a_save_outside_the_model_checkpoint_naming_prunes_nothing(wrapper, tmp_
     runner.save(str(tmp_path / "export.pt"))
 
     assert sorted(p.name for p in tmp_path.glob("*.pt")) == ["export.pt", "model_2.pt"]
+
+
+# ---------------------------------------------------------------------------
+# The env state across a resume
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def step_counter(wrapper):
+    """The shared env, with the ``common_step_counter`` a test rewinds or resumes put back afterwards."""
+    env = wrapper.unwrapped
+    before = env.common_step_counter
+    yield env
+    env.common_step_counter = before
+
+
+def _trained_checkpoint(wrapper, log_dir) -> str:
+    """Train 2 iterations into ``log_dir``; return the path of the newest checkpoint the run saved."""
+    runner_dict = {**wrapper.runner_dict, "save_interval": 1}
+    MimicOnPolicyRunner(wrapper, runner_dict, log_dir=str(log_dir), device="cpu").learn(num_learning_iterations=2)
+    return os.path.join(log_dir, rsl_rl_env.model_checkpoints(str(log_dir))[-1][1])
+
+
+def _accepts_strict(runner_class) -> bool:
+    return "strict" in inspect.signature(runner_class.load).parameters
+
+
+def test_a_resumed_run_continues_the_step_counter_its_checkpoint_saved(wrapper, step_counter, tmp_path):
+    """Step-scheduled curricula read the counter: a resume that restarted it at 0 restarted their schedule (#47)."""
+    checkpoint = _trained_checkpoint(wrapper, tmp_path / "run")
+    reached = step_counter.common_step_counter
+    assert reached > 0
+    record = torch.load(checkpoint, weights_only=False)["infos"][rsl_rl_env.ENV_STATE_INFOS_KEY]
+    assert record["task"] == config_qualname(wrapper.unwrapped.config)
+    assert record["env"] == {"common_step_counter": reached}
+    step_counter.common_step_counter = 0  # what the resumed run's freshly built env starts from
+
+    resumed = make_rsl_rl_runner(wrapper, checkpoint=checkpoint, log_dir=str(tmp_path / "resumed"))
+
+    assert step_counter.common_step_counter == reached
+    assert resumed.current_learning_iteration == rsl_rl_env.model_checkpoints(str(tmp_path / "run"))[-1][0]
+    # `load_runner_checkpoint` reads through the mixin's `load(path, *args, **kwargs)` to decide on `strict=`.
+    assert ("strict" in rsl_rl_env._load_parameters(resumed)) == _accepts_strict(OnPolicyRunner)
+
+
+def _checkpoint_at_iteration_7(runner, step_counter, path) -> dict:
+    """Save ``runner`` at iteration 7 to ``path``, rewind the env's counter to a fresh run's 0, and return the saved
+    state for a test to edit and write back.
+    """
+    runner.current_learning_iteration = 7
+    runner.save(path)
+    step_counter.common_step_counter = 0
+    return torch.load(path, weights_only=False)
+
+
+def _save_config_beside(wrapper, checkpoint: str, *, config_class: str | None = None) -> None:
+    """Write the ``config.json`` a training run saves beside its checkpoints, naming ``config_class`` if given, or no
+    class at all for ``""`` (a save from before configs recorded their class).
+    """
+    sibling = os.path.join(os.path.dirname(checkpoint), "config.json")
+    wrapper.unwrapped.config.save_as_json(sibling, lock_config=False)
+    if config_class is not None:
+        saved = json.loads(pathlib.Path(sibling).read_text())
+        if config_class:
+            saved["_meta"]["_option_class_"] = config_class
+        else:
+            del saved["_meta"]["_option_class_"]
+        pathlib.Path(sibling).write_text(json.dumps(saved))
+
+
+def _without_record(state: dict, path: str) -> None:
+    """Write ``state`` back to ``path`` as a checkpoint saved before the env-state record existed."""
+    del state["infos"][rsl_rl_env.ENV_STATE_INFOS_KEY]
+    torch.save(state, path)
+
+
+def test_a_checkpoint_of_another_task_leaves_the_counter_at_its_start(
+    wrapper, runner, step_counter, tmp_path, eden_caplog
+):
+    """A warm start from another task's run: that run's step count is not this task's schedule."""
+    path = str(tmp_path / "model_7.pt")
+    state = _checkpoint_at_iteration_7(runner, step_counter, path)
+    record = state["infos"][rsl_rl_env.ENV_STATE_INFOS_KEY]
+    record["task"], record["env"]["common_step_counter"] = "eden.tasks.other.OtherTaskConfig", 999
+    torch.save(state, path)
+
+    resumed = make_rsl_rl_runner(wrapper, checkpoint=path, log_dir=str(tmp_path / "resumed"))
+
+    assert resumed.current_learning_iteration == 7
+    assert step_counter.common_step_counter == 0
+    (message,) = _warnings(eden_caplog, "was trained on eden.tasks.other.OtherTaskConfig")
+    assert "subtract 999 from each stage's `step`" in message
+
+
+@pytest.mark.parametrize(("saved_class", "restored"), [(None, True), ("OtherTaskConfig", False)], ids=str)
+def test_a_record_from_a_script_run_as_main_matches_the_same_class_imported(
+    wrapper, runner, step_counter, tmp_path, saved_class, restored
+):
+    """A script's config class is ``__main__.Class`` when the script runs directly and ``module.Class`` imported."""
+    path = str(tmp_path / "model_7.pt")
+    state = _checkpoint_at_iteration_7(runner, step_counter, path)
+    record = state["infos"][rsl_rl_env.ENV_STATE_INFOS_KEY]
+    record["task"] = f"__main__.{saved_class or type(wrapper.unwrapped.config).__name__}"
+    record["env"]["common_step_counter"] = 999
+    torch.save(state, path)
+
+    make_rsl_rl_runner(wrapper, checkpoint=path, log_dir=str(tmp_path / "resumed"))
+
+    assert step_counter.common_step_counter == (999 if restored else 0)
+
+
+def test_a_checkpoint_without_the_record_resumes_the_counter_from_its_iteration(
+    wrapper, runner, step_counter, tmp_path, eden_caplog
+):
+    """A checkpoint saved before the record existed, beside its run's ``config.json`` of this task:
+    ``iteration * num_steps_per_env``, with a warning that calls it a lower bound.
+    """
+    path = str(tmp_path / "model_7.pt")
+    _without_record(_checkpoint_at_iteration_7(runner, step_counter, path), path)
+    _save_config_beside(wrapper, path)
+
+    make_rsl_rl_runner(wrapper, checkpoint=path, log_dir=str(tmp_path / "resumed"))
+
+    assert step_counter.common_step_counter == 7 * wrapper.runner_dict["num_steps_per_env"]
+    (message,) = _warnings(eden_caplog, "records no env state")
+    assert "lower bound" in message
+
+
+@pytest.mark.parametrize(
+    ("config_class", "warning"),
+    [
+        (None, "Eden cannot tell whether it is this run's task"),
+        ("", "Eden cannot tell whether it is this run's task"),
+        ("OtherTaskConfig", "OtherTaskConfig, not this run's"),
+    ],
+    ids=["loose", "config_without_class", "other_task"],
+)
+def test_a_checkpoint_without_the_record_of_an_unconfirmed_task_leaves_the_counter_at_its_start(
+    wrapper, runner, step_counter, tmp_path, eden_caplog, config_class, warning
+):
+    """Without a record, only the ``config.json`` beside the checkpoint names its task: no such file, one that
+    records no class, or one of another class, and the iteration's step count is not known to be this task's schedule.
+    """
+    path = str(tmp_path / "model_7.pt")
+    _without_record(_checkpoint_at_iteration_7(runner, step_counter, path), path)
+    if config_class is not None:
+        _save_config_beside(wrapper, path, config_class=config_class)
+
+    resumed = make_rsl_rl_runner(wrapper, checkpoint=path, log_dir=str(tmp_path / "resumed"))
+
+    assert resumed.current_learning_iteration == 7
+    assert step_counter.common_step_counter == 0
+    assert _warnings(eden_caplog, warning)
+
+
+@pytest.mark.parametrize("content", ["{not json", "[1, 2]"], ids=["malformed", "not_a_mapping"])
+def test_an_unreadable_config_beside_the_checkpoint_restarts_the_counter_and_the_resume_goes_on(
+    wrapper, runner, step_counter, tmp_path, eden_caplog, content
+):
+    """The file is read only to name the checkpoint's task, after the weights have loaded: it must not stop the run."""
+    path = str(tmp_path / "model_7.pt")
+    _without_record(_checkpoint_at_iteration_7(runner, step_counter, path), path)
+    (tmp_path / "config.json").write_text(content)
+
+    resumed = make_rsl_rl_runner(wrapper, checkpoint=path, log_dir=str(tmp_path / "resumed"))
+
+    assert resumed.current_learning_iteration == 7
+    assert step_counter.common_step_counter == 0
+    (message,) = _warnings(eden_caplog, "the config.json beside it could not be read")
+    assert "Eden cannot tell whether it is this run's task" in message
+
+
+def test_a_record_at_another_iteration_than_the_load_resumed_restarts_the_counter_and_says_so(
+    wrapper, runner, step_counter, tmp_path, eden_caplog
+):
+    """A runner whose ``save`` and ``load`` disagree about the iteration: the record cannot be placed in this run."""
+    path = str(tmp_path / "model_7.pt")
+    state = _checkpoint_at_iteration_7(runner, step_counter, path)
+    state["infos"][rsl_rl_env.ENV_STATE_INFOS_KEY]["iteration"] = 5
+    torch.save(state, path)
+
+    resumed = make_rsl_rl_runner(wrapper, checkpoint=path, log_dir=str(tmp_path / "resumed"))
+
+    assert resumed.current_learning_iteration == 7
+    assert step_counter.common_step_counter == 0
+    assert _warnings(eden_caplog, "was recorded at iteration 5")
+
+
+def test_a_runner_without_num_steps_per_env_restarts_an_unrecorded_counter_and_says_so(
+    wrapper, runner, step_counter, tmp_path, eden_caplog
+):
+    path = str(tmp_path / "model_7.pt")
+    _without_record(_checkpoint_at_iteration_7(runner, step_counter, path), path)
+    _save_config_beside(wrapper, path)
+    resumed = make_rsl_rl_runner(wrapper, log_dir=str(tmp_path / "resumed"))
+    del resumed.cfg["num_steps_per_env"]
+
+    load_runner_checkpoint(resumed, path)
+
+    assert resumed.current_learning_iteration == 7
+    assert step_counter.common_step_counter == 0
+    assert _warnings(eden_caplog, "has no num_steps_per_env to derive one from")
+
+
+class _LoadOverridingRunner(MimicOnPolicyRunner):
+    """A learner that extends loading the usual way: its own ``load`` calling ``super().load``."""
+
+    def load(self, path, *args, **kwargs):  # type: ignore[no-untyped-def]
+        self.loaded_from = path
+        return super().load(path, *args, **kwargs)
+
+
+def test_a_runner_that_overrides_load_and_calls_super_still_restores(wrapper, runner, step_counter, tmp_path):
+    path = str(tmp_path / "model_7.pt")
+    step_counter.common_step_counter = 28
+    _checkpoint_at_iteration_7(runner, step_counter, path)
+    overriding = _LoadOverridingRunner(wrapper, wrapper.runner_dict, log_dir=None, device="cpu")
+
+    load_runner_checkpoint(overriding, path)
+
+    assert overriding.loaded_from == path
+    assert step_counter.common_step_counter == 28
+    assert ("strict" in rsl_rl_env._load_parameters(overriding)) == _accepts_strict(OnPolicyRunner)
+
+
+def test_a_deep_copied_runner_loads_and_restores_into_itself(wrapper, runner, step_counter, tmp_path):
+    path = str(tmp_path / "model_7.pt")
+    step_counter.common_step_counter = 28
+    _checkpoint_at_iteration_7(runner, step_counter, path)
+    # No log_dir: rsl-rl-lib 3.x opens its TensorBoard writer in __init__ when given one, and the writer's thread lock
+    # cannot be deep-copied (4.x and later open it in learn()). Built directly, since make_rsl_rl_runner(log_dir=None)
+    # falls back to en.log_dir.
+    original = MimicOnPolicyRunner(wrapper, wrapper.runner_dict, log_dir=None, device="cpu")
+    clone = copy.deepcopy(original, {id(wrapper): wrapper})  # one env: the scene is not the runner's to copy
+
+    load_runner_checkpoint(clone, path)
+
+    assert clone.current_learning_iteration == 7
+    assert original.current_learning_iteration == 0
+    assert step_counter.common_step_counter == 28
+
+
+@split_layout
+@pytest.mark.skipif(hasattr(os, "geteuid") and os.geteuid() == 0, reason="root writes into a read-only directory")
+def test_a_legacy_checkpoint_converted_outside_its_directory_still_reads_the_config_beside_it(
+    wrapper, runner, step_counter, tmp_path, eden_caplog
+):
+    """A read-only run directory: rsl_rl loads a converted copy from a temporary file, which names the original, so
+    the counter is still matched against the ``config.json`` beside it, and the warning names that file.
+    """
+    run_dir = tmp_path / "read_only_run"
+    run_dir.mkdir()
+    path = str(run_dir / "model_7.pt")
+    _write_legacy(runner, path)
+    _save_config_beside(wrapper, path)
+    step_counter.common_step_counter = 0
+    resumed = make_rsl_rl_runner(wrapper, log_dir=str(tmp_path / "resumed"))
+    run_dir.chmod(0o555)
+    try:
+        load_runner_checkpoint(resumed, path)
+    finally:
+        run_dir.chmod(0o755)
+
+    assert not list(run_dir.glob("*.converted.pt"))
+    assert step_counter.common_step_counter == 7 * wrapper.runner_dict["num_steps_per_env"]
+    (message,) = _warnings(eden_caplog, "records no env state")
+    assert message.startswith(f"Checkpoint {path} records")
+
+
+@split_layout
+def test_a_teacher_loaded_into_a_fresh_distillation_leaves_the_counter_at_its_start(
+    runner, distiller, step_counter, tmp_path
+):
+    """The distillation starts its own iterations at 0, so its schedules start there too."""
+    path = str(tmp_path / "model_7.pt")
+    step_counter.common_step_counter = 7 * 4
+    runner.current_learning_iteration = 7
+    runner.save(path)
+    step_counter.common_step_counter = 0
+
+    load_runner_checkpoint(distiller, path)
+
+    assert distiller.current_learning_iteration == 0
+    assert step_counter.common_step_counter == 0
+
+
+def test_an_eval_env_keeps_its_own_step_counter(pendulum_file, wrapper, step_counter, tmp_path):
+    """Its curricula are frozen, and ``eden inference`` replays from step 0."""
+    checkpoint = _trained_checkpoint(wrapper, tmp_path / "run")
+    config = trace_config(pendulum_file, str(tmp_path / "recordings"))
+    config.runner_options = rsl_rl_runner_options()
+    evaluation = RslRlVecEnvWrapper.from_config(config, eval_mode=True)
+
+    make_rsl_rl_runner(evaluation, checkpoint=checkpoint, log_dir=None, for_inference=True)
+
+    assert evaluation.unwrapped.common_step_counter == 0
 
 
 # ---------------------------------------------------------------------------

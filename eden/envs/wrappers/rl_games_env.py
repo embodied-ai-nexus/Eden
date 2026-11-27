@@ -31,9 +31,11 @@ import gymnasium as gym
 import torch
 from rl_games.common.ivecenv import IVecEnv
 
+import eden as en
 from eden.envs.wrappers.core import EnvWrapperMixin, action_space, time_outs
 from eden.options.learning.rl_games.rl import check_agents_options
 from eden.options.learning.rl_games.translate import translate_runner_dict
+from eden.utils.configs import config_qualname, same_config_class
 
 if TYPE_CHECKING:
     from eden.envs.base import RLEnvBase
@@ -344,11 +346,47 @@ class RlGamesVecEnvWrapper(EnvWrapperMixin, IVecEnv):
     def set_train_info(self, env_frames: int, *args: Any, **kwargs: Any) -> None:
         pass
 
-    def get_env_state(self) -> None:
-        return None
+    def get_env_state(self) -> dict[str, Any]:
+        """What rl_games saves in a checkpoint's ``env_state``: ``{"task", "env"}``.
+
+        ``env`` is the env's training progress (:meth:`~eden.envs.base.RLEnvBase.state_dict`), which step-scheduled
+        curricula and events read, so a resumed run restores it through :meth:`set_env_state` to continue their
+        schedule rather than restart it. ``task`` is the config class (:func:`~eden.utils.configs.config_qualname`),
+        so a checkpoint of another task does not move this task's schedule.
+        """
+        return {"task": config_qualname(self.unwrapped.config), "env": self.unwrapped.state_dict()}
 
     def set_env_state(self, env_state: Any) -> None:
-        pass
+        """Restore what :meth:`get_env_state` saved; rl_games calls it when a training run restores a checkpoint.
+
+        The env state is restored when the checkpoint was trained on this run's config class
+        (:func:`~eden.utils.configs.same_config_class`). An eval env keeps its own state, as its curricula are frozen.
+        A checkpoint saved before the record existed (``env_state`` ``None``) or one of another task (a warm start)
+        leaves the counter at 0, with a warning. rl_games passes no checkpoint path here, so there is no
+        ``config.json`` beside it to read an older checkpoint's class from.
+        """
+        env = self.unwrapped
+        if not env.training:
+            return
+        if env_state is None:
+            en.logger.warning(
+                "The rl_games checkpoint being restored records no env state (it was saved before Eden recorded one), "
+                "so env.common_step_counter restarts at 0: step-scheduled curricula and events start over from their "
+                "first stage. To keep their schedule, subtract the steps the checkpoint trained for from each stage's "
+                "`step` with --override."
+            )
+            return
+        task, saved_task = config_qualname(env.config), env_state["task"]
+        if not same_config_class(saved_task, task):
+            saved = env_state["env"].get("common_step_counter")
+            en.logger.warning(
+                f"The rl_games checkpoint being restored was trained on {saved_task}, and this run is {task}, so "
+                f"env.common_step_counter starts at 0 instead of the checkpoint's {saved}: this task's step-scheduled "
+                f"curricula and events begin at their first stage. If the checkpoint is this task's, keep the schedule "
+                f"by subtracting {saved} from each stage's `step` with --override."
+            )
+            return
+        env.load_state_dict(env_state["env"])
 
     def close(self) -> None:
         """Destroy the env's scene if :meth:`from_config` built it; an env passed to ``__init__`` stays the caller's."""

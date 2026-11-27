@@ -7,6 +7,8 @@ that teacher checkpoint and resumes from its own. The depth renderer is the conf
 
 from __future__ import annotations
 
+import json
+
 import pytest
 import torch
 
@@ -87,9 +89,14 @@ def test_the_student_distills_the_teacher_and_resumes_from_its_own_checkpoint(
     runner.learn(num_learning_iterations=2, init_at_random_ep_len=True)
     student_checkpoint = _latest(tmp_path)
     assert any(not torch.equal(alg.depth_actor.state_dict()[k], v) for k, v in alg.teacher.net.state_dict().items())
+    # EDEN_RUNNER_MIXINS wrap the student's own loop and checkpoint format, which sit in a base class below them.
+    assert json.loads((tmp_path / "progress.json").read_text())["status"] == "completed"
+    reached = wrapper.unwrapped.common_step_counter
+    wrapper.unwrapped.common_step_counter = 0  # what the resumed run's freshly built env starts from
 
     resumed = make_rsl_rl_runner(wrapper, checkpoint=student_checkpoint, log_dir=str(tmp_path / "resumed"))
     assert resumed.current_learning_iteration == 1
+    assert wrapper.unwrapped.common_step_counter == reached
     for key, value in alg.depth_encoder.state_dict().items():
         assert torch.equal(resumed.alg.depth_encoder.state_dict()[key], value), key
     actions = resumed.get_inference_policy(device=wrapper.device)(wrapper.get_observations())

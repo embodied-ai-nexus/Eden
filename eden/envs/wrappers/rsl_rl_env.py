@@ -40,6 +40,13 @@ from eden.envs.wrappers.rsl_rl_compat import FINAL_OBS_KEY, episode_buffers, sto
 from eden.options.learning.rsl_rl.translate import translate_runner_dict
 from eden.utils import distributed as eden_dist
 from eden.utils.assets import model_checkpoints
+from eden.utils.configs import (
+    config_qualname,
+    read_config_file,
+    same_config_class,
+    saved_config_qualname,
+    saved_training_config,
+)
 from eden.utils.run_manifest import read_run_manifest
 from eden.utils.torch import read_checkpoint_index
 from eden.utils.warning import warn_once
@@ -703,6 +710,158 @@ class CheckpointRetentionMixin:
             )
 
 
+#: The ``infos`` entry a checkpoint records the env's state under (:class:`EnvStateCheckpointMixin`).
+ENV_STATE_INFOS_KEY = "env_state"
+
+#: The ``infos`` entry of a converted legacy checkpoint naming the file it was converted from
+#: (:func:`_maybe_convert_legacy_checkpoint`): the copy may sit in a temporary directory, away from the ``config.json``
+#: beside the original.
+CONVERTED_FROM_INFOS_KEY = "converted_from"
+
+
+class EnvStateCheckpointMixin:
+    """Save the env's state (:meth:`~eden.envs.base.RLEnvBase.state_dict`) with each checkpoint, and restore it when
+    a training run of the same task loads one.
+
+    Step-scheduled curricula (``VelocityCommandCurriculum``, ``StageRewardWeightCurriculum``) and step-ramped events
+    (``ObjectVelocityDisturbance``) read ``env.common_step_counter``, which the env sets to 0 when it is built. Without
+    this a resumed run continues the iteration count while those schedules start over from their first stage.
+
+    ``save`` adds ``infos[ENV_STATE_INFOS_KEY] = {"task", "iteration", "env"}`` to what the runner saves: the config
+    class (:func:`~eden.utils.configs.config_qualname`), the iteration, and ``env.state_dict()``. ``load`` restores
+    ``env`` when the load resumed that iteration and the checkpoint was trained on this run's config class
+    (:func:`~eden.utils.configs.same_config_class`). Every other case leaves the env as it was built:
+
+    * A load that leaves the iteration where it was, such as a teacher checkpoint loaded into a fresh distillation
+      run, starts the state at 0 along with the iterations. A record at iteration 0 loaded into a runner at
+      iteration 0 cannot be told apart from a resume, and restores.
+    * A load that moves the iteration somewhere other than the record's (a runner whose ``save`` and ``load``
+      disagree about the iteration) logs a warning.
+    * A checkpoint of another task (a warm start with ``--checkpoint``) logs a warning that names both classes.
+    * A checkpoint without a record is matched against the ``config.json`` its run saved beside it; without that
+      file, or when it cannot be read, a warning says so. See :meth:`_derive_step_counter` for what a match restores.
+    * An eval env (``eval_mode=True``) keeps its own state: its curricula are frozen, and ``eden inference`` replays
+      from step 0.
+
+    ``load`` is an ordinary override that calls ``super().load``, so a runner gets it by putting its own ``load`` in a
+    class below the mixins (``SuperMimicRunner``, ``RmaDepthDistillationRunner``), or by calling ``super().load``.
+    """
+
+    def load(self, path: str, *args, **kwargs):  # type: ignore[no-untyped-def]
+        iteration_before = getattr(self, "current_learning_iteration", 0)
+        infos = super().load(path, *args, **kwargs)  # type: ignore[misc]
+        source = infos.get(CONVERTED_FROM_INFOS_KEY) if isinstance(infos, dict) else None
+        self._restore_env_state(infos, iteration_before, path=source or path)
+        return infos
+
+    def save(self, path: str, infos: dict | None = None) -> None:
+        record = {
+            "task": config_qualname(self.env.unwrapped.config),  # type: ignore[attr-defined]
+            "iteration": int(getattr(self, "current_learning_iteration", 0)),
+            "env": self.env.unwrapped.state_dict(),  # type: ignore[attr-defined]
+        }
+        super().save(path, {**(infos or {}), ENV_STATE_INFOS_KEY: record})  # type: ignore[misc]
+
+    def _restore_env_state(self, infos: Any, iteration_before: int, path: str) -> None:
+        env = self.env.unwrapped  # type: ignore[attr-defined]
+        if not env.training:
+            return
+        iteration = int(getattr(self, "current_learning_iteration", 0))
+        record = infos.get(ENV_STATE_INFOS_KEY) if isinstance(infos, dict) else None
+        restarts = (
+            "so env.common_step_counter restarts at 0: step-scheduled curricula and events start over from their "
+            "first stage."
+        )
+        if record is None:
+            if iteration != iteration_before:
+                self._derive_step_counter(env, iteration, path, restarts)
+            return  # without a resumed iteration the run starts its own schedule at step 0
+        saved_steps = record["env"].get("common_step_counter")
+        keep_schedule = f"subtract {saved_steps} from each stage's `step` with --override."
+        if int(record["iteration"]) != iteration:
+            if iteration != iteration_before:
+                en.logger.warning(
+                    f"Checkpoint {path} resumed this runner at iteration {iteration}, but its env state (step counter "
+                    f"{saved_steps}) was recorded at iteration {record['iteration']}: the runner's save and load "
+                    f"disagree about the iteration, {restarts} To keep their schedule, {keep_schedule} Then make "
+                    f"{type(self).__name__}.load restore the iteration that save wrote."
+                )
+            return  # the load did not resume an iteration (a teacher), so the run starts its schedule at step 0
+        task = config_qualname(env.config)
+        if not same_config_class(record["task"], task):
+            en.logger.warning(
+                f"Checkpoint {path} records an env step counter of {saved_steps}, and it was trained on "
+                f"{record['task']}, not this run's {task}, {restarts} If that class is this task under an earlier "
+                f"module or class name, keep their schedule: {keep_schedule}"
+            )
+            return
+        env.load_state_dict(record["env"])
+
+    def _derive_step_counter(self, env: Any, iteration: int, path: str, restarts: str) -> None:
+        """Set the counter of a resumed checkpoint saved before the env-state record: ``iteration * num_steps_per_env``.
+
+        A migration path for checkpoints of Eden 0.1.1 and earlier; remove it once those need not resume on schedule.
+        The checkpoint's task is read off the ``config.json`` beside it, and nothing is restored without a match. The
+        count is a lower bound even when ``num_steps_per_env`` never changed: rsl_rl's runner names a checkpoint after
+        the iteration it has just finished, so a run that started at iteration 0 took one iteration more, and each
+        earlier resume re-ran the iteration it loaded.
+        """
+        known = f"Checkpoint {path} records no env state (it was saved before Eden recorded one)"
+        keep_schedule = "subtract the steps the checkpoint trained for from each stage's `step` with --override."
+        task = config_qualname(env.config)
+        saved_task, unreadable = _sibling_config_qualname(path)
+        if saved_task is None:
+            missing = (
+                f"the config.json beside it {unreadable}"
+                if unreadable
+                else "no config.json beside it records the config class it trained"
+            )
+            en.logger.warning(
+                f"{known}, and {missing}. Eden cannot tell whether it is this run's task ({task}), {restarts} If it "
+                f"is, keep their schedule: {keep_schedule}"
+            )
+            return
+        if not same_config_class(saved_task, task):
+            en.logger.warning(
+                f"{known}, and it was trained on {saved_task}, not this run's {task}, {restarts} If that class is "
+                f"this task under an earlier module or class name, keep their schedule: {keep_schedule}"
+            )
+            return
+        steps_per_iteration = (getattr(self, "cfg", None) or {}).get("num_steps_per_env")
+        if steps_per_iteration is None:
+            en.logger.warning(
+                f"{known}, and this runner has no num_steps_per_env to derive one from, {restarts} To keep their "
+                f"schedule, {keep_schedule}"
+            )
+            return
+        env.common_step_counter = iteration * int(steps_per_iteration)
+        en.logger.warning(
+            f"{known}, so env.common_step_counter, which step-scheduled curricula and events read, resumes at "
+            f"iteration {iteration} x num_steps_per_env {steps_per_iteration} = {env.common_step_counter}. If the run "
+            "kept this num_steps_per_env throughout, that is a lower bound: rsl_rl names a checkpoint after the "
+            "iteration it has just finished, so a run that started at iteration 0 took one iteration more, and each "
+            "earlier resume re-ran one iteration. A stage that begins in that gap starts that many iterations late. "
+            "The checkpoints this run saves record the exact count."
+        )
+
+
+def _sibling_config_qualname(checkpoint: str) -> tuple[str | None, str | None]:
+    """``(config class, None)`` from the ``config.json`` beside ``checkpoint``, or ``(None, why)`` when it names none.
+
+    ``why`` is ``None`` when there is no such file or it records no class, and says why when the file cannot be read
+    (malformed JSON, not a mapping, no permission). The caller warns with it and leaves the counter at 0, as for a
+    checkpoint of an unknown task: the file is only consulted for the step counter, after the weights have loaded, so
+    a bad one must not stop a resume that loads.
+    """
+    sibling = saved_training_config(checkpoint)
+    if sibling is None:
+        return None, None
+    try:
+        return saved_config_qualname(read_config_file(sibling)), None
+    except (OSError, ValueError) as exc:  # json.JSONDecodeError is a ValueError
+        return None, f"could not be read ({type(exc).__name__}: {exc})"
+
+
 class SaveBeforeLearnMixin:
     """Let a runner save a checkpoint before ``learn()`` under rsl-rl-lib 4.x.
 
@@ -749,13 +908,27 @@ class StockNanCheckGuardMixin:
 
 
 #: What Eden adds to every rsl_rl runner it builds, in MRO order: ``progress.json``, the agent log theme, checkpoint
-#: retention, and saving before ``learn()`` on rsl-rl-lib 4.x. The runners for other rsl_rl-based learners (FlashSAC's
-#: ``OffPolicyRunner``, SuperMimic's, the RMA depth student's) compose the same tuple, so a feature added here reaches
-#: every learner. The one exception is ``ContrackOnPolicyRunner``, which composes only
-#: :class:`CheckpointRetentionMixin`: its fork's runner has no rsl_rl ``Logger`` for the others to read, and sets its
-#: own ``writer`` in ``__init__``. :class:`MotionWeightCurriculumMixin` is not in the tuple: it steps the curriculum once
-#: per PPO iteration (a rollout of ``num_steps_per_env`` steps), which is not what an off-policy iteration is.
-EDEN_RUNNER_MIXINS = (ProgressFileMixin, AgentIterationLogMixin, CheckpointRetentionMixin, SaveBeforeLearnMixin)
+#: retention, the env state in each checkpoint, and saving before ``learn()`` on rsl-rl-lib 4.x. The runners for other
+#: rsl_rl-based learners (FlashSAC's ``OffPolicyRunner``, SuperMimic's, the RMA depth student's) compose the same tuple,
+#: so a feature added here reaches every learner.
+#:
+#: The mixins override ``learn`` / ``save`` / ``load`` and call ``super()``, so they apply only to methods defined
+#: *below* them in the MRO: a learner defines its loop and its checkpoint format in a base class and composes this tuple
+#: on top (``SuperMimicRunner(*EDEN_RUNNER_MIXINS, _SuperMimicRunner)``). A ``learn`` or ``load`` written in the same
+#: class body as the tuple runs instead of them, and that runner silently loses them.
+#:
+#: Runners outside the tuple: ``ContrackOnPolicyRunner`` composes only :class:`CheckpointRetentionMixin` (its fork's
+#: runner has no rsl_rl ``Logger`` for the others to read, and sets its own ``writer`` in ``__init__``), so it does not
+#: restore the env state; ``eden deploy`` builds a stock ``OnPolicyRunner``, whose eval env would not restore it either.
+#: :class:`MotionWeightCurriculumMixin` is not in the tuple: it steps the curriculum once per PPO iteration (a rollout
+#: of ``num_steps_per_env`` steps), which is not what an off-policy iteration is.
+EDEN_RUNNER_MIXINS = (
+    ProgressFileMixin,
+    AgentIterationLogMixin,
+    CheckpointRetentionMixin,
+    EnvStateCheckpointMixin,
+    SaveBeforeLearnMixin,
+)
 
 
 class MimicOnPolicyRunner(*EDEN_RUNNER_MIXINS, StockNanCheckGuardMixin, MotionWeightCurriculumMixin, OnPolicyRunner):
@@ -1064,12 +1237,16 @@ def _maybe_convert_legacy_checkpoint(path: str, *, std_type: str) -> str:
         "critic_state_dict": critic_sd,
         "optimizer_state_dict": state.get("optimizer_state_dict"),
         "iter": state.get("iter", 0),
-        "infos": state.get("infos"),
+        # The copy may land in a temporary directory: name the original, whose config.json the env-state restore reads.
+        "infos": {**(state.get("infos") or {}), CONVERTED_FROM_INFOS_KEY: path},
     }
 
     out_path = cached_out_path
+    # Opened here rather than by path: `torch.save(obj, path)` reports an unwritable directory as a RuntimeError from
+    # its zip writer, which the OSError below would miss, and catching RuntimeError would also catch a failed save.
     try:
-        torch.save(converted, out_path)
+        with open(out_path, "wb") as file:
+            torch.save(converted, file)
     except OSError:
         out_path = tempfile.NamedTemporaryFile(suffix=".converted.pt", delete=False).name
         torch.save(converted, out_path)
@@ -1329,6 +1506,25 @@ def _rsl_rl_checkpoint_format_error(
     )
 
 
+def _load_parameters(runner) -> set[str]:
+    """The keyword names ``runner.load`` accepts, read through the overrides that pass theirs on as ``**kwargs``.
+
+    A mixin's ``load(self, path, *args, **kwargs)`` (:class:`EnvStateCheckpointMixin`) accepts whatever the ``load``
+    below it in the MRO does, so the first ``load`` without ``**kwargs`` names them: rsl-rl-lib 3.x's has no
+    ``strict``, 4.x to 6.x's do. An instance attribute ``load`` is read as it is.
+    """
+    if "load" in vars(runner):
+        return set(inspect.signature(runner.load).parameters)
+    for klass in type(runner).__mro__:
+        load = vars(klass).get("load")
+        if load is None:
+            continue
+        parameters = inspect.signature(load).parameters.values()
+        if not any(p.kind is p.VAR_KEYWORD for p in parameters):
+            return {p.name for p in parameters}
+    return set()
+
+
 def load_runner_checkpoint(runner, checkpoint: str) -> None:
     """``runner.load`` across rsl-rl-lib versions (the ``>=3.0`` pin spans both layouts).
 
@@ -1384,7 +1580,7 @@ def load_runner_checkpoint(runner, checkpoint: str) -> None:
         # (just one the user knows about).
         loaded_keys = _audit_rsl_rl_checkpoint_keys(runner, load_path, device)
     try:
-        if "strict" in inspect.signature(runner.load).parameters:
+        if "strict" in _load_parameters(runner):
             runner.load(load_path, map_location=device, strict=False)
         else:
             runner.load(load_path, map_location=device)

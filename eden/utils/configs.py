@@ -139,6 +139,37 @@ def saved_config_qualname(data: dict) -> str | None:
     return f"{module_name}.{class_name}" if module_name and class_name else None
 
 
+def config_qualname(config: Any) -> str:
+    """The ``module.Class`` of ``config``, in the form :func:`saved_config_qualname` reads off a saved one."""
+    config_class = type(config)
+    return f"{config_class.__module__}.{config_class.__name__}"
+
+
+def same_config_class(saved: str, current: str) -> bool:
+    """Whether a saved config class ``saved`` is ``current`` (both ``module.Class``): the task-identity test.
+
+    The exact class is a task's identity. Task mods edit a config without changing its class, so they count as one
+    task; a separately registered task whose config subclasses another's (``ManipulationLiftBoxRGBConfig`` of
+    ``ManipulationLiftBoxConfig``) is another task. Equal class names also match when either module is ``__main__``:
+    a config class defined in a script is ``__main__.Class`` when the script runs directly and ``module.Class`` when
+    something imports it, and both are the same class.
+
+    ``eden inference`` / ``eden deploy`` use it to check a checkpoint's ``config.json`` against ``--task``, and the
+    training runners to decide whether a checkpoint's env state is this task's to restore.
+    """
+    if saved == current:
+        return True
+    saved_module, _, saved_class = saved.rpartition(".")
+    current_module, _, current_class = current.rpartition(".")
+    return saved_class == current_class and "__main__" in (saved_module, current_module)
+
+
+def saved_training_config(checkpoint: str) -> str | None:
+    """The ``config.json`` its training run saved beside ``checkpoint``, or ``None`` for a loose checkpoint."""
+    sibling = os.path.join(os.path.dirname(os.path.abspath(checkpoint)), "config.json")
+    return sibling if os.path.exists(sibling) else None
+
+
 def overrides_from_str(text: str) -> dict:
     """Parse one ``--override`` argument — an inline YAML (or JSON) mapping — into a dict.
 
