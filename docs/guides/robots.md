@@ -161,6 +161,8 @@ All hands default to a free base. Each class name ends in `_L` or `_R`; the regi
 | `WujiHand1Simplified_L`, `WujiHand1Simplified_R` | `wuji_hand1_simplified_l`, `wuji_hand1_simplified_r` | 20 (primitive collision) | `hands/wuji_hand1/` |
 | `WujiHand2Beta2_L`, `WujiHand2Beta2_R` | `wuji_hand2beta2_l`, `wuji_hand2beta2_r` | 20 | `hands/wuji_hand2beta2/` |
 | `WujiHand2Beta2WithMount_L`, `WujiHand2Beta2WithMount_R` | `wuji_hand2beta2_with_mount_l`, `wuji_hand2beta2_with_mount_r` | 20 (root link is the mount plate) | `hands/wuji_hand2beta2/` |
+| `WujiHand2_2_L`, `WujiHand2_2_R` | `wuji_hand2_2_l`, `wuji_hand2_2_r` | 20 (with the cover; root link is the mount plate) | `hands/wuji_hand2_2/` |
+| `WujiHand2_2Skeleton_L`, `WujiHand2_2Skeleton_R` | `wuji_hand2_2_skeleton_l`, `wuji_hand2_2_skeleton_r` | 20 (bare; root link is the mount plate) | `hands/wuji_hand2_2/` |
 
 !!! warning "The Inspire RH56 hands are marked unstable"
     `eden/options/robots/inspire_rh56.py` flags its base class as a placeholder whose setup is unstable: the
@@ -348,6 +350,19 @@ v3.0.0 use 1.98413, so on those versions the hand runs 3.8% stiffer than the sim
 deploying with `control_mode="mit_v2"` (firmware 3.1.0+) programs the joint-space gains directly. The specs hold no
 operating point: the current a task runs the hand at, and so its force limits, belong to the robot
 (`_WujiHand2Beta2.current_limit_a`, 1.5 A, pen spin's operating point).
+
+`WujiHand2_2` is the current revision of the hand and the one Wuji's
+[wuji-sim](https://github.com/wuji-technology/wuji-sim) simulates. Its joint names, axes and limits are
+`WujiHand2Beta2WithMount`'s; the palm's MCP origins, the fingertip frames, the meshes and the inertials differ, so
+check a policy trained on one model in simulation on the other before reusing it. `WujiHand2_2_*` carries Wuji's
+cover: 21 rigid pieces fixed to the palm and the finger segments, with their own collision meshes and 95.8 g in all
+(0.7836 kg with the hand, from Wuji's weighing data; upstream models no deformation). `WujiHand2_2Skeleton_*` is
+the bare hand (0.6878 kg). Both load upstream's MJCF rather than its URDF: the MJCF excludes the contact pairs that
+overlap by assembly (344 with the cover, 15 bare), which a URDF cannot carry, so from the URDF the covered hand
+collides with itself on the way into a fist. The presets use the same motor specs, gains and 1.5 A operating point
+as beta2, with wuji-sim's joint dynamics: the per-joint armature that the specs average (set on the robot, not
+averaged per motor) and zero friction loss and damping, which wuji-sim leaves unidentified. Pass `WujiHand2Beta2`'s
+identified values as `default_dofs_frictionloss` / `default_dofs_damping` to train against them instead.
 
 ## Adding a robot
 

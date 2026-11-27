@@ -54,7 +54,7 @@ one, so a robot subclass inherits its parent's backend. To support a new robot, 
 | `Oli` | `LimxOliDeployment` | LimX low-level SDK (`limxsdk`) |
 | `FrankaEmikaPanda`, `FrankaResearch3`, `FrankaEmikaPandaNoHand` | `FrankaPandaDeployment` | `panda-python` (libfranka) |
 | `XHand1_R`, `XHand1_L` | `RoboTeraXHandDeployment` | `xhand_controller` (RS485 or EtherCAT) |
-| `WujiHand1_R` / `_L`, `WujiHand2Beta2_R` / `_L` (and their subclasses) | `WujiHandDeployment` | `wujihandpy` (Hand 1) / `wuji_sdk` (Hand 2) |
+| `WujiHand1_R` / `_L`, `WujiHand2Beta2_R` / `_L`, `WujiHand2_2_R` / `_L` (and their subclasses) | `WujiHandDeployment` | `wujihandpy` (Hand 1) / `wuji_sdk` (Hand 2) |
 | Any composite rig (`FrankaXHand`, `OliWuji`, …) | `CompositeDeployment` | Each part through its own backend |
 | Anything, with `--mujoco` | `MujocoDeployment` / `MujocoCompositeDeployment` | In-process MuJoCo |
 

@@ -19,6 +19,7 @@ from eden.extensions.deployment import resolve_deployment_for
 from eden.extensions.deployment import wuji_hand as wh
 from eden.extensions.deployment.utils.state import RobotCommand
 from eden.options.robots.wuji_hand1 import WujiHand1_L, WujiHand1_R
+from eden.options.robots.wuji_hand2_2 import WujiHand2_2_L, WujiHand2_2_R
 from eden.options.robots.wuji_hand2beta2 import WujiHand2Beta2_L, WujiHand2Beta2_R, WujiHand2Beta2WithMount_L
 from eden.utils.string import resolve_matching_names_values
 from tests.support.deploy import ScriptedHandTransport, assert_dofs_looked_up_by_name, deployments, robot_env
@@ -37,7 +38,7 @@ def _command(dofs_pos) -> RobotCommand:
 
 @pytest.fixture(scope="module")
 def envs():
-    """``envs(generation)``: a right Hand 1 or a left Hand 2 env, built on first use.
+    """``envs(generation)``: a right Hand 1, a left Hand 2 beta2 or a right hand2_2 env, built on first use.
 
     ``hand2_uncalibrated`` is the left Hand 2 as a ``config.json`` saved before the Wuji Hand 2 calibration rebuilds
     it: kp 50, kd 5, 5 N·m force limits and armature 5e-4 on every joint.
@@ -45,6 +46,7 @@ def envs():
     robots = {
         "hand1": lambda: WujiHand1_R(dofs_name=H1_DOFS),
         "hand2": lambda: WujiHand2Beta2_L(dofs_name=H2_DOFS),
+        "hand2_2": lambda: WujiHand2_2_R(dofs_name=list(reversed(WujiHand2_2_R().dofs_name))),
         "hand2_uncalibrated": lambda: WujiHand2Beta2_L(
             dofs_name=H2_DOFS,
             default_dofs_kp={"*": 50.0},
@@ -74,6 +76,7 @@ def _deployer(generation):
 
 
 hand1, hand2, hand2_uncalibrated = _deployer("hand1"), _deployer("hand2"), _deployer("hand2_uncalibrated")
+hand2_2 = _deployer("hand2_2")
 
 
 def _connected(dep, transport):
@@ -86,7 +89,9 @@ def _connected(dep, transport):
 # --- the joint table (no env) ----------------------------------------------------------------
 
 
-@pytest.mark.parametrize("robot_cls", [WujiHand1_R, WujiHand1_L, WujiHand2Beta2_R, WujiHand2Beta2_L])
+@pytest.mark.parametrize(
+    "robot_cls", [WujiHand1_R, WujiHand1_L, WujiHand2Beta2_R, WujiHand2Beta2_L, WujiHand2_2_R, WujiHand2_2_L]
+)
 def test_every_wuji_robot_maps_onto_each_sdk_joint_once_in_declaration_order(robot_cls):
     assert [wh.WUJI_JOINT_IDX[name] for name in robot_cls().dofs_name] == list(range(N))
 
@@ -98,7 +103,7 @@ def test_sdk_joint_ids_map_finger_major():
     assert wh.WUJI_JOINT_IDX["r_index_finger_mcp_abd"] == wh.WUJI_JOINT_IDX["right_finger2_joint2"] == 5
 
 
-@pytest.mark.parametrize("robot_cls", [WujiHand1_R, WujiHand2Beta2WithMount_L])
+@pytest.mark.parametrize("robot_cls", [WujiHand1_R, WujiHand2Beta2WithMount_L, WujiHand2_2_R])
 def test_wuji_robots_resolve_to_this_backend(robot_cls):
     assert resolve_deployment_for(robot_cls()) is wh.WujiHandDeployment
 
@@ -106,9 +111,12 @@ def test_wuji_robots_resolve_to_this_backend(robot_cls):
 # --- construction ----------------------------------------------------------------------------
 
 
-@pytest.mark.parametrize(("generation", "side"), [("hand1", "right"), ("hand2", "left")])
-def test_side_and_generation_come_from_the_robot(request, generation, side):
-    dep = request.getfixturevalue(generation)()
+@pytest.mark.parametrize(
+    ("robot", "side", "generation"),
+    [("hand1", "right", "hand1"), ("hand2", "left", "hand2"), ("hand2_2", "right", "hand2")],
+)
+def test_side_and_generation_come_from_the_robot(request, robot, side, generation):
+    dep = request.getfixturevalue(robot)()
     assert (dep.side, dep.hand) == (side, generation)
 
 
@@ -298,6 +306,13 @@ def test_mit_v2_programs_the_robots_joint_space_gains_and_trained_force_limits(h
     programmed_kp, programmed_kd = dep.programmed_gains()
     np.testing.assert_allclose(dep.to_sdk(programmed_kp), gains.kp)
     np.testing.assert_allclose(dep.to_sdk(programmed_kd), gains.kd)
+
+
+def test_mit_v2_programs_hand2_2_at_wuji_sims_torque_limits(hand2_2):
+    """wuji-sim's ``joint_torque_limit`` (1.5 A through each motor, given to 1e-3 N·m), in SDK order."""
+    gains = hand2_2(control_mode="mit_v2")._make_transport().gains
+    wuji_sim = [0.620, 0.532, 0.332, 0.200] + [0.620, 0.251, 0.251, 0.251] * 3 + [0.669, 0.167, 0.167, 0.167]
+    np.testing.assert_allclose(gains.effort_limit, wuji_sim, atol=7e-4)  # thumb IP: 1.5 A x 0.1329 = 0.19935
 
 
 def test_mit_v2_turns_an_explicit_current_limit_into_each_motors_torque(hand2):

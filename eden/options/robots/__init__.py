@@ -44,6 +44,7 @@ from eden.options.robots.wuji_hand1 import (
     WujiHand1Simplified_L,
     WujiHand1Simplified_R,
 )
+from eden.options.robots.wuji_hand2_2 import WujiHand2_2_L, WujiHand2_2_R, WujiHand2_2Skeleton_L, WujiHand2_2Skeleton_R
 from eden.options.robots.wuji_hand2beta2 import (
     WujiHand2Beta2_L,
     WujiHand2Beta2_R,
@@ -137,6 +138,10 @@ __all__ = [
     "WujiHand1_R",
     "WujiHand1Simplified_L",
     "WujiHand1Simplified_R",
+    "WujiHand2_2_L",
+    "WujiHand2_2_R",
+    "WujiHand2_2Skeleton_L",
+    "WujiHand2_2Skeleton_R",
     "WujiHand2Beta2_L",
     "WujiHand2Beta2_R",
     "WujiHand2Beta2WithMount_L",

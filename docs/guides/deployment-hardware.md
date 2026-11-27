@@ -398,8 +398,8 @@ package. It is not on PyPI and no Eden extra installs it: get it from RoboTera w
 
 ## Wuji Hand 1 and Hand 2
 
-`WujiHandDeployment` (`eden/extensions/deployment/wuji_hand.py`) is bound to `WujiHand1*` and
-`WujiHand2Beta2*`, left and right.
+`WujiHandDeployment` (`eden/extensions/deployment/wuji_hand.py`) is bound to `WujiHand1*`,
+`WujiHand2Beta2*` and `WujiHand2_2*`, left and right.
 
 ### Install
 
@@ -444,7 +444,7 @@ simulator.
         Left unset, `mit_kp` / `mit_kd` default to the robot's `default_dofs_kp` / `default_dofs_kd`
         times `deploy_kp_kd_scale`. In `"mit_v2"` those are programmed as they are. In `"mit"` they
         are converted from N·m/rad to MIT units through each joint's `WujiHand2Actuator` spec in
-        `dofs_spec` (divided by `TORQUE_CONSTANT` x 1.9115 A per unit); for `WujiHand2Beta2` that is
+        `dofs_spec` (divided by `TORQUE_CONSTANT` x 1.9115 A per unit); for `WujiHand2Beta2` and `WujiHand2_2` that is
         upstream pen spin's kp 3.0 and kd 0.075 / 0.07 / 0.05 / 0.05 on joints 1-4 of each finger.
         Firmware v2.13.1 and v3.0.0 convert at 1.98413 A per unit, so in `"mit"` those hands run 3.8%
         stiffer than the simulated gains; `"mit_v2"` has no such factor. The deploy reports the
@@ -453,7 +453,7 @@ simulator.
         boot slot instead.
 
         In `"mit"`, `effort_limit_a` defaults to the robot's `current_limit_a`, the current its force
-        limits were trained at (1.5 A for `WujiHand2Beta2`, upstream pen spin's operating point), or
+        limits were trained at (1.5 A for `WujiHand2Beta2` and `WujiHand2_2`, upstream pen spin's operating point), or
         to 1.0 A for a robot that declares none. In `"mit_v2"`, the torque limit defaults to the
         robot's `default_dofs_force_limits`, and an explicit `effort_limit_a` becomes each joint's
         torque through its motor's `TORQUE_CONSTANT` (so it needs the specs). At connect the deploy
