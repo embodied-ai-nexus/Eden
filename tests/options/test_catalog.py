@@ -9,8 +9,19 @@ import sys
 import pytest
 
 from eden.options import robots
-from eden.options.catalog import MANIFEST, ROBOT_REGISTRY, AssetManifest, RobotRegistry, find_entity_options
+from eden.options.catalog import (
+    MANIFEST,
+    ROBOT_REGISTRY,
+    AssetManifest,
+    RobotRegistry,
+    base_follows_is_fixed_base,
+    composite_robots_by_name,
+    entity_options_index,
+    find_entity_options,
+    find_entity_or_rig_options,
+)
 from eden.options.entities import BoxOptions, EntityOptions, PlaneOptions, RobotOptions
+from eden.options.robots import COMPOSITE_ROBOT_REGISTRY, Droid
 
 SEATING = {"sofa", "chair", "armchair", "beanbag", "side_chair", "stool"}
 
@@ -227,3 +238,77 @@ def test_robot_registry_rejects_a_non_robot(obj):
 @pytest.mark.parametrize("name", ["robot/franka_emika_panda", "franka_emika_panda", "FrankaEmikaPanda"])
 def test_find_entity_options_resolves_a_robot_by_namespaced_key_bare_key_or_class_name(name):
     assert find_entity_options(name).__name__ == "FrankaEmikaPanda"
+
+
+# --- find_entity_or_rig_options / base_follows_is_fixed_base (eden view, snap, arrange, audit) ----------------
+# Composite rigs are not ``BaseEntityOptions``, so they resolve through ``COMPOSITE_ROBOT_REGISTRY``.
+
+
+def test_every_registered_composite_resolves_by_class_name_and_registry_key():
+    """The registry is the source of truth, so no rig can be added and left unviewable."""
+    assert list(COMPOSITE_ROBOT_REGISTRY.keys())
+    for key, cls in COMPOSITE_ROBOT_REGISTRY:
+        assert find_entity_or_rig_options(key) is cls
+        assert find_entity_or_rig_options(cls.__name__) is cls
+
+
+def test_single_entity_lookup_is_untouched():
+    # The catalog path still answers class names, bare keys and namespaced keys.
+    assert find_entity_or_rig_options("Oli").__name__ == "Oli"
+    assert find_entity_or_rig_options("g1_dofs29").__name__ == "G1Dofs29"
+    assert find_entity_or_rig_options("robot/franka_emika_panda").__name__ == "FrankaEmikaPanda"
+
+
+def test_no_composite_name_shadows_a_catalog_entry():
+    """``ur5e`` / ``ur10e`` were keys for both the bare arms and the Robotiq rigs, so ``eden view ur5e`` changed meaning."""
+    shadowed = sorted(set(composite_robots_by_name()) & set(entity_options_index()))
+    assert shadowed == [], f"composite names shadowing catalog entries: {shadowed}"
+
+
+@pytest.mark.parametrize(
+    "name,expected",
+    [("ur5e", "UR5e"), ("ur10e", "UR10e"), ("ur5e_2f85", "UR5eRobotiq"), ("ur10e_2f85", "UR10eRobotiq")],
+)
+def test_ur_names_split_the_bare_arm_from_the_rig(name, expected):
+    assert find_entity_or_rig_options(name).__name__ == expected
+
+
+@pytest.fixture
+def droid_also_registered_as_oli():
+    """Register the Droid rig under the humanoid's name, and remove the alias afterwards."""
+    COMPOSITE_ROBOT_REGISTRY.register(Droid, name="Oli")
+    yield
+    COMPOSITE_ROBOT_REGISTRY._obj_map.pop("Oli", None)
+
+
+@pytest.mark.usefixtures("droid_also_registered_as_oli")
+def test_a_single_entity_wins_a_name_collision():
+    """Precedence, pinned whether or not a collision exists today; the rig stays reachable by class name."""
+    assert find_entity_or_rig_options("Oli").__name__ == "Oli"  # the humanoid, not the rig
+    assert find_entity_or_rig_options("Droid") is Droid
+
+
+def test_unknown_name_suggests_composites_too():
+    """``OliWuj`` used to answer only "Did you mean: Oli?"."""
+    with pytest.raises(ValueError, match="Composite rigs matching: OliWuji"):
+        find_entity_or_rig_options("OliWuj")
+
+    # A name close to nothing at all still raises the catalog's own error, unembellished.
+    with pytest.raises(ValueError, match="No entity options found") as err:
+        find_entity_or_rig_options("zzzzNotAThing")
+    assert "Composite rigs" not in str(err.value)
+
+
+@pytest.mark.parametrize(
+    "name, reaches",
+    [
+        ("Oli", True),  # URDF: Genesis builds `fixed=` as declared
+        ("CalvinRedBlock", True),  # mesh
+        ("FrankaEmikaPanda", False),  # plain jointless MJCF: `eden arrange` cannot free it
+        ("G1Dofs29", False),  # plain free MJCF: `eden view` cannot pin it
+        ("RobosuitePickPlaceBin1", True),  # robosuite fixture: adds the free joint when freed
+        ("LiberoTabletopWorkspace", False),  # LIBERO workspace: derived without reading the flag
+    ],
+)
+def test_is_fixed_base_reaches_the_asset_only_where_the_loader_reads_it(name, reaches):
+    assert base_follows_is_fixed_base(find_entity_or_rig_options(name)()) is reaches

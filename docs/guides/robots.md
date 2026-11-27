@@ -387,9 +387,11 @@ operating point: the current a task runs the hand at, and so its force limits, b
 4. **Declare the asset facts** your tasks will need: `feet_links_name` (and the same names in `links_to_keep` for
    a URDF, so they are not merged away), `ee_links_name`, gripper `open_dofs_pos` / `close_dofs_pos` /
    `tcp_offset` / `stroke`, hand `metadata.target_hand_links`, `max_substep_dt` for a closed-loop mechanism.
-5. **Look at it and audit it.** `eden view MyArm -c` shows the collision geometry. After building an env, read
-   back `get_dofs_kp()`, `get_dofs_kd()`, `get_dofs_armature()` and `get_dofs_force_range()`: those are the
-   values the solver integrates.
+5. **Look at it and audit it.** `eden view MyArm -c` shows the collision geometry. `eden audit MyArm` builds it
+   alone and checks masses, the armature fill, joint ranges, self-contact and whether the gains hold the default
+   pose (see [`eden audit`](../reference/cli.md#eden-audit)). After building an env, read back `get_dofs_kp()`,
+   `get_dofs_kd()`, `get_dofs_armature()` and `get_dofs_force_range()`: those are the values the solver
+   integrates.
 6. **Test it** in `tests/options/robots/test_<module>.py`, following the existing files there (see
    [Testing](testing.md)).
 

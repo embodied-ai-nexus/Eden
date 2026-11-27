@@ -526,7 +526,8 @@ hand = en.robots.XHand1_R(default_dofs_armature={"*": 1.0 / 300})
 ```
 
 Because the fill lands at build, the pre-build joint description still reads the raw asset value. Audit the
-built `get_dofs_armature()`, which is also what `default_dofs_armature` is seeded from.
+built `get_dofs_armature()`, which is also what `default_dofs_armature` is seeded from. `eden audit <Entity>`
+compares the two and names every DOF that received the fill (see [`eden audit`](../reference/cli.md#eden-audit)).
 `tests/entities/test_rigid.py` pins the fill rule.
 
 ### Implicit damping
@@ -1076,6 +1077,30 @@ Worked scripts for every feature above are in `examples/recipes/mochi/`; the Moc
 of generators. Its `default_root_quat` must be the identity. The options, the generator catalog, and the
 `Terrain` API (`bounds`, `get_height`, `subterrain_origins`, `goals`) are on
 [Scenes and terrains](scenes-and-terrains.md#terrains).
+
+## Auditing a built entity (`eden audit`)
+
+`eden audit` builds one entity alone on a ground plane and checks what Genesis made of it: masses, the armature
+fill, joint ranges, self-contact, a drop for a free body and a PD hold for a fixed one. Audit it as the task builds
+it, `eden audit --task <task> [--entity <name>]`, or a new asset at a task's physics,
+`eden audit path/to/asset.urdf --task <task>`. What each check measures, and every flag, is in the
+[command reference](../reference/cli.md#eden-audit). What to do about a finding:
+
+| Check | Fix |
+|---|---|
+| Build raises on inertia | The asset's inertia tensor is not physical. Fix it in the asset, or set `recompute_inertia=True` to derive it from the collision geometry and the material density. |
+| Build raises on `<inertial><density>` | Genesis' URDF parser needs explicit `<mass>` and `<inertia>`. |
+| `collision` | No collision shapes: add them to the asset, or check that `collision=False` and `collision_link_patterns` are not hiding them. |
+| `mass` | Give massless links a `<mass>`. A link lighter than 1e-4 kg with stiff contacts (finger pads) can jitter; raise it if nothing depends on it. |
+| `mass_ratio` | Over 100x across a joint slows the solver and jitters. Lump tiny links into their parent, or make the masses realistic. |
+| `armature` | Set `default_dofs_armature` from the source asset or the motor datasheet, or `default_armature=0.0` ([the 0.1 trap](#armature-defaults-and-the-urdf-01-trap)). For a URDF every hinge gets the 0.1 fill. |
+| `joint_limits` | An empty range is a fixed joint authored as a hinge: make it fixed. |
+| `self_contact`, live pairs | Two links touch at the default pose: trim the shapes, or move `default_dofs_pos`. |
+| `self_contact`, dropped pairs | Genesis never collides the shape pairs that overlap at the asset's zero pose; the count says whether the two links still collide through other shapes. Usually intended (adjacent shells). If the pair must collide, fix the overlap in the asset, or set `EnvOptions.enable_neutral_collision=True` scene-wide. |
+| `settle` explodes or rests deep in the ground | Check mass and inertia first, then thin or concave collision meshes (`convexify`, `decompose_object_error_threshold`, `coacd_threshold`). Stiffen one object with `default_geoms_sol_params`, never a global `constraint_timeconst`. A deep `peak_penetration` with a shallow `rest_penetration` is the impact, not a defect. |
+| `settle` jitters in place | Contacts or inertia: overlapping or thin collision shapes, a tiny link mass, an inertia far from what the shape implies. A pass that says "still moving steadily" is a roll or an unpowered robot folding, not a defect. |
+| `hold` skipped | No gains: set `default_dofs_kp` / `default_dofs_kd` from the source stack (Isaac Lab's `stiffness` is Eden's kp). |
+| `hold` drifts | The gains do not hold the arm against gravity, or the default pose sits on a limit. Compare with the source stack's gains and armature; a closed-loop gripper also needs `max_substep_dt`. |
 
 ## See also
 

@@ -2,7 +2,7 @@
 
 Declares the ``COMMANDS`` table — one :class:`Command` per subcommand, wiring
 each to a handler in the area modules under :mod:`eden.utils.cli` (grouped by
-area: ``tasks``, ``terms``, ``examples``, ``viewers``, ``devices``,
+area: ``tasks``, ``terms``, ``examples``, ``viewers``, ``audit``, ``devices``,
 ``dataset``, ``pose``, ``retarget``, ``teleop``, ``maintenance``) — then
 builds the argparse tree and dispatches over it via the primitives in
 :mod:`eden.utils.cli.registry`.
@@ -22,6 +22,7 @@ import sys
 
 import eden
 from eden._logging import LOG_THEME_ENV_VAR
+from eden.utils.cli.audit import audit_command
 from eden.utils.cli.dataset import _run_datagen, _run_lerobot_convert
 from eden.utils.cli.devices import (
     _run_gello_calibrate,
@@ -333,6 +334,13 @@ COMMANDS: tuple[Command, ...] = (
         configure=_configure_arrange,
     ),
     Command("snap", "Take a snapshot of the scene/entity", handler=_run_snap, configure=_configure_snap),
+    Command(
+        "audit",
+        "Check an entity, an asset file or a task's robot for physics problems: mass, armature, limits, contacts, "
+        "settling, holding",
+        handler=audit_command,
+        forwards_extra=True,
+    ),
     Command("clean", "Clean up logs", handler=_run_clean),
 )
 

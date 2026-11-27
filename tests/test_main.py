@@ -56,6 +56,7 @@ class TestCommandTable:
     def test_exactly_these_commands_forward_leftover_args(self):
         """Hand-maintained on purpose: a new name here means a command now swallows typos instead of rejecting them."""
         assert {c.name for c in m.COMMANDS if c.consumes_extra} == {
+            "audit",
             "train",
             "inference",
             "export",

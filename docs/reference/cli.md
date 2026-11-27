@@ -37,6 +37,7 @@ Eden is installed.
 | [`eden teleop sonic ...`](#eden-teleop-sonic-robot) | SONIC whole-body teleoperation (robot process and operator station) |
 | [`eden wuji ...`](#eden-wuji-scan) | Find and monitor Wuji Gloves |
 | [`eden view`](#eden-view) / [`arrange`](#eden-arrange) / [`snap`](#eden-snap) | Look at an entity, arrange a scene, take a snapshot |
+| [`eden audit`](#eden-audit) | Check an entity or an asset file for physics problems before using it in a task |
 | [`eden gif`](#eden-gif) | Convert an `.mp4` to a `.gif` |
 | [`eden clean`](#eden-clean) | Remove empty log directories |
 
@@ -683,6 +684,63 @@ Renders one image of an entity.
 |---|---|
 | `-o`, `--output PATH` | The output image. Default `snapshot.png`. |
 | `-c`, `--collision` | Show collision geometry. |
+
+### `eden audit`
+
+```bash
+eden audit --task reacher                         # the task's robot, at the task's physics
+eden audit --task robosuite_lift --robot ur5e_2f85 --entity robot_gripper   # a variant's rig part, by scene name
+eden audit ur5e --cpu                             # an entity by registry key or class name, at EnvOptions()
+eden audit path/to/arm.urdf --fixed-base          # a raw asset file; a URDF arm needs its base pinned
+eden audit path/to/mug.xml --task reacher --json mug_audit.json   # a new asset at a task's physics, as JSON
+```
+
+Builds one entity alone on a ground plane, with one env, and runs these checks on the built model:
+
+| Check | Fails or warns when |
+|---|---|
+| `collision` | The entity has no collision geometry (fail). |
+| `mass` | A movable link with collision geometry has no mass (fail) or less than 1e-4 kg (warn). |
+| `mass_ratio` | The heavier of two links joined by a DOF joint is more than 100× the lighter (warn). |
+| `armature` | A hinge or slide DOF carries the `default_armature` Genesis filled in because the asset authored none (warn). See [Armature defaults and the URDF 0.1 trap](../guides/entities.md#armature-defaults-and-the-urdf-01-trap). |
+| `joint_limits` | A hinge or slide DOF has an empty range (warn). Unlimited DOFs are listed. |
+| `self_contact` | Two links of the entity touch at its default pose (warn). Also lists, per link pair, how many collision shape pairs Genesis dropped at build because they overlap at the asset's zero pose (see `enable_neutral_collision` in [Physics](../guides/physics.md)): the candidate pairs a second build that keeps them has and the audited build lacks. |
+| `settle` | Free base only: dropped from 5 cm, the entity goes non-finite, moves faster than 20 m/s or 200 rad/s, falls through the plane, or rests more than 1 cm deep in it over the last 0.25 s (fail). The deeper overshoot on impact is reported, not graded: an unpowered robot lands at several m/s. Still moving at the end, it warns when it jitters in place (its fastest link's net travel under a quarter of its path); a steady roll, or an unpowered robot still folding, passes with a note. |
+| `hold` | Fixed base only: commanding the default pose with the built PD gains, a DOF goes non-finite or faster than 50 rad/s (hinge) or 5 m/s (slide) (fail), or drifts more than 0.05 rad (hinge) or 5 mm (slide) (warn). Skipped when every DOF has `kp = 0`. |
+
+**Which entity.** With `--task` and no target, the task's scene entity named `--entity` (default `robot`) as the
+task's config builds it; a composite rig's parts are addressed by their scene names. A part the task welds to
+another entity (a rig's gripper, an `attachments_dict` child) declares a free base for its weld; audited alone it
+gets back the base its parent gives it, pinned wherever `is_fixed_base` reaches the asset and as its file declares
+for a plain MJCF, and the report's first line says so.
+Otherwise the target names it: an existing file, or a path ending in a suffix the entity loader builds (`.urdf`,
+`.xml` for MJCF, `.usd`, `.usda`, `.usdc`, `.usdz`, `.obj`, `.stl`, `.ply`, `.glb`, `.gltf`), is loaded as a file and
+any other suffix is refused with that list; anything else is looked up like `eden view` does. A file's base is free
+unless it is an MJCF whose top-level body has no free joint. A composite rig named as a target is refused, naming
+its parts.
+
+**Which physics.** With `--task`, the task's `env_options` (timestep, substeps, integrator, solver), without its
+CUDA graph or gradients; otherwise `EnvOptions()` (`sim_dt=0.005`, one substep, the default integrator). The first
+line of the report names them. Hold drift and settling depend on them, so audit at the physics of the task that will
+use the entity. A closed-loop gripper's `max_substep_dt` raises the substeps either way.
+
+`eden audit` takes the [shared task flags](#flags-shared-by-the-task-commands) (`--task`, `--config`,
+`--override`, the task's variant flags, `--cpu`; it runs on the GPU unless `--cpu` is given) plus the ones below.
+Every argument is checked before anything is built, and a bad one exits 2 with a usage message. A build error (an
+inertia tensor that is not positive definite, a URDF `<inertial><density>`) is raised as is. The command exits with
+status 1 when any check fails.
+
+| Flag | Meaning |
+|---|---|
+| `TARGET` | An entity name or registry key, or an asset file. Optional with `--task`. |
+| `--entity NAME` | With `--task` and no target: the scene entity to audit. Default `robot`. |
+| `--fixed-base` | Pin a target's base, so `hold` runs. An MJCF whose file declares its own base cannot be changed. |
+| `--free-base` | Free a target's base, so `settle` runs. |
+| `--seconds S` | Simulated time for `settle` and `hold`. Default 2.0. A run shorter than the drop (0.1 s from 5 cm), a 0.5 s landing allowance and the 0.25 s graded window together, 0.85 s, is refused, since its graded window would contain the landing. |
+| `--json PATH` | Also write the report as JSON. Its directory must exist. |
+
+From Python, `audit_entity(options, env_options=..., thresholds=...)` in `eden.utils.asset_audit` returns the
+`AuditReport` (`render()`, `as_dict()`, `to_json(path)`); the thresholds are fields of `AuditThresholds`.
 
 ### `eden gif`
 
