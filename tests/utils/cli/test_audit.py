@@ -11,7 +11,7 @@ import pytest
 
 import eden.__main__ as m
 from eden.options.entities import EntityOptions
-from eden.utils.cli.audit import _resolve_audit_target
+from eden.utils.cli.audit import AuditArgumentError, _resolve_audit_target
 
 FREE_BOX = """
 <mujoco model="box">
@@ -47,11 +47,11 @@ class TestResolveTarget:
         """Not looked up as an entity name, which would answer with unrelated suggestions."""
         path = tmp_path / "model.sdf"
         path.write_text("")
-        with pytest.raises(ValueError, match="not an asset file Eden loads"):
+        with pytest.raises(AuditArgumentError, match="not an asset file Eden loads"):
             _resolve_audit_target(str(path), None)
 
     def test_a_missing_file_is_not_looked_up_as_a_name(self, tmp_path):
-        with pytest.raises(FileNotFoundError, match="arm.urdf"):
+        with pytest.raises(AuditArgumentError, match="arm.urdf"):
             _resolve_audit_target(str(tmp_path / "arm.urdf"), None)
 
     def test_an_entity_name_resolves_to_its_options_class(self):
@@ -63,11 +63,11 @@ class TestResolveTarget:
         assert _resolve_audit_target("ur5e", False).is_fixed_base is False
 
     def test_an_mjcf_that_declares_its_base_refuses_the_flag(self):
-        with pytest.raises(ValueError, match=r"--fixed-base cannot change 'g1_dofs29'.*Drop --fixed-base"):
+        with pytest.raises(AuditArgumentError, match=r"--fixed-base cannot change 'g1_dofs29'.*Drop --fixed-base"):
             _resolve_audit_target("g1_dofs29", True)
 
     def test_a_composite_rig_names_its_parts(self):
-        with pytest.raises(TypeError, match=r"composite rig.*'UR5e', 'Robotiq2f85'"):
+        with pytest.raises(AuditArgumentError, match=r"composite rig.*'UR5e', 'Robotiq2f85'"):
             _resolve_audit_target("ur5e_2f85", None)
 
 
@@ -137,6 +137,8 @@ def test_eden_audit_refuses_a_run_too_short_to_grade_as_a_usage_error(monkeypatc
         (["ur5e_2f85"], "composite rig"),
         (["NoSuchEntityAnywhere"], "No entity options found"),
         (["ur5e", "--json", "/no/such/dir/report.json"], "does not exist"),
+        (["ur5e", "--checkpoint", "model.pt"], "--checkpoint does nothing in eden audit"),
+        (["--task", "reacher", "--run_name", "x"], "--run_name does nothing in eden audit"),
     ],
 )
 def test_eden_audit_reports_argument_errors_as_usage_errors(monkeypatch, capsys, argv, message):
@@ -232,3 +234,13 @@ class TestWeldedTaskEntities:
         assert statuses["settle"] == "skip"
         assert statuses["hold"] in ("pass", "warn", "skip")
         assert not report["failed"]
+
+
+def test_an_error_that_is_not_about_the_arguments_keeps_its_traceback(monkeypatch, tmp_path):
+    """A malformed MJCF is not a usage error: the XML parser's own exception surfaces, not exit 2."""
+    import xml.etree.ElementTree as ET
+
+    path = tmp_path / "broken.xml"
+    path.write_text("<mujoco><worldbody><body>")
+    with pytest.raises(ET.ParseError):
+        _run_main(monkeypatch, "audit", str(path))

@@ -5,10 +5,12 @@ CPU); the tests then read the report. Each defect is planted on purpose, so a ch
 """
 
 import json
+from typing import ClassVar
 
 import pytest
 
 from eden.options import EnvOptions
+from eden.options.actuators import ActuatorSpecOptions
 from eden.options.entities import MESH_FILE_SUFFIXES, TET_MESH_FILE_SUFFIXES, EntityOptions
 from eden.options.robots import ROBOT_REGISTRY
 from eden.utils.asset_audit import (
@@ -16,7 +18,11 @@ from eden.utils.asset_audit import (
     LANDING_SECONDS,
     AuditReport,
     AuditThresholds,
+    HoldRun,
+    SettleRun,
     audit_entity,
+    grade_hold,
+    grade_settle,
     mjcf_has_free_root,
     options_for_file,
 )
@@ -290,12 +296,12 @@ class TestPhysics:
         }
         assert f"sim_dt={defaults.sim_dt}" in free_box_report.render().splitlines()[0]
 
-    def test_runs_at_the_given_env_options(self, free_box_path):
-        report = audit_entity(
-            options_for_file(free_box_path), env_options=EnvOptions(num_envs=4096, sim_dt=0.01, sim_substeps=2)
-        )
+    def test_runs_at_the_given_env_options_without_modifying_them(self, free_box_path):
+        env_options = EnvOptions(num_envs=4096, sim_dt=0.01, sim_substeps=2)
+        report = audit_entity(options_for_file(free_box_path), env_options=env_options)
         assert report.physics["sim_dt"] == 0.01
         assert report.physics["sim_substeps"] == 2
+        assert env_options.num_envs == 4096
 
     def test_a_closed_loop_gripper_gets_the_substeps_it_declares(self):
         gripper = ROBOT_REGISTRY.get("robotiq2f85")
@@ -368,3 +374,99 @@ def test_a_partly_dropped_link_pair_is_reported_with_its_shape_counts():
     dropped, total = contact.details["dropped_shape_pairs"]["lf_down/rf_down"]
     assert dropped == 6
     assert total > dropped
+
+
+class _TenthArmature(ActuatorSpecOptions):
+    """An actuator spec whose reflected armature is exactly Genesis' 0.1 fill."""
+
+    ROTOR_INERTIA: ClassVar[float] = 0.1
+    GEAR_RATIO: ClassVar[float] = 1.0
+
+
+class _SpecArm(EntityOptions):
+    dofs_spec: ClassVar[dict] = {"shoulder|elbow": _TenthArmature}
+
+
+def test_armature_from_a_dofs_spec_is_configured_even_at_the_fill_value(tmp_path):
+    """The spec's ARMATURE() is 0.1, the fill value, but the options chose it, so only the wrist was filled."""
+    path = tmp_path / "sloppy_arm.xml"
+    path.write_text(SLOPPY_ARM)
+    options = _SpecArm(
+        file=str(path),
+        is_fixed_base=True,
+        is_articulated=True,
+        is_actuated=True,
+        dofs_name=["shoulder", "elbow", "wrist"],
+    )
+    armature = audit_entity(options).check("armature")
+    assert armature.details["armature"]["shoulder"] == pytest.approx(0.1)
+    assert armature.details["filled"] == ["wrist"]
+
+
+def test_hold_grades_the_pandas_fingers_as_slides():
+    hold = audit_entity(ROBOT_REGISTRY.get("franka_emika_panda")()).check("hold")
+    assert hold.status == "pass", hold.message
+    assert hold.details["linear_dofs"] == ["finger_joint1", "finger_joint2"]
+
+
+def _settle(**overrides) -> SettleRun:
+    """A settle run that passes at rest; each test changes what it is about."""
+    values = {
+        "first_non_finite_s": None,
+        "top_z": 0.1,
+        "max_speed": 1.0,
+        "max_ang_speed": 5.0,
+        "peak_penetration": 0.002,
+        "rest_penetration": 0.001,
+        "tail_speed": 0.0,
+        "tail_ang_speed": 0.0,
+        "travel_ratio": 1.0,
+    }
+    return SettleRun(**{**values, **overrides})
+
+
+class TestGradeSettle:
+    @pytest.mark.parametrize(
+        "overrides, status, message",
+        [
+            ({}, "pass", "at rest after 2.0 s, 1.0 mm deep"),
+            ({"first_non_finite_s": 0.37}, "fail", "non-finite at 0.370 s"),
+            ({"top_z": -0.2}, "fail", "fell through the ground plane"),
+            ({"max_speed": 25.0}, "fail", "exploded: peak link speed 25 m/s"),
+            ({"max_ang_speed": 250.0}, "fail", "exploded"),
+            ({"rest_penetration": 0.02, "peak_penetration": 0.02}, "fail", "rests 20.0 mm deep"),
+            ({"peak_penetration": 0.03}, "pass", "30.0 mm on impact"),  # the landing is reported, not graded
+            ({"tail_speed": 0.4, "travel_ratio": 0.1}, "warn", "jitters in place"),
+            ({"tail_ang_speed": 3.0, "travel_ratio": 0.1}, "warn", "jitters in place"),
+            ({"tail_speed": 0.4, "travel_ratio": 0.9}, "pass", "still moving steadily"),
+            ({"tail_speed": 0.01, "travel_ratio": 0.05}, "pass", "at rest"),  # contact noise under rest_speed
+        ],
+    )
+    def test_each_verdict(self, overrides, status, message):
+        check = grade_settle(_settle(**overrides), AuditThresholds())
+        assert (check.status, check.name) == (status, "settle")
+        assert message in check.message
+
+
+class TestGradeHold:
+    @pytest.mark.parametrize(
+        "drift, speed, linear, status, message",
+        [
+            ({"j1": 0.01, "f1": 0.001}, {"j1": 1.0, "f1": 0.1}, {"f1"}, "pass", "worst f1 within 0.001 m"),
+            ({"j1": 0.2}, {"j1": 1.0}, set(), "warn", "j1 (0.2 rad)"),
+            # 3 cm on a gripper finger passed the old shared 0.05 limit; in metres it is far past 5 mm.
+            ({"j1": 0.01, "f1": 0.03}, {"j1": 1.0, "f1": 0.1}, {"f1"}, "warn", "f1 (0.03 m)"),
+            ({"j1": 0.01}, {"j1": 80.0}, set(), "fail", "j1 (80 rad/s)"),
+            # 6 m/s is far under the hinge limit of 50 rad/s and past the slide limit of 5 m/s.
+            ({"f1": 0.001}, {"f1": 6.0}, {"f1"}, "fail", "f1 (6 m/s)"),
+        ],
+    )
+    def test_each_dof_is_graded_in_its_own_unit(self, drift, speed, linear, status, message):
+        check = grade_hold(HoldRun(finite=True, drift=drift, speed=speed, linear=frozenset(linear)), AuditThresholds())
+        assert check.status == status
+        assert message in check.message
+
+    def test_non_finite_state_fails(self):
+        check = grade_hold(HoldRun(finite=False, drift={"j1": 0.0}, speed={"j1": 0.0}), AuditThresholds())
+        assert check.status == "fail"
+        assert "non-finite" in check.message

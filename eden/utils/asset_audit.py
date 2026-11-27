@@ -24,11 +24,16 @@ Dynamic checks:
 - ``settle`` (free base): drop the entity from :attr:`AuditThresholds.drop_height` above the plane and simulate.
   Fails on non-finite state, a link faster than the explosion limits, falling through the plane, or ground
   penetration deeper than :attr:`AuditThresholds.max_penetration` over the final
-  :attr:`AuditThresholds.rest_window` (the transient on impact is reported, not graded); warns when it is still
-  moving at the end.
-- ``hold`` (fixed base): command the default pose with the built PD gains and simulate. Fails on non-finite state
-  or a DOF faster than :attr:`AuditThresholds.max_dof_speed`; warns when a DOF drifts further than
-  :attr:`AuditThresholds.max_hold_drift`.
+  :attr:`AuditThresholds.rest_window` (the transient on impact is reported, not graded). Still moving at the end, it
+  warns only when it jitters in place (net travel under :attr:`AuditThresholds.min_travel_ratio` of the path); a
+  steady roll, or an unpowered robot still folding, passes with a note.
+- ``hold`` (fixed base): command the default pose with the built PD gains and simulate. Each DOF is graded in its
+  own unit: hinges against :attr:`AuditThresholds.max_dof_speed` and :attr:`AuditThresholds.max_hold_drift` (rad),
+  slides against :attr:`AuditThresholds.max_dof_linear_speed` and :attr:`AuditThresholds.max_hold_drift_linear`
+  (m). Fails on non-finite state or a DOF past its speed limit; warns on one past its drift limit.
+
+The grading is :func:`grade_settle` / :func:`grade_hold`, pure functions of what the run measured
+(:class:`SettleRun`, :class:`HoldRun`), so each verdict is testable without staging the physics that produces it.
 
 The scene runs at the physics settings of the ``env_options`` given (a task's, for ``eden audit --task``), else
 at :class:`~eden.options.EnvOptions`' defaults, with one env; the report records them under ``physics``.
@@ -88,15 +93,23 @@ class AuditThresholds:
     #: Link angular speed treated as an explosion, in rad/s.
     max_link_ang_speed: float = 200.0
     #: Over the last :attr:`rest_window` seconds of ``settle``, link speed below this counts as at rest, in m/s.
+    #: A link moving faster that also travels less than :attr:`min_travel_ratio` of its path is jittering.
     rest_speed: float = 0.05
     #: Over the last :attr:`rest_window` seconds of ``settle``, angular speed below this counts as at rest, in rad/s.
     rest_ang_speed: float = 0.5
     #: Length of the window at the end of ``settle`` that must be at rest, in s.
     rest_window: float = 0.25
-    #: Largest distance a DOF may drift from its commanded default during ``hold``, in rad or m.
+    #: Over the :attr:`rest_window`, a link still moving whose net displacement is less than this fraction of the path
+    #: it covered is jittering in place (warn); a larger fraction is a steady roll or fold (pass, with a note).
+    min_travel_ratio: float = 0.25
+    #: Largest angle a hinge DOF may drift from its commanded default during ``hold``, in rad.
     max_hold_drift: float = 0.05
-    #: DOF speed treated as an explosion during ``hold``, in rad/s or m/s.
+    #: Largest distance a slide DOF may drift from its commanded default during ``hold``, in m.
+    max_hold_drift_linear: float = 0.005
+    #: Hinge DOF speed treated as an explosion during ``hold``, in rad/s.
     max_dof_speed: float = 50.0
+    #: Slide DOF speed treated as an explosion during ``hold``, in m/s.
+    max_dof_linear_speed: float = 5.0
 
     def __post_init__(self) -> None:
         not_positive = [f"{f.name}={getattr(self, f.name)!r}" for f in fields(self) if not getattr(self, f.name) > 0.0]
@@ -182,6 +195,16 @@ class AuditReport:
         return "\n".join(lines)
 
 
+def check_asset_file(path: str) -> None:
+    """Raise unless ``path`` is an existing file with a suffix the entity loader builds (:data:`ASSET_FILE_SUFFIXES`)."""
+    if not os.path.isfile(path):
+        raise FileNotFoundError(f"eden audit: no such asset file: {path!r}.")
+    if not path.lower().endswith(ASSET_FILE_SUFFIXES):
+        raise ValueError(
+            f"eden audit: {path!r} is not an asset file Eden loads; expected one of {', '.join(ASSET_FILE_SUFFIXES)}."
+        )
+
+
 def options_for_file(path: str, *, fixed_base: bool | None = None) -> EntityOptions:
     """Entity options that load the asset file at ``path`` as it is, for auditing.
 
@@ -190,12 +213,7 @@ def options_for_file(path: str, *, fixed_base: bool | None = None) -> EntityOpti
     """
     from eden.options.entities import MESH_FILE_SUFFIXES, EntityOptions
 
-    if not os.path.isfile(path):
-        raise FileNotFoundError(f"eden audit: no such asset file: {path!r}.")
-    if not path.lower().endswith(ASSET_FILE_SUFFIXES):
-        raise ValueError(
-            f"eden audit: {path!r} is not an asset file Eden loads; expected one of {', '.join(ASSET_FILE_SUFFIXES)}."
-        )
+    check_asset_file(path)
     if fixed_base is None:
         fixed_base = path.lower().endswith(".xml") and not mjcf_has_free_root(path)
     # A fixed base is what ``hold`` runs on, and it needs the file's PD gains, which load only on an actuated entity.
@@ -337,7 +355,9 @@ def _build_audit_env(
     update: dict[str, Any] = {"num_envs": 1, "cuda_graph_options": None, "requires_grad": False}
     if enable_neutral_collision:
         update["enable_neutral_collision"] = True
-    env_options = (env_options or EnvOptions()).model_copy(deep=True, update=update)
+    # Through validation, so an override that a field refuses raises here rather than deep in the build.
+    base = env_options or EnvOptions()
+    env_options = type(base).model_validate({**base.model_dump(), **update})
     max_substep_dt = getattr(type(options), "max_substep_dt", None)
     if isinstance(max_substep_dt, float):
         env_options.sim_substeps = max(env_options.sim_substeps, math.ceil(env_options.sim_dt / max_substep_dt - 1e-9))
@@ -445,21 +465,30 @@ def _check_mass_ratio(entity: RigidEntity, thresholds: AuditThresholds) -> Audit
     return AuditCheck("mass_ratio", "pass", f"largest ratio {worst[0]:.1f}x ({worst[1]}/{worst[2]})", details)
 
 
-def _check_armature(entity: RigidEntity, options) -> AuditCheck:
-    """Name the hinge/slide DOFs whose armature came from ``default_armature`` rather than the asset or the options."""
-    from eden.utils.string import resolve_matching_names_values
+def _configured_joint_names(entity: RigidEntity, patterns) -> set[str]:
+    """The joint names ``patterns`` (DOF-name keys, as the entity options take them) select among all joints."""
+    from eden.utils.string import resolve_matching_names
 
+    if not patterns:
+        return set()
+    names = entity.joints_name
+    _, matched = resolve_matching_names(list(patterns), names, literal_names=names)
+    return set(matched)
+
+
+def _check_armature(entity: RigidEntity, options) -> AuditCheck:
+    """Name the hinge/slide DOFs whose armature came from ``default_armature`` rather than the asset or the options.
+
+    The options set armature through ``default_dofs_armature`` and through every ``dofs_spec`` actuator spec (its
+    ``ARMATURE()``); a DOF either selects is configured, whatever value it carries.
+    """
     default = getattr(options, "default_armature", None)
     joints = [joint for joint in _rotor_joints(entity) if joint.n_dofs == 1]
     if not joints:
         return AuditCheck("armature", "skip", "no hinge or slide joints")
     built = entity.get_dofs_armature([joint.dofs_idx_local[0] for joint in joints])[0].tolist()
-    configured_idx, _, _ = resolve_matching_names_values(
-        dict(getattr(options, "default_dofs_armature", {}) or {}),
-        [joint.name for joint in joints],
-        literal_names=entity.joints_name,
-    )
-    configured = {joints[i].name for i in configured_idx}
+    configured = _configured_joint_names(entity, getattr(options, "default_dofs_armature", {}) or {})
+    configured |= _configured_joint_names(entity, getattr(entity, "dofs_spec", {}) or {})
     filled = [
         joint.name
         for joint, value in zip(joints, built)
@@ -588,7 +617,11 @@ def _check_self_contact(env: EnvBase, entity: RigidEntity, options, env_options:
 
 
 def _check_settle(env: EnvBase, entity: RigidEntity, thresholds: AuditThresholds) -> AuditCheck:
-    """Drop the free entity onto the plane and watch it come to rest."""
+    """Drop the free entity onto the plane and watch it come to rest.
+
+    Every per-step reading stays on the device and reaches the host once, after the run: the contacts are read
+    padded, so not even their count is synced.
+    """
     import torch
 
     env.reset()
@@ -601,30 +634,77 @@ def _check_settle(env: EnvBase, entity: RigidEntity, thresholds: AuditThresholds
     plane = env.entities["plane"]
     n_steps = _steps(env, thresholds.seconds)
     rest_steps = min(n_steps, _steps(env, thresholds.rest_window))
-    max_speed = max_ang_speed = peak_penetration = rest_penetration = 0.0
-    tail_speed = tail_ang_speed = 0.0
+    lin, ang, depth, finite = (torch.empty(n_steps, device=env.device) for _ in range(4))
+    tail_path = torch.zeros(entity.num_links, device=env.device)
+    tail_start = last = None
     for step in range(n_steps):
         env.scene.step()
-        lin = entity.get_links_vel()[0].norm(dim=-1).max().item()
-        ang = entity.get_links_ang()[0].norm(dim=-1).max().item()
-        if not (math.isfinite(lin) and math.isfinite(ang) and torch.isfinite(entity.get_pos()).all()):
-            env.reset()
-            return AuditCheck("settle", "fail", f"state became non-finite at step {step} ({step * env.scene.dt:.3f} s)")
-        max_speed, max_ang_speed = max(max_speed, lin), max(max_ang_speed, ang)
-        contacts = entity.get_contacts(with_entity=plane)
-        depth = contacts["penetration"][0]
-        if "valid_mask" in contacts:
-            depth = depth[contacts["valid_mask"][0]]
-        deepest = depth.max().item() if depth.numel() else 0.0
-        peak_penetration = max(peak_penetration, deepest)
-        # Graded only once the drop is over: an unpowered robot landing at several m/s overshoots for a few
-        # steps on any contact model, which says nothing about the asset.
-        if step >= n_steps - rest_steps:
-            tail_speed, tail_ang_speed = max(tail_speed, lin), max(tail_ang_speed, ang)
-            rest_penetration = max(rest_penetration, deepest)
+        lin[step] = entity.get_links_vel()[0].norm(dim=-1).max()
+        ang[step] = entity.get_links_ang()[0].norm(dim=-1).max()
+        links_pos = entity.get_links_pos()[0]
+        finite[step] = torch.isfinite(links_pos).all()
+        # Padded: a fixed-size buffer, invalid slots zeroed, so its size is known without a sync.
+        contacts = entity.get_contacts(with_entity=plane, is_padded=True)
+        penetration = contacts["penetration"][0] * contacts["valid_mask"][0]
+        depth[step] = penetration.amax() if penetration.numel() else 0.0
+        if step == n_steps - rest_steps:
+            tail_start = links_pos.clone()
+        elif step > n_steps - rest_steps:
+            tail_path += (links_pos - last).norm(dim=-1)
+        last = links_pos.clone()
+    tail_travel = (last - tail_start).norm(dim=-1)
     top = float(entity.get_AABB()[0, 1, 2])
     env.reset()
 
+    # One host transfer for the whole run.
+    lin, ang, depth, finite = (t.cpu() for t in (lin, ang, depth, finite))
+    tail_path, tail_travel = tail_path.cpu(), tail_travel.cpu()
+    non_finite = (~finite.bool()).nonzero()
+    tail = slice(n_steps - rest_steps, n_steps)
+    # The link that covered the longest path over the rest window: how far it got, against how far it went.
+    mover = int(tail_path.argmax())
+    run = SettleRun(
+        first_non_finite_s=float(non_finite[0]) * env.scene.dt if len(non_finite) else None,
+        top_z=top,
+        max_speed=float(lin.max()),
+        max_ang_speed=float(ang.max()),
+        peak_penetration=float(depth.max()),
+        rest_penetration=float(depth[tail].max()),
+        tail_speed=float(lin[tail].max()),
+        tail_ang_speed=float(ang[tail].max()),
+        travel_ratio=float(tail_travel[mover] / tail_path[mover]) if float(tail_path[mover]) > 0.0 else 1.0,
+    )
+    return grade_settle(run, thresholds)
+
+
+@dataclass(frozen=True)
+class SettleRun:
+    """What ``settle`` measured, in SI units: everything :func:`grade_settle` decides on."""
+
+    #: Sim time of the first step with a non-finite link position, or ``None``.
+    first_non_finite_s: float | None
+    #: Highest point of the entity at the end, in m; below zero, it fell through the plane.
+    top_z: float
+    max_speed: float
+    max_ang_speed: float
+    peak_penetration: float
+    #: Deepest ground penetration over the rest window.
+    rest_penetration: float
+    #: Fastest link speed over the rest window.
+    tail_speed: float
+    tail_ang_speed: float
+    #: Over the rest window, the net displacement of the link that moved furthest, over the path it covered.
+    travel_ratio: float
+
+
+def grade_settle(run: SettleRun, thresholds: AuditThresholds) -> AuditCheck:
+    """The ``settle`` verdict for the measurements ``run``."""
+    if run.first_non_finite_s is not None:
+        return AuditCheck("settle", "fail", f"state became non-finite at {run.first_non_finite_s:.3f} s")
+    max_speed, max_ang_speed = run.max_speed, run.max_ang_speed
+    tail_speed, tail_ang_speed = run.tail_speed, run.tail_ang_speed
+    peak_penetration, rest_penetration = run.peak_penetration, run.rest_penetration
+    travel_ratio, top = run.travel_ratio, run.top_z
     details = {
         "seconds": thresholds.seconds,
         "max_link_speed": max_speed,
@@ -633,6 +713,7 @@ def _check_settle(env: EnvBase, entity: RigidEntity, thresholds: AuditThresholds
         "rest_penetration": rest_penetration,
         "final_speed": tail_speed,
         "final_ang_speed": tail_ang_speed,
+        "final_travel_ratio": travel_ratio,
     }
     if top < 0.0:
         return AuditCheck("settle", "fail", "fell through the ground plane", details)
@@ -654,78 +735,143 @@ def _check_settle(env: EnvBase, entity: RigidEntity, thresholds: AuditThresholds
             "body on soft contacts, do this.",
             details,
         )
-    if tail_speed > thresholds.rest_speed or tail_ang_speed > thresholds.rest_ang_speed:
+    impact = f"(peak {max_speed:.2f} m/s and {peak_penetration * 1000:.1f} mm on impact)"
+    moving = tail_speed > thresholds.rest_speed or tail_ang_speed > thresholds.rest_ang_speed
+    if moving and travel_ratio < thresholds.min_travel_ratio:
         return AuditCheck(
             "settle",
             "warn",
-            f"still moving after {thresholds.seconds} s: {tail_speed:.3g} m/s, {tail_ang_speed:.3g} rad/s over the "
-            f"last {thresholds.rest_window} s. A round body may still be rolling and an unpowered robot may "
-            "still be folding; jitter in place points at contact or inertia problems.",
+            f"jitters in place after {thresholds.seconds} s: {tail_speed:.3g} m/s, {tail_ang_speed:.3g} rad/s over "
+            f"the last {thresholds.rest_window} s while its fastest link gets only {travel_ratio:.0%} as far as it "
+            "moves. That points at contacts or inertia: overlapping or thin collision shapes, a tiny link mass.",
+            details,
+        )
+    if moving:
+        return AuditCheck(
+            "settle",
+            "pass",
+            f"still moving steadily after {thresholds.seconds} s ({tail_speed:.3g} m/s, {travel_ratio:.0%} of its path "
+            f"is net travel): rolling, or an unpowered robot still folding, not jitter. "
+            f"{rest_penetration * 1000:.1f} mm deep {impact}",
             details,
         )
     return AuditCheck(
         "settle",
         "pass",
-        f"at rest after {thresholds.seconds} s, {rest_penetration * 1000:.1f} mm deep (peak {max_speed:.2f} m/s and "
-        f"{peak_penetration * 1000:.1f} mm on impact)",
+        f"at rest after {thresholds.seconds} s, {rest_penetration * 1000:.1f} mm deep {impact}",
         details,
     )
 
 
 def _check_hold(env: EnvBase, entity: RigidEntity, thresholds: AuditThresholds) -> AuditCheck:
-    """Command the default pose with the built PD gains and measure how far each DOF drifts."""
+    """Command the default pose with the built PD gains and measure how far each DOF drifts.
+
+    Hinge DOFs are graded in radians and slide DOFs in metres, each against its own limits. Readings stay on the
+    device until the run ends.
+    """
+    import genesis as gs
     import torch
 
-    dofs = _rotor_dofs(entity)
+    joints = _rotor_joints(entity)
+    dofs = [dof for joint in joints for dof in joint.dofs_idx_local]
     if not dofs:
         return AuditCheck("hold", "skip", "no hinge or slide joints")
-    names = [joint.name for joint in _rotor_joints(entity) for _ in joint.dofs_idx_local]
+    names = [joint.name for joint in joints for _ in joint.dofs_idx_local]
+    linear = [joint.type == gs.JOINT_TYPE.PRISMATIC for joint in joints for _ in joint.dofs_idx_local]
     env.reset()
-    kp = entity.get_dofs_kp(dofs)[0]
-    driven = [i for i, gain in enumerate(kp.tolist()) if gain > 0.0]
+    kp = entity.get_dofs_kp(dofs)[0].tolist()
+    driven = [i for i, gain in enumerate(kp) if gain > 0.0]
     if not driven:
         return AuditCheck(
             "hold",
             "skip",
             "every DOF has kp = 0, so nothing holds a pose. Set default_dofs_kp / default_dofs_kd to audit the gains.",
         )
-    dofs = [dofs[i] for i in driven]
-    names = [names[i] for i in driven]
+    dofs, names, linear = [dofs[i] for i in driven], [names[i] for i in driven], [linear[i] for i in driven]
     target = entity.get_dofs_pos(dofs).clone()
     entity.control_dofs_pos(target, dofs)
 
     max_drift = torch.zeros(len(dofs), device=target.device)
-    max_speed = 0.0
-    for step in range(_steps(env, thresholds.seconds)):
+    max_speed = torch.zeros(len(dofs), device=target.device)
+    finite = torch.ones((), dtype=torch.bool, device=target.device)
+    for _ in range(_steps(env, thresholds.seconds)):
         env.scene.step()
         pos, vel = entity.get_dofs_pos(dofs)[0], entity.get_dofs_vel(dofs)[0]
-        if not (torch.isfinite(pos).all() and torch.isfinite(vel).all()):
-            env.reset()
-            return AuditCheck("hold", "fail", f"state became non-finite at step {step} ({step * env.scene.dt:.3f} s)")
+        finite &= torch.isfinite(pos).all() & torch.isfinite(vel).all()
         max_drift = torch.maximum(max_drift, (pos - target[0]).abs())
-        max_speed = max(max_speed, vel.abs().max().item())
+        max_speed = torch.maximum(max_speed, vel.abs())
     env.reset()
 
-    drift = dict(zip(names, max_drift.tolist()))
-    details = {"seconds": thresholds.seconds, "max_drift": drift, "max_dof_speed": max_speed, "n_driven": len(dofs)}
-    if max_speed > thresholds.max_dof_speed:
+    run = HoldRun(
+        finite=bool(finite),
+        drift=dict(zip(names, max_drift.tolist())),
+        speed=dict(zip(names, max_speed.tolist())),
+        linear=frozenset(n for n, is_linear in zip(names, linear) if is_linear),
+    )
+    return grade_hold(run, thresholds)
+
+
+@dataclass(frozen=True)
+class HoldRun:
+    """What ``hold`` measured for each driven DOF: everything :func:`grade_hold` decides on."""
+
+    #: Whether every position and velocity stayed finite.
+    finite: bool
+    #: Largest distance from the commanded default, per DOF name: rad for a hinge, m for a slide.
+    drift: dict[str, float]
+    #: Largest speed, per DOF name: rad/s for a hinge, m/s for a slide.
+    speed: dict[str, float]
+    #: The names of the slide DOFs; every other DOF is a hinge.
+    linear: frozenset[str] = frozenset()
+
+
+def grade_hold(run: HoldRun, thresholds: AuditThresholds) -> AuditCheck:
+    """The ``hold`` verdict for the measurements ``run``, each DOF against the limits of its own unit."""
+    if not run.finite:
+        return AuditCheck(
+            "hold", "fail", f"state became non-finite while holding the default pose for {thresholds.seconds} s"
+        )
+    names, drift, speed = list(run.drift), run.drift, run.speed
+    details = {
+        "seconds": thresholds.seconds,
+        "max_drift": drift,
+        "max_dof_speed": speed,
+        "linear_dofs": sorted(run.linear),
+        "n_driven": len(names),
+    }
+    unit = {
+        n: ("m", thresholds.max_hold_drift_linear, thresholds.max_dof_linear_speed)
+        if n in run.linear
+        else ("rad", thresholds.max_hold_drift, thresholds.max_dof_speed)
+        for n in names
+    }
+    exploded = [f"{n} ({speed[n]:.3g} {unit[n][0]}/s)" for n in names if speed[n] > unit[n][2]]
+    if exploded:
         return AuditCheck(
             "hold",
             "fail",
-            f"exploded: a DOF reached {max_speed:.3g} (limit {thresholds.max_dof_speed}) while holding its default "
-            "pose. Check armature, kd and the inertia of the distal links.",
+            f"exploded while holding its default pose: {_names(exploded)} (limits {thresholds.max_dof_speed} rad/s, "
+            f"{thresholds.max_dof_linear_speed} m/s). Check armature, kd and the inertia of the distal links.",
             details,
         )
     drifting = [
-        f"{n} ({d:.3g})" for n, d in sorted(drift.items(), key=lambda kv: -kv[1]) if d > thresholds.max_hold_drift
+        f"{n} ({drift[n]:.3g} {unit[n][0]})"
+        for n in sorted(names, key=lambda n: -drift[n] / unit[n][1])
+        if drift[n] > unit[n][1]
     ]
     if drifting:
         return AuditCheck(
             "hold",
             "warn",
-            f"DOFs drift more than {thresholds.max_hold_drift} from the commanded default pose: {_names(drifting)}. "
-            "The gains do not hold the arm against gravity, or the default pose sits on a joint limit.",
+            f"DOFs drift from the commanded default pose by more than {thresholds.max_hold_drift} rad "
+            f"(hinges) or {thresholds.max_hold_drift_linear} m (slides): {_names(drifting)}. The gains do not hold "
+            "the arm against gravity, or the default pose sits on a joint limit.",
             details,
         )
-    worst = max(drift.values())
-    return AuditCheck("hold", "pass", f"{len(dofs)} DOFs held within {worst:.2g} for {thresholds.seconds} s", details)
+    worst = max(names, key=lambda n: drift[n] / unit[n][1])
+    return AuditCheck(
+        "hold",
+        "pass",
+        f"{len(names)} DOFs held for {thresholds.seconds} s, worst {worst} within {drift[worst]:.2g} {unit[worst][0]}",
+        details,
+    )

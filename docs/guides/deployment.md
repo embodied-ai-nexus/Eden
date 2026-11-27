@@ -495,7 +495,10 @@ last reading, so the switched-in slot does not read history another slot drove.
 
 ## Safety
 
-Every mechanism below is on by default; this list is the place to check before a first run.
+Every mechanism in the list below is on by default, and the list is the place to check before a first run. The two
+subsections after it are what the operator does: [before a first hardware run](#before-a-first-hardware-run), and
+for [scripts that command hardware outside `eden deploy`](#scripts-that-command-hardware-outside-eden-deploy), which
+get none of the mechanisms.
 
 - **Boot in STOP, INIT, then START.** Nothing moves until the operator says so, and a hardware run
   with no operator input holds in STOP forever. See [The operator state machine](#the-operator-state-machine).

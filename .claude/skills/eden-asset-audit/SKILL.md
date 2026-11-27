@@ -25,7 +25,7 @@ of work.
 
 - No `fail` line, and every `warn` either fixed or explained.
 - `armature` names no DOF, or the 0.1 is what the source asset or datasheet says.
-- `hold` passes at the task's physics for an arm; `settle` passes or only warns that a round body still rolls.
+- `hold` passes at the task's physics for an arm; `settle` passes (a "still moving steadily" note is fine).
 - `dropped_pairs` lists no pair that must collide in the task (fingers against each other, a hand against the arm).
 
 ## What it does not check

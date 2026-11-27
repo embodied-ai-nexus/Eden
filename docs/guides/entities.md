@@ -1098,7 +1098,7 @@ it, `eden audit --task <task> [--entity <name>]`, or a new asset at a task's phy
 | `self_contact`, live pairs | Two links touch at the default pose: trim the shapes, or move `default_dofs_pos`. |
 | `self_contact`, dropped pairs | Genesis never collides the shape pairs that overlap at the asset's zero pose; the count says whether the two links still collide through other shapes. Usually intended (adjacent shells). If the pair must collide, fix the overlap in the asset, or set `EnvOptions.enable_neutral_collision=True` scene-wide. |
 | `settle` explodes or rests deep in the ground | Check mass and inertia first, then thin or concave collision meshes (`convexify`, `decompose_object_error_threshold`, `coacd_threshold`). Stiffen one object with `default_geoms_sol_params`, never a global `constraint_timeconst`. A deep `peak_penetration` with a shallow `rest_penetration` is the impact, not a defect. |
-| `settle` still moving | A round body may just roll. Jitter in place points at contacts or inertia. |
+| `settle` jitters in place | Contacts or inertia: overlapping or thin collision shapes, a tiny link mass, an inertia far from what the shape implies. A pass that says "still moving steadily" is a roll or an unpowered robot folding, not a defect. |
 | `hold` skipped | No gains: set `default_dofs_kp` / `default_dofs_kd` from the source stack (Isaac Lab's `stiffness` is Eden's kp). |
 | `hold` drifts | The gains do not hold the arm against gravity, or the default pose sits on a limit. Compare with the source stack's gains and armature; a closed-loop gripper also needs `max_substep_dt`. |
 
