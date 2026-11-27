@@ -1,14 +1,25 @@
-"""Wuji Hand 2 (hand2_2) dexterous hand configurations, left and right.
+"""Wuji Hand 2 (hand2_2) dexterous hand configurations, left and right, with and without the cover.
 
 The current revision of the Wuji Hand 2, and the model Wuji's ``wuji-sim`` simulates: twenty DOFs (5 fingers x
 4), with the same joint names, axes and limits as :mod:`eden.options.robots.wuji_hand2beta2`. The palm's MCP
 origins, the fingertip frames, the meshes and the inertials differ, so check a policy trained on one model in
-simulation on the other before reusing it. Assets (URDF + STL meshes, MIT-licensed) live under
-``hands/wuji_hand2_2`` in the ``Kashu7100/eden_assets`` dataset, converted from
-``wuji-technology/wuji-description`` v2026.11.18 ``hand2/hand2_2/body``, the release ``wuji-sim`` v2026.11.23
-pins.
+simulation on the other before reusing it.
 
-Upstream's bare URDF is rooted at the wrist adapter plate (``{r,l}_mount``), so these presets correspond to
+``WujiHand2_2_*`` is the hand with its cover: 21 rigid cover pieces, each fixed to one link (palm pads on the wrist,
+a pad on the thumb's and each finger's first link, sleeves on the thumb's middle segment and each finger's proximal
+and middle segments), with their own collision meshes and 95.8 g in all (0.7836 kg with the hand), from Wuji's
+weighing data. Upstream models no deformation, and its cover masses are not measurements of an assembled hand.
+``WujiHand2_2Skeleton_*`` is the bare hand (0.6878 kg): the finger hardware, the palm and the fingertip sensor pads.
+
+Both load upstream's MJCF, not its URDF, because the MJCF excludes the contact pairs that overlap by assembly: 15
+on the bare hand, 344 with the cover. From the URDF, Genesis keeps those pairs, and the covered hand self-collides
+within the first fifth of the way into wuji-sim's fist pose. Assets (MJCF, URDF + STL meshes, MIT-licensed) live under
+``hands/wuji_hand2_2`` in the ``Kashu7100/eden_assets`` dataset, converted from ``wuji-technology/wuji-description``
+``hand2/hand2_2/body``: the bare hand from v2026.11.18, the release ``wuji-sim`` v2026.11.23 pins (unchanged in
+v2026.11.26), and the cover from v2026.11.26, which replaced its provisional cover masses. Eden's MJCF wraps upstream's
+fingertip and IMU sites in empty bodies of the same names, which Genesis keeps as links.
+
+The model is rooted at the wrist adapter plate (``{r,l}_mount``), so these presets correspond to
 ``WujiHand2Beta2WithMount_*``: the root pose getters and ``default_root_pos`` refer to the plate, and
 ``{r,l}_wrist`` is kept as a link so lookups written against the wrist still resolve.
 
@@ -17,7 +28,7 @@ armature, the torque limit of a 1.5 A current through each motor's torque consta
 damping, which wuji-sim leaves unidentified. ``WujiHand2Beta2`` instead carries the friction loss and damping
 wuji-mjlab identified on one right hand; pass them as ``default_dofs_frictionloss`` / ``default_dofs_damping``
 to train against them. The gains are the pen-spin operating point the beta2 presets use, which wuji-sim's
-pen-spin example also runs this model at.
+pen-spin example also runs this model at. They replace the MJCF's own armature and position-actuator gains.
 """
 
 from typing import ClassVar
@@ -75,6 +86,10 @@ class _WujiHand2_2(RobotOptions):
     # unset.
     current_limit_a: ClassVar[float] = _CURRENT_LIMIT_A
 
+    # The MJCF's root body has no free joint, so standing alone the hand is welded to the world; a composite rig still
+    # welds it to an arm (as ``FrankaHand`` does), since an attached entity is carried by its parent link.
+    is_fixed_base: bool = True
+
     default_dofs_pos: dict[str, float] = {"*": 0.0}
 
     default_dofs_kp: dict[str, float] = {p: m.JOINT_GAIN(_MIT_KP) for p, (m, _) in _PEN_SPIN_MOTORS.items()}
@@ -93,16 +108,17 @@ class _WujiHand2_2(RobotOptions):
 
 @ROBOT_REGISTRY.register(name="wuji_hand2_2_r")
 class WujiHand2_2_R(_WujiHand2_2):
-    file: str = "hands/wuji_hand2_2/wuji_hand2_2_right.urdf"
+    file: str = "hands/wuji_hand2_2/wuji_hand2_2_right_with_cover.xml"
 
-    # As on ``WujiHand2Beta2_R``: the fingers extend along URDF -Z and the palm normal is +Y, so the hand spawns
-    # fingers-up, palm-forward.
+    # As on ``WujiHand2Beta2_R``: the fingers extend along the model's -Z and the palm normal is +Y, so the hand
+    # spawns fingers-up, palm-forward.
     up: tuple[int, int, int] = (0, 0, -1)
     front: tuple[int, int, int] = (0, 1, 0)
 
     dofs_name: list[str] = [f"r_{joint}" for joint in _JOINTS]
 
-    # ``r_wrist`` is a fixed child of the ``r_mount`` root, which Genesis would merge into the base.
+    # ``r_wrist`` is a fixed child of the ``r_mount`` root, which Genesis would merge into the base; the tips and
+    # the IMU frame are empty bodies.
     links_to_keep: list[str] = ["r_wrist", "r_wrist_imu_frame"] + [f"r_{tip}" for tip in _TIPS]
 
     metadata: ClassVar[MetadataOptions] = MetadataOptions(
@@ -115,9 +131,9 @@ class WujiHand2_2_R(_WujiHand2_2):
 
 @ROBOT_REGISTRY.register(name="wuji_hand2_2_l")
 class WujiHand2_2_L(_WujiHand2_2):
-    file: str = "hands/wuji_hand2_2/wuji_hand2_2_left.urdf"
+    file: str = "hands/wuji_hand2_2/wuji_hand2_2_left_with_cover.xml"
 
-    # The left URDF mirrors the right about the palm plane: the palm normal flips to -Y.
+    # The left hand mirrors the right about the palm plane: the palm normal flips to -Y.
     up: tuple[int, int, int] = (0, 0, -1)
     front: tuple[int, int, int] = (0, -1, 0)
 
@@ -131,3 +147,16 @@ class WujiHand2_2_L(_WujiHand2_2):
         target_hand_links=[f"l_{tip}" for tip in _TIPS],
         mano_hand_idx=[16, 17, 18, 19, 20],
     )
+
+
+# --- bare (skeleton) variants ------------------------------------------------ #
+
+
+@ROBOT_REGISTRY.register(name="wuji_hand2_2_skeleton_r")
+class WujiHand2_2Skeleton_R(WujiHand2_2_R):
+    file: str = "hands/wuji_hand2_2/wuji_hand2_2_right.xml"
+
+
+@ROBOT_REGISTRY.register(name="wuji_hand2_2_skeleton_l")
+class WujiHand2_2Skeleton_L(WujiHand2_2_L):
+    file: str = "hands/wuji_hand2_2/wuji_hand2_2_left.xml"
