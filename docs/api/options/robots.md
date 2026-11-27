@@ -195,6 +195,13 @@ renders one module of `eden.options.robots`.
       show_root_heading: false
       show_if_no_docstring: true
 
+### Wuji Hand2 (hand2_2)
+
+::: eden.options.robots.wuji_hand2_2
+    options:
+      show_root_heading: false
+      show_if_no_docstring: true
+
 ### MANO hand model
 
 ::: eden.options.robots.mano_hand

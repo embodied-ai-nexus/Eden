@@ -161,6 +161,7 @@ All hands default to a free base. Each class name ends in `_L` or `_R`; the regi
 | `WujiHand1Simplified_L`, `WujiHand1Simplified_R` | `wuji_hand1_simplified_l`, `wuji_hand1_simplified_r` | 20 (primitive collision) | `hands/wuji_hand1/` |
 | `WujiHand2Beta2_L`, `WujiHand2Beta2_R` | `wuji_hand2beta2_l`, `wuji_hand2beta2_r` | 20 | `hands/wuji_hand2beta2/` |
 | `WujiHand2Beta2WithMount_L`, `WujiHand2Beta2WithMount_R` | `wuji_hand2beta2_with_mount_l`, `wuji_hand2beta2_with_mount_r` | 20 (root link is the mount plate) | `hands/wuji_hand2beta2/` |
+| `WujiHand2_2_L`, `WujiHand2_2_R` | `wuji_hand2_2_l`, `wuji_hand2_2_r` | 20 (root link is the mount plate) | `hands/wuji_hand2_2/` |
 
 !!! warning "The Inspire RH56 hands are marked unstable"
     `eden/options/robots/inspire_rh56.py` flags its base class as a placeholder whose setup is unstable: the
@@ -348,6 +349,15 @@ v3.0.0 use 1.98413, so on those versions the hand runs 3.8% stiffer than the sim
 deploying with `control_mode="mit_v2"` (firmware 3.1.0+) programs the joint-space gains directly. The specs hold no
 operating point: the current a task runs the hand at, and so its force limits, belong to the robot
 (`_WujiHand2Beta2.current_limit_a`, 1.5 A, pen spin's operating point).
+
+`WujiHand2_2` is the current revision of the hand and the one Wuji's
+[wuji-sim](https://github.com/wuji-technology/wuji-sim) simulates. Its joint names, axes and limits are
+`WujiHand2Beta2WithMount`'s; the palm's MCP origins, the fingertip frames, the meshes and the inertials differ, so
+check a policy trained on one model in simulation on the other before reusing it. It uses the same motor specs,
+gains and 1.5 A operating point, with wuji-sim's joint dynamics: the per-joint armature that the specs average (set
+on the robot, not averaged per motor) and zero friction loss and damping, which wuji-sim leaves unidentified. Pass
+`WujiHand2Beta2`'s identified values as `default_dofs_frictionloss` / `default_dofs_damping` to train against them
+instead.
 
 ## Adding a robot
 

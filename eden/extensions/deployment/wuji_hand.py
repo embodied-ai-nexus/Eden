@@ -7,7 +7,8 @@ order is the same for a right and a left hand; the side is a property of the joi
 
 - ``{right,left}_finger{1..5}_joint{1..4}`` (:class:`~eden.options.robots.wuji_hand1.WujiHand1_R` and
   the ``wuji-mjlab`` task models), and
-- ``{r,l}_{thumb_cmc_flex, ..., pinky_dip}`` (:class:`~eden.options.robots.wuji_hand2beta2.WujiHand2Beta2_R`),
+- ``{r,l}_{thumb_cmc_flex, ..., pinky_dip}`` (:class:`~eden.options.robots.wuji_hand2beta2.WujiHand2Beta2_R` and
+  :class:`~eden.options.robots.wuji_hand2_2.WujiHand2_2_R`),
   whose declaration order is the same finger-major order (upstream ``WUJI_HAND2_TASK_NAMES``).
 
 A :class:`HandTransport` is the wire to one hand: :class:`Hand1Transport` (``wujihandpy``) or
@@ -45,6 +46,7 @@ from eden.extensions.deployment.base import (
 from eden.extensions.deployment.utils.state import RobotCommand, RobotState
 from eden.options.actuators import WujiHand2Actuator
 from eden.options.robots.wuji_hand1 import _WujiHand1
+from eden.options.robots.wuji_hand2_2 import _WujiHand2_2
 from eden.options.robots.wuji_hand2beta2 import _WujiHand2Beta2
 from eden.utils.string import first_few, resolve_matching_names_values
 
@@ -824,7 +826,7 @@ class WujiHandDeployment(DeploymentBase):
     ----------
     hand : {"hand1", "hand2"} | None
         Hardware generation. ``None`` infers it from the robot options (``WujiHand1*`` -> ``"hand1"``,
-        ``WujiHand2Beta2*`` -> ``"hand2"``); any other robot must set it.
+        ``WujiHand2Beta2*`` and ``WujiHand2_2*`` -> ``"hand2"``); any other robot must set it.
     serial_number : str
         Hand 2 to connect; empty connects the only hand on the bus.
     stream_mode : {"sync", "thread"}
@@ -837,8 +839,8 @@ class WujiHandDeployment(DeploymentBase):
         N·m·s/rad and a torque limit in N·m, and all 20 joints must be online (``require_all_joints``).
     effort_limit_a : float | None
         Joint current limit, A. ``None``: 0.5 on Hand 1 (upstream's default); on Hand 2 in ``"mit"`` the
-        robot's ``current_limit_a`` (1.5 for ``WujiHand2Beta2``, what its force limits were trained at),
-        else 1.0. In ``"mit_v2"`` a set value becomes each joint's torque limit through its motor's
+        robot's ``current_limit_a`` (1.5 for ``WujiHand2Beta2`` and ``WujiHand2_2``, what their force limits
+        are set at), else 1.0. In ``"mit_v2"`` a set value becomes each joint's torque limit through its motor's
         ``TORQUE_CONSTANT``; ``None`` programs the robot's ``default_dofs_force_limits``, the ceiling the
         policy trained with.
     lowpass_cutoff_hz : float
@@ -915,7 +917,7 @@ class WujiHandDeployment(DeploymentBase):
         if self.hand is None:
             if isinstance(self.robot_options, _WujiHand1):
                 self.hand = "hand1"
-            elif isinstance(self.robot_options, _WujiHand2Beta2):
+            elif isinstance(self.robot_options, (_WujiHand2Beta2, _WujiHand2_2)):
                 self.hand = "hand2"
             else:
                 raise ValueError(
@@ -1314,3 +1316,4 @@ class WujiHandDeployment(DeploymentBase):
 
 bind_deployment(_WujiHand1, "wuji_hand_deployment")
 bind_deployment(_WujiHand2Beta2, "wuji_hand_deployment")
+bind_deployment(_WujiHand2_2, "wuji_hand_deployment")
