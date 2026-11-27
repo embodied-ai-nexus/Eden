@@ -83,11 +83,18 @@ training run ended at:
 To evaluate at a later level, set that level in the config the eval builds from.
 
 !!! note "What a resumed run restores"
-    Each rsl_rl and rl_games checkpoint records `env.common_step_counter`, and a training run that resumes from it
-    (`eden train --resume` or `--checkpoint`) sets the counter back to that value, so step-scheduled stages continue
-    where the checkpoint left them. A checkpoint saved before the counter was recorded resumes an rsl_rl run at
-    `iteration * num_steps_per_env` and an rl_games run at 0, with a warning. Eden does not restore any curriculum
-    term's internal state, so adaptive terms restart their averages.
+    Each rsl_rl and rl_games checkpoint records `env.common_step_counter` and the task's config class. A training
+    run of the same config class that resumes from it (`eden train --resume` or `--checkpoint`) sets the counter back
+    to that value, so step-scheduled stages continue where the checkpoint left them. A checkpoint of another task, as
+    in a warm start with `--checkpoint`, leaves the counter at 0, so this task's stages start from the first one, and
+    a warning names both classes. The config class is the task's identity: the variants of one task (its mods) share
+    it and count as one task, and so do configs built directly from `EdenRLConfig`.
+
+    A checkpoint saved before the counter was recorded resumes an rsl_rl run at `iteration * num_steps_per_env` when
+    the `config.json` beside it names the same config class, and at 0 otherwise. It resumes an rl_games run at 0.
+    Each case logs a warning. The derived count is a lower bound: rsl_rl names a checkpoint after the iteration it
+    has just finished, so the run took at least one iteration more. Eden does not restore any curriculum term's
+    internal state, so adaptive terms restart their averages.
 
 ## Built-in curriculum terms
 

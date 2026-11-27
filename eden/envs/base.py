@@ -1938,9 +1938,9 @@ class RLEnvBase(EnvBase[EdenRLConfig]):
     def common_step_counter(self) -> int:
         """Control steps taken since construction, one count shared by every env.
 
-        A training run resumed from an rsl_rl or rl_games checkpoint starts it at the count the checkpoint saved
-        (``StepCounterCheckpointMixin``, ``RlGamesVecEnvWrapper.set_env_state``), so the steps of the runs before it
-        are included.
+        A training run resumed from an rsl_rl or rl_games checkpoint of its own task (the same config class) starts
+        it at the count the checkpoint saved (``StepCounterCheckpointMixin``, ``RlGamesVecEnvWrapper.set_env_state``),
+        so the steps of the runs before it are included. A checkpoint of another task leaves it at 0.
 
         Reading it while the graded phase is captured (``EnvOptions.cuda_graph_options``) raises
         :class:`~eden.envs.graded_graph.BakedHostReadError`: the graph would replay the count it read on every

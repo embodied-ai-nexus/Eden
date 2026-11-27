@@ -32,7 +32,7 @@ import torch
 from rl_games.common.ivecenv import IVecEnv
 
 import eden as en
-from eden.envs.wrappers.core import EnvWrapperMixin, action_space, time_outs
+from eden.envs.wrappers.core import EnvWrapperMixin, action_space, task_config_qualname, time_outs
 from eden.options.learning.rl_games.rl import check_agents_options
 from eden.options.learning.rl_games.translate import translate_runner_dict
 
@@ -345,19 +345,27 @@ class RlGamesVecEnvWrapper(EnvWrapperMixin, IVecEnv):
     def set_train_info(self, env_frames: int, *args: Any, **kwargs: Any) -> None:
         pass
 
-    def get_env_state(self) -> dict[str, int]:
-        """What rl_games saves in a checkpoint's ``env_state``: the env's ``common_step_counter``.
+    def get_env_state(self) -> dict[str, int | str]:
+        """What rl_games saves in a checkpoint's ``env_state``: the env's ``common_step_counter`` and its task.
 
         Step-scheduled curricula and events read the counter, so a resumed run restores it through
-        :meth:`set_env_state` to continue their schedule rather than restart it.
+        :meth:`set_env_state` to continue their schedule rather than restart it. ``task`` is the config class
+        (:func:`~eden.envs.wrappers.core.task_config_qualname`), so a checkpoint of another task does not move this
+        task's schedule.
         """
-        return {"common_step_counter": int(self.unwrapped.common_step_counter)}
+        return {
+            "common_step_counter": int(self.unwrapped.common_step_counter),
+            "task": task_config_qualname(self),
+        }
 
     def set_env_state(self, env_state: Any) -> None:
         """Restore what :meth:`get_env_state` saved; rl_games calls it when a training run restores a checkpoint.
 
-        An eval env keeps its own count, as its curricula are frozen. A checkpoint saved before the record existed
-        (``env_state`` ``None``) leaves the counter at 0, and a warning says so.
+        An eval env keeps its own count, as its curricula are frozen. The counter stays at 0, with a warning, for a
+        checkpoint saved before the record existed (``env_state`` ``None``), for one trained on another config class
+        (a warm start from another task), whose step count is not this task's schedule, and for one whose record
+        names no class. rl_games passes no checkpoint path here, so there is no ``config.json`` beside it to read the
+        class from.
         """
         env = self.unwrapped
         if not env.training:
@@ -370,7 +378,22 @@ class RlGamesVecEnvWrapper(EnvWrapperMixin, IVecEnv):
                 "from each stage's `step` with --override."
             )
             return
-        env.common_step_counter = int(env_state["common_step_counter"])
+        task, saved = task_config_qualname(self), int(env_state["common_step_counter"])
+        saved_task = env_state.get("task")
+        if saved_task != task:
+            trained = (
+                "does not record the config class it trained (it was saved before Eden recorded one)"
+                if saved_task is None
+                else f"was trained on {saved_task}, and this run is {task}"
+            )
+            en.logger.warning(
+                f"The rl_games checkpoint being restored {trained}, so env.common_step_counter starts at 0 instead "
+                f"of the checkpoint's {saved}: this task's step-scheduled curricula and events begin at their first "
+                f"stage. If the checkpoint is this task's ({task}), keep the schedule by subtracting {saved} from "
+                "each stage's `step` with --override."
+            )
+            return
+        env.common_step_counter = saved
 
     def close(self) -> None:
         """Destroy the env's scene if :meth:`from_config` built it; an env passed to ``__init__`` stays the caller's."""

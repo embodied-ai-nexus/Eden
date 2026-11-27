@@ -169,9 +169,11 @@ eden train --task velocity_tracking_flat --resume lower_lr       # by run_name
 
 `--checkpoint PATH` also loads weights before training, from any file, without the run lookup.
 
-Either way the run continues the checkpoint's iteration count and its `env.common_step_counter`, which
-step-scheduled curricula and events read (see [Curricula](curricula.md)). Teacher weights loaded into a fresh
-distillation run start both at 0.
+Either way the run continues the checkpoint's iteration count. It also continues the checkpoint's
+`env.common_step_counter`, which step-scheduled curricula and events read, when the checkpoint was trained on this
+task's config class (see [Curricula](curricula.md)). A checkpoint of another task, loaded to warm-start this one,
+starts the counter at 0, so this task's stages start from the first one. Teacher weights loaded into a fresh
+distillation run start both counts at 0.
 
 ## Replay a checkpoint
 

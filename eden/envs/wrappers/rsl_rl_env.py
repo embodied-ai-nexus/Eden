@@ -36,11 +36,18 @@ from tensordict import TensorDict
 
 import eden as en
 from eden.envs.base import MimicRLEnvBase
-from eden.envs.wrappers.core import EnvWrapperMixin, action_space, observation_space, time_outs
+from eden.envs.wrappers.core import (
+    EnvWrapperMixin,
+    action_space,
+    observation_space,
+    task_config_qualname,
+    time_outs,
+)
 from eden.envs.wrappers.rsl_rl_compat import FINAL_OBS_KEY, episode_buffers, stock_nan_check_reads_nested_groups
 from eden.options.learning.rsl_rl.translate import translate_runner_dict
 from eden.utils import distributed as eden_dist
 from eden.utils.assets import model_checkpoints
+from eden.utils.configs import read_config_file, saved_config_qualname
 from eden.utils.run_manifest import read_run_manifest
 from eden.utils.torch import read_checkpoint_index
 from eden.utils.warning import warn_once
@@ -709,21 +716,37 @@ STEP_COUNTER_INFOS_KEY = "env_step_counter"
 
 
 class StepCounterCheckpointMixin:
-    """Save ``env.common_step_counter`` with each checkpoint and restore it when a training run loads one.
+    """Save ``env.common_step_counter`` with each checkpoint and restore it when a training run of the same task loads
+    one.
 
     Step-scheduled curricula (``VelocityCommandCurriculum``, ``StageRewardWeightCurriculum``) and step-ramped events
     (``ObjectVelocityDisturbance``) read the counter, which the env sets to 0 when it is built. Without this a resumed
     run continues the iteration count while those schedules start over from their first stage.
 
-    ``save`` adds ``infos[STEP_COUNTER_INFOS_KEY] = {"common_step_counter", "iteration"}`` to what the runner saves.
-    ``load`` (wrapped per instance, keeping the runner's own signature) restores the counter when the load resumed
-    that iteration. A load that does not resume the iteration, such as a teacher checkpoint loaded into a fresh
-    distillation run, starts the counter at 0 along with the iterations. An eval env (``eval_mode=True``) keeps its
-    own count: its curricula are frozen, and ``eden inference`` replays from step 0 as it did before.
+    ``save`` adds ``infos[STEP_COUNTER_INFOS_KEY] = {"common_step_counter", "iteration", "task"}`` to what the runner
+    saves, where ``task`` is the config class (:func:`~eden.envs.wrappers.core.task_config_qualname`). ``load``
+    (wrapped per instance, keeping the runner's own signature) restores the counter when the load resumed that
+    iteration and the checkpoint was trained on this run's config class. Variants of one task (its mods) share the
+    class, and count as one task.
 
-    A checkpoint saved before this record existed restores ``iteration * num_steps_per_env``, which assumes the run
-    kept one ``num_steps_per_env`` throughout, and says so in a warning.
+    * A load that leaves the iteration where it was, such as a teacher checkpoint loaded into a fresh distillation
+      run, starts the counter at 0 along with the iterations. A record at iteration 0 loaded into a runner at
+      iteration 0 cannot be told apart from a resume, and restores.
+    * A load that moves the iteration somewhere other than the record's (a runner whose ``save`` and ``load``
+      disagree about the iteration) starts the counter at 0, with a warning.
+    * A checkpoint of another task (a warm start with ``--checkpoint``) starts it at 0, so this task's schedules begin
+      at their first stage, and a warning names both classes.
+    * A checkpoint whose class is unknown (saved before the record, or before the record named the class) is matched
+      against the ``config.json`` its run saved beside it. Without that file the counter starts at 0, with a warning.
+    * An eval env (``eval_mode=True``) keeps its own count: its curricula are frozen, and ``eden inference`` replays
+      from step 0 as it did before.
+
+    A checkpoint of this task saved before the record existed restores ``iteration * num_steps_per_env``, a lower
+    bound on the steps the run took (see :meth:`_derive_step_counter`), with a warning.
     """
+
+    #: The checkpoint the caller named, while ``load`` reads a converted copy of it (:meth:`loading_from`).
+    _checkpoint_source: str | None = None
 
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
@@ -735,16 +758,31 @@ class StepCounterCheckpointMixin:
         def load_and_restore_step_counter(*load_args, **load_kwargs):  # type: ignore[no-untyped-def]
             iteration_before = getattr(self, "current_learning_iteration", 0)
             infos = load(*load_args, **load_kwargs)
-            path = load_args[0] if load_args else load_kwargs.get("path")
+            path = self._checkpoint_source or (load_args[0] if load_args else load_kwargs.get("path"))
             self._restore_step_counter(infos, iteration_before, path=path)
             return infos
 
         self.load = load_and_restore_step_counter
 
+    @contextlib.contextmanager
+    def loading_from(self, checkpoint: str):
+        """Name ``checkpoint`` as the file a ``load`` in the block restores from, when it reads a converted copy.
+
+        :func:`load_runner_checkpoint` hands rsl_rl a rewritten copy of a legacy checkpoint, beside the original or in
+        a temporary directory. The counter is matched against the ``config.json`` beside the checkpoint the caller
+        named, and the warnings name that file.
+        """
+        self._checkpoint_source = checkpoint
+        try:
+            yield
+        finally:
+            self._checkpoint_source = None
+
     def save(self, path: str, infos: dict | None = None) -> None:
         record = {
             "common_step_counter": int(self.env.unwrapped.common_step_counter),  # type: ignore[attr-defined]
             "iteration": int(getattr(self, "current_learning_iteration", 0)),
+            "task": task_config_qualname(self.env),  # type: ignore[attr-defined]
         }
         super().save(path, {**(infos or {}), STEP_COUNTER_INFOS_KEY: record})  # type: ignore[misc]
 
@@ -754,29 +792,82 @@ class StepCounterCheckpointMixin:
             return
         iteration = int(getattr(self, "current_learning_iteration", 0))
         record = infos.get(STEP_COUNTER_INFOS_KEY) if isinstance(infos, dict) else None
-        if record is not None:
-            if int(record["iteration"]) == iteration:
-                env.common_step_counter = int(record["common_step_counter"])
+        restarts = (
+            "so env.common_step_counter restarts at 0: step-scheduled curricula and events start over from their "
+            "first stage."
+        )
+        if record is None:
+            if iteration == iteration_before:
+                return  # the load did not resume an iteration, so the run starts its own schedule at step 0
+        elif int(record["iteration"]) != iteration:
+            if iteration != iteration_before:
+                en.logger.warning(
+                    f"Checkpoint {path} resumed this runner at iteration {iteration}, but its env step counter "
+                    f"({record['common_step_counter']}) was recorded at iteration {record['iteration']}: the "
+                    f"runner's save and load disagree about the iteration, {restarts} To keep their schedule, "
+                    f"subtract {record['common_step_counter']} from each stage's `step` with --override, and make "
+                    f"{type(self).__name__}.load restore the iteration that save wrote."
+                )
+            return  # the load did not resume an iteration (a teacher), so the run starts its schedule at step 0
+        task = task_config_qualname(self.env)  # type: ignore[attr-defined]
+        saved_task = record.get("task") if record is not None else None
+        if saved_task is None:
+            saved_task = _sibling_config_qualname(path)
+        if record is None:
+            known = f"Checkpoint {path} records no env step counter (it was saved before Eden recorded one)"
+            keep_schedule = "subtract the steps the checkpoint trained for from each stage's `step` with --override."
+        else:
+            known = f"Checkpoint {path} records an env step counter of {record['common_step_counter']}"
+            keep_schedule = f"subtract {record['common_step_counter']} from each stage's `step` with --override."
+        if saved_task is None:
+            en.logger.warning(
+                f"{known}, but neither it nor a config.json beside it records the config class it trained. Eden "
+                f"cannot tell whether it is this run's task ({task}), {restarts} If it is, keep their schedule: "
+                f"{keep_schedule}"
+            )
             return
-        if iteration == iteration_before:
-            return  # the load did not resume an iteration, so the run starts its own schedule at step 0
+        if saved_task != task:
+            en.logger.warning(
+                f"{known}, and it was trained on {saved_task}, not this run's {task}, {restarts} If that class is "
+                f"this task under an earlier module or class name, keep their schedule: {keep_schedule}"
+            )
+            return
+        if record is not None:
+            env.common_step_counter = int(record["common_step_counter"])
+            return
+        self._derive_step_counter(env, iteration, known, restarts, keep_schedule)
+
+    def _derive_step_counter(self, env: Any, iteration: int, known: str, restarts: str, keep_schedule: str) -> None:
+        """Set the counter for a resumed checkpoint of this task that records none: ``iteration * num_steps_per_env``.
+
+        The count is a lower bound even when ``num_steps_per_env`` never changed: rsl_rl's runner names a checkpoint
+        after the iteration it has just finished, so a run that started at iteration 0 took one iteration more, and
+        each earlier resume re-ran the iteration it loaded.
+        """
         steps_per_iteration = (getattr(self, "cfg", None) or {}).get("num_steps_per_env")
         if steps_per_iteration is None:
             en.logger.warning(
-                f"Checkpoint {path} records no env step counter (it was saved before Eden recorded one), and this "
-                "runner has no num_steps_per_env to derive one from, so env.common_step_counter restarts at 0: "
-                "step-scheduled curricula and events start over from their first stage. To keep their schedule, "
-                "subtract the steps the checkpoint trained for from each stage's `step` with --override."
+                f"{known}, and this runner has no num_steps_per_env to derive one from, {restarts} To keep their "
+                f"schedule, {keep_schedule}"
             )
             return
         env.common_step_counter = iteration * int(steps_per_iteration)
         en.logger.warning(
-            f"Checkpoint {path} records no env step counter (it was saved before Eden recorded one), so "
-            f"env.common_step_counter, which step-scheduled curricula and events read, resumes at iteration "
-            f"{iteration} x num_steps_per_env {steps_per_iteration} = {env.common_step_counter}. That is the step the "
-            "run reached only if it kept this num_steps_per_env throughout; a checkpoint this run saves records the "
-            "exact count."
+            f"{known}, so env.common_step_counter, which step-scheduled curricula and events read, resumes at "
+            f"iteration {iteration} x num_steps_per_env {steps_per_iteration} = {env.common_step_counter}. If the run "
+            "kept this num_steps_per_env throughout, that is a lower bound: rsl_rl names a checkpoint after the "
+            "iteration it has just finished, so a run that started at iteration 0 took one iteration more, and each "
+            "earlier resume re-ran one iteration. A stage that begins in that gap starts that many iterations late. "
+            "The checkpoints this run saves record the exact count."
         )
+
+
+def _sibling_config_qualname(checkpoint: str | None) -> str | None:
+    """The config class the ``config.json`` beside ``checkpoint`` was saved from, or ``None`` without one."""
+    if not checkpoint:
+        return None
+    sibling = os.path.join(os.path.dirname(os.path.abspath(checkpoint)), "config.json")
+    return saved_config_qualname(read_config_file(sibling)) if os.path.exists(sibling) else None
 
 
 class SaveBeforeLearnMixin:
@@ -1150,8 +1241,11 @@ def _maybe_convert_legacy_checkpoint(path: str, *, std_type: str) -> str:
     }
 
     out_path = cached_out_path
+    # Opened here rather than by path: `torch.save(obj, path)` reports an unwritable directory as a RuntimeError from
+    # its zip writer, which the OSError below would miss, and catching RuntimeError would also catch a failed save.
     try:
-        torch.save(converted, out_path)
+        with open(out_path, "wb") as file:
+            torch.save(converted, file)
     except OSError:
         out_path = tempfile.NamedTemporaryFile(suffix=".converted.pt", delete=False).name
         torch.save(converted, out_path)
@@ -1465,11 +1559,14 @@ def load_runner_checkpoint(runner, checkpoint: str) -> None:
         # way so a mismatched key still results in a partially-loaded policy
         # (just one the user knows about).
         loaded_keys = _audit_rsl_rl_checkpoint_keys(runner, load_path, device)
+    # A converted copy is what rsl_rl reads; the step counter is matched against the checkpoint the caller named.
+    naming_source = runner.loading_from(checkpoint) if isinstance(runner, StepCounterCheckpointMixin) else None
     try:
-        if "strict" in inspect.signature(runner.load).parameters:
-            runner.load(load_path, map_location=device, strict=False)
-        else:
-            runner.load(load_path, map_location=device)
+        with naming_source or contextlib.nullcontext():
+            if "strict" in inspect.signature(runner.load).parameters:
+                runner.load(load_path, map_location=device, strict=False)
+            else:
+                runner.load(load_path, map_location=device)
     except KeyError as exc:
         error = _rsl_rl_checkpoint_format_error(exc, source=checkpoint, loaded=load_path, keys=loaded_keys)
         if error is None:

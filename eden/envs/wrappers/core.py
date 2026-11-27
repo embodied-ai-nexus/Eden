@@ -143,6 +143,17 @@ def time_outs(terminated: torch.Tensor, truncated: torch.Tensor) -> torch.Tensor
     return truncated & ~terminated
 
 
+def task_config_qualname(env: Any) -> str:
+    """The ``module.Class`` of the config ``env`` was built from, in the form a saved ``config.json`` records it.
+
+    A checkpoint's step-counter record stores it, so a run restores the counter only from a checkpoint of its own task
+    (:class:`~eden.envs.wrappers.rsl_rl_env.StepCounterCheckpointMixin`, ``RlGamesVecEnvWrapper.set_env_state``). The
+    exact class is the task's identity: a task variant's config subclasses its base task's, and is another task.
+    """
+    config_class = type(env.unwrapped.config)
+    return f"{config_class.__module__}.{config_class.__name__}"
+
+
 def _numpy_dtype(dtype: torch.dtype) -> np.dtype:
     return torch.empty((), dtype=dtype).numpy().dtype
 

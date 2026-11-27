@@ -426,3 +426,35 @@ def test_a_checkpoint_without_the_record_restarts_the_counter_and_says_so(
 
     assert agent.vec_env.unwrapped.common_step_counter == 0
     assert "records no env step counter" in eden_caplog.text
+
+
+def test_a_checkpoint_of_another_task_leaves_the_counter_at_its_start(rl_config, tmp_path, monkeypatch, eden_caplog):
+    """A warm start from another task's run: that run's step count is not this task's schedule."""
+    trained = _trained_checkpoints(rl_config, tmp_path / "run", monkeypatch)
+    (nn_dir,) = (tmp_path / "run").glob("runs/*/nn")
+    checkpoint = str(nn_dir / trained[-1][1])
+    state = torch.load(checkpoint, weights_only=False)
+    state["env_state"]["task"] = "eden.tasks.other.OtherTaskConfig"
+    torch.save(state, checkpoint)
+
+    agent = _agent(_runner(rl_config))
+    agent.restore(checkpoint)
+
+    assert agent.vec_env.unwrapped.common_step_counter == 0
+    assert "was trained on eden.tasks.other.OtherTaskConfig" in eden_caplog.text
+
+
+def test_a_record_without_its_task_restarts_the_counter_and_says_so(rl_config, tmp_path, monkeypatch, eden_caplog):
+    """rl_games names no checkpoint path to ``set_env_state``, so no ``config.json`` can name the task instead."""
+    trained = _trained_checkpoints(rl_config, tmp_path / "run", monkeypatch)
+    (nn_dir,) = (tmp_path / "run").glob("runs/*/nn")
+    checkpoint = str(nn_dir / trained[-1][1])
+    state = torch.load(checkpoint, weights_only=False)
+    del state["env_state"]["task"]
+    torch.save(state, checkpoint)
+
+    agent = _agent(_runner(rl_config))
+    agent.restore(checkpoint)
+
+    assert agent.vec_env.unwrapped.common_step_counter == 0
+    assert "does not record the config class it trained" in eden_caplog.text
