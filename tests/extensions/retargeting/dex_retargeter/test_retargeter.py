@@ -9,9 +9,7 @@ import numpy as np
 import pytest
 import torch
 
-pytest.importorskip("nlopt")  # the optional ``dex-retargeter`` extra
-
-from eden.extensions.retargeting.dex_retargeter import DexRetargeter  # noqa: E402
+from eden.extensions.retargeting.dex_retargeter import DexRetargeter
 
 
 FINGER_TIPS = [
