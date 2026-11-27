@@ -2,7 +2,7 @@
 
 ---
 tier: project
-capabilities: [task.piano, robot.wuji_hand2beta2, sensor.piano_audio]
+capabilities: [task.piano, robot.wuji_hand2_2, sensor.piano_audio]
 hardware: gpu
 optional_deps: []
 run: uv run python examples/projects/manipulation/piano/main.py train --song twinkle_twinkle
