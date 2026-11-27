@@ -13,6 +13,7 @@ from eden.options.entities import MESH_FILE_SUFFIXES, TET_MESH_FILE_SUFFIXES, En
 from eden.options.robots import ROBOT_REGISTRY
 from eden.utils.asset_audit import (
     ASSET_FILE_SUFFIXES,
+    LANDING_SECONDS,
     AuditReport,
     AuditThresholds,
     audit_entity,
@@ -310,3 +311,26 @@ def test_known_good_presets_do_not_fail(key):
 def test_file_suffixes_are_the_ones_the_entity_loader_builds():
     surface_meshes = tuple(s for s in MESH_FILE_SUFFIXES if s not in TET_MESH_FILE_SUFFIXES)
     assert set(ASSET_FILE_SUFFIXES) == {".urdf", ".xml", ".usd", ".usda", ".usdc", ".usdz", *surface_meshes}
+
+
+class TestThresholds:
+    def test_defaults_leave_the_rest_window_after_the_landing(self):
+        thresholds = AuditThresholds()
+        assert thresholds.seconds >= thresholds.min_seconds
+        assert thresholds.min_seconds == pytest.approx(
+            thresholds.fall_seconds + LANDING_SECONDS + thresholds.rest_window
+        )
+
+    @pytest.mark.parametrize("seconds", [0.25, 0.8])
+    def test_a_run_whose_rest_window_would_hold_the_landing_is_refused_with_the_minimum(self, seconds):
+        with pytest.raises(ValueError, match=r"too short to grade settle.*seconds >= 0\.85.*--seconds 0\.9"):
+            AuditThresholds(seconds=seconds)
+
+    def test_a_shorter_rest_window_admits_a_shorter_run(self):
+        assert AuditThresholds(seconds=0.7, rest_window=0.05).seconds == 0.7
+
+    @pytest.mark.parametrize("field", ["seconds", "rest_window", "max_penetration", "drop_height"])
+    @pytest.mark.parametrize("value", [0.0, -1.0, float("nan")])
+    def test_every_limit_must_be_positive(self, field, value):
+        with pytest.raises(ValueError, match=rf"must be a positive number; got {field}="):
+            AuditThresholds(**{field: value})

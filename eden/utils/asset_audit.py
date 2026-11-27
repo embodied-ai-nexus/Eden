@@ -40,7 +40,7 @@ from __future__ import annotations
 
 import math
 import os
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass, field, fields
 from typing import TYPE_CHECKING, Any, Literal
 
 if TYPE_CHECKING:
@@ -53,6 +53,14 @@ Status = Literal["pass", "warn", "fail", "skip"]
 
 #: Name the audited entity takes in the scene.
 AUDIT_ENTITY_NAME = "asset"
+
+#: Time ``settle`` allows, after the entity first reaches the plane, for the landing to damp out before the graded
+#: :attr:`AuditThresholds.rest_window` may begin, in s. An unpowered robot folds and bounces for a few tenths of a
+#: second; its overshoot then is not a property of the asset.
+LANDING_SECONDS = 0.5
+
+#: Standard gravity, for the fall time of :attr:`AuditThresholds.drop_height`, in m/s^2.
+_GRAVITY = 9.81
 
 #: File suffixes ``eden audit`` loads as a raw asset path: the ones ``Entity`` builds a rigid morph from
 #: (``eden/entities/base.py``): URDF, MJCF (``.xml``), USD and the surface meshes of ``MESH_FILE_SUFFIXES``.
@@ -88,6 +96,29 @@ class AuditThresholds:
     max_hold_drift: float = 0.05
     #: DOF speed treated as an explosion during ``hold``, in rad/s or m/s.
     max_dof_speed: float = 50.0
+
+    def __post_init__(self) -> None:
+        not_positive = [f"{f.name}={getattr(self, f.name)!r}" for f in fields(self) if not getattr(self, f.name) > 0.0]
+        if not_positive:
+            raise ValueError(f"AuditThresholds: every limit must be a positive number; got {', '.join(not_positive)}.")
+        if self.seconds < self.min_seconds:
+            raise ValueError(
+                f"AuditThresholds: seconds={self.seconds!r} is too short to grade settle: the drop from "
+                f"drop_height={self.drop_height} m takes {self.fall_seconds:.2f} s, the landing is given "
+                f"{LANDING_SECONDS} s to damp, and the graded rest_window={self.rest_window} s must come after both. "
+                f"Pass seconds >= {self.min_seconds:.2f} (eden audit --seconds {math.ceil(self.min_seconds * 10) / 10}), "
+                "or shorten rest_window."
+            )
+
+    @property
+    def fall_seconds(self) -> float:
+        """Time to fall :attr:`drop_height` from rest, in s."""
+        return math.sqrt(2.0 * self.drop_height / _GRAVITY)
+
+    @property
+    def min_seconds(self) -> float:
+        """Shortest :attr:`seconds` whose graded :attr:`rest_window` starts after the drop and the landing, in s."""
+        return self.fall_seconds + LANDING_SECONDS + self.rest_window
 
 
 @dataclass(frozen=True)

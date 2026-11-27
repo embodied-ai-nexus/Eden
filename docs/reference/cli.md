@@ -721,7 +721,7 @@ definite, a URDF `<inertial><density>`) is raised as is. The command exits with 
 |---|---|
 | `--fixed-base` | Pin the base, so `hold` runs. An MJCF whose file declares its own base cannot be changed. |
 | `--free-base` | Free the base, so `settle` runs. |
-| `--seconds S` | Simulated time for `settle` and `hold`. Default 2.0. |
+| `--seconds S` | Simulated time for `settle` and `hold`. Default 2.0. A run shorter than the drop (0.1 s from 5 cm), a 0.5 s landing allowance and the 0.25 s graded window together, 0.85 s, is refused before anything is built, since its graded window would contain the landing. |
 | `--task TASK` | Run at this registered task's `env_options` (timestep, substeps, integrator, solver), without its CUDA graph or gradients. |
 | `--json PATH` | Also write the report as JSON. |
 

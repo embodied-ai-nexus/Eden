@@ -109,9 +109,18 @@ def test_eden_audit_task_runs_at_the_tasks_physics(monkeypatch, tmp_path):
     out = tmp_path / "report.json"
 
     assert (
-        _run_main(monkeypatch, "audit", str(path), "--task", "reacher", "--seconds", "0.5", "--json", str(out)) is None
+        _run_main(monkeypatch, "audit", str(path), "--task", "reacher", "--seconds", "1.0", "--json", str(out)) is None
     )
 
     physics = json.loads(out.read_text())["physics"]
     assert physics["sim_dt"] == 0.01
     assert physics["sim_substeps"] == 2
+
+
+@pytest.mark.parametrize("seconds", ["-1", "0", "0.25", "nan"])
+def test_eden_audit_refuses_a_run_too_short_to_grade_before_initializing(monkeypatch, tmp_path, seconds):
+    """``--seconds -1`` used to simulate one step and report the box, still in the air, as at rest."""
+    path = tmp_path / "box.xml"
+    path.write_text(FREE_BOX)
+    with pytest.raises(ValueError, match=r"AuditThresholds: .*seconds="):
+        _run_main(monkeypatch, "audit", str(path), "--seconds", seconds)

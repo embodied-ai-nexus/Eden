@@ -54,13 +54,13 @@ def _run_audit(args) -> None:
     import eden as en
     from eden.utils.asset_audit import AuditThresholds, audit_entity
 
+    # Everything that can be wrong with the arguments is checked before Eden initializes.
+    thresholds = AuditThresholds(seconds=args.seconds)
     fixed_base = True if args.fixed_base else False if args.free_base else None
     options = _resolve_audit_target(args.target, fixed_base)
     env_options = _task_env_options(args.task)
     en.init()
-    report = audit_entity(
-        options, env_options=env_options, target=args.target, thresholds=AuditThresholds(seconds=args.seconds)
-    )
+    report = audit_entity(options, env_options=env_options, target=args.target, thresholds=thresholds)
     print(report.format())
     if args.json:
         with open(args.json, "w") as f:
@@ -80,7 +80,11 @@ def _configure_audit(parser: argparse.ArgumentParser) -> None:
     base.add_argument("--fixed-base", action="store_true", help="Pin the base (a robot arm from a URDF needs this)")
     base.add_argument("--free-base", action="store_true", help="Free the base, so the settle check drops it")
     parser.add_argument(
-        "--seconds", type=float, default=2.0, help="Simulated time for the settle and hold checks (default: 2.0)"
+        "--seconds",
+        type=float,
+        default=2.0,
+        help="Simulated time for the settle and hold checks (default: 2.0; at least about 0.85, so the drop and the "
+        "landing finish before the graded rest window)",
     )
     parser.add_argument(
         "--task",
