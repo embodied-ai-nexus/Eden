@@ -641,13 +641,16 @@ def test_a_deep_copied_runner_loads_and_restores_into_itself(wrapper, runner, st
     path = str(tmp_path / "model_7.pt")
     step_counter.common_step_counter = 28
     _checkpoint_at_iteration_7(runner, step_counter, path)
-    runner.current_learning_iteration = 0
-    clone = copy.deepcopy(runner, {id(wrapper): wrapper})  # one env: the scene is not the runner's to copy
+    # No log_dir: rsl-rl-lib 3.x opens its TensorBoard writer in __init__ when given one, and the writer's thread lock
+    # cannot be deep-copied (4.x and later open it in learn()). Built directly, since make_rsl_rl_runner(log_dir=None)
+    # falls back to en.log_dir.
+    original = MimicOnPolicyRunner(wrapper, wrapper.runner_dict, log_dir=None, device="cpu")
+    clone = copy.deepcopy(original, {id(wrapper): wrapper})  # one env: the scene is not the runner's to copy
 
     load_runner_checkpoint(clone, path)
 
     assert clone.current_learning_iteration == 7
-    assert runner.current_learning_iteration == 0
+    assert original.current_learning_iteration == 0
     assert step_counter.common_step_counter == 28
     assert ("strict" in inspect.signature(clone.load).parameters) == (
         "strict" in inspect.signature(OnPolicyRunner.load).parameters
