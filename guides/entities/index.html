@@ -1829,6 +1829,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#auditing-a-built-entity-eden-audit" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Auditing a built entity (eden audit)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#see-also" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -5882,6 +5893,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#auditing-a-built-entity-eden-audit" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Auditing a built entity (eden audit)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#see-also" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -6606,7 +6628,8 @@ inherit the 0.1:</p>
 </span><span id="__span-10-2"><a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a><span class="n">hand</span> <span class="o">=</span> <span class="n">en</span><span class="o">.</span><span class="n">robots</span><span class="o">.</span><span class="n">XHand1_R</span><span class="p">(</span><span class="n">default_dofs_armature</span><span class="o">=</span><span class="p">{</span><span class="s2">"*"</span><span class="p">:</span> <span class="mf">1.0</span> <span class="o">/</span> <span class="mi">300</span><span class="p">})</span>
 </span></code></pre></div>
 <p>Because the fill lands at build, the pre-build joint description still reads the raw asset value. Audit the
-built <code>get_dofs_armature()</code>, which is also what <code>default_dofs_armature</code> is seeded from.
+built <code>get_dofs_armature()</code>, which is also what <code>default_dofs_armature</code> is seeded from. <code>eden audit &lt;Entity&gt;</code>
+compares the two and names every DOF that received the fill (see <a href="../../reference/cli/#eden-audit"><code>eden audit</code></a>).
 <code>tests/entities/test_rigid.py</code> pins the fill rule.</p>
 <h3 id="implicit-damping">Implicit damping<a class="headerlink" href="#implicit-damping" title="Permanent link">&para;</a></h3>
 <div class="admonition note">
@@ -7120,6 +7143,74 @@ consequences shape a manipulation scene:</p>
 of generators. Its <code>default_root_quat</code> must be the identity. The options, the generator catalog, and the
 <code>Terrain</code> API (<code>bounds</code>, <code>get_height</code>, <code>subterrain_origins</code>, <code>goals</code>) are on
 <a href="../scenes-and-terrains/#terrains">Scenes and terrains</a>.</p>
+<h2 id="auditing-a-built-entity-eden-audit">Auditing a built entity (<code>eden audit</code>)<a class="headerlink" href="#auditing-a-built-entity-eden-audit" title="Permanent link">&para;</a></h2>
+<p><code>eden audit</code> builds one entity alone on a ground plane and checks what Genesis made of it: masses, the armature
+fill, joint ranges, self-contact, a drop for a free body and a PD hold for a fixed one. Audit it as the task builds
+it, <code>eden audit --task &lt;task&gt; [--entity &lt;name&gt;]</code>, or a new asset at a task's physics,
+<code>eden audit path/to/asset.urdf --task &lt;task&gt;</code>. What each check measures, and every flag, is in the
+<a href="../../reference/cli/#eden-audit">command reference</a>. What to do about a finding:</p>
+<table>
+<thead>
+<tr>
+<th>Check</th>
+<th>Fix</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Build raises on inertia</td>
+<td>The asset's inertia tensor is not physical. Fix it in the asset, or set <code>recompute_inertia=True</code> to derive it from the collision geometry and the material density.</td>
+</tr>
+<tr>
+<td>Build raises on <code>&lt;inertial&gt;&lt;density&gt;</code></td>
+<td>Genesis' URDF parser needs explicit <code>&lt;mass&gt;</code> and <code>&lt;inertia&gt;</code>.</td>
+</tr>
+<tr>
+<td><code>collision</code></td>
+<td>No collision shapes: add them to the asset, or check that <code>collision=False</code> and <code>collision_link_patterns</code> are not hiding them.</td>
+</tr>
+<tr>
+<td><code>mass</code></td>
+<td>Give massless links a <code>&lt;mass&gt;</code>. A link lighter than 1e-4 kg with stiff contacts (finger pads) can jitter; raise it if nothing depends on it.</td>
+</tr>
+<tr>
+<td><code>mass_ratio</code></td>
+<td>Over 100x across a joint slows the solver and jitters. Lump tiny links into their parent, or make the masses realistic.</td>
+</tr>
+<tr>
+<td><code>armature</code></td>
+<td>Set <code>default_dofs_armature</code> from the source asset or the motor datasheet, or <code>default_armature=0.0</code> (<a href="#armature-defaults-and-the-urdf-01-trap">the 0.1 trap</a>). For a URDF every hinge gets the 0.1 fill.</td>
+</tr>
+<tr>
+<td><code>joint_limits</code></td>
+<td>An empty range is a fixed joint authored as a hinge: make it fixed.</td>
+</tr>
+<tr>
+<td><code>self_contact</code>, live pairs</td>
+<td>Two links touch at the default pose: trim the shapes, or move <code>default_dofs_pos</code>.</td>
+</tr>
+<tr>
+<td><code>self_contact</code>, dropped pairs</td>
+<td>Genesis never collides the shape pairs that overlap at the asset's zero pose; the count says whether the two links still collide through other shapes. Usually intended (adjacent shells). If the pair must collide, fix the overlap in the asset, or set <code>EnvOptions.enable_neutral_collision=True</code> scene-wide.</td>
+</tr>
+<tr>
+<td><code>settle</code> explodes or rests deep in the ground</td>
+<td>Check mass and inertia first, then thin or concave collision meshes (<code>convexify</code>, <code>decompose_object_error_threshold</code>, <code>coacd_threshold</code>). Stiffen one object with <code>default_geoms_sol_params</code>, never a global <code>constraint_timeconst</code>. A deep <code>peak_penetration</code> with a shallow <code>rest_penetration</code> is the impact, not a defect.</td>
+</tr>
+<tr>
+<td><code>settle</code> jitters in place</td>
+<td>Contacts or inertia: overlapping or thin collision shapes, a tiny link mass, an inertia far from what the shape implies. A pass that says "still moving steadily" is a roll or an unpowered robot folding, not a defect.</td>
+</tr>
+<tr>
+<td><code>hold</code> skipped</td>
+<td>No gains: set <code>default_dofs_kp</code> / <code>default_dofs_kd</code> from the source stack (Isaac Lab's <code>stiffness</code> is Eden's kp).</td>
+</tr>
+<tr>
+<td><code>hold</code> drifts</td>
+<td>The gains do not hold the arm against gravity, or the default pose sits on a limit. Compare with the source stack's gains and armature; a closed-loop gripper also needs <code>max_substep_dt</code>.</td>
+</tr>
+</tbody>
+</table>
 <h2 id="see-also">See also<a class="headerlink" href="#see-also" title="Permanent link">&para;</a></h2>
 <ul>
 <li><a href="../robots/">Robots</a>: robot presets, composite rigs, actuators, adding a robot or asset family</li>

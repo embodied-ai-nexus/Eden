@@ -2394,6 +2394,34 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="Safety">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#before-a-first-hardware-run" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Before a first hardware run
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#scripts-that-command-hardware-outside-eden-deploy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Scripts that command hardware outside eden deploy
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -5498,6 +5526,34 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="Safety">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#before-a-first-hardware-run" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Before a first hardware run
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#scripts-that-command-hardware-outside-eden-deploy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Scripts that command hardware outside eden deploy
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -6398,7 +6454,10 @@ out, so the robot settles rather than holding its last command.</p>
 <p>On a switch, <code>DeploymentBase.restart_observations()</code> restarts every observation window from the
 last reading, so the switched-in slot does not read history another slot drove.</p>
 <h2 id="safety">Safety<a class="headerlink" href="#safety" title="Permanent link">&para;</a></h2>
-<p>Every mechanism below is on by default; this list is the place to check before a first run.</p>
+<p>Every mechanism in the list below is on by default, and the list is the place to check before a first run. The two
+subsections after it are what the operator does: <a href="#before-a-first-hardware-run">before a first hardware run</a>, and
+for <a href="#scripts-that-command-hardware-outside-eden-deploy">scripts that command hardware outside <code>eden deploy</code></a>, which
+get none of the mechanisms.</p>
 <ul>
 <li><strong>Boot in STOP, INIT, then START.</strong> Nothing moves until the operator says so, and a hardware run
   with no operator input holds in STOP forever. See <a href="#the-operator-state-machine">The operator state machine</a>.</li>
@@ -6433,6 +6492,36 @@ was commanded with, until the process goes away. This matches what the vendor re
 The loop warns when the held command goes stale; the soft shutdown in <code>close()</code> is the only
 orderly way down, so stop the process (KILL, Ctrl-C) or hit the e-stop.</p>
 </div>
+<h3 id="before-a-first-hardware-run">Before a first hardware run<a class="headerlink" href="#before-a-first-hardware-run" title="Permanent link">&para;</a></h3>
+<ul>
+<li>Run the same command with <code>--mujoco</code> first (and <code>--menagerie</code> where the robot has a mapping); see
+  <a href="#sim-to-sim-validation-with-mujoco">Sim-to-sim validation with MuJoCo</a>.</li>
+<li>On a robot new to the machine, run its state-check recipe under <code>examples/recipes/deployment/</code> and resolve
+  every mismatch it flags (<a href="../deployment-hardware/#state-check-recipes">State-check recipes</a>).</li>
+<li>Commission a new policy at <code>--deploy_kp_kd_scale 0.2</code> and raise it toward 1.0 over successive runs.</li>
+<li>Someone stands next to the robot with the e-stop in reach, and the workspace is clear.</li>
+</ul>
+<h3 id="scripts-that-command-hardware-outside-eden-deploy">Scripts that command hardware outside <code>eden deploy</code><a class="headerlink" href="#scripts-that-command-hardware-outside-eden-deploy" title="Permanent link">&para;</a></h3>
+<!-- Adapted from google-deepmind/robotics-antigravity-plugin, plugins/robotics/rules/physical_robot_safety.md
+(Copyright 2026 Google LLC, Apache License 2.0); reworded for Eden. -->
+
+<p>A script that drives a robot through its SDK directly, as the state-check and teleoperation recipes do, gets none
+of the mechanisms above. Give it these:</p>
+<ul>
+<li><strong>Speed.</strong> Use the robot's documented default and ceiling. For an unknown or uncalibrated robot, default to
+  0.5 rad/s per joint and stay under 1.0 rad/s. Interpolate every move with zero velocity at both ends (cosine or
+  minimum-jerk); never send one large jump.</li>
+<li><strong>Park before letting go.</strong> Never disable torque, exit, or close the SDK while an arm is raised. Return to a
+  rest pose in <code>finally:</code> and in <code>SIGINT</code> / <code>SIGTERM</code> handlers, interpolating from the <em>measured</em> joint positions
+  at 0.5 rad/s or slower so a step or velocity guard cannot reject the move. Holding an object or inside a bin,
+  retreat vertically first. Never leave a raised arm in a zero-gravity or gravity-compensation-only mode.</li>
+<li><strong>Keep the control loop fed.</strong> Short computation (OpenCV, NumPy, IK under about 50 ms) in the process that owns
+  the motors is fine; multi-second stalls (video encoding, network or model calls, <code>input()</code>) are not. Run them in
+  another process or after parking. Keep one long-lived process per bus, never two on the same CAN, serial or DDS
+  interface, and never exit expecting another script to take over a raised arm.</li>
+<li><strong>Heat.</strong> Clamping a gripper or motor against a hard stop for tens of seconds can trip a thermal fault that
+  drops every joint on the bus. Holding a grasp for the seconds of a transfer is fine.</li>
+</ul>
 <h2 id="timing-and-diagnostics">Timing and diagnostics<a class="headerlink" href="#timing-and-diagnostics" title="Permanent link">&para;</a></h2>
 <h3 id="control-loop-timing">Control-loop timing<a class="headerlink" href="#control-loop-timing" title="Permanent link">&para;</a></h3>
 <p>The loop's <code>RateLimiter</code> paces it at the control rate and <strong>warns once a second while it is

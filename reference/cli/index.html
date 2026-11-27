@@ -3274,6 +3274,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#eden-audit" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        eden audit
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#eden-gif" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -5758,6 +5769,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#eden-audit" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        eden audit
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#eden-gif" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -5970,6 +5992,10 @@ Eden is installed.</p>
 <tr>
 <td><a href="#eden-view"><code>eden view</code></a> / <a href="#eden-arrange"><code>arrange</code></a> / <a href="#eden-snap"><code>snap</code></a></td>
 <td>Look at an entity, arrange a scene, take a snapshot</td>
+</tr>
+<tr>
+<td><a href="#eden-audit"><code>eden audit</code></a></td>
+<td>Check an entity or an asset file for physics problems before using it in a task</td>
 </tr>
 <tr>
 <td><a href="#eden-gif"><code>eden gif</code></a></td>
@@ -7454,8 +7480,113 @@ viewer.</p>
 </tr>
 </tbody>
 </table>
+<h3 id="eden-audit"><code>eden audit</code><a class="headerlink" href="#eden-audit" title="Permanent link">&para;</a></h3>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-18-1"><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a>eden<span class="w"> </span>audit<span class="w"> </span>--task<span class="w"> </span>reacher<span class="w">                         </span><span class="c1"># the task's robot, at the task's physics</span>
+</span><span id="__span-18-2"><a id="__codelineno-18-2" name="__codelineno-18-2" href="#__codelineno-18-2"></a>eden<span class="w"> </span>audit<span class="w"> </span>--task<span class="w"> </span>robosuite_lift<span class="w"> </span>--robot<span class="w"> </span>ur5e_2f85<span class="w"> </span>--entity<span class="w"> </span>robot_gripper<span class="w">   </span><span class="c1"># a variant's rig part, by scene name</span>
+</span><span id="__span-18-3"><a id="__codelineno-18-3" name="__codelineno-18-3" href="#__codelineno-18-3"></a>eden<span class="w"> </span>audit<span class="w"> </span>ur5e<span class="w"> </span>--cpu<span class="w">                             </span><span class="c1"># an entity by registry key or class name, at EnvOptions()</span>
+</span><span id="__span-18-4"><a id="__codelineno-18-4" name="__codelineno-18-4" href="#__codelineno-18-4"></a>eden<span class="w"> </span>audit<span class="w"> </span>path/to/arm.urdf<span class="w"> </span>--fixed-base<span class="w">          </span><span class="c1"># a raw asset file; a URDF arm needs its base pinned</span>
+</span><span id="__span-18-5"><a id="__codelineno-18-5" name="__codelineno-18-5" href="#__codelineno-18-5"></a>eden<span class="w"> </span>audit<span class="w"> </span>path/to/mug.xml<span class="w"> </span>--task<span class="w"> </span>reacher<span class="w"> </span>--json<span class="w"> </span>mug_audit.json<span class="w">   </span><span class="c1"># a new asset at a task's physics, as JSON</span>
+</span></code></pre></div>
+<p>Builds one entity alone on a ground plane, with one env, and runs these checks on the built model:</p>
+<table>
+<thead>
+<tr>
+<th>Check</th>
+<th>Fails or warns when</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>collision</code></td>
+<td>The entity has no collision geometry (fail).</td>
+</tr>
+<tr>
+<td><code>mass</code></td>
+<td>A movable link with collision geometry has no mass (fail) or less than 1e-4 kg (warn).</td>
+</tr>
+<tr>
+<td><code>mass_ratio</code></td>
+<td>The heavier of two links joined by a DOF joint is more than 100× the lighter (warn).</td>
+</tr>
+<tr>
+<td><code>armature</code></td>
+<td>A hinge or slide DOF carries the <code>default_armature</code> Genesis filled in because the asset authored none (warn). See <a href="../../guides/entities/#armature-defaults-and-the-urdf-01-trap">Armature defaults and the URDF 0.1 trap</a>.</td>
+</tr>
+<tr>
+<td><code>joint_limits</code></td>
+<td>A hinge or slide DOF has an empty range (warn). Unlimited DOFs are listed.</td>
+</tr>
+<tr>
+<td><code>self_contact</code></td>
+<td>Two links of the entity touch at its default pose (warn). Also lists, per link pair, how many collision shape pairs Genesis dropped at build because they overlap at the asset's zero pose (see <code>enable_neutral_collision</code> in <a href="../../guides/physics/">Physics</a>): the candidate pairs a second build that keeps them has and the audited build lacks.</td>
+</tr>
+<tr>
+<td><code>settle</code></td>
+<td>Free base only: dropped from 5 cm, the entity goes non-finite, moves faster than 20 m/s or 200 rad/s, falls through the plane, or rests more than 1 cm deep in it over the last 0.25 s (fail). The deeper overshoot on impact is reported, not graded: an unpowered robot lands at several m/s. Still moving at the end, it warns when it jitters in place (its fastest link's net travel under a quarter of its path); a steady roll, or an unpowered robot still folding, passes with a note.</td>
+</tr>
+<tr>
+<td><code>hold</code></td>
+<td>Fixed base only: commanding the default pose with the built PD gains, a DOF goes non-finite or faster than 50 rad/s (hinge) or 5 m/s (slide) (fail), or drifts more than 0.05 rad (hinge) or 5 mm (slide) (warn). Skipped when every DOF has <code>kp = 0</code>.</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Which entity.</strong> With <code>--task</code> and no target, the task's scene entity named <code>--entity</code> (default <code>robot</code>) as the
+task's config builds it; a composite rig's parts are addressed by their scene names. A part the task welds to
+another entity (a rig's gripper, an <code>attachments_dict</code> child) declares a free base for its weld; audited alone it
+gets back the base its parent gives it, pinned wherever <code>is_fixed_base</code> reaches the asset and as its file declares
+for a plain MJCF, and the report's first line says so.
+Otherwise the target names it: an existing file, or a path ending in a suffix the entity loader builds (<code>.urdf</code>,
+<code>.xml</code> for MJCF, <code>.usd</code>, <code>.usda</code>, <code>.usdc</code>, <code>.usdz</code>, <code>.obj</code>, <code>.stl</code>, <code>.ply</code>, <code>.glb</code>, <code>.gltf</code>), is loaded as a file and
+any other suffix is refused with that list; anything else is looked up like <code>eden view</code> does. A file's base is free
+unless it is an MJCF whose top-level body has no free joint. A composite rig named as a target is refused, naming
+its parts.</p>
+<p><strong>Which physics.</strong> With <code>--task</code>, the task's <code>env_options</code> (timestep, substeps, integrator, solver), without its
+CUDA graph or gradients; otherwise <code>EnvOptions()</code> (<code>sim_dt=0.005</code>, one substep, the default integrator). The first
+line of the report names them. Hold drift and settling depend on them, so audit at the physics of the task that will
+use the entity. A closed-loop gripper's <code>max_substep_dt</code> raises the substeps either way.</p>
+<p><code>eden audit</code> takes the <a href="#flags-shared-by-the-task-commands">shared task flags</a> (<code>--task</code>, <code>--config</code>,
+<code>--override</code>, the task's variant flags, <code>--cpu</code>; it runs on the GPU unless <code>--cpu</code> is given) plus the ones below.
+Every argument is checked before anything is built, and a bad one exits 2 with a usage message. A build error (an
+inertia tensor that is not positive definite, a URDF <code>&lt;inertial&gt;&lt;density&gt;</code>) is raised as is. The command exits with
+status 1 when any check fails.</p>
+<table>
+<thead>
+<tr>
+<th>Flag</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>TARGET</code></td>
+<td>An entity name or registry key, or an asset file. Optional with <code>--task</code>.</td>
+</tr>
+<tr>
+<td><code>--entity NAME</code></td>
+<td>With <code>--task</code> and no target: the scene entity to audit. Default <code>robot</code>.</td>
+</tr>
+<tr>
+<td><code>--fixed-base</code></td>
+<td>Pin a target's base, so <code>hold</code> runs. An MJCF whose file declares its own base cannot be changed.</td>
+</tr>
+<tr>
+<td><code>--free-base</code></td>
+<td>Free a target's base, so <code>settle</code> runs.</td>
+</tr>
+<tr>
+<td><code>--seconds S</code></td>
+<td>Simulated time for <code>settle</code> and <code>hold</code>. Default 2.0. A run shorter than the drop (0.1 s from 5 cm), a 0.5 s landing allowance and the 0.25 s graded window together, 0.85 s, is refused, since its graded window would contain the landing.</td>
+</tr>
+<tr>
+<td><code>--json PATH</code></td>
+<td>Also write the report as JSON. Its directory must exist.</td>
+</tr>
+</tbody>
+</table>
+<p>From Python, <code>audit_entity(options, env_options=..., thresholds=...)</code> in <code>eden.utils.asset_audit</code> returns the
+<code>AuditReport</code> (<code>render()</code>, <code>as_dict()</code>, <code>to_json(path)</code>); the thresholds are fields of <code>AuditThresholds</code>.</p>
 <h3 id="eden-gif"><code>eden gif</code><a class="headerlink" href="#eden-gif" title="Permanent link">&para;</a></h3>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-18-1"><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a>eden<span class="w"> </span>gif<span class="w"> </span>video.mp4<span class="w">                </span><span class="c1"># writes video.gif beside it</span>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-19-1"><a id="__codelineno-19-1" name="__codelineno-19-1" href="#__codelineno-19-1"></a>eden<span class="w"> </span>gif<span class="w"> </span>video.mp4<span class="w">                </span><span class="c1"># writes video.gif beside it</span>
 </span></code></pre></div>
 <p>Converts an <code>.mp4</code> to a <code>.gif</code> at 10 fps and 640 px wide. Calls <code>ffmpeg</code>, which must be on your <code>PATH</code>.</p>
 <h3 id="eden-clean"><code>eden clean</code><a class="headerlink" href="#eden-clean" title="Permanent link">&para;</a></h3>

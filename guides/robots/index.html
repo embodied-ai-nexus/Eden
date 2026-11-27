@@ -6092,9 +6092,11 @@ alias. Import the class in <code>eden/options/robots/__init__.py</code> so <code
 4. <strong>Declare the asset facts</strong> your tasks will need: <code>feet_links_name</code> (and the same names in <code>links_to_keep</code> for
    a URDF, so they are not merged away), <code>ee_links_name</code>, gripper <code>open_dofs_pos</code> / <code>close_dofs_pos</code> /
    <code>tcp_offset</code> / <code>stroke</code>, hand <code>metadata.target_hand_links</code>, <code>max_substep_dt</code> for a closed-loop mechanism.
-5. <strong>Look at it and audit it.</strong> <code>eden view MyArm -c</code> shows the collision geometry. After building an env, read
-   back <code>get_dofs_kp()</code>, <code>get_dofs_kd()</code>, <code>get_dofs_armature()</code> and <code>get_dofs_force_range()</code>: those are the
-   values the solver integrates.
+5. <strong>Look at it and audit it.</strong> <code>eden view MyArm -c</code> shows the collision geometry. <code>eden audit MyArm</code> builds it
+   alone and checks masses, the armature fill, joint ranges, self-contact and whether the gains hold the default
+   pose (see <a href="../../reference/cli/#eden-audit"><code>eden audit</code></a>). After building an env, read back <code>get_dofs_kp()</code>,
+   <code>get_dofs_kd()</code>, <code>get_dofs_armature()</code> and <code>get_dofs_force_range()</code>: those are the values the solver
+   integrates.
 6. <strong>Test it</strong> in <code>tests/options/robots/test_&lt;module&gt;.py</code>, following the existing files there (see
    <a href="../testing/">Testing</a>).</p>
 </li>
