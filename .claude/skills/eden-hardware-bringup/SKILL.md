@@ -35,7 +35,7 @@ Run the exact deploy command with `--mujoco` (and `--menagerie` where mapped) an
 ## 4. First hardware run
 
 ```bash
-eden deploy --task <task> --checkpoint <ckpt> --deploy_kp_kd_scale 0.2 --debug_record
+eden deploy --task <task> --checkpoint <ckpt> --deploy_kp_kd_scale 0.8 --debug_record
 ```
 
 - The robot boots in STOP. INIT (`i`, Enter) ramps to the start pose over `--init_steps`; START (`s`) hands over to
