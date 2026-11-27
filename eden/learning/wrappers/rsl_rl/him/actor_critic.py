@@ -105,6 +105,7 @@ class HIMActorCritic(nn.Module):
         obs_group: str = "policy",
         target_skip_dim: int = 3,
         critic_obs_group: str = "critic",
+        target_dim: int = VELOCITY_DIM,
     ):
         super().__init__()
         act = _get_activation(activation)
@@ -116,20 +117,22 @@ class HIMActorCritic(nn.Module):
         self.actor_proprioceptive_obs_length = actor_history_length * num_one_step_obs
         self.num_actions = num_actions
         self.dynamic_latent_dim = dynamic_latent_dim
+        self.target_dim = int(target_dim)
         self.obs_group = obs_group
         self.critic_obs_group = critic_obs_group
 
-        # Estimator: history -> velocity(3) + latent(dynamic_latent_dim)
+        # Estimator: history -> target(target_dim) + latent(dynamic_latent_dim)
         self.estimator = HIMEstimator(
             temporal_steps=actor_history_length,
             num_one_step_obs=num_one_step_obs,
             num_height_points=0,
             latent_dim=dynamic_latent_dim,
             target_skip_dim=target_skip_dim,
+            target_dim=self.target_dim,
         )
 
-        # Actor: current_obs(num_one_step_obs) ⊕ vel(3) ⊕ latent -> action
-        mlp_input_dim_a = num_one_step_obs + VELOCITY_DIM + dynamic_latent_dim
+        # Actor: current_obs(num_one_step_obs) ⊕ target(target_dim) ⊕ latent -> action
+        mlp_input_dim_a = num_one_step_obs + self.target_dim + dynamic_latent_dim
         actor_layers: list[nn.Module] = [nn.Linear(mlp_input_dim_a, actor_hidden_dims[0]), act]
         for i in range(len(actor_hidden_dims)):
             if i == len(actor_hidden_dims) - 1:
@@ -168,19 +171,40 @@ class HIMActorCritic(nn.Module):
         activation: str,
         init_noise_std: float,
         target_skip_dim: int,
+        target_dim: int = VELOCITY_DIM,
     ) -> HIMActorCritic:
         """Size the networks off the observation TensorDict, checking it has the layout HIM assumes.
 
-        The ``actor_group`` holds a whole number of stacked frames, the ``critic_group`` one frame followed
-        by the true base linear velocity (``VELOCITY_DIM``).
+        Parameters
+        ----------
+        obs
+            Observation TensorDict.
+        actor_group : str
+            Group holding stacked proprioceptive frames.
+        critic_group : str
+            Group holding one frame followed by the ``target_dim`` privileged regression target.
+        num_actions : int
+            Action dimension.
+        actor_hidden_dims
+            Hidden widths of the actor MLP.
+        critic_hidden_dims
+            Hidden widths of the critic MLP.
+        activation : str
+            Activation name.
+        init_noise_std : float
+            Initial scalar Gaussian std.
+        target_skip_dim : int
+            Leading entries of the next critic observation omitted from the SwAV target encoder.
+        target_dim : int
+            Width of the trailing privileged regression target in ``critic_group`` (default: 3).
         """
         num_actor_obs = int(obs[actor_group].shape[-1])
         num_critic_obs = int(obs[critic_group].shape[-1])
-        frame = num_critic_obs - VELOCITY_DIM
+        frame = num_critic_obs - target_dim
         if frame <= 0 or num_actor_obs % frame:
             raise ValueError(
-                f"HIM needs the {critic_group!r} group to be one actor frame + the {VELOCITY_DIM}-d base linear "
-                f"velocity, and the {actor_group!r} group a whole number of such frames; got actor width "
+                f"HIM needs the {critic_group!r} group to be one actor frame + the {target_dim}-d privileged "
+                f"target, and the {actor_group!r} group a whole number of such frames; got actor width "
                 f"{num_actor_obs} and critic width {num_critic_obs} (frame {frame})."
             )
         return cls(
@@ -196,6 +220,7 @@ class HIMActorCritic(nn.Module):
             obs_group=actor_group,
             critic_obs_group=critic_group,
             target_skip_dim=target_skip_dim,
+            target_dim=target_dim,
         )
 
     @classmethod
@@ -221,6 +246,7 @@ class HIMActorCritic(nn.Module):
             activation=policy_cfg["activation"],
             init_noise_std=policy_cfg["init_noise_std"],
             target_skip_dim=policy_cfg["target_skip_dim"],
+            target_dim=policy_cfg.get("target_dim", VELOCITY_DIM),
         )
 
     def reset(self, dones=None) -> None:

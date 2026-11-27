@@ -36,24 +36,55 @@ class AmpMotionSampler:
     Parameters
     ----------
     motion_file : str
-        Asset path of the ``.npz`` bundle (``motion_<i>`` arrays of shape (T, frame_dim),
-        plus ``fps`` and ``num_motions``).
+        Asset path of the ``.npz`` bundle (either ``motion_<i>`` arrays + ``num_motions`` + ``fps``,
+        or a retargeted MuJoCo/MyoMimic clip containing ``qpos`` + ``fps``/``mocap_framerate``).
     num_frames : int
         Frames per window. The window spans ``[t - (num_frames - 2) dt, t + dt]`` around the
         sampled time ``t``, matching the source loader's offsets.
     device : torch.device | str
         Device the sampled windows live on.
+    qpos_slice : tuple[int, int | None] | None
+        Optional ``(start, stop)`` column slice applied when loading ``qpos`` clips (e.g. ``(7, None)``
+        to strip a 7-DOF floating root).
     """
 
-    def __init__(self, motion_file: str, num_frames: int, device: torch.device | str) -> None:
-        data = np.load(get_asset_path(motion_file))
+    def __init__(
+        self,
+        motion_file: str,
+        num_frames: int,
+        device: torch.device | str,
+        *,
+        qpos_slice: tuple[int, int | None] | None = None,
+    ) -> None:
+        from pathlib import Path
+
+        resolved = Path(motion_file) if Path(motion_file).is_file() else get_asset_path(motion_file)
+        data = np.load(resolved)
         self.device = device
         self.num_frames = num_frames
-        self.dt = 1.0 / float(data["fps"])
-        self.motions = [
-            torch.as_tensor(data[f"motion_{i}"], dtype=torch.float32, device=device)
-            for i in range(int(data["num_motions"]))
-        ]
+        fps_key = next((k for k in ("fps", "mocap_framerate", "mocap_frame_rate") if k in data.files), None)
+        if fps_key is None:
+            raise ValueError(
+                f"Motion archive {motion_file!r} must contain 'fps' or 'mocap_framerate'; got keys {sorted(data.files)}."
+            )
+        self.dt = 1.0 / float(data[fps_key])
+
+        if "num_motions" in data.files:
+            raw_motions = [data[f"motion_{i}"] for i in range(int(data["num_motions"]))]
+        elif "qpos" in data.files:
+            qpos = np.asarray(data["qpos"])
+            if qpos.ndim != 2:
+                raise ValueError(f"Expected 2-D 'qpos' array (T, nq) in {motion_file!r}, got shape {qpos.shape}.")
+            if qpos_slice is not None:
+                qpos = qpos[:, slice(qpos_slice[0], qpos_slice[1])]
+            raw_motions = [qpos]
+        else:
+            raise ValueError(
+                f"Motion archive {motion_file!r} must contain either ('num_motions', 'motion_<i>') or 'qpos'; "
+                f"got keys {sorted(data.files)}."
+            )
+
+        self.motions = [torch.as_tensor(m, dtype=torch.float32, device=device) for m in raw_motions]
         self.frame_dim = int(self.motions[0].shape[1])
         for i, motion in enumerate(self.motions):
             if motion.shape[0] < num_frames + 2:

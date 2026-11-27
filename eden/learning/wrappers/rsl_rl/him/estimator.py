@@ -64,29 +64,39 @@ class HIMEstimator(nn.Module):
         num_prototype: int = 64,
         temperature: float = 3.0,
         target_skip_dim: int = 3,
+        target_dim: int = VELOCITY_DIM,
     ):
         super().__init__()
+        if target_dim < 1:
+            raise ValueError(f"HIMEstimator requires target_dim >= 1, got target_dim={target_dim!r}.")
         act = _get_activation(activation)
 
         self.temporal_steps = temporal_steps
         self.num_one_step_obs = num_one_step_obs
         self.num_height_points = num_height_points
         self.num_latent = latent_dim
+        self.target_dim = int(target_dim)
         self.max_grad_norm = max_grad_norm
         self.temperature = temperature
         self.target_skip_dim = target_skip_dim
 
-        # Encoder: history -> velocity(3) + latent
+        # Encoder: history -> target(target_dim) + latent
         enc_input_dim = self.temporal_steps * self.num_one_step_obs + self.num_height_points
         enc_layers: list[nn.Module] = []
         for hidden in enc_hidden_dims:
             enc_layers += [nn.Linear(enc_input_dim, hidden), act]
             enc_input_dim = hidden
-        enc_layers += [nn.Linear(enc_input_dim, VELOCITY_DIM + latent_dim)]
+        enc_layers += [nn.Linear(enc_input_dim, self.target_dim + latent_dim)]
         self.encoder = nn.Sequential(*enc_layers)
 
         # Target encoder: one-step next obs -> latent
-        tar_input_dim = self.num_one_step_obs + VELOCITY_DIM - target_skip_dim
+        tar_input_dim = self.num_one_step_obs + self.target_dim - target_skip_dim
+        if tar_input_dim < 1:
+            raise ValueError(
+                f"HIMEstimator target encoder input width must be >= 1, got "
+                f"num_one_step_obs ({self.num_one_step_obs}) + target_dim ({self.target_dim}) - "
+                f"target_skip_dim ({target_skip_dim}) = {tar_input_dim}."
+            )
         tar_layers: list[nn.Module] = []
         for hidden in tar_hidden_dims:
             tar_layers += [nn.Linear(tar_input_dim, hidden), act]
@@ -102,7 +112,7 @@ class HIMEstimator(nn.Module):
 
     def encode(self, obs_history: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
         parts = self.encoder(obs_history.detach())
-        vel, z = parts[..., :VELOCITY_DIM], parts[..., VELOCITY_DIM:]
+        vel, z = parts[..., : self.target_dim], parts[..., self.target_dim :]
         z = F.normalize(z, dim=-1, p=2)
         return vel, z
 
@@ -125,12 +135,12 @@ class HIMEstimator(nn.Module):
             for param_group in self.optimizer.param_groups:
                 param_group["lr"] = self.learning_rate
 
-        vel = next_critic_obs[:, self.num_one_step_obs : self.num_one_step_obs + VELOCITY_DIM].detach()
-        next_obs = next_critic_obs.detach()[:, self.target_skip_dim : self.num_one_step_obs + VELOCITY_DIM]
+        vel = next_critic_obs[:, self.num_one_step_obs : self.num_one_step_obs + self.target_dim].detach()
+        next_obs = next_critic_obs.detach()[:, self.target_skip_dim : self.num_one_step_obs + self.target_dim]
 
         z_s = self.encoder(obs_history)
         z_t = self.target(next_obs)
-        pred_vel, z_s = z_s[..., :VELOCITY_DIM], z_s[..., VELOCITY_DIM:]
+        pred_vel, z_s = z_s[..., : self.target_dim], z_s[..., self.target_dim :]
 
         z_s = F.normalize(z_s, dim=-1, p=2)
         z_t = F.normalize(z_t, dim=-1, p=2)

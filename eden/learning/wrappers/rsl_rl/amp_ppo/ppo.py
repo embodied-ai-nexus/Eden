@@ -88,6 +88,7 @@ class AmpPPO(PPO):
         amp_trunk_weight_decay: float = 1e-3,
         amp_head_weight_decay: float = 1e-1,
         amp_warm_start: bool = False,
+        amp_qpos_slice: tuple[int, int | None] | None = None,
         **ppo_kwargs,
     ) -> None:
         super().__init__(actor, critic, storage, **ppo_kwargs)
@@ -98,7 +99,7 @@ class AmpPPO(PPO):
         self.amp_reward_scale = amp_reward_scale
         self.amp_grad_pen_scale = amp_grad_pen_scale
 
-        self.amp_expert = AmpMotionSampler(amp_motion_file, amp_num_frames, self.device)
+        self.amp_expert = AmpMotionSampler(amp_motion_file, amp_num_frames, self.device, qpos_slice=amp_qpos_slice)
         window_dim = self.amp_expert.frame_dim * amp_num_frames
         self.discriminator = AmpDiscriminator(window_dim, tuple(amp_discr_hidden_dims)).to(self.device)
         self.amp_normalizer = FrameNormalizer(self.amp_expert.frame_dim).to(self.device)
