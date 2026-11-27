@@ -15,7 +15,7 @@ from the [task index](index.md), which also has the commands every task shares.
 | [`manipulation_lift_ycb_rgb`](#lift-ycb-from-rgb) | Franka Panda + Robotiq 2F-85 | `--object_properties` | 1024 |
 | [`manipulation_dex_lift`](#dexterous-lift) | Franka + XHand1 (left) | — | 4096 |
 | [`reorient`](#in-hand-reorientation) | Wuji Hand 1 (simplified collision model) | `--hand` | 4096 |
-| [`piano`](#piano) | Two Wuji Hand 2 (beta2) | `--song` | 1024 |
+| [`piano`](#piano) | Two Wuji Hand 2 (hand2_2, with cover) | `--song`, `--hand` | 1024 |
 | [`omnireset`](#omnireset) | UR5e + Robotiq 2F-85 | `--robot` | 4096 |
 | [`flashdexretarget`](#flashdexretarget) | XHand, or two Sharpa Wave hands | `--motion`, `--robot`, `--learner` | 4096 |
 
@@ -181,7 +181,7 @@ above, so reproducing its numbers needs a retrain.
 
 ## Piano
 
-Eden's take on RoboPianist's `PianoWithShadowHands`, with two Wuji Hand 2 (beta2) hands on a simulated 88-key
+Eden's take on RoboPianist's `PianoWithShadowHands`, with two Wuji Hand 2 (hand2_2) hands on a simulated 88-key
 keyboard. The policy sees the key states of the current control step and the next ten (half a second at 20 Hz
 control over 200 Hz physics), and is paid for pressing the keys that are due, and nothing else, at the moment they are
 due. Each hand is a free body whose 6-axis wrist pose is driven by `FreeBasePoseController` with its weight carried,
@@ -192,6 +192,7 @@ so each hand has 26 action axes (20 finger joints and 6 wrist axes).
 ```bash
 eden train --task piano --song twinkle_twinkle
 eden train --task piano --song chpn-p7.mid          # a MIDI file, by name if it is in the scores directory
+eden train --task piano --hand skeleton             # the bare hand, without its cover
 eden inference --task piano --checkpoint logs/piano/<run>/model_<iter>.pt --rec
 ```
 
@@ -199,6 +200,10 @@ eden inference --task piano --checkpoint logs/piano/<run>/model_<iter>.pt --rec
 its path, or its file name alone if the file is in the scores directory `~/.cache/eden/scores` (under
 `$XDG_CACHE_HOME` when that is set). The file-name form keeps the saved config portable. Where the MIDI file says
 which hand plays what, each hand is placed over its own part. The episode is as long as the score.
+
+`--hand` picks the hand model: `cover` (the default, `WujiHand2_2_*`) has the 21 rigid pads and sleeves of its cover,
+95.8 g in all, and `skeleton` (`WujiHand2_2Skeleton_*`) is the bare hand. The two have the same joints, fingertip
+frames and mount plate, so they rest in the same place over the keys.
 
 The task itself is silent. To hear a policy, add a `PianoAudio` sensor and a microphone at evaluation time; the
 example does that:

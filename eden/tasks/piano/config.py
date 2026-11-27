@@ -7,6 +7,7 @@ nothing else, at the moment they are due.
 
     eden train --task piano --song twinkle_twinkle
     eden train --task piano --song chpn-p7.mid      # any MIDI file in `songs.SCORES_DIR`
+    eden train --task piano --hand skeleton         # the bare hand, without its cover
     eden inference --task piano --song twinkle_twinkle
 
 What is the same as RoboPianist: the keyboard (dimensions, key springs, and the "within half a degree of the joint
@@ -59,7 +60,7 @@ from __future__ import annotations
 
 import math
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Literal
 
 import numpy as np
 from genesis.utils.geom import axis_angle_to_quat, quat_to_R, transform_quat_by_quat
@@ -77,11 +78,10 @@ from eden.options.learning.rsl_rl import (
 )
 from eden.options.materials import RigidMaterialOptions
 from eden.options.objects.piano import Piano, key_of_midi_note, key_y
-from eden.options.robots import WujiHand2_2_L, WujiHand2_2_R
+from eden.options.robots import WujiHand2_2_L, WujiHand2_2_R, WujiHand2_2Skeleton_L, WujiHand2_2Skeleton_R
 from eden.tasks.piano import custom_terms as ct
 from eden.tasks.piano.songs import SCORES_DIR, SONGS, Song, get_song, song_steps
 from eden.tasks.registry import TASK_REGISTRY, TaskMod
-from eden.utils.geom import align_up_and_front
 from eden.terms import DoneTerm, MetricTerm, ObsTerm, RewardTerm
 from eden.utils.configs import (
     ActionManagerOptions,
@@ -93,6 +93,7 @@ from eden.utils.configs import (
     RewardManagerOptions,
     TerminationManagerOptions,
 )
+from eden.utils.geom import align_up_and_front
 
 # ---------------------------------------------------------------------------
 # Timing
@@ -186,8 +187,17 @@ _MAX_ITERATIONS = 3000
 _NUM_STEPS_PER_ENV = 32
 
 
-def _hand_options(side: str):
-    return WujiHand2_2_R if side == "right" else WujiHand2_2_L
+# The hands `--hand` chooses between, per side. The two load the same joints, links and mount frame, so the rest
+# pose and placement below hold for either.
+_HAND_MODELS = {
+    "cover": {"right": WujiHand2_2_R, "left": WujiHand2_2_L},
+    "skeleton": {"right": WujiHand2_2Skeleton_R, "left": WujiHand2_2Skeleton_L},
+}
+_DEFAULT_HAND = "cover"
+
+
+def _hand_options(side: str, model: str = _DEFAULT_HAND):
+    return _HAND_MODELS[model][side]
 
 
 # The rests above place the wrist, but the hand's root link is its mount plate, the wrist's parent: the hand's MJCF
@@ -335,24 +345,26 @@ def fingertip_links(side: str) -> list[str]:
     return list(_hand_options(side)().metadata.target_hand_links)
 
 
+def _hand(side: str, model: str = _DEFAULT_HAND):
+    """One hand resting over the keys on nothing at all."""
+    return _hand_options(side, model)(
+        # A free body: `FreeBasePoseController` is what holds it up and moves it along the keys.
+        is_fixed_base=False,
+        default_root_pos=_ROOT_REST[side],
+        default_root_quat=hand_rest_quat(side),
+        default_dofs_pos=hand_rest_pose(side),
+        # A real forearm carries the hand's weight; here the material does, so the wrist controller only has to
+        # move the hand. Without it the hand hangs a few millimetres below every target it is given.
+        material=RigidMaterialOptions(gravity_compensation=1.0),
+    )
+
+
 def _piano_scene() -> SceneOptions:
-    """The keyboard and, per side, a hand resting over the keys on nothing at all."""
-    entities = {}
-    for side in HANDS:
-        entities[f"{side}_hand"] = _hand_options(side)(
-            # A free body: `FreeBasePoseController` is what holds it up and moves it along the keys.
-            is_fixed_base=False,
-            default_root_pos=_ROOT_REST[side],
-            default_root_quat=hand_rest_quat(side),
-            default_dofs_pos=hand_rest_pose(side),
-            # A real forearm carries the hand's weight; here the material does, so the wrist controller only has to
-            # move the hand. Without it the hand hangs a few millimetres below every target it is given.
-            material=RigidMaterialOptions(gravity_compensation=1.0),
-        )
+    """The keyboard and a hand per side."""
     return SceneOptions(
         floor=PlaneOptions(),
         piano=Piano(default_root_pos=(0.0, 0.0, KEYBOARD_Z)),
-        **entities,
+        **{f"{side}_hand": _hand(side) for side in HANDS},
     )
 
 
@@ -403,6 +415,34 @@ def _episode_seconds(song: str) -> float:
     return song_steps(song, _STEP_DT, _LEAD_IN_S) * _STEP_DT
 
 
+class HandMod(TaskMod):
+    """Pick the hand model via ``--hand``: the Wuji Hand2 with its cover (the default), or the bare hand.
+
+    The cover adds rigid pads and sleeves on the palm and fingers, 95.8 g in all; the bare hand has neither. Both put
+    their joints, fingertip frames and mount plate in the same place, so the rest pose, the placement over the keys
+    and every term stay as they are, and only the scene's two hand entities change.
+    """
+
+    def __init__(
+        self,
+        hand: Annotated[
+            Literal["cover", "skeleton"],
+            "Which Wuji Hand2 (hand2_2) model plays: 'cover', with its pads (WujiHand2_2_*), or 'skeleton', "
+            "the bare hand (WujiHand2_2Skeleton_*).",
+        ] = _DEFAULT_HAND,
+    ):
+        self.hand = hand
+
+    def apply(self, config: PianoConfig) -> PianoConfig:
+        for side in HANDS:
+            name = f"{side}_hand"
+            hand = _hand(side, self.hand)
+            # Keep wherever the config already has the hand, in case a mod before this one placed it.
+            hand.default_root_pos = getattr(config.scene_options, name).default_root_pos
+            setattr(config.scene_options, name, hand)
+        return config
+
+
 class SongMod(TaskMod):
     """Pick the song via ``--song``.
 
@@ -437,7 +477,7 @@ class SongMod(TaskMod):
         return config
 
 
-@TASK_REGISTRY.register(modifiers=(SongMod(),), tags=("manipulation", "dexterous", "benchmarks"))
+@TASK_REGISTRY.register(modifiers=(HandMod(), SongMod()), tags=("manipulation", "dexterous", "benchmarks"))
 class PianoConfig(EdenRLConfig):
     env_options: EnvOptions = EnvOptions(
         num_envs=_NUM_ENVS,

@@ -3,6 +3,7 @@
 import pytest
 
 from eden.options.objects.piano import key_of_midi_note, key_y
+from eden.options.robots import WujiHand2_2_L, WujiHand2_2_R, WujiHand2_2Skeleton_L, WujiHand2_2Skeleton_R
 from eden.tasks import TASK_REGISTRY
 from eden.tasks.piano.config import (
     _REST_NOTES,
@@ -76,3 +77,27 @@ def test_each_hand_flies_on_its_own_controller_and_every_joint_is_driven():
         wrist = getattr(cfg.action_options, f"{side}_wrist")
         assert wrist.entity_name == f"{side}_hand" and not wrist.dofs_name
         assert all(link.startswith(side[0]) for link in fingertip_links(side))
+
+
+def test_the_cover_is_the_default_hand_and_the_skeleton_swaps_in_on_the_same_rest():
+    covered = TASK_REGISTRY.build("piano")
+    bare = TASK_REGISTRY.build("piano", hand="skeleton")
+    for side, cover_cls, bare_cls in (
+        ("right", WujiHand2_2_R, WujiHand2_2Skeleton_R),
+        ("left", WujiHand2_2_L, WujiHand2_2Skeleton_L),
+    ):
+        cover_hand = getattr(covered.scene_options, f"{side}_hand")
+        bare_hand = getattr(bare.scene_options, f"{side}_hand")
+        assert type(cover_hand) is cover_cls and type(bare_hand) is bare_cls
+        assert not bare_hand.is_fixed_base and bare_hand.file.endswith("_floating.xml")
+        for field in ("default_root_pos", "default_root_quat", "default_dofs_pos", "material"):
+            assert getattr(bare_hand, field) == getattr(cover_hand, field)
+
+
+def test_the_skeleton_keeps_the_placement_a_score_gives_its_hands(midi_path):
+    covered = TASK_REGISTRY.build("piano", song=midi_path)
+    bare = TASK_REGISTRY.build("piano", song=midi_path, hand="skeleton")
+    for side in HANDS:
+        assert getattr(bare.scene_options, f"{side}_hand").default_root_pos == pytest.approx(
+            getattr(covered.scene_options, f"{side}_hand").default_root_pos
+        )
