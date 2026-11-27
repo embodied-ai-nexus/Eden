@@ -6,10 +6,8 @@ from eden.options.objects.piano import key_of_midi_note, key_y
 from eden.tasks import TASK_REGISTRY
 from eden.tasks.piano.config import (
     _REST_NOTES,
+    _ROOT_REST,
     _WRIST_POSITION_SCALE,
-    _WRIST_X,
-    _WRIST_Y,
-    _WRIST_Z,
     HANDS,
     _keys_centre,
     fingertip_links,
@@ -23,8 +21,8 @@ STEP_DT = 0.05
 
 
 def _lean(side: str) -> float:
-    """How far a resting wrist sits off the centre of the keys its fingers rest on."""
-    return _WRIST_Y[side] - _keys_centre(*_REST_NOTES[side])
+    """How far a resting hand's root sits off the centre of the keys its fingers rest on."""
+    return _ROOT_REST[side][1] - _keys_centre(*_REST_NOTES[side])
 
 
 @pytest.mark.parametrize("song", sorted(SONGS))
@@ -34,9 +32,7 @@ def test_a_built_in_tune_sets_the_episode_and_leaves_the_hands_on_their_fitted_r
     assert cfg.env_options.sim_dt * cfg.env_options.decimation == pytest.approx(STEP_DT)
     assert cfg.env_options.episode_length_s == pytest.approx(song_steps(song, STEP_DT, 1.0) * STEP_DT)
     for side in HANDS:
-        assert getattr(cfg.scene_options, f"{side}_hand").default_root_pos == pytest.approx(
-            (_WRIST_X, _WRIST_Y[side], _WRIST_Z)
-        )
+        assert getattr(cfg.scene_options, f"{side}_hand").default_root_pos == pytest.approx(_ROOT_REST[side])
         assert getattr(cfg.action_options, f"{side}_wrist").position_scale == pytest.approx(_WRIST_POSITION_SCALE)
 
 

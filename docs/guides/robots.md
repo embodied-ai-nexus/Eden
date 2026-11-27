@@ -364,6 +364,10 @@ as beta2, with wuji-sim's joint dynamics: the per-joint armature that the specs 
 averaged per motor) and zero friction loss and damping, which wuji-sim leaves unidentified. Pass `WujiHand2Beta2`'s
 identified values as `default_dofs_frictionloss` / `default_dofs_damping` to train against them instead.
 
+The hand2_2 presets default to `is_fixed_base=True`, since upstream's MJCF has no free joint. Built with
+`is_fixed_base=False` (and no `file` of its own), a preset loads `floating_file`, the same MJCF with a
+`<freejoint/>` on the mount plate; the piano task flies its hands that way.
+
 ## Adding a robot
 
 1. **Get the asset.** Put the URDF / MJCF (and its meshes) where `file` can reach it: a local path while you

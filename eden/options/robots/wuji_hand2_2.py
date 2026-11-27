@@ -19,6 +19,10 @@ within the first fifth of the way into wuji-sim's fist pose. Assets (MJCF, URDF 
 v2026.11.26), and the cover from v2026.11.26, which replaced its provisional cover masses. Eden's MJCF wraps upstream's
 fingertip and IMU sites in empty bodies of the same names, which Genesis keeps as links.
 
+Upstream's MJCF has no free joint, so a hand built from it is welded to the world, and the presets default to
+``is_fixed_base=True``. A hand built with ``is_fixed_base=False`` (and no ``file`` of its own) loads
+``floating_file`` instead, Eden's copy of the same MJCF with a ``<freejoint/>`` on the mount plate.
+
 The model is rooted at the wrist adapter plate (``{r,l}_mount``), so these presets correspond to
 ``WujiHand2Beta2WithMount_*``: the root pose getters and ``default_root_pos`` refer to the plate, and
 ``{r,l}_wrist`` is kept as a link so lookups written against the wrist still resolve.
@@ -31,7 +35,9 @@ to train against them. The gains are the pen-spin operating point the beta2 pres
 pen-spin example also runs this model at. They replace the MJCF's own armature and position-actuator gains.
 """
 
-from typing import ClassVar
+from typing import Any, ClassVar
+
+from pydantic import model_validator
 
 from eden.options.actuators import ActuatorSpecOptions
 from eden.options.catalog import ROBOT_REGISTRY
@@ -86,9 +92,19 @@ class _WujiHand2_2(RobotOptions):
     # unset.
     current_limit_a: ClassVar[float] = _CURRENT_LIMIT_A
 
-    # The MJCF's root body has no free joint, so standing alone the hand is welded to the world; a composite rig still
-    # welds it to an arm (as ``FrankaHand`` does), since an attached entity is carried by its parent link.
+    # ``file``'s root body has no free joint, so a hand built from it stands welded to the world (a composite rig still
+    # welds it to an arm, as ``FrankaHand``'s is, since an attached entity is carried by its parent link).
+    # ``floating_file`` is the same model with a ``<freejoint/>`` on the mount, which a hand built with
+    # ``is_fixed_base=False`` and no ``file`` of its own loads instead.
     is_fixed_base: bool = True
+    floating_file: ClassVar[str]
+
+    @model_validator(mode="before")
+    @classmethod
+    def _load_the_floating_model_for_a_free_base(cls, data: Any) -> Any:
+        if isinstance(data, dict) and data.get("is_fixed_base") is False and "file" not in data:
+            return {**data, "file": cls.floating_file}
+        return data
 
     default_dofs_pos: dict[str, float] = {"*": 0.0}
 
@@ -109,6 +125,7 @@ class _WujiHand2_2(RobotOptions):
 @ROBOT_REGISTRY.register(name="wuji_hand2_2_r")
 class WujiHand2_2_R(_WujiHand2_2):
     file: str = "hands/wuji_hand2_2/wuji_hand2_2_right_with_cover.xml"
+    floating_file: ClassVar[str] = "hands/wuji_hand2_2/wuji_hand2_2_right_with_cover_floating.xml"
 
     # As on ``WujiHand2Beta2_R``: the fingers extend along the model's -Z and the palm normal is +Y, so the hand
     # spawns fingers-up, palm-forward.
@@ -132,6 +149,7 @@ class WujiHand2_2_R(_WujiHand2_2):
 @ROBOT_REGISTRY.register(name="wuji_hand2_2_l")
 class WujiHand2_2_L(_WujiHand2_2):
     file: str = "hands/wuji_hand2_2/wuji_hand2_2_left_with_cover.xml"
+    floating_file: ClassVar[str] = "hands/wuji_hand2_2/wuji_hand2_2_left_with_cover_floating.xml"
 
     # The left hand mirrors the right about the palm plane: the palm normal flips to -Y.
     up: tuple[int, int, int] = (0, 0, -1)
@@ -155,8 +173,10 @@ class WujiHand2_2_L(_WujiHand2_2):
 @ROBOT_REGISTRY.register(name="wuji_hand2_2_skeleton_r")
 class WujiHand2_2Skeleton_R(WujiHand2_2_R):
     file: str = "hands/wuji_hand2_2/wuji_hand2_2_right.xml"
+    floating_file: ClassVar[str] = "hands/wuji_hand2_2/wuji_hand2_2_right_floating.xml"
 
 
 @ROBOT_REGISTRY.register(name="wuji_hand2_2_skeleton_l")
 class WujiHand2_2Skeleton_L(WujiHand2_2_L):
     file: str = "hands/wuji_hand2_2/wuji_hand2_2_left.xml"
+    floating_file: ClassVar[str] = "hands/wuji_hand2_2/wuji_hand2_2_left_floating.xml"

@@ -35,7 +35,11 @@ def _env():
         name: cls(is_fixed_base=True, default_root_pos=(0.5 * i, 0.0, 0.3))
         for i, (name, (cls, _)) in enumerate(_HANDS.items())
     }
-    return build_scene(**hands, beta2_r=WujiHand2Beta2WithMount_R(is_fixed_base=True, default_root_pos=(2.0, 0.0, 0.3)))
+    return build_scene(
+        **hands,
+        beta2_r=WujiHand2Beta2WithMount_R(is_fixed_base=True, default_root_pos=(2.0, 0.0, 0.3)),
+        floating_r=WujiHand2_2_R(is_fixed_base=False, default_root_pos=(2.5, 0.0, 0.3)),
+    )
 
 
 def _frames(prefix: str) -> list[str]:
@@ -176,3 +180,20 @@ def test_closing_into_wuji_sims_fist_never_touches_the_hand_itself(env, name):
     for alpha in np.linspace(0.0, 1.0, 11):
         set_dofs(hand, {f"{prefix}_{joint}": alpha * q for joint, q in _FIST.items()})
         assert len(hand.detect_collision()) == 0, f"self-contact at {alpha:.1f} of the way to the fist"
+
+
+@pytest.mark.parametrize("cls", [WujiHand2_2_R, WujiHand2_2_L, WujiHand2_2Skeleton_R, WujiHand2_2Skeleton_L])
+def test_a_free_base_loads_the_same_model_with_a_free_joint(cls):
+    """``file`` has no free joint, so a hand built with ``is_fixed_base=False`` loads ``floating_file``; a ``file``
+    the caller names is kept, and a saved config reloads the file it was saved with.
+    """
+    fixed, free = cls(), cls(is_fixed_base=False)
+    assert free.file == cls.floating_file == fixed.file.removesuffix(".xml") + "_floating.xml"
+    assert cls(is_fixed_base=False, file="elsewhere.xml").file == "elsewhere.xml"
+    assert cls.model_validate(free.model_dump()).file == free.file
+
+
+def test_the_floating_hand_builds_on_a_free_base(env):
+    hand = env.entities["floating_r"]
+    assert (hand.num_dofs, hand._entity.n_dofs) == (20, 26)
+    assert hand.base_link_name == "r_mount"

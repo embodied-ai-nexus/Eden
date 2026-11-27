@@ -1,7 +1,7 @@
 """Piano: two Wuji Hand2 hands play a song on a simulated 88-key keyboard.
 
 Eden's take on `RoboPianist <https://github.com/google-research/robopianist>`_'s ``PianoWithShadowHands``
-(Apache-2.0), with the Wuji Hand2 (beta2) in place of the Shadow Hand. The score is given to the policy as the key
+(Apache-2.0), with the Wuji Hand2 (hand2_2, with its cover) in place of the Shadow Hand. The score is given to the policy as the key
 states of the current control step and the next ten; the reward pays for pressing the keys that are due, and
 nothing else, at the moment they are due.
 
@@ -62,7 +62,7 @@ from pathlib import Path
 from typing import Annotated
 
 import numpy as np
-from genesis.utils.geom import axis_angle_to_quat, transform_quat_by_quat
+from genesis.utils.geom import axis_angle_to_quat, quat_to_R, transform_quat_by_quat
 
 from eden import observations, rewards
 from eden.managers.terms.actions import FreeBasePoseController, ImplicitPDController
@@ -77,10 +77,11 @@ from eden.options.learning.rsl_rl import (
 )
 from eden.options.materials import RigidMaterialOptions
 from eden.options.objects.piano import Piano, key_of_midi_note, key_y
-from eden.options.robots import WujiHand2Beta2_L, WujiHand2Beta2_R
+from eden.options.robots import WujiHand2_2_L, WujiHand2_2_R
 from eden.tasks.piano import custom_terms as ct
 from eden.tasks.piano.songs import SCORES_DIR, SONGS, Song, get_song, song_steps
 from eden.tasks.registry import TASK_REGISTRY, TaskMod
+from eden.utils.geom import align_up_and_front
 from eden.terms import DoneTerm, MetricTerm, ObsTerm, RewardTerm
 from eden.utils.configs import (
     ActionManagerOptions,
@@ -123,7 +124,7 @@ _WRIST_Y = {"right": -0.027, "left": -0.160}
 # The five keys the rest pose was fitted over, as MIDI notes, thumb and little finger at the ends.
 _REST_NOTES = {"right": (60, 67), "left": (48, 55)}
 
-# The hand loads fingers-up, palm-forward (see `WujiHand2Beta2_R`). Half a turn about (1, 0, -1) lays it fingers
+# The hand loads fingers-up, palm-forward (see `WujiHand2_2_R`). Half a turn about (1, 0, -1) lays it fingers
 # toward the keyboard (-x) and palm down. It is then rolled about the forearm's axis, thumb side down, the way a
 # pianist's forearm sits short of fully pronated: this thumb swings under the palm rather than down beside it, and
 # with the palm dead level its tip cannot get below the key tops anywhere beside the index finger.
@@ -151,8 +152,10 @@ def hand_rest_quat(side: str) -> tuple[float, float, float, float]:
 
 
 # Rest pose: each fingertip a centimetre above the front half of its own white key, thumb to little finger on five
-# neighbouring keys. Fitted by sampling the mounted hand's forward kinematics; both hands fit the same angles to
-# within 0.1 rad, so they share them. The outer fingers flex more at the knuckle because the roll lifts them.
+# neighbouring keys. Fitted by sampling the forward kinematics of the Wuji Hand2 beta2, whose finger joints sit within
+# 3 mm of hand2_2's; on hand2_2 the same angles put every fingertip 11 to 13 mm above its key and within 6 mm of the
+# key's centre line. Both hands fit the same angles to within 0.1 rad, so they share them. The outer fingers flex
+# more at the knuckle because the roll lifts them.
 _REST = {
     "thumb": {"cmc_flex": 0.35, "cmc_abd": -0.17, "mcp": 0.80, "ip": 0.0},
     "index_finger": {"mcp_flex": 0.38, "mcp_abd": -0.08, "pip": 1.15, "dip": 0.80},
@@ -184,7 +187,38 @@ _NUM_STEPS_PER_ENV = 32
 
 
 def _hand_options(side: str):
-    return WujiHand2Beta2_R if side == "right" else WujiHand2Beta2_L
+    return WujiHand2_2_R if side == "right" else WujiHand2_2_L
+
+
+# The rests above place the wrist, but the hand's root link is its mount plate, the wrist's parent: the hand's MJCF
+# puts `{r,l}_wrist` at this offset in the plate's frame, 28.5 mm down the hand.
+_MOUNT_TO_WRIST = {
+    "right": (0.00300045189842, 0.0, -0.0284982808512),
+    "left": (0.00300066278665, 0.0, -0.0285015084627),
+}
+
+
+def _root_rest(side: str) -> tuple[float, float, float]:
+    """Where a hand's root (its mount plate) rests, so that its wrist rests at the fitted wrist position.
+
+    Parameters
+    ----------
+    side : str
+        ``"right"`` or ``"left"``.
+
+    Returns
+    -------
+    tuple[float, float, float]
+        World position of the root link, in metres.
+    """
+    hand = _hand_options(side)()
+    # The root link's orientation: the rest orientation applied over the up/front alignment Eden loads the hand with.
+    rotation = quat_to_R(np.array(hand_rest_quat(side))) @ align_up_and_front(hand.up, hand.front)
+    wrist = np.array((_WRIST_X, _WRIST_Y[side], _WRIST_Z))
+    return tuple(float(c) for c in wrist - rotation @ np.array(_MOUNT_TO_WRIST[side]))
+
+
+_ROOT_REST = {side: _root_rest(side) for side in HANDS}
 
 
 def _keys_centre(low_note: int, high_note: int) -> float:
@@ -205,10 +239,10 @@ def _keys_centre(low_note: int, high_note: int) -> float:
     return 0.5 * (key_y(key_of_midi_note(low_note)) + key_y(key_of_midi_note(high_note)))
 
 
-# How far the wrist sits from the middle of the five keys its fingers rest over. It leans toward the thumb, and
-# the thumbs face each other, so the two hands lean opposite ways. Taken from the rests above rather than
+# How far the hand's root sits from the middle of the five keys its fingers rest over. It leans toward the thumb,
+# and the thumbs face each other, so the two hands lean opposite ways. Taken from the rests above rather than
 # measured again, so that a score asking for exactly those keys reproduces them.
-_WRIST_LEAN = {side: _WRIST_Y[side] - _keys_centre(*_REST_NOTES[side]) for side in HANDS}
+_ROOT_LEAN = {side: _ROOT_REST[side][1] - _keys_centre(*_REST_NOTES[side]) for side in HANDS}
 
 
 def hand_placement(song: Song, side: str) -> tuple[float, float]:
@@ -228,15 +262,15 @@ def hand_placement(song: Song, side: str) -> tuple[float, float]:
     Returns
     -------
     tuple[float, float]
-        The wrist's ``y`` and the metres per unit of its ``y`` action.
+        The hand root's ``y`` and the metres per unit of the wrist's ``y`` action.
     """
     reach = song.reach(side)
     if reach is None:
-        return _WRIST_Y[side], _WRIST_POSITION_SCALE[1]
+        return _ROOT_REST[side][1], _WRIST_POSITION_SCALE[1]
     low, high = key_y(reach[0]), key_y(reach[1])
     # A unit action has to carry the hand from the middle of the part to either end of it; the fingers span five
     # keys from there, which is what covers the last few centimetres. Never less travel than a built-in tune gets.
-    return 0.5 * (low + high) + _WRIST_LEAN[side], max(_WRIST_POSITION_SCALE[1], 0.5 * (high - low))
+    return 0.5 * (low + high) + _ROOT_LEAN[side], max(_WRIST_POSITION_SCALE[1], 0.5 * (high - low))
 
 
 def hand_reach(rest_y: float, travel: float, side: str) -> tuple[float, float]:
@@ -251,7 +285,7 @@ def hand_reach(rest_y: float, travel: float, side: str) -> tuple[float, float]:
     Parameters
     ----------
     rest_y : float
-        Where the wrist rests along the keyboard, in metres.
+        Where the hand's root rests along the keyboard, in metres.
     travel : float
         Metres one unit of the wrist's ``y`` action moves it.
     side : str
@@ -264,8 +298,8 @@ def hand_reach(rest_y: float, travel: float, side: str) -> tuple[float, float]:
     """
     low_note, high_note = _REST_NOTES[side]
     half_span = 0.5 * abs(key_y(key_of_midi_note(high_note)) - key_y(key_of_midi_note(low_note)))
-    # The wrist leans toward the thumb, so the fingers are centred on `_WRIST_LEAN` off the wrist.
-    centre = rest_y - _WRIST_LEAN[side]
+    # The hand leans toward the thumb, so the fingers are centred on `_ROOT_LEAN` off the root.
+    centre = rest_y - _ROOT_LEAN[side]
     return centre - half_span - travel, centre + half_span + travel
 
 
@@ -308,7 +342,7 @@ def _piano_scene() -> SceneOptions:
         entities[f"{side}_hand"] = _hand_options(side)(
             # A free body: `FreeBasePoseController` is what holds it up and moves it along the keys.
             is_fixed_base=False,
-            default_root_pos=(_WRIST_X, _WRIST_Y[side], _WRIST_Z),
+            default_root_pos=_ROOT_REST[side],
             default_root_quat=hand_rest_quat(side),
             default_dofs_pos=hand_rest_pose(side),
             # A real forearm carries the hand's weight; here the material does, so the wrist controller only has to
@@ -395,9 +429,9 @@ class SongMod(TaskMod):
         config.env_options.episode_length_s = _episode_seconds(self.song)
         config.runner_options.run_name = Path(self.song).stem if self.song not in SONGS else self.song
         for side in HANDS:
-            wrist_y, travel = hand_placement(score, side)
+            root_y, travel = hand_placement(score, side)
             hand = getattr(config.scene_options, f"{side}_hand")
-            hand.default_root_pos = (_WRIST_X, wrist_y, _WRIST_Z)
+            hand.default_root_pos = (_ROOT_REST[side][0], root_y, _ROOT_REST[side][2])
             wrist = getattr(config.action_options, f"{side}_wrist")
             wrist.position_scale = (_WRIST_POSITION_SCALE[0], travel, _WRIST_POSITION_SCALE[2])
         return config
