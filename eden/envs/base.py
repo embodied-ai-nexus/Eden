@@ -1939,8 +1939,8 @@ class RLEnvBase(EnvBase[EdenRLConfig]):
         """Control steps taken since construction, one count shared by every env.
 
         A training run resumed from an rsl_rl or rl_games checkpoint of its own task (the same config class) starts
-        it at the count the checkpoint saved (``StepCounterCheckpointMixin``, ``RlGamesVecEnvWrapper.set_env_state``),
-        so the steps of the runs before it are included. A checkpoint of another task leaves it at 0.
+        it at the count the checkpoint saved (:meth:`state_dict` / :meth:`load_state_dict`), so the steps of the runs
+        before it are included. A checkpoint of another task leaves it at 0.
 
         Reading it while the graded phase is captured (``EnvOptions.cuda_graph_options``) raises
         :class:`~eden.envs.graded_graph.BakedHostReadError`: the graph would replay the count it read on every
@@ -1960,6 +1960,36 @@ class RLEnvBase(EnvBase[EdenRLConfig]):
     @common_step_counter.setter
     def common_step_counter(self, value: int) -> None:
         self._common_step_counter = value
+
+    def state_dict(self) -> dict[str, Any]:
+        """The env's training progress, which a checkpoint saves so a resumed run continues from it.
+
+        Today that is ``common_step_counter``, which step-scheduled curricula and events read. Curriculum terms
+        already expose ``state_dict()`` / ``load_state_dict()`` for their own adaptive state; it belongs here too, as
+        another key, when term state is checkpointed. The training runners save this dict
+        (:class:`~eden.envs.wrappers.rsl_rl_env.EnvStateCheckpointMixin`,
+        :meth:`~eden.envs.wrappers.rl_games_env.RlGamesVecEnvWrapper.get_env_state`) and decide whether a checkpoint's
+        is this run's to restore.
+        """
+        return {"common_step_counter": int(self.common_step_counter)}
+
+    def load_state_dict(self, state: dict[str, Any]) -> None:
+        """Restore what :meth:`state_dict` returned.
+
+        A key this Eden does not know (a checkpoint saved by a newer one) is skipped with a warning that names it,
+        so the rest of the state still loads.
+        """
+        if "common_step_counter" not in state:
+            raise KeyError(
+                f"env state {sorted(state)} has no 'common_step_counter'. Pass the dict env.state_dict() returned."
+            )
+        self.common_step_counter = int(state["common_step_counter"])
+        unknown = sorted(set(state) - {"common_step_counter"})
+        if unknown:
+            en.logger.warning(
+                f"The env state being restored has keys this Eden does not know: {unknown}. They were skipped; a "
+                "newer Eden saved them, and loading the checkpoint with that version restores them."
+            )
 
     @contextmanager
     def graded_capture_scope(self) -> Iterator[None]:

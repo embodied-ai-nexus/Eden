@@ -448,8 +448,11 @@ with its own runner), set the runner options' `class_name` to an import path. `e
 build that class instead of Eden's `OnPolicyRunner` / `DistillationRunner`:
 
 - It is called as `cls(env, runner_dict, log_dir=..., device=...)` and must provide `learn`, `load` and
-  `get_inference_policy`. It composes Eden's runner mixins (checkpoint retention, progress file) itself; they are
-  listed in `eden.envs.wrappers.rsl_rl_env.EDEN_RUNNER_MIXINS`.
+  `get_inference_policy`. It composes Eden's runner mixins (checkpoint retention, progress file, the env state a
+  resume restores) itself; they are listed in `eden.envs.wrappers.rsl_rl_env.EDEN_RUNNER_MIXINS`. The mixins wrap
+  `learn`, `save` and `load` through `super()`, so define those in a base class and compose the tuple on top,
+  `MyRunner(*EDEN_RUNNER_MIXINS, _MyRunner)`, as `SuperMimicRunner` and `RmaDepthDistillationRunner` do. A method
+  written in the same class body as the tuple runs instead of the mixins'.
 - A `checkpoint_required` message on the class makes `eden train` exit before anything is written when neither
   `--checkpoint` nor `--resume` is given.
 - Under a distributed launch it must compose `DDPRunnerMixin`, or it is refused.

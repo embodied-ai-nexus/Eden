@@ -11,7 +11,7 @@ import numpy as np
 import pytest
 import torch
 
-from eden.envs.wrappers.core import observation_space, same_task_config, time_outs
+from eden.envs.wrappers.core import observation_space, time_outs
 from eden.envs.wrappers.rsl_rl_env import RslRlVecEnvWrapper
 from tests.envs.wrappers.conftest import gym_pendulum_config, rsl_rl_runner_options, unbuildable_gym_pendulum_config
 
@@ -106,18 +106,3 @@ def test_a_bad_clip_actions_assigned_after_validation_is_refused_before_the_buil
 
     with pytest.raises(ValueError, match=r"runner_options\.clip_actions=.* must be a finite positive bound"):
         runner_wrapper_cls.from_config(config)
-
-
-@pytest.mark.parametrize(
-    ("saved", "current", "same"),
-    [
-        ("pkg.tasks.MyConfig", "pkg.tasks.MyConfig", True),
-        ("__main__.MyConfig", "pkg.tasks.MyConfig", True),  # the script ran directly; this run imported it
-        ("pkg.tasks.MyConfig", "__main__.MyConfig", True),
-        ("__main__.MyConfig", "__main__.OtherConfig", False),
-        ("pkg.tasks.MyConfig", "pkg.other.MyConfig", False),  # two modules, neither a script run directly
-        ("pkg.tasks.MyConfig", "pkg.tasks.MyRGBConfig", False),
-    ],
-)
-def test_same_task_config_matches_a_class_by_name_across_main_only(saved, current, same):
-    assert same_task_config(saved, current) is same

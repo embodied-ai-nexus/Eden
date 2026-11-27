@@ -54,6 +54,7 @@ from eden.utils.configs import (
     is_full_config,
     overrides_from_str,
     read_config_file,
+    same_config_class,
     saved_config_qualname,
     serialize_obj_with_metadata,
     to_options,
@@ -984,3 +985,18 @@ def test_a_declared_rec_camera_loaded_from_a_saved_config_keeps_the_tasks_overla
     config.lock()  # as ``save_as_json`` leaves it
     config.add_recording_camera()
     assert "leaves out" not in eden_caplog.text
+
+
+@pytest.mark.parametrize(
+    ("saved", "current", "same"),
+    [
+        ("pkg.tasks.MyConfig", "pkg.tasks.MyConfig", True),
+        ("__main__.MyConfig", "pkg.tasks.MyConfig", True),  # the script ran directly; this run imported it
+        ("pkg.tasks.MyConfig", "__main__.MyConfig", True),
+        ("__main__.MyConfig", "__main__.OtherConfig", False),
+        ("pkg.tasks.MyConfig", "pkg.other.MyConfig", False),  # two modules, neither a script run directly
+        ("pkg.tasks.MyConfig", "pkg.tasks.MyRGBConfig", False),  # a subclass task is another task
+    ],
+)
+def test_same_config_class_matches_a_class_by_name_across_main_only(saved, current, same):
+    assert same_config_class(saved, current) is same

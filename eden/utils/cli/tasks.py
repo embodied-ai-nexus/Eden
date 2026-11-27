@@ -136,17 +136,9 @@ def _checkpoint_sibling_config(args) -> str | None:
         return None
     if getattr(args, "config", None) and is_full_config(read_config_arg(args.config)):
         return None  # an explicit saved config replaces the checkpoint's own; let the rebuild path apply it
-    return _saved_training_config(args.checkpoint)
+    from eden.utils.configs import saved_training_config
 
-
-def _saved_training_config(checkpoint: str) -> str | None:
-    """The ``config.json`` its training run saved beside ``checkpoint``, or ``None`` for a loose checkpoint.
-
-    Where a checkpoint's training config lives. Whether a replay *loads* it is
-    :func:`_checkpoint_sibling_config`'s question; what the checkpoint was trained with is this one's.
-    """
-    sibling = os.path.join(os.path.dirname(os.path.abspath(checkpoint)), "config.json")
-    return sibling if os.path.exists(sibling) else None
+    return saved_training_config(args.checkpoint)
 
 
 def _replay_log_root(args, *, task_less: str) -> str:
@@ -188,7 +180,7 @@ def _replay_log_root(args, *, task_less: str) -> str:
     import eden as en
 
     from eden.tasks import TASK_REGISTRY
-    from eden.utils.configs import read_config_file, saved_config_qualname
+    from eden.utils.configs import read_config_file, same_config_class, saved_config_qualname
 
     task = getattr(args, "task", None)
     if not task:
@@ -196,7 +188,7 @@ def _replay_log_root(args, *, task_less: str) -> str:
     sibling = _checkpoint_sibling_config(args)
     saved = saved_config_qualname(read_config_file(sibling)) if sibling else None
     built = TASK_REGISTRY.config_qualname_for_task(task)
-    if saved is None or built is None or saved == built:
+    if saved is None or built is None or same_config_class(saved, built):
         # Nothing to check against (no replay to do, or a legacy save with no class tag), or it
         # checks out. ``built`` is None only for an unregistered ``--task``, which the caller has
         # already rejected — and a helper that only picks a directory must never warn on a guess.
@@ -2469,13 +2461,13 @@ def _checkpoint_trained_robots(checkpoints: list[str], entity_name: str, robot_o
     """
     from eden.extensions.deployment.base import scene_entity_options
     from eden.options.entities import CompositeEntityOptions
-    from eden.utils.configs import EdenConfig
+    from eden.utils.configs import EdenConfig, saved_training_config
 
     if isinstance(robot_options, CompositeEntityOptions):
         return []
     trained = []
     for ckpt in checkpoints:
-        saved = _saved_training_config(ckpt)
+        saved = saved_training_config(ckpt)
         if saved is None:
             trained.append((ckpt, None))
             continue

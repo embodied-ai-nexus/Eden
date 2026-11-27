@@ -143,33 +143,6 @@ def time_outs(terminated: torch.Tensor, truncated: torch.Tensor) -> torch.Tensor
     return truncated & ~terminated
 
 
-def task_config_qualname(env: Any) -> str:
-    """The ``module.Class`` of the config ``env`` was built from, in the form a saved ``config.json`` records it.
-
-    A checkpoint's step-counter record stores it, so a run restores the counter only from a checkpoint of its own task
-    (:class:`~eden.envs.wrappers.rsl_rl_env.StepCounterCheckpointMixin`, ``RlGamesVecEnvWrapper.set_env_state``). The
-    exact class is the task's identity, compared with :func:`same_task_config`. Task mods edit a config without
-    changing its class, so they count as one task. A separately registered task whose config subclasses another's
-    (``ManipulationLiftBoxRGBConfig`` of ``ManipulationLiftBoxConfig``) is another task.
-    """
-    config_class = type(env.unwrapped.config)
-    return f"{config_class.__module__}.{config_class.__name__}"
-
-
-def same_task_config(saved: str, current: str) -> bool:
-    """Whether a checkpoint's recorded config class ``saved`` is this run's ``current`` (both ``module.Class``).
-
-    Equal names match. So do equal class names when either module is ``__main__``: a config class defined in a script
-    is recorded as ``__main__.Class`` when the script runs directly, and under its module's name when something
-    imports it (``eden train --task``), and both are the same class.
-    """
-    if saved == current:
-        return True
-    saved_module, _, saved_class = saved.rpartition(".")
-    current_module, _, current_class = current.rpartition(".")
-    return saved_class == current_class and "__main__" in (saved_module, current_module)
-
-
 def _numpy_dtype(dtype: torch.dtype) -> np.dtype:
     return torch.empty((), dtype=dtype).numpy().dtype
 

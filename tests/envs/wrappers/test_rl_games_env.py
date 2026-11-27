@@ -17,7 +17,7 @@ from pydantic import ValidationError  # noqa: E402
 from eden.envs.wrappers.rl_games_env import RlGamesVecEnvWrapper, rl_games_checkpoints  # noqa: E402
 from eden.envs.wrappers.rsl_rl_env import RslRlVecEnvWrapper  # noqa: E402
 from eden.options.learning.rl_games import RlGamesNetworkOptions, RlGamesPpoRunnerOptions  # noqa: E402
-from eden.utils.configs import EdenConfig, EdenRLConfig  # noqa: E402
+from eden.utils.configs import EdenConfig, EdenRLConfig, config_qualname  # noqa: E402
 from tests.envs.conftest import EnvsTraceTermination, pendulum_options  # noqa: E402
 from tests.envs.wrappers.conftest import rsl_rl_runner_options  # noqa: E402
 
@@ -402,12 +402,14 @@ def test_a_restored_checkpoint_continues_the_step_counter_it_saved(rl_config, tm
     trained = _trained_checkpoints(rl_config, tmp_path / "run", monkeypatch)
     (nn_dir,) = (tmp_path / "run").glob("runs/*/nn")
     checkpoint = str(nn_dir / trained[-1][1])
-    saved = torch.load(checkpoint, weights_only=False)["env_state"]["common_step_counter"]
+    env_state = torch.load(checkpoint, weights_only=False)["env_state"]
+    saved = env_state["env"]["common_step_counter"]
     assert saved > 0
 
     agent = _agent(_runner(rl_config))
     agent.restore(checkpoint)
 
+    assert env_state["task"] == config_qualname(agent.vec_env.unwrapped.config)
     assert agent.vec_env.unwrapped.common_step_counter == saved
 
 
@@ -425,7 +427,7 @@ def test_a_checkpoint_without_the_record_restarts_the_counter_and_says_so(
     agent.restore(checkpoint)
 
     assert agent.vec_env.unwrapped.common_step_counter == 0
-    assert "records no env step counter" in eden_caplog.text
+    assert "records no env state" in eden_caplog.text
 
 
 def test_a_checkpoint_of_another_task_leaves_the_counter_at_its_start(rl_config, tmp_path, monkeypatch, eden_caplog):
@@ -444,17 +446,11 @@ def test_a_checkpoint_of_another_task_leaves_the_counter_at_its_start(rl_config,
     assert "was trained on eden.tasks.other.OtherTaskConfig" in eden_caplog.text
 
 
-def test_a_record_without_its_task_restarts_the_counter_and_says_so(rl_config, tmp_path, monkeypatch, eden_caplog):
-    """rl_games names no checkpoint path to ``set_env_state``, so no ``config.json`` can name the task instead."""
-    trained = _trained_checkpoints(rl_config, tmp_path / "run", monkeypatch)
-    (nn_dir,) = (tmp_path / "run").glob("runs/*/nn")
-    checkpoint = str(nn_dir / trained[-1][1])
-    state = torch.load(checkpoint, weights_only=False)
-    del state["env_state"]["task"]
-    torch.save(state, checkpoint)
+def test_an_eval_env_keeps_its_own_step_counter(rl_config):
+    """``set_env_state`` restores training progress only: an eval env's curricula are frozen."""
+    options = RlGamesPpoRunnerOptions(device="cpu", network=RlGamesNetworkOptions(units=[8]))
+    evaluation = RlGamesVecEnvWrapper.from_config(rl_config(options), eval_mode=True)
 
-    agent = _agent(_runner(rl_config))
-    agent.restore(checkpoint)
+    evaluation.set_env_state({"task": config_qualname(evaluation.unwrapped.config), "env": {"common_step_counter": 99}})
 
-    assert agent.vec_env.unwrapped.common_step_counter == 0
-    assert "does not record the config class it trained" in eden_caplog.text
+    assert evaluation.unwrapped.common_step_counter == 0
