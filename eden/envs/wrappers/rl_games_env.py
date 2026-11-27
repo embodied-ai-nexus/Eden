@@ -32,7 +32,13 @@ import torch
 from rl_games.common.ivecenv import IVecEnv
 
 import eden as en
-from eden.envs.wrappers.core import EnvWrapperMixin, action_space, task_config_qualname, time_outs
+from eden.envs.wrappers.core import (
+    EnvWrapperMixin,
+    action_space,
+    same_task_config,
+    task_config_qualname,
+    time_outs,
+)
 from eden.options.learning.rl_games.rl import check_agents_options
 from eden.options.learning.rl_games.translate import translate_runner_dict
 
@@ -380,7 +386,7 @@ class RlGamesVecEnvWrapper(EnvWrapperMixin, IVecEnv):
             return
         task, saved = task_config_qualname(self), int(env_state["common_step_counter"])
         saved_task = env_state.get("task")
-        if saved_task != task:
+        if saved_task is None or not same_task_config(saved_task, task):
             trained = (
                 "does not record the config class it trained (it was saved before Eden recorded one)"
                 if saved_task is None

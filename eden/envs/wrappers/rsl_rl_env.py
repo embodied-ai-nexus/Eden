@@ -40,6 +40,7 @@ from eden.envs.wrappers.core import (
     EnvWrapperMixin,
     action_space,
     observation_space,
+    same_task_config,
     task_config_qualname,
     time_outs,
 )
@@ -726,8 +727,8 @@ class StepCounterCheckpointMixin:
     ``save`` adds ``infos[STEP_COUNTER_INFOS_KEY] = {"common_step_counter", "iteration", "task"}`` to what the runner
     saves, where ``task`` is the config class (:func:`~eden.envs.wrappers.core.task_config_qualname`). ``load``
     (wrapped per instance, keeping the runner's own signature) restores the counter when the load resumed that
-    iteration and the checkpoint was trained on this run's config class. Variants of one task (its mods) share the
-    class, and count as one task.
+    iteration and the checkpoint was trained on this run's config class
+    (:func:`~eden.envs.wrappers.core.same_task_config`). Task mods keep the class, so they count as one task.
 
     * A load that leaves the iteration where it was, such as a teacher checkpoint loaded into a fresh distillation
       run, starts the counter at 0 along with the iterations. A record at iteration 0 loaded into a runner at
@@ -737,7 +738,8 @@ class StepCounterCheckpointMixin:
     * A checkpoint of another task (a warm start with ``--checkpoint``) starts it at 0, so this task's schedules begin
       at their first stage, and a warning names both classes.
     * A checkpoint whose class is unknown (saved before the record, or before the record named the class) is matched
-      against the ``config.json`` its run saved beside it. Without that file the counter starts at 0, with a warning.
+      against the ``config.json`` its run saved beside it. Without that file, or when it cannot be read, the counter
+      starts at 0, with a warning.
     * An eval env (``eval_mode=True``) keeps its own count: its curricula are frozen, and ``eden inference`` replays
       from step 0 as it did before.
 
@@ -750,19 +752,21 @@ class StepCounterCheckpointMixin:
 
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
-        # Wrapped per instance rather than overridden as `load(*args, **kwargs)`: `functools.wraps` keeps the
-        # runner's own signature, which `load_runner_checkpoint` reads to decide whether to pass `strict=`.
-        load = self.load  # type: ignore[attr-defined]
+        # Wrapped per instance rather than overridden as `load(*args, **kwargs)`: `functools.update_wrapper` keeps the
+        # runner's own signature, which `load_runner_checkpoint` reads to decide whether to pass `strict=`. A partial
+        # of a method rather than a closure, so `copy.deepcopy` binds the copy's `load` and `_runner_load` to the copy;
+        # a closure would keep loading into this runner.
+        self._runner_load = self.load  # type: ignore[attr-defined]
+        self.load = functools.update_wrapper(
+            functools.partial(StepCounterCheckpointMixin._load_and_restore_step_counter, self), self._runner_load
+        )
 
-        @functools.wraps(load)
-        def load_and_restore_step_counter(*load_args, **load_kwargs):  # type: ignore[no-untyped-def]
-            iteration_before = getattr(self, "current_learning_iteration", 0)
-            infos = load(*load_args, **load_kwargs)
-            path = self._checkpoint_source or (load_args[0] if load_args else load_kwargs.get("path"))
-            self._restore_step_counter(infos, iteration_before, path=path)
-            return infos
-
-        self.load = load_and_restore_step_counter
+    def _load_and_restore_step_counter(self, *load_args, **load_kwargs):  # type: ignore[no-untyped-def]
+        iteration_before = getattr(self, "current_learning_iteration", 0)
+        infos = self._runner_load(*load_args, **load_kwargs)
+        path = self._checkpoint_source or (load_args[0] if load_args else load_kwargs.get("path"))
+        self._restore_step_counter(infos, iteration_before, path=path)
+        return infos
 
     @contextlib.contextmanager
     def loading_from(self, checkpoint: str):
@@ -811,8 +815,9 @@ class StepCounterCheckpointMixin:
             return  # the load did not resume an iteration (a teacher), so the run starts its schedule at step 0
         task = task_config_qualname(self.env)  # type: ignore[attr-defined]
         saved_task = record.get("task") if record is not None else None
+        unreadable = None
         if saved_task is None:
-            saved_task = _sibling_config_qualname(path)
+            saved_task, unreadable = _sibling_config_qualname(path)
         if record is None:
             known = f"Checkpoint {path} records no env step counter (it was saved before Eden recorded one)"
             keep_schedule = "subtract the steps the checkpoint trained for from each stage's `step` with --override."
@@ -820,13 +825,17 @@ class StepCounterCheckpointMixin:
             known = f"Checkpoint {path} records an env step counter of {record['common_step_counter']}"
             keep_schedule = f"subtract {record['common_step_counter']} from each stage's `step` with --override."
         if saved_task is None:
+            missing = (
+                f"it records no config class, and {unreadable}"
+                if unreadable
+                else "neither it nor a config.json beside it records the config class it trained"
+            )
             en.logger.warning(
-                f"{known}, but neither it nor a config.json beside it records the config class it trained. Eden "
-                f"cannot tell whether it is this run's task ({task}), {restarts} If it is, keep their schedule: "
-                f"{keep_schedule}"
+                f"{known}, but {missing}. Eden cannot tell whether it is this run's task ({task}), {restarts} If it "
+                f"is, keep their schedule: {keep_schedule}"
             )
             return
-        if saved_task != task:
+        if not same_task_config(saved_task, task):
             en.logger.warning(
                 f"{known}, and it was trained on {saved_task}, not this run's {task}, {restarts} If that class is "
                 f"this task under an earlier module or class name, keep their schedule: {keep_schedule}"
@@ -862,12 +871,23 @@ class StepCounterCheckpointMixin:
         )
 
 
-def _sibling_config_qualname(checkpoint: str | None) -> str | None:
-    """The config class the ``config.json`` beside ``checkpoint`` was saved from, or ``None`` without one."""
+def _sibling_config_qualname(checkpoint: str | None) -> tuple[str | None, str | None]:
+    """``(config class, None)`` from the ``config.json`` beside ``checkpoint``, or ``(None, why)`` when it names none.
+
+    ``why`` is ``None`` when there is no such file or it records no class, and says why when the file cannot be read
+    (malformed JSON, not a mapping, no permission). The caller warns with it and starts the counter at 0, as for a
+    checkpoint of an unknown task: the file is only consulted for the step counter, after the weights have loaded, so
+    a bad one must not stop a resume that loads.
+    """
     if not checkpoint:
-        return None
+        return None, None
     sibling = os.path.join(os.path.dirname(os.path.abspath(checkpoint)), "config.json")
-    return saved_config_qualname(read_config_file(sibling)) if os.path.exists(sibling) else None
+    if not os.path.exists(sibling):
+        return None, None
+    try:
+        return saved_config_qualname(read_config_file(sibling)), None
+    except (OSError, ValueError) as exc:  # json.JSONDecodeError is a ValueError
+        return None, f"the config.json beside it could not be read ({type(exc).__name__}: {exc})"
 
 
 class SaveBeforeLearnMixin:

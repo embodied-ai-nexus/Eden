@@ -6,6 +6,7 @@ files saved by a real runner (or rewritten from one into an older layout).
 
 from __future__ import annotations
 
+import copy
 import inspect
 import json
 import logging
@@ -598,6 +599,59 @@ def test_a_record_without_its_task_is_matched_against_the_config_beside_it(
 
     assert step_counter.common_step_counter == (999 if restored else 0)
     assert bool(_warnings(eden_caplog, "records an env step counter of 999")) != restored
+
+
+@pytest.mark.parametrize("content", ["{not json", "[1, 2]"], ids=["malformed", "not_a_mapping"])
+def test_an_unreadable_config_beside_the_checkpoint_restarts_the_counter_and_the_resume_goes_on(
+    wrapper, runner, step_counter, tmp_path, eden_caplog, content
+):
+    """The file is read only to name the checkpoint's task, after the weights have loaded: it must not stop the run."""
+    path = str(tmp_path / "model_7.pt")
+    state = _checkpoint_at_iteration_7(runner, step_counter, path)
+    del state["infos"][rsl_rl_env.STEP_COUNTER_INFOS_KEY]
+    torch.save(state, path)
+    (tmp_path / "config.json").write_text(content)
+
+    resumed = make_rsl_rl_runner(wrapper, checkpoint=path, log_dir=str(tmp_path / "resumed"))
+
+    assert resumed.current_learning_iteration == 7
+    assert step_counter.common_step_counter == 0
+    (message,) = _warnings(eden_caplog, "the config.json beside it could not be read")
+    assert "Eden cannot tell whether it is this run's task" in message
+
+
+@pytest.mark.parametrize(("saved_class", "restored"), [(None, True), ("OtherTaskConfig", False)], ids=str)
+def test_a_record_from_a_script_run_as_main_matches_the_same_class_imported(
+    wrapper, runner, step_counter, tmp_path, saved_class, restored
+):
+    """A script's config class is ``__main__.Class`` when the script runs directly and ``module.Class`` imported."""
+    path = str(tmp_path / "model_7.pt")
+    state = _checkpoint_at_iteration_7(runner, step_counter, path)
+    record = state["infos"][rsl_rl_env.STEP_COUNTER_INFOS_KEY]
+    record.update(task=f"__main__.{saved_class or type(wrapper.unwrapped.config).__name__}", common_step_counter=999)
+    torch.save(state, path)
+
+    make_rsl_rl_runner(wrapper, checkpoint=path, log_dir=str(tmp_path / "resumed"))
+
+    assert step_counter.common_step_counter == (999 if restored else 0)
+
+
+def test_a_deep_copied_runner_loads_and_restores_into_itself(wrapper, runner, step_counter, tmp_path):
+    """``load`` is set per instance: a copy's must load into the copy, not into the runner it was copied from."""
+    path = str(tmp_path / "model_7.pt")
+    step_counter.common_step_counter = 28
+    _checkpoint_at_iteration_7(runner, step_counter, path)
+    runner.current_learning_iteration = 0
+    clone = copy.deepcopy(runner, {id(wrapper): wrapper})  # one env: the scene is not the runner's to copy
+
+    load_runner_checkpoint(clone, path)
+
+    assert clone.current_learning_iteration == 7
+    assert runner.current_learning_iteration == 0
+    assert step_counter.common_step_counter == 28
+    assert ("strict" in inspect.signature(clone.load).parameters) == (
+        "strict" in inspect.signature(OnPolicyRunner.load).parameters
+    )
 
 
 def test_a_record_at_another_iteration_than_the_load_resumed_restarts_the_counter_and_says_so(
