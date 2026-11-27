@@ -6136,7 +6136,9 @@ is not trained through <code>eden train</code>. See <a href="../../guides/traini
 </tr>
 </tbody>
 </table>
-<p><code>--checkpoint</code> starts training from that checkpoint's weights.</p>
+<p><code>--checkpoint</code> starts training from that checkpoint's weights and iteration count. A checkpoint of the same task
+also restores <code>env.common_step_counter</code>, so step-scheduled curricula continue their schedule; one of another task
+starts the counter at 0.</p>
 <h3 id="eden-inference"><code>eden inference</code><a class="headerlink" href="#eden-inference" title="Permanent link">&para;</a></h3>
 <div class="language-bash highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>eden<span class="w"> </span>inference<span class="w"> </span>--task<span class="w"> </span>&lt;task&gt;<span class="w"> </span>--checkpoint<span class="w"> </span>&lt;path/to/model.pt&gt;<span class="w"> </span><span class="o">[</span>flags<span class="o">]</span>
 </span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>eden<span class="w"> </span>inference<span class="w"> </span>--policy<span class="w"> </span>&lt;name&gt;<span class="w"> </span><span class="o">[</span>--task<span class="w"> </span>&lt;task&gt;<span class="o">]</span><span class="w"> </span><span class="o">[</span>flags<span class="o">]</span>

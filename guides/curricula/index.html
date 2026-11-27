@@ -5195,10 +5195,19 @@ training run ended at:</p>
 </ul>
 <p>To evaluate at a later level, set that level in the config the eval builds from.</p>
 <div class="admonition note">
-<p class="admonition-title">A resumed run restarts every curriculum</p>
-<p><code>env.common_step_counter</code> starts at 0 when an env is constructed, and Eden does not restore it, or any
-curriculum term's internal state, from a checkpoint. A run resumed from a checkpoint replays its
-step-scheduled stages from the first one, and adaptive terms restart their averages.</p>
+<p class="admonition-title">What a resumed run restores</p>
+<p>Each rsl_rl and rl_games checkpoint records <code>env.common_step_counter</code> and the task's config class. A training
+run of the same config class that resumes from it (<code>eden train --resume</code> or <code>--checkpoint</code>) sets the counter back
+to that value, so step-scheduled stages continue where the checkpoint left them. A checkpoint of another task, as
+in a warm start with <code>--checkpoint</code>, leaves the counter at 0, so this task's stages start from the first one, and
+a warning names both classes. The config class is the task's identity: the mods of one task keep its class and
+count as one task, and so do configs built directly from <code>EdenRLConfig</code>. A config class defined in a script is
+the same class whether the script ran directly (recorded as <code>__main__.&lt;Class&gt;</code>) or was imported.</p>
+<p>A checkpoint saved before the counter was recorded resumes an rsl_rl run at <code>iteration * num_steps_per_env</code> when
+the <code>config.json</code> beside it names the same config class, and at 0 otherwise, including when that file cannot be
+read. It resumes an rl_games run at 0. Each case logs a warning. The derived count is a lower bound: rsl_rl names
+a checkpoint after the iteration it has just finished, so the run took at least one iteration more. Eden does not
+restore any curriculum term's internal state, so adaptive terms restart their averages.</p>
 </div>
 <h2 id="built-in-curriculum-terms">Built-in curriculum terms<a class="headerlink" href="#built-in-curriculum-terms" title="Permanent link">&para;</a></h2>
 <p>All built-ins live in <code>eden.managers.terms.curricula</code> (also <code>eden.curricula</code>). <code>eden terms --kind curriculum</code>

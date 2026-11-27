@@ -5596,6 +5596,11 @@ names the parent in <code>resumed_from</code>. The old run's directory, TensorBo
 </span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>eden<span class="w"> </span>train<span class="w"> </span>--task<span class="w"> </span>velocity_tracking_flat<span class="w"> </span>--resume<span class="w"> </span>lower_lr<span class="w">       </span><span class="c1"># by run_name</span>
 </span></code></pre></div>
 <p><code>--checkpoint PATH</code> also loads weights before training, from any file, without the run lookup.</p>
+<p>Either way the run continues the checkpoint's iteration count. It also continues the checkpoint's
+<code>env.common_step_counter</code>, which step-scheduled curricula and events read, when the checkpoint was trained on this
+task's config class (see <a href="../curricula/">Curricula</a>). A checkpoint of another task, loaded to warm-start this one,
+starts the counter at 0, so this task's stages start from the first one. Teacher weights loaded into a fresh
+distillation run start both counts at 0.</p>
 <h2 id="replay-a-checkpoint">Replay a checkpoint<a class="headerlink" href="#replay-a-checkpoint" title="Permanent link">&para;</a></h2>
 <div class="language-bash highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>eden<span class="w"> </span>inference<span class="w"> </span>--task<span class="w"> </span>reacher<span class="w"> </span>--checkpoint<span class="w"> </span>logs/reacher/&lt;run&gt;/model_1500.pt<span class="w"> </span>--vis
 </span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>eden<span class="w"> </span>inference<span class="w"> </span>--task<span class="w"> </span>reacher<span class="w"> </span>--checkpoint<span class="w"> </span>&lt;ckpt&gt;<span class="w"> </span>--num_envs<span class="w"> </span><span class="m">64</span><span class="w"> </span>--episodes<span class="w"> </span><span class="m">200</span><span class="w">   </span><span class="c1"># evaluate metrics</span>
@@ -5996,8 +6001,11 @@ with its own runner), set the runner options' <code>class_name</code> to an impo
 build that class instead of Eden's <code>OnPolicyRunner</code> / <code>DistillationRunner</code>:</p>
 <ul>
 <li>It is called as <code>cls(env, runner_dict, log_dir=..., device=...)</code> and must provide <code>learn</code>, <code>load</code> and
-  <code>get_inference_policy</code>. It composes Eden's runner mixins (checkpoint retention, progress file) itself; they are
-  listed in <code>eden.envs.wrappers.rsl_rl_env.EDEN_RUNNER_MIXINS</code>.</li>
+  <code>get_inference_policy</code>. It composes Eden's runner mixins (checkpoint retention, progress file, the env state a
+  resume restores) itself; they are listed in <code>eden.envs.wrappers.rsl_rl_env.EDEN_RUNNER_MIXINS</code>. The mixins wrap
+  <code>learn</code>, <code>save</code> and <code>load</code> through <code>super()</code>, so define those in a base class and compose the tuple on top,
+  <code>MyRunner(*EDEN_RUNNER_MIXINS, _MyRunner)</code>, as <code>SuperMimicRunner</code> and <code>RmaDepthDistillationRunner</code> do. A method
+  written in the same class body as the tuple runs instead of the mixins'.</li>
 <li>A <code>checkpoint_required</code> message on the class makes <code>eden train</code> exit before anything is written when neither
   <code>--checkpoint</code> nor <code>--resume</code> is given.</li>
 <li>Under a distributed launch it must compose <code>DDPRunnerMixin</code>, or it is refused.</li>
