@@ -67,6 +67,14 @@ A camera that renders several environments at once (the batch renderer, the sens
 `EnvOptions.env_separate_rigid=True`) returns one image per environment, with a leading batch dimension. A plain
 rasterizer camera returns the image of the one environment it is bound to.
 
+To look at one environment of a large scene, bind a rasterizer camera to it with `CameraOptions(env_idx=k)` and set
+`EnvOptions.env_separate_rigid=True`: the camera then renders environment `k` alone, which matters when the
+environments share an origin and would otherwise draw on top of each other. The cost does not grow with the number
+of environments, so it suits a training env. `camera.rendered_env_idx` is the environment it renders now, and
+`camera.bind_env(j)` moves it to another one after the build, keeping its pose relative to the environment (a
+following camera follows the entity in `j`). A camera without `env_idx` in such a scene renders one image per
+environment instead, which at thousands of environments is slow.
+
 The pose can be read and moved after the build: `get_pos()`, `get_quat()`, `get_lookat()`, `get_up()`,
 `get_transform()`, `set_pose(transform=None, pos=None, lookat=None, up=None)`, `set_pos(pos)`, `set_quat(quat)`,
 each with an optional `envs_idx=`.
