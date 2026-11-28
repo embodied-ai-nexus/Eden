@@ -32,7 +32,7 @@ from __future__ import annotations
 import dataclasses
 from collections.abc import Iterator
 from contextlib import contextmanager
-from typing import TYPE_CHECKING, Any, ClassVar
+from typing import TYPE_CHECKING, Any, ClassVar, Literal, NamedTuple
 
 import time
 
@@ -57,11 +57,24 @@ from eden.extensions.deployment.utils.mujoco_sim import (
 from eden.extensions.deployment.utils.realtime_physics import PDCommand, RealtimePhysics
 from eden.extensions.deployment.utils.state import RobotCommand, RobotState
 from eden.utils.assets import get_asset_path
+from eden.utils.string import first_few
 
 if TYPE_CHECKING:
     from eden.envs.base import EnvBase
     from eden.extensions.deployment.utils.mujoco_video import MujocoVideo
     from eden.options.extensions.deployment import DeploymentOptions
+
+
+class ResolvedModel(NamedTuple):
+    """The MuJoCo model file :meth:`MujocoDeployment._resolve_asset` picked, and where it came from.
+
+    ``source`` is ``"eden"`` for the robot's training asset, ``"menagerie"`` for a Menagerie (or
+    vendor) model, ``"path"`` for an explicit ``mjcf_path``. Only the training asset runs the
+    training robot's joint dynamics in place of its own.
+    """
+
+    path: str
+    source: Literal["eden", "menagerie", "path"]
 
 
 @DEPLOYMENT_REGISTRY.register()
@@ -77,7 +90,9 @@ class MujocoDeployment(DeploymentBase):
         Which model to load when ``mjcf_path`` is unset (default ``"eden"``):
 
         - ``"eden"``: the robot's own Genesis training asset (``robot_options.file``).
-          Always available; the MuJoCo backend reconstructs armature/floor for it.
+          Always available. It runs with the training robot's joint dynamics: the armature,
+          damping and friction loss the built entity was configured with replace the asset's,
+          as Genesis replaced them.
         - ``"menagerie"``: a community-tuned `MuJoCo Menagerie
           <https://github.com/google-deepmind/mujoco_menagerie>`_ model (with the
           armature/damping/contact params MuJoCo needs), fetched from an HF dataset — the
@@ -282,10 +297,10 @@ class MujocoDeployment(DeploymentBase):
     def _eden_asset(self) -> str:
         return self.robot_options.fetch_asset()
 
-    def _resolve_asset(self) -> str:
+    def _resolve_asset(self) -> ResolvedModel:
         """Pick the MuJoCo model file per ``mjcf_path`` / ``mjcf_source`` (see class docstring)."""
         if self.mjcf_path:
-            return self.mjcf_path
+            return ResolvedModel(self.mjcf_path, "path")
         if self.mjcf_source not in ("auto", "eden", "menagerie"):
             raise ValueError(f"mjcf_source must be 'auto', 'eden', or 'menagerie'; got {self.mjcf_source!r}.")
 
@@ -295,7 +310,7 @@ class MujocoDeployment(DeploymentBase):
                 try:
                     asset = get_asset_path(men_path, registry=self.menagerie_registry, dataset=self.menagerie_dataset)
                     en.logger.info(f"[deploy] MuJoCo sim-to-sim using Menagerie model: {men_path}")
-                    return asset
+                    return ResolvedModel(asset, "menagerie")
                 except Exception as exc:  # noqa: BLE001 — network/asset failure; auto degrades to Eden asset
                     if self.mjcf_source == "menagerie":
                         raise
@@ -309,10 +324,10 @@ class MujocoDeployment(DeploymentBase):
                     "Drop --menagerie to use the robot's own training asset, or add a mapping "
                     "in deployment/utils/menagerie.py."
                 )
-        return self._eden_asset()
+        return ResolvedModel(self._eden_asset(), "eden")
 
     def connect(self) -> None:
-        asset = self._resolve_asset()
+        asset, source = self._resolve_asset()
         floor = None
         if self.add_floor:
             # The ground's pose and friction; MuJoCo's solver parameters, as the robot's geoms keep the asset's.
@@ -329,6 +344,7 @@ class MujocoDeployment(DeploymentBase):
             )
             self._sim = self._load_sim(asset, fit, floor)
         say_floor_caveat(self._sim.floor)
+        self._apply_robot_dynamics(source)
         # Genesis integrates the PD damping implicitly (its implicit integrators) or folds kd*dt into
         # the armature (``euler``, RigidEntity.post_build); match that here, or a hand-rolled PD on the
         # zero-armature training MJCF diverges.
@@ -374,6 +390,41 @@ class MujocoDeployment(DeploymentBase):
             floor=floor,
             integrator=self.integrator,
         )
+
+    def _apply_robot_dynamics(self, source: str) -> None:
+        """Give the MuJoCo model the training robot's torque ceiling and, on its own asset, its joint dynamics.
+
+        Read by name off the built entity, as configured: ``default_dofs_armature`` is the value before
+        the ``euler`` fold of ``kd * substep_dt``, which :meth:`_fold_implicit_damping` adds here itself
+        (as ``rig_parts`` reads it for a composite rig). The force limits clip the PD on every model:
+        they are the robot's motors, which the training robot and the hardware both have. Armature,
+        damping and friction loss replace a model's own on the training asset alone, where Genesis
+        replaced them too; a Menagerie model or an explicit ``mjcf_path`` keeps its own, which is
+        what makes it an independent check.
+        """
+        entity = self._env.entities[self.entity_name]
+
+        def configured(field: str) -> np.ndarray:
+            getter = getattr(entity, f"get_default_dofs_{field}")
+            return getter(self.dofs_name)[0].detach().cpu().numpy().astype(np.float64)
+
+        dynamics = {"force_limits": configured("force_limits")}
+        if source == "eden":
+            dynamics.update({field: configured(field) for field in ("armature", "damping", "frictionloss")})
+        self._sim.set_dofs_dynamics(**dynamics)
+
+        if source == "eden":
+            message = "the training robot's armature, damping, friction loss and force limits"
+        else:
+            message = (
+                f"the training robot's force limits, with the {source} model's own armature, damping and friction loss"
+            )
+        if self._sim.dropped_actuators:
+            message += (
+                f"; the PD drives every joint, so the model's own actuators "
+                f"{first_few(self._sim.dropped_actuators)} were dropped"
+            )
+        en.logger.info(f"[deploy] MuJoCo sim-to-sim: {message}.")
 
     def _fold_implicit_damping(self) -> None:
         """Set the armature's implicit damping to the active slot's ``default_dof_kd`` (see :meth:`send_payload`).
