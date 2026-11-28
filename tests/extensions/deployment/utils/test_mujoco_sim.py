@@ -125,6 +125,65 @@ def test_dofs_torque_is_the_last_pd_command(two_link_asset):
     np.testing.assert_allclose(sim.read()["dofs_torque"], [5.0, -5.0], atol=1e-6)
 
 
+def test_the_assets_own_actuators_are_dropped_so_the_pd_alone_drives_the_joints(tmp_path):
+    """A position servo left in at ``ctrl = 0`` would swing j1 back to zero with the PD off and no gravity."""
+    from tests.extensions.deployment.conftest import TWO_LINK_MJCF
+
+    asset = tmp_path / "servo.xml"
+    servo = '</worldbody><actuator><position name="servo" joint="j1" kp="100"/></actuator>'
+    asset.write_text(TWO_LINK_MJCF.replace("</worldbody>", servo, 1))
+    sim = _sim(asset, floating_base=False, gravity=(0.0, 0.0, 0.0))
+    assert (sim.model.nu, sim.dropped_actuators) == (0, ["servo"])
+
+    sim.reset(np.array([0.5, 0.0]))
+    sim.step_pd(np.zeros(2), np.zeros(2), np.zeros(2), np.zeros(2), np.zeros(2), n_substeps=200)
+    np.testing.assert_allclose(sim.read()["dofs_pos"], [0.5, 0.0], atol=1e-9)
+
+
+def test_stated_dynamics_land_on_the_named_joints_under_the_damping_fold(two_link_asset):
+    """In ``dofs_name`` order, and the ``kd * sim_dt`` fold stays on top of the armature whichever is set first."""
+    sim = _sim(two_link_asset, dofs=("j2", "j1"), floating_base=False)
+    dof = [int(sim.model.jnt_dofadr[mujoco.mj_name2id(sim.model, mujoco.mjtObj.mjOBJ_JOINT, n)]) for n in ("j2", "j1")]
+    kd = np.array([2.0, 4.0])
+
+    sim.set_implicit_damping(kd)
+    sim.set_dofs_dynamics(armature=[0.01, 0.02], damping=[0.1, 0.2], frictionloss=[0.3, 0.4])
+    np.testing.assert_allclose(sim.model.dof_armature[dof], np.array([0.01, 0.02]) + kd * sim.sim_dt)
+    np.testing.assert_allclose(sim.model.dof_damping[dof], [0.1, 0.2])
+    np.testing.assert_allclose(sim.model.dof_frictionloss[dof], [0.3, 0.4])
+
+    sim.set_implicit_damping(np.zeros(2))
+    np.testing.assert_allclose(sim.model.dof_armature[dof], [0.01, 0.02])
+
+
+def test_the_pd_torque_is_clipped_at_the_force_limits(two_link_asset):
+    """j1's 5 N*m PD torque stops at its 1 N*m limit, in what is applied and what is read back; j2 is unlimited."""
+    sim = _sim(two_link_asset, floating_base=False)
+    sim.set_dofs_dynamics(force_limits=[1.0, np.inf])
+    sim.reset(np.zeros(2))
+    sim.step_pd(np.array([0.1, -0.1]), np.zeros(2), np.full(2, 50.0), np.full(2, 2.0), np.zeros(2), n_substeps=1)
+    np.testing.assert_allclose(sim.read()["dofs_torque"], [1.0, -5.0], atol=1e-6)
+    np.testing.assert_allclose(sim.data.qfrc_applied[sim._v_idx], [1.0, -5.0], atol=1e-6)
+
+
+@pytest.mark.parametrize(
+    ("dynamics", "match"),
+    [
+        ({"armature": [0.1]}, r"armature has 1 entries, expected one per DOF in dofs_name \(2\)"),
+        ({"damping": [-0.1, 0.0]}, r"damping must be >= 0 on every DOF, got \{'j1': -0.1\}"),
+        ({"frictionloss": [np.nan, 0.0]}, r"frictionloss is NaN on \['j1'\]"),
+        (
+            {"force_limits": [1.0, 0.0]},
+            r"force_limits must be > 0 on every DOF \(inf for no limit\), got \{'j2': 0.0\}",
+        ),
+    ],
+)
+def test_bad_dynamics_are_refused_naming_the_joint(two_link_asset, dynamics, match):
+    sim = _sim(two_link_asset, floating_base=False)
+    with pytest.raises(ValueError, match=match):
+        sim.set_dofs_dynamics(**dynamics)
+
+
 def test_the_accelerometer_reads_one_g_when_the_robot_rests_on_the_floor(two_link_asset):
     """Specific force, as a real IMU reports it. The magnitude: the dangling links tilt the base a little."""
     sim = _sim(two_link_asset)

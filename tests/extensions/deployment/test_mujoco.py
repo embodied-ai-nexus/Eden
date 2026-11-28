@@ -68,14 +68,16 @@ def _connected(make, **options):
 def test_the_default_model_is_the_training_asset_and_needs_no_hub(g1_env, deploy, unreachable_hub):
     """``eden deploy --mujoco`` sim-to-sims against the asset the policy trained on, whatever the network does."""
     dep = deploy(MujocoDeployment)
-    assert dep._resolve_asset().endswith(g1_env.config.scene_options.robot.file)
+    model = dep._resolve_asset()
+    assert model.path.endswith(g1_env.config.scene_options.robot.file) and model.source == "eden"
 
 
 def test_auto_falls_back_to_the_training_asset_when_menagerie_is_unreachable(
     g1_env, deploy, unreachable_hub, eden_caplog
 ):
     dep = deploy(MujocoDeployment, mjcf_source="auto")
-    assert dep._resolve_asset().endswith(g1_env.config.scene_options.robot.file)
+    model = dep._resolve_asset()
+    assert model.path.endswith(g1_env.config.scene_options.robot.file) and model.source == "eden"
     assert "Menagerie model 'unitree_g1/g1.xml' unavailable" in eden_caplog.text
 
 
@@ -98,10 +100,74 @@ def test_model_resolution_on_an_unmapped_robot(deploy_two_link, two_link_asset, 
         options = {**options, "mjcf_path": str(two_link_asset)}
     dep = deploy_two_link(MujocoDeployment, **options)
     if outcome is None:
-        assert dep._resolve_asset() == str(two_link_asset)
+        assert dep._resolve_asset() == (str(two_link_asset), "path")
     else:
         with pytest.raises(ValueError, match=outcome):
             dep._resolve_asset()
+
+
+# ---------------------------------------------------------------------------
+# The joint dynamics MuJoCo runs
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture(scope="module")
+def servo_arm_env(tmp_path_factory):
+    """The two-link arm from an MJCF that brings its own: a position servo on j1, and armature 0.5 and damping 0.7 there.
+
+    The robot states other joint dynamics, which Genesis simulates in place of the file's.
+    """
+    from eden.options.entities import RobotOptions
+
+    asset = tmp_path_factory.mktemp("servo_arm") / "servo_arm.xml"
+    own_j1 = '<joint name="j1" type="hinge" axis="0 1 0" armature="0.5" damping="0.7"/>'
+    servo = '</worldbody><actuator><position name="servo" joint="j1" kp="100"/></actuator>'
+    mjcf = TWO_LINK_MJCF.replace('<joint name="j1" type="hinge" axis="0 1 0"/>', own_j1, 1)
+    asset.write_text(mjcf.replace("</worldbody>", servo, 1))
+    robot = RobotOptions(
+        **two_link_robot(asset).model_dump(exclude_unset=True),
+        default_dofs_armature={"j1": 0.01, "j2": 0.02},
+        default_dofs_damping={"j1": 0.1, "j2": 0.2},
+        default_dofs_frictionloss={"j1": 0.03, "j2": 0.04},
+        default_dofs_force_limits={"j1": 3.0, "j2": 4.0},
+    )
+    return robot_env(robot)
+
+
+def _joint_dynamics(dep) -> dict[str, np.ndarray]:
+    """What the MuJoCo model runs on the deployed joints; armature without the ``kd * sim_dt`` fold."""
+    sim = dep._sim
+    return {
+        "armature": sim.model.dof_armature[sim._v_idx] - dep.default_dof_kd * sim.sim_dt,
+        "damping": sim.model.dof_damping[sim._v_idx].copy(),
+        "frictionloss": sim.model.dof_frictionloss[sim._v_idx].copy(),
+        "force_limits": sim._force_limits.copy(),
+    }
+
+
+def test_the_training_asset_runs_the_trained_robots_joint_dynamics_without_its_servo(servo_arm_env, eden_caplog):
+    """As Genesis did: the robot's armature, damping and friction loss replace the file's, and its force limits clip."""
+    with deployments(servo_arm_env) as make:
+        dep = _connected(make)
+        assert (dep._sim.model.nu, dep._sim.dropped_actuators) == (0, ["servo"])
+        got = _joint_dynamics(dep)
+    expected = {"armature": [0.01, 0.02], "damping": [0.1, 0.2], "frictionloss": [0.03, 0.04], "force_limits": [3, 4]}
+    for field, values in expected.items():
+        np.testing.assert_allclose(got[field], values, rtol=1e-6, err_msg=field)
+    assert "the training robot's armature, damping, friction loss and force limits" in eden_caplog.text
+    assert "so the model's own actuators ['servo'] were dropped" in eden_caplog.text
+
+
+def test_an_explicit_model_keeps_its_own_joint_dynamics_under_the_trained_force_limits(servo_arm_env):
+    """``mjcf_path`` (as Menagerie) is the independent check: its armature and damping stay, but not its servo."""
+    asset = servo_arm_env.config.scene_options.robot.file
+    with deployments(servo_arm_env) as make:
+        dep = _connected(make, mjcf_path=asset)
+        assert dep._sim.model.nu == 0
+        got = _joint_dynamics(dep)
+    expected = {"armature": [0.5, 0.0], "damping": [0.7, 0.0], "frictionloss": [0.0, 0.0], "force_limits": [3, 4]}
+    for field, values in expected.items():
+        np.testing.assert_allclose(got[field], values, rtol=1e-6, atol=1e-12, err_msg=field)
 
 
 # ---------------------------------------------------------------------------

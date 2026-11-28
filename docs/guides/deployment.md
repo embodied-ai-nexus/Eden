@@ -733,14 +733,19 @@ MuJoCo directly instead of over the DDS protocol.
 
 | Selector | Model |
 |---|---|
-| *(default)* | The robot's own Genesis **training asset** (`robot_options.file`). Always available. |
+| *(default)* | The robot's own Genesis **training asset** (`robot_options.file`), run with the training robot's joint dynamics. Always available. |
 | `--menagerie` | A [MuJoCo Menagerie](https://github.com/google-deepmind/mujoco_menagerie) model (or the vendor's own MJCF), fetched from an HF dataset mirror. Errors if the robot is unmapped or the download fails. |
 | `mjcf_path=...` | Any hand-authored MuJoCo scene, bypassing resolution (backend option, see [Backend options](#backend-options)). |
 
-**Prefer `--menagerie` when the robot has a mapping.** Menagerie models carry the joint armature,
-damping, frictionloss and contact parameters MuJoCo needs, which Eden's Genesis-authored training
-assets do not, so they are both higher-fidelity and a more independent target. The difference is not
-subtle: a G1 holds a stand under a plain PD on the Menagerie model but topples on the training MJCF.
+The two answer different questions. The training asset runs the joint dynamics the policy trained
+with (see [What the backend reconstructs](#what-the-backend-reconstructs)), so what differs from Genesis is
+the engine: contacts, integration, constraint solving. A Menagerie model keeps its own armature,
+damping, friction loss and contact parameters, tuned by people who modelled the real robot, so it also
+tests the policy against dynamics it never saw.
+
+**Prefer `--menagerie` when the robot has a mapping.** It is the more independent target. The
+difference is not subtle: a G1 holds a stand under a plain PD on the Menagerie model but topples on
+the training MJCF.
 Mapped today (`eden/extensions/deployment/utils/menagerie.py`): Unitree G1 (`G1Dofs29`,
 `G1Dofs29NoHands`), Go2, Go1, and LimX Oli, whose model is LimX's own `HU_D04_01.xml` with the
 ankle and waist linkages as real equality constraints.
@@ -758,10 +763,22 @@ controlled joint raises at `connect()`. That is why the 23-DOF G1 has no entry.
 
 ### What the backend reconstructs
 
-Eden's training assets are authored for Genesis: zero joint armature and damping, no ground plane,
-sometimes no free joint, and no `<actuator>` elements. A stiff PD on such a model **diverges** in
-MuJoCo, so `MujocoSim` (`eden/extensions/deployment/utils/mujoco_sim.py`) rebuilds a runnable scene
-at `connect()`:
+Eden's training assets are authored for Genesis, which takes the joint dynamics from the robot's
+options rather than from the file. An asset may carry zero armature and damping, or values the
+options replace; it may have no ground plane and sometimes no free joint; and some carry
+`<actuator>` elements (the FR3's and the Panda's MJCFs, for two) whose gains the options
+replace too. A stiff PD on such a model **diverges** in MuJoCo, so `MujocoSim`
+(`eden/extensions/deployment/utils/mujoco_sim.py`) rebuilds a runnable scene at `connect()`:
+
+- deletes the model's own `<actuator>` elements, on every model (the PD below drives every joint, and
+  nothing writes their `ctrl`, so a position servo would pull its joint toward zero on top of it). The
+  connect log names what it dropped;
+- on the training asset, writes the armature, damping and friction loss the built entity was
+  configured with (`get_default_dofs_armature` and its siblings, by name), as Genesis replaced the
+  file's. The armature is the configured value, before the `euler` fold below. A Menagerie model or an
+  `mjcf_path` keeps its own;
+- clips the PD torque at the robot's `default_dofs_force_limits`, on every model, as Genesis clips a
+  PD at each DOF's force range;
 
 - injects a ground plane where the scene's ground plane stands, raised or tilted alike, with its
   friction but MuJoCo's default solver parameters: the robot's own geoms keep its asset's, and a
@@ -778,7 +795,10 @@ at `connect()`:
   integrators, the default included, damp the position-mode `kd` implicitly instead;
 - integrates with `implicitfast` and re-evaluates `tau = tau_ff + kp·(q* − q) + kd·(dq* − dq)`
   **every physics substep** (`control_dt / sim_dt` substeps per control step), applied through
-  `qfrc_applied`, so the asset needs no actuators.
+  `qfrc_applied`.
+
+The composite rig (`MujocoRig`) also deletes its parts' actuators and writes each part's armature
+and damping from the env, but not yet its friction loss or force limits.
 
 The last two are what keep a stiff joint PD numerically stable; changing either is the first thing
 to suspect if a sim-to-sim run blows up. `MujocoSim` takes nothing but an asset path and a list of

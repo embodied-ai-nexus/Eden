@@ -8,22 +8,28 @@ The wrapper mirrors what a real robot's low-level controller exposes over the wi
 against a MuJoCo model instead of hardware:
 
 - **Actuation** is a per-joint PD law identical to Unitree's ``unitree_mujoco`` bridge,
-  ``tau = tau_ff + kp * (q* - q) + kd * (dq* - dq)``, applied through ``qfrc_applied`` (so
-  the asset does *not* need to declare ``<actuator>`` elements — Eden's training MJCFs
-  don't). The law is re-evaluated every physics substep, not held across the control
-  period, which is what keeps a stiff PD stable.
+  ``tau = tau_ff + kp * (q* - q) + kd * (dq* - dq)``, applied through ``qfrc_applied`` and
+  clipped at each joint's force limit (:meth:`MujocoSim.set_dofs_dynamics`; unlimited until
+  set). The law is re-evaluated every physics substep, not held across the control period,
+  which is what keeps a stiff PD stable. The asset's own ``<actuator>`` elements are deleted
+  at load (their names are kept in :attr:`MujocoSim.dropped_actuators`): nothing writes their
+  ``ctrl``, so a position servo would pull its joint toward ``ctrl = 0`` on top of the PD.
+  Several MJCFs Eden trains on carry them (the FR3's and the Panda's, for two).
 - **Proprioception** is read from an IMU site placed on the floating-base body plus the
   joint ``qpos``/``qvel``. The IMU exposes a gyro, an accelerometer (specific force,
   so it reads ``+g`` when the robot is supported, like a real IMU), and a frame
   quaternion — matching the fields a Unitree ``LowState`` carries.
 
-Because the training MJCF is authored for Genesis (zero joint armature/damping, no ground
-plane, no free joint on some assets), the wrapper reconstructs a runnable MuJoCo scene: at
-build time it injects a ground plane and adds a free joint to the base body when the asset
-lacks one, and :meth:`MujocoSim.set_implicit_damping` adds ``kd * dt`` to each actuated DOF's
-armature. That last term is the MuJoCo analogue of Genesis' implicit PD damping (integrated
-implicitly by its implicit integrators, folded into the armature by ``RigidEntity.post_build``
-under ``euler``) — without it a hand-rolled PD on a zero-armature model diverges.
+The training asset is authored for Genesis, which takes the joint dynamics from the robot's
+options rather than from the file: an asset may carry zero armature and damping, or values
+the options replace, and may have no ground plane or no free joint. The wrapper reconstructs a
+runnable MuJoCo scene. At build time it injects a ground plane and adds a free joint to the
+base body when the asset lacks one; :meth:`MujocoSim.set_dofs_dynamics` writes the armature,
+damping and friction loss the caller states (the deployment states the training robot's); and
+:meth:`MujocoSim.set_implicit_damping` adds ``kd * dt`` to each actuated DOF's armature. That
+last term is the MuJoCo analogue of Genesis' implicit PD damping (integrated implicitly by its
+implicit integrators, folded into the armature by ``RigidEntity.post_build`` under ``euler``) —
+without it a hand-rolled PD on a zero-armature model diverges.
 """
 
 from __future__ import annotations
@@ -204,6 +210,12 @@ class MujocoSim:
     base_body_name:
         Name of the body to treat as the floating base / IMU mount. Defaults to the first
         body under ``worldbody`` (the robot root for single-robot assets).
+
+    Attributes
+    ----------
+    dropped_actuators:
+        Names of the asset's ``<actuator>`` elements deleted at load (unnamed ones as
+        ``"<actuator i>"``), in the asset's order.
     """
 
     def __init__(
@@ -235,8 +247,12 @@ class MujocoSim:
         self.sim_dt = float(self.model.opt.timestep)
 
         self._build_index_maps()
-        # The asset's own armature on the actuated DOFs, which :meth:`set_implicit_damping` adds to.
+        # The armature on the actuated DOFs before the PD damping is folded in: the asset's, until
+        # :meth:`set_dofs_dynamics` states another. ``_damping_armature`` is the ``kd * sim_dt`` term
+        # :meth:`set_implicit_damping` adds on top; the model holds the sum.
         self._armature0 = self.model.dof_armature[self._v_idx].copy()
+        self._damping_armature = np.zeros(self.num_dofs, dtype=np.float64)
+        self._force_limits = np.full(self.num_dofs, np.inf)
         self._last_tau = np.zeros(self.num_dofs, dtype=np.float64)
         self._gantry: dict | None = None
 
@@ -254,6 +270,13 @@ class MujocoSim:
 
         if floating_base and not self._has_free_joint(base_body):
             base_body.add_freejoint()
+
+        # Every actuated joint is driven by the PD in :meth:`step_pd`, as ``MujocoRig`` drives a rig's. An
+        # asset's own actuators would act on top of it at ``ctrl = 0``: a position servo pulls its joint
+        # toward zero, up to its ``forcerange``.
+        self.dropped_actuators = [actuator.name or f"<actuator {i}>" for i, actuator in enumerate(spec.actuators)]
+        for actuator in list(spec.actuators):
+            spec.delete(actuator)
 
         # The floor this sim added, if any: an asset with a plane of its own keeps that one.
         self.floor = floor if floor is not None and not self._has_plane_geom(spec) else None
@@ -337,20 +360,85 @@ class MujocoSim:
 
     # -- configuration -----------------------------------------------------
 
-    def set_implicit_damping(self, kd: np.ndarray) -> None:
-        """Set each actuated DOF's armature to the asset's plus ``kd * sim_dt`` (implicit velocity damping).
+    def set_dofs_dynamics(
+        self,
+        *,
+        armature: np.ndarray | None = None,
+        damping: np.ndarray | None = None,
+        frictionloss: np.ndarray | None = None,
+        force_limits: np.ndarray | None = None,
+    ) -> None:
+        """Replace the actuated DOFs' joint dynamics, each per DOF in :attr:`dofs_name` order; ``None`` keeps it.
 
-        Mirrors Genesis' ``RigidEntity.post_build``, which adds the same term under the ``euler``
-        integrator (its implicit integrators integrate the PD damping implicitly instead).
-        Absolute, not cumulative: call it again whenever ``kd`` changes -- a deploy policy-slot
-        switch ramps the gains -- and the armature follows the new ``kd`` instead of stacking on
-        the old one. The armature is a model property, so the caller has to keep a
-        concurrent stepper out while it is written.
+        ``armature`` [kg*m^2 or kg], ``damping`` [N*m*s/rad] and ``frictionloss`` [N*m] replace the
+        asset's. ``armature`` is the value before the PD damping fold: :meth:`set_implicit_damping`'s
+        ``kd * sim_dt`` stays on top of it, whichever is called first. ``force_limits`` [N*m or N] is
+        each joint's symmetric torque ceiling, at which :meth:`step_pd` clips the PD torque (as Genesis
+        clips a PD's force at the DOF's force range); ``inf`` leaves a joint unclipped.
+
+        Call it before :meth:`reset`: the constants MuJoCo derives from the armature at compile (each
+        DOF's constraint weight) are recomputed here at the model's reference pose, which overwrites
+        the simulation state.
+        """
+        values = {
+            "armature": armature,
+            "damping": damping,
+            "frictionloss": frictionloss,
+            "force_limits": force_limits,
+        }
+        checked = {name: self._dof_vector(name, value) for name, value in values.items() if value is not None}
+        if "force_limits" in checked:
+            limits = checked.pop("force_limits")
+            if not (limits > 0.0).all():
+                bad = {n: float(v) for n, v in zip(self.dofs_name, limits, strict=True) if not v > 0.0}
+                raise ValueError(
+                    f"force_limits must be > 0 on every DOF (inf for no limit), got {bad}. A zero limit would "
+                    "leave the joint limp under any command."
+                )
+            self._force_limits = limits
+        for name, vector in checked.items():
+            if (vector < 0.0).any():
+                bad = {n: float(v) for n, v in zip(self.dofs_name, vector, strict=True) if v < 0.0}
+                raise ValueError(f"{name} must be >= 0 on every DOF, got {bad}.")
+        if "armature" in checked:
+            self._armature0 = checked["armature"]
+            self.model.dof_armature[self._v_idx] = self._armature0 + self._damping_armature
+        if "damping" in checked:
+            self.model.dof_damping[self._v_idx] = checked["damping"]
+        if "frictionloss" in checked:
+            self.model.dof_frictionloss[self._v_idx] = checked["frictionloss"]
+        if checked:
+            self._mujoco.mj_setConst(self.model, self.data)
+
+    def _dof_vector(self, name: str, value) -> np.ndarray:
+        """``value`` as one finite-or-inf float per actuated DOF, or a ``ValueError`` naming ``name``."""
+        vector = np.asarray(value, dtype=np.float64).reshape(-1)
+        if vector.shape[0] != self.num_dofs:
+            raise ValueError(
+                f"{name} has {vector.shape[0]} entries, expected one per DOF in dofs_name ({self.num_dofs}): "
+                f"{self.dofs_name}."
+            )
+        if np.isnan(vector).any():
+            nan = [n for n, v in zip(self.dofs_name, vector, strict=True) if np.isnan(v)]
+            raise ValueError(f"{name} is NaN on {nan}.")
+        return vector.copy()
+
+    def set_implicit_damping(self, kd: np.ndarray) -> None:
+        """Set each actuated DOF's armature to its own plus ``kd * sim_dt`` (implicit velocity damping).
+
+        "Its own" is the asset's, or what :meth:`set_dofs_dynamics` stated. Mirrors Genesis'
+        ``RigidEntity.post_build``, which adds the same term under the ``euler`` integrator (its
+        implicit integrators integrate the PD damping implicitly instead). Absolute, not
+        cumulative: call it again whenever ``kd`` changes -- a deploy policy-slot switch ramps the
+        gains -- and the armature follows the new ``kd`` instead of stacking on the old one. The
+        armature is a model property, so the caller has to keep a concurrent stepper out while it
+        is written.
         """
         kd = np.asarray(kd, dtype=np.float64).reshape(-1)
         if kd.shape[0] != self.num_dofs:
             raise ValueError(f"kd has {kd.shape[0]} entries, expected {self.num_dofs}.")
-        self.model.dof_armature[self._v_idx] = self._armature0 + kd * self.sim_dt
+        self._damping_armature = kd * self.sim_dt
+        self.model.dof_armature[self._v_idx] = self._armature0 + self._damping_armature
 
     # -- state / actuation -------------------------------------------------
 
@@ -592,8 +680,9 @@ class MujocoSim:
         """Advance ``n_substeps`` physics steps under a joint PD law recomputed each substep.
 
         ``tau = tau_ff + kp * (target_pos - q) + kd * (target_vel - dq)`` on the actuated
-        DOFs, written to ``qfrc_applied``. Recomputing per substep (rather than holding the
-        torque across the whole control period) is what keeps a stiff PD numerically stable.
+        DOFs, clipped at the force limits (:meth:`set_dofs_dynamics`) and written to
+        ``qfrc_applied``. Recomputing per substep (rather than holding the torque across the
+        whole control period) is what keeps a stiff PD numerically stable.
         """
         mujoco = self._mujoco
         target_pos = np.asarray(target_pos, dtype=np.float64)
@@ -604,7 +693,9 @@ class MujocoSim:
         for _ in range(int(n_substeps)):
             q = self.data.qpos[self._q_idx]
             dq = self.data.qvel[self._v_idx]
-            tau = tau_ff + kp * (target_pos - q) + kd * (target_vel - dq)
+            tau = np.clip(
+                tau_ff + kp * (target_pos - q) + kd * (target_vel - dq), -self._force_limits, self._force_limits
+            )
             self.data.qfrc_applied[self._v_idx] = tau
             self._apply_gantry()
             mujoco.mj_step(self.model, self.data)
