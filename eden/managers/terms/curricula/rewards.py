@@ -42,6 +42,9 @@ class StageRewardWeightCurriculum(CurriculumTerm):
         # unknown reward_term_name raises at env construction instead of on the first compute().
         self._reward_term = self._env.reward_manager.get_term(self.reward_term_name)
 
+    def written_fields(self) -> frozenset[tuple[str, str, str]]:
+        return frozenset({("reward", self.reward_term_name, "weight")})
+
     def compute(self, *args, **kwargs) -> dict[str, float]:
         # NOTE: the stages are sorted in descending order, so we can break the loop
         for stage_step, stage_weight in self.weight_stages:
@@ -130,6 +133,8 @@ class PenaltyCurriculum(CurriculumTerm):
             )
         self._scale = self.initial_scale
         self._targeted_terms: list = []
+        # None until build() resolves the targets: written_fields() must not answer "nothing" before then.
+        self._targeted_names: list[str] | None = None
         self._base_weights: list[float] = []
         if self.tracker_name is None:
             # Rolling buffer for episode lengths. Kept on CPU on purpose: the running
@@ -155,15 +160,18 @@ class PenaltyCurriculum(CurriculumTerm):
         reward_manager = self._env.reward_manager
         if self.reward_term_names:
             # Explicit names: error if any is missing.
+            self._targeted_names = list(self.reward_term_names)
             self._targeted_terms = [reward_manager.get_term(name) for name in self.reward_term_names]
         else:
             # Tag match: scan all terms and keep those carrying any listed tag.
             tag_set = set(self.reward_term_tags)
-            self._targeted_terms = [
-                term
-                for _, term in reward_manager.iter_terms()
+            targeted = [
+                (name, term)
+                for name, term in reward_manager.iter_terms()
                 if tag_set.intersection(getattr(term, "tags", None) or [])
             ]
+            self._targeted_names = [name for name, _ in targeted]
+            self._targeted_terms = [term for _, term in targeted]
         self._base_weights = [term.weight for term in self._targeted_terms]
         # Empty resolution is allowed (e.g. tag-based curriculum on a task that doesn't
         # use that tag yet) but warn loudly so it isn't a silent no-op.
@@ -174,6 +182,22 @@ class PenaltyCurriculum(CurriculumTerm):
                 "The curriculum will be a no-op — check that names exist and that target terms carry the listed tags."
             )
         self._apply_scale()
+
+    def written_fields(self) -> frozenset[tuple[str, str, str]]:
+        """The weight of every reward term the scale targets, as resolved at :meth:`build`."""
+        if self._targeted_names is None:
+            targets = (
+                f"reward_term_names={self.reward_term_names!r}"
+                if self.reward_term_names
+                else f"reward_term_tags={self.reward_term_tags!r}"
+            )
+            raise RuntimeError(
+                f"PenaltyCurriculum.written_fields() was read before build(), which resolves the reward terms "
+                f"its {targets} select. Fix: read it from a built term, e.g. through "
+                "env.curriculum_manager.written_fields(), whose manager builds each term as it constructs it. "
+                "Do NOT catch this and treat the term as writing nothing: once built, it writes those weights."
+            )
+        return frozenset(("reward", name, "weight") for name in self._targeted_names)
 
     def reset(self, envs_idx: torch.Tensor | None = None) -> None:
         if self.tracker_name is not None:

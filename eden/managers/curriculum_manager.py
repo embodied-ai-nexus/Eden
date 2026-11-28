@@ -32,7 +32,27 @@ class CurriculumTerm(ConfigurableTermBase[CurriculumTermOptions]):
     — the contract is "never ``None``", so there is no quiet no-value for a consumer to branch on.
     A term with genuinely nothing to share simply returns ``None`` always, and its state
     is then not readable at all, which ``get_state`` says in as many words.
+
+    A term that writes another term's configuration (a reward weight, a command range, a
+    termination threshold) says which fields in :meth:`written_fields`, so a caller that
+    also sets those fields during a run can refuse the clash before training starts
+    instead of discovering that one of the two writers silently wins.
     """
+
+    def written_fields(self) -> frozenset[tuple[str, str, str]] | None:
+        """The fields of other terms this term writes, as ``(manager, term, field)``, or ``None`` if undeclared.
+
+        ``manager`` is the manager's short name, its env attribute without ``_manager``
+        (``"reward"``, ``"command"``, ``"termination"``, ``"action"``); ``term`` is the term's
+        name in that manager; ``field`` the field the write changes, by its public name (the
+        option's name when it has one, never a private attribute), e.g.
+        ``("reward", "torque", "weight")``. A write through a setter names the fields it changes:
+        ``set_thresholds`` changes ``pos_threshold`` and ``rot_threshold``.
+        An empty set means the term writes nothing outside itself. ``None``, the default,
+        means the term has not said, which a caller must treat as "may write anything".
+        Read after :meth:`build`, once the term has resolved what it targets.
+        """
+        return None
 
 
 class CurriculumTermFuncWrapper(ConfigurableTermFuncWrapper[CurriculumTermOptions]):
@@ -76,6 +96,16 @@ class CurriculumManager(FlatManagerBase[CurriculumManagerOptions]):
         #: the date of the step it last succeeded on, instead of being credited with the step it
         #: died on -- the loop's bookkeeping must not lie to a caller that caught the exception.
         self._published_at: dict[str, int] = dict()
+
+    def written_fields(self) -> dict[str, frozenset[tuple[str, str, str]] | None]:
+        """Each term's :meth:`CurriculumTerm.written_fields`, by term name.
+
+        A function term cannot declare, so it maps to ``None``: it may write anything.
+        """
+        return {
+            name: (term.written_fields() if isinstance(term, CurriculumTerm) else None)
+            for name, term in self._terms.items()
+        }
 
     def summary(self) -> str:
         return self._format_summary_table(

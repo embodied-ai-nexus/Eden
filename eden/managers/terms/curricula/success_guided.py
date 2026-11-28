@@ -210,6 +210,10 @@ class SuccessGuidedSampling(CurriculumTerm, ResetConfigSampler):
         self._require_bound("probabilities")
         return self._probs
 
+    def written_fields(self) -> frozenset[tuple[str, str, str]]:
+        """Nothing: the sampler picks reset configurations and changes no other term."""
+        return frozenset()
+
     def compute(self) -> dict[str, torch.Tensor]:
         """Publish the sampler's state; device tensors, so logging it costs no sync.
 

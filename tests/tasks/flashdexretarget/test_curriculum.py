@@ -5,6 +5,10 @@ from __future__ import annotations
 import pytest
 import torch
 
+from eden.options import BoxOptions, EnvOptions, SceneOptions
+from eden.tasks.flashdexretarget.custom_terms.curricula import FDRAssistCurriculum
+from eden.utils.configs import EdenRLConfig
+from tests.support.envs import build_env
 from tests.tasks.flashdexretarget.conftest import build_task
 
 pytestmark = [pytest.mark.slow, pytest.mark.requires_genesis]
@@ -91,3 +95,20 @@ def test_an_eval_env_runs_without_the_assist(motion_file):
     for _ in range(4):
         env.step(torch.zeros(env.num_envs, hand.action_dim))
     assert bool((assist.kp == 0.0).all()) and bool((assist.kv == 0.0).all())
+
+
+def test_it_declares_the_gains_of_the_assist_term_it_names():
+    # The declaration reads only assist_term, so the term is constructed (not built) on a plain box scene: this
+    # test then runs without warp-lang, which every test that builds the task needs for its SDF bake.
+    env = build_env(
+        EdenRLConfig(
+            env_options=EnvOptions(num_envs=1),
+            scene_options=SceneOptions(box=BoxOptions(size=(0.1, 0.1, 0.1), default_root_pos=(0.0, 0.0, 0.5))),
+        )
+    )
+    term = FDRAssistCurriculum(env=env, options=FDRAssistCurriculum.configure(assist_term="object_assist"))
+    assert term.written_fields() == {
+        ("action", "object_assist", "kp"),
+        ("action", "object_assist", "kv"),
+        ("action", "object_assist", "force_range"),
+    }

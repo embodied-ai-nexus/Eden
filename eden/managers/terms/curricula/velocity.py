@@ -42,6 +42,13 @@ class VelocityCommandCurriculum(CurriculumTerm):
         self.command_term = self._env.command_manager.get_term(self.command_name)
         self._current_stage_step = -1
 
+    def written_fields(self) -> frozenset[tuple[str, str, str]]:
+        """The command ranges any stage sets: ``<axis>_range`` on ``command_name``."""
+        axes = {
+            axis for stage in self.velocity_stages for axis in ("lin_vel_x", "lin_vel_y", "ang_vel_z") if axis in stage
+        }
+        return frozenset(("command", self.command_name, f"{axis}_range") for axis in axes)
+
     def compute(self, *args, **kwargs):
         for stage in self.velocity_stages:
             if self._env.common_step_counter >= stage["step"]:

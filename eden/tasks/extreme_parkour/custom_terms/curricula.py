@@ -116,6 +116,10 @@ class TerrainLevelCurriculum(CurriculumTerm, ResetConfigSampler):
         levels = torch.where(levels >= self._num_levels, random_levels, levels).clamp(min=0)
         return command.cell_index(levels, command.terrain_types)
 
+    def written_fields(self) -> frozenset[tuple[str, str, str]]:
+        """Nothing: it proposes cells to the spawn event, and ``ParkourCommand`` applies them."""
+        return frozenset()
+
     def compute(self) -> dict[str, torch.Tensor]:
         return {"mean_terrain_level": self.terrain_levels.float().mean()}
 
