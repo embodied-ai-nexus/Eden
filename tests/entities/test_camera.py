@@ -884,3 +884,94 @@ def test_resolved_fov_comes_from_the_intrinsic_when_one_is_given():
     intrinsic = np.array([[300.0, 0.0, 160.0], [0.0, 250.0, 120.0], [0.0, 0.0, 1.0]])
     expected = math.degrees(2 * math.atan(120.0 / 250.0))
     assert resolved_cam_fov(CameraOptions(cam_fov=42.0, cam_intrinsic=intrinsic)) == pytest.approx(expected)
+
+
+# ---------------------------------------------------------------------------
+# Binding a camera to one env
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture(scope="module")
+def three_envs():
+    """Three envs rendered separately, the cube placed differently in each so every env's frame differs.
+
+    ``free0`` and ``follow0`` start bound to env 0, ``free2`` and ``follow2`` to env 2; ``batched`` binds to none,
+    so it renders one image per env.
+    """
+    follow = {"follow_entity_name": "cube"}
+    env = _build_or_skip(
+        EdenConfig(
+            env_options=EnvOptions(num_envs=3, sim_dt=0.005, env_separate_rigid=True, rasterizer_shadows=False),
+            scene_options=SceneOptions(
+                floor=PlaneOptions(), cube=BoxOptions(size=(0.2, 0.2, 0.2), default_root_pos=(0.0, 0.0, 0.3))
+            ),
+            cameras_options=CamerasOptions(
+                free0=CameraOptions(**LOOK, debug=True, env_idx=0),
+                free2=CameraOptions(**LOOK, debug=True, env_idx=2),
+                follow0=CameraOptions(**LOOK, debug=True, env_idx=0, **follow),
+                follow2=CameraOptions(**LOOK, debug=True, env_idx=2, **follow),
+                batched=CameraOptions(**LOOK, debug=True),
+            ),
+        )
+    )
+    env.entities["cube"].set_pos(
+        torch.tensor([[0.0, 0.0, 0.3], [0.3, 0.2, 0.3], [-0.3, -0.25, 0.3]], device=env.device)
+    )
+    env.scene.visualizer.update()
+    yield env
+    env.destroy()
+
+
+def _frame(camera) -> np.ndarray:
+    return np.asarray(tensor_to_numpy(camera.render_rgb()))
+
+
+def tensor_to_numpy(rgb):
+    return rgb.cpu().numpy() if isinstance(rgb, torch.Tensor) else rgb
+
+
+def test_the_configured_env_is_the_one_rendered(three_envs):
+    assert three_envs.cameras["free0"].rendered_env_idx == 0
+    assert three_envs.cameras["free2"].rendered_env_idx == 2
+    assert three_envs.cameras["batched"].rendered_env_idx is None
+    assert not np.array_equal(_frame(three_envs.cameras["free0"]), _frame(three_envs.cameras["free2"]))
+
+
+@pytest.mark.parametrize("pair", [("free0", "free2"), ("follow0", "follow2")])
+def test_a_rebound_camera_renders_what_a_camera_built_on_that_env_renders(three_envs, pair):
+    moved, reference = (three_envs.cameras[name] for name in pair)
+    try:
+        moved.bind_env(2)
+        assert moved.rendered_env_idx == 2
+        np.testing.assert_array_equal(_frame(moved), _frame(reference))
+    finally:
+        moved.bind_env(0)
+    assert moved.rendered_env_idx == 0
+
+
+def test_an_env_outside_the_rendered_ones_is_refused(three_envs):
+    with pytest.raises(ValueError, match=r"cannot show env 5: the visualizer renders envs 0\.\.2"):
+        three_envs.cameras["free0"].bind_env(5)
+    assert three_envs.cameras["free0"].rendered_env_idx == 0
+
+
+def test_a_camera_that_renders_every_env_has_no_binding_to_move(three_envs):
+    with pytest.raises(RuntimeError, match="one image per env already"):
+        three_envs.cameras["batched"].bind_env(1)
+
+
+def test_a_sensor_camera_has_no_binding_to_move(env):
+    with pytest.raises(RuntimeError, match="renders with the sensor"):
+        env.cameras["sensor"].bind_env(0)
+
+
+@pytest.mark.parametrize(
+    ("options", "match"),
+    [
+        ({"env_idx": -1}, "env_idx must be >= 0"),
+        ({"env_idx": 1, "sensor_options": RasterizerCameraOptions()}, "sensor_options selects the sensor backend"),
+    ],
+)
+def test_an_env_idx_that_cannot_be_honoured_fails_in_the_options(options, match):
+    with pytest.raises(ValueError, match=match):
+        CameraOptions(**LOOK, **options)

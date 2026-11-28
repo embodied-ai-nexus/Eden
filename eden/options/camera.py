@@ -95,6 +95,12 @@ class CameraOptions(ConfigurableOptions):
         Far clipping plane in meters. ``None`` leaves Genesis's default (rasterizer/batch renderer only).
     debug: bool
         Whether to enable debug mode.
+    env_idx: int | None
+        The env a rasterizer camera is bound to and renders. ``None`` leaves Genesis's choice: a camera bound to
+        the first rendered env, or, with ``EnvOptions.env_separate_rigid``, one image per rendered env. With
+        ``env_separate_rigid`` a bound camera renders its env alone, which is how to look at one robot of a scene
+        whose envs share an origin; :meth:`~eden.entities.camera.Camera.bind_env` moves it to another env after
+        build. Not for the batch renderer or the sensor backend, which render every env.
     follow_entity_name: str
         Name of the entity to follow.
     attach_entity_name: str
@@ -132,6 +138,7 @@ class CameraOptions(ConfigurableOptions):
     cam_near: float | None = None
     cam_far: float | None = None
     debug: bool = False
+    env_idx: int | None = None
 
     follow_entity_name: str = ""
     attach_entity_name: str = ""
@@ -142,6 +149,18 @@ class CameraOptions(ConfigurableOptions):
     overlays: list[CameraOverlayOptions] = []
 
     sensor_options: Any | None = None
+
+    @model_validator(mode="after")
+    def _validate_env_idx(self):
+        """Fail fast on a negative ``env_idx``, or one set for the sensor backend, which renders every env."""
+        if self.env_idx is not None and self.env_idx < 0:
+            raise ValueError(f"env_idx must be >= 0 (an env index), got {self.env_idx}")
+        if self.env_idx is not None and self.sensor_options is not None:
+            raise ValueError(
+                f"env_idx={self.env_idx} binds a rasterizer camera to one env, but sensor_options selects the sensor "
+                "backend, which renders every env. Remove one of the two."
+            )
+        return self
 
     @model_validator(mode="after")
     def _validate_clipping_planes(self):

@@ -151,6 +151,9 @@ class Camera(ConfigurableMixin[CameraOptions]):
         Far clipping plane in meters. ``None`` leaves Genesis's default (rasterizer/batch renderer only).
     debug: bool
         Whether this is a debug camera. A debug camera will use non-batch renderer.
+    env_idx: int | None
+        The env the camera is bound to at build (:attr:`CameraOptions.env_idx`). :attr:`rendered_env_idx` is the
+        env it renders now, which :meth:`bind_env` changes.
     follow_entity_name: str
         Name of the entity to follow.
     attach_entity_name: str
@@ -171,6 +174,7 @@ class Camera(ConfigurableMixin[CameraOptions]):
     cam_near: float | None = None
     cam_far: float | None = None
     debug: bool = False
+    env_idx: int | None = None
     follow_entity_name: str = ""
     attach_entity_name: str = ""
     attach_link_name: str = ""
@@ -314,6 +318,8 @@ class Camera(ConfigurableMixin[CameraOptions]):
             up=self.cam_up,
             aperture=self.cam_aperture,
             **clip_kwargs,
+            # Only when set, so an unset env_idx keeps Genesis's own binding.
+            **({"env_idx": self.env_idx} if self.env_idx is not None else {}),
             GUI=False,
             debug=self.debug,
         )
@@ -519,6 +525,72 @@ class Camera(ConfigurableMixin[CameraOptions]):
         rigid_link = self._env.entities[self.attach_entity_name].get_link(self.attach_link_name)
         self._cam.attach(rigid_link, offset_T)
         self.attach_T = offset_T
+
+    @property
+    def rendered_env_idx(self) -> int | None:
+        """The env this camera renders now, or ``None`` for a camera that renders several envs per frame.
+
+        A rasterizer camera bound to one env (the default for a single-image camera) reports that env. A batched
+        camera (``env_separate_rigid`` without an ``env_idx``), the batch renderer and the sensor backend report
+        ``None``: their frames hold an image per env.
+        """
+        if self._uses_sensor_backend or getattr(self, "_cam", None) is None:
+            return None
+        if self.renderer_kind != "rasterizer" or self._cam._is_batched:
+            return None
+        return self._cam.env_idx
+
+    def bind_env(self, env_idx: int) -> None:
+        """Move a bound rasterizer camera to another env, so its next frame shows that env.
+
+        The camera keeps its pose relative to its env: a following camera follows the entity in ``env_idx``, an
+        attached one rides the link in ``env_idx``, and a fixed one moves by the difference of the two envs'
+        offsets. With ``EnvOptions.env_separate_rigid`` the frame shows ``env_idx`` alone; without it, every
+        rendered env stays in the scene, and envs that share an origin overlap.
+
+        Raises
+        ------
+        RuntimeError
+            Before build, or for a camera that does not render one env: the batch renderer, the sensor backend, the
+            ray tracer (which lays envs out side by side), or a batched camera (one image per env already).
+        ValueError
+            If ``env_idx`` is not among the envs the visualizer renders (``VisOptions.rendered_envs_idx``).
+        """
+        if not self._uses_sensor_backend and not getattr(getattr(self, "_cam", None), "_is_built", False):
+            raise RuntimeError(f"Camera {self.display_name} is not built yet; bind_env() moves a built camera.")
+        kind = self.renderer_kind
+        if kind != "rasterizer":
+            raise RuntimeError(
+                f"Camera {self.display_name} renders with the {kind}, which has no single env to move: bind_env() "
+                "is for a rasterizer camera. Index the env's image in the frame instead."
+            )
+        if self._cam._is_batched:
+            raise RuntimeError(
+                f"Camera {self.display_name} renders one image per env already (env_separate_rigid with no "
+                "env_idx), so there is no binding to move. Index the env's image in the frame, or give the camera "
+                "an env_idx to bind it."
+            )
+        # rendered_envs_idx has no public accessor in Genesis; _frame_envs_idx reads it the same way.
+        context = self._env.scene.visualizer._context
+        rendered = [int(i) for i in context.rendered_envs_idx]
+        if env_idx not in rendered:
+            shown = f"0..{rendered[-1]}" if rendered == list(range(len(rendered))) else str(rendered)
+            raise ValueError(
+                f"Camera {self.display_name} cannot show env {env_idx}: the visualizer renders envs {shown}."
+            )
+        cam = self._cam
+        cam._env_idx = env_idx
+        cam._envs_offset = tensor_to_array(self._env.scene.envs_offset[env_idx], dtype=np.float64)
+        if context.split_envs:
+            cam._render_env_idx = rendered.index(env_idx)
+        # Refresh the pose now; the visualizer would only do it on the next scene update.
+        if cam._followed_entity is not None:
+            cam.update_following()
+        elif cam._attached_link is not None:
+            cam.move_to_attach()
+        else:
+            cam._rasterizer.update_camera(cam)
+        self._frame_envs_idx_cache.clear()
 
     @property
     def segmentation_idx_dict(self):
