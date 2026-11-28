@@ -272,3 +272,28 @@ def test_an_unknown_term_name_raises_a_key_error_listing_the_declared_terms(env)
 
     with pytest.raises(KeyError, match=r"No curriculum term named 'levl'.*Declared.*level"):
         manager.get_state("levl")
+
+
+# ---------------------------------------------------------------------------
+# Declared writes
+# ---------------------------------------------------------------------------
+
+
+def test_each_built_in_term_declares_the_fields_it_writes(env):
+    # The tracker writes nothing; the penalty scale targets the tagged term; the stage sets one weight.
+    assert env.curriculum_manager.written_fields() == {
+        "ep_tracker": frozenset(),
+        "penalty": frozenset({("reward", "torque", "weight")}),
+        "reaching_weight": frozenset({("reward", "reaching", "weight")}),
+    }
+
+
+def test_a_penalty_curriculum_by_name_declares_the_named_terms(env):
+    manager = _levels(env, penalty=PenaltyCurriculum.configure(reward_term_names=["torque", "reaching"]))
+    manager.get_term("penalty").build()
+    assert manager.written_fields()["penalty"] == {("reward", "torque", "weight"), ("reward", "reaching", "weight")}
+
+
+def test_a_term_that_does_not_declare_may_write_anything(env):
+    # LevelCurriculum leaves written_fields() at the base's None: undeclared, not "writes nothing".
+    assert _levels(env).written_fields() == {"level": None}

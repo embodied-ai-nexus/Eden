@@ -232,3 +232,7 @@ def test_an_env_reset_grades_the_episode_that_ended_even_when_rsi_reseeds_it(tmp
     env._dispatch_post_reset()
 
     assert _ema(env.curriculum_manager.get_term("object_pose")) == pytest.approx(1.0)
+
+
+def test_it_declares_the_gate_thresholds_it_writes(env):
+    assert _curriculum(env).written_fields() == {("termination", "object_pose_break", "thresholds")}

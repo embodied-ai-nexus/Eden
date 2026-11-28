@@ -90,6 +90,10 @@ class GoalRangeCurriculum(CurriculumTerm):
         self._win = max(1.0, self.ema_window * n / self._BASE_NUM_ENVS)
         self._apply_level(float(self._level))
 
+    def written_fields(self) -> frozenset[tuple[str, str, str]]:
+        """The command's x/y/z goal sampling ranges, which the level interpolates."""
+        return frozenset(("command", self.command_name, f"{axis}_range") for axis in ("x", "y", "z"))
+
     def _apply_level(self, level: float) -> None:
         (fx, fy, fz) = self._full
         (cx, cy, cz) = self.easy_center

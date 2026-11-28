@@ -78,6 +78,10 @@ class AverageEpisodeLengthTracker(CurriculumTerm):
         self.average_episode_length.lerp_(current_average, weight)
         self._is_primed = True
 
+    def written_fields(self) -> frozenset[tuple[str, str, str]]:
+        """Nothing: the tracker only publishes the mean it keeps."""
+        return frozenset()
+
     def compute(self, *args, **kwargs) -> dict[str, float | bool]:
         return {
             "average_episode_length": float(self.average_episode_length),
