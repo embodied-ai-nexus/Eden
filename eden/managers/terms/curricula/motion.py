@@ -132,8 +132,10 @@ class MotionBasePoseThresholdCurriculum(CurriculumTerm):
         self._success_ema += weight * (mean_success - self._success_ema)
 
     def written_fields(self) -> frozenset[tuple[str, str, str]]:
-        """The pose-break gate's position and rotation thresholds (``set_thresholds``)."""
-        return frozenset({("termination", self.termination_term_name, "thresholds")})
+        """The pose-break gate's ``pos_threshold`` and ``rot_threshold``, which it moves with ``set_thresholds``."""
+        return frozenset(
+            ("termination", self.termination_term_name, field) for field in ("pos_threshold", "rot_threshold")
+        )
 
     def compute(self, *args, **kwargs) -> dict[str, float]:
         w = torch.clamp(

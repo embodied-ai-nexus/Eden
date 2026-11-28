@@ -71,6 +71,10 @@ class ReorientSuccessCurriculum(CurriculumTerm):
         self._last_success_frac = succeeded.float().mean().item()
         self._last_mean_goals = goals.float().mean().item()
 
+    def written_fields(self) -> frozenset[tuple[str, str, str]]:
+        """Nothing: it only publishes the value it keeps."""
+        return frozenset()
+
     def compute(self) -> dict[str, float]:
         return {
             "value": self._value,
@@ -155,6 +159,10 @@ class AdaptiveEpisodeCurriculum(CurriculumTerm):
         value while training, the configured ``min_scale`` while frozen.
         """
         return self._value
+
+    def written_fields(self) -> frozenset[tuple[str, str, str]]:
+        """Nothing: ``ObjectVelocityDisturbance`` reads :attr:`value`; this term writes into no other."""
+        return frozenset()
 
     def compute(self) -> dict[str, float]:
         return {

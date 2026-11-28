@@ -133,7 +133,8 @@ class PenaltyCurriculum(CurriculumTerm):
             )
         self._scale = self.initial_scale
         self._targeted_terms: list = []
-        self._targeted_names: list[str] = []
+        # None until build() resolves the targets: written_fields() must not answer "nothing" before then.
+        self._targeted_names: list[str] | None = None
         self._base_weights: list[float] = []
         if self.tracker_name is None:
             # Rolling buffer for episode lengths. Kept on CPU on purpose: the running
@@ -184,6 +185,18 @@ class PenaltyCurriculum(CurriculumTerm):
 
     def written_fields(self) -> frozenset[tuple[str, str, str]]:
         """The weight of every reward term the scale targets, as resolved at :meth:`build`."""
+        if self._targeted_names is None:
+            targets = (
+                f"reward_term_names={self.reward_term_names!r}"
+                if self.reward_term_names
+                else f"reward_term_tags={self.reward_term_tags!r}"
+            )
+            raise RuntimeError(
+                f"PenaltyCurriculum.written_fields() was read before build(), which resolves the reward terms "
+                f"its {targets} select. Fix: read it from a built term, e.g. through "
+                "env.curriculum_manager.written_fields(), whose manager builds each term as it constructs it. "
+                "Do NOT catch this and treat the term as writing nothing: once built, it writes those weights."
+            )
         return frozenset(("reward", name, "weight") for name in self._targeted_names)
 
     def reset(self, envs_idx: torch.Tensor | None = None) -> None:

@@ -222,11 +222,14 @@ class LinearSpeedRamp(CurriculumTerm):
 - Install the starting level in `build()` if eval should see it: `compute()` never runs at eval.
 - Expose the current level as an attribute if other terms need it in eval as well as in training.
 - Declare what the term writes outside itself in `written_fields()`, as `(manager, term, field)` triples:
-  `frozenset()` for a term that writes nothing, and the targets resolved in `build()` otherwise.
+  `frozenset()` for a term that writes nothing, and the targets resolved in `build()` otherwise. Name a field
+  by its public name, the option's when it has one: a gate moved through `set_thresholds` declares
+  `pos_threshold` and `rot_threshold`. If the targets resolve in `build()`, raise when read before it rather
+  than answer `frozenset()`, as `PenaltyCurriculum` does.
   `CurriculumManager.written_fields()` collects them by term name. A caller that also sets those fields
   during a run, such as a training framework's own stage ladder, reads them to refuse the clash before
   training starts. The default, `None`, means undeclared, and such a caller has to assume the term may
-  write anything. Every built-in term declares.
+  write anything. Every built-in term declares, which `tests/managers/test_curriculum_manager.py` checks.
 
 A function term works too, through `eden.terms.CurrTerm.configure(func=..., params={...})`. Its function is called
 as `func(env=env, **params)` once per step and its return value is published the same way.

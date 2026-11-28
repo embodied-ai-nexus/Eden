@@ -106,6 +106,10 @@ class FDRAssistCurriculum(CurriculumTerm):
         self._done_bad = torch.zeros((), dtype=torch.long, device=self.device)
         self._push_gains()
 
+    def written_fields(self) -> frozenset[tuple[str, str, str]]:
+        """The assist action term's gains and wrench clamp, which ``set_gains`` writes at every change."""
+        return frozenset(("action", self.assist_term, field) for field in ("kp", "kv", "force_range"))
+
     def _push_gains(self) -> None:
         def draw(k: str) -> torch.Tensor:
             if self.upper[k] <= 0.0:

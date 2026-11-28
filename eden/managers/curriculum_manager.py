@@ -43,8 +43,11 @@ class CurriculumTerm(ConfigurableTermBase[CurriculumTermOptions]):
         """The fields of other terms this term writes, as ``(manager, term, field)``, or ``None`` if undeclared.
 
         ``manager`` is the manager's short name, its env attribute without ``_manager``
-        (``"reward"``, ``"command"``, ``"termination"``); ``term`` is the term's name in
-        that manager; ``field`` the attribute written, e.g. ``("reward", "torque", "weight")``.
+        (``"reward"``, ``"command"``, ``"termination"``, ``"action"``); ``term`` is the term's
+        name in that manager; ``field`` the field the write changes, by its public name (the
+        option's name when it has one, never a private attribute), e.g.
+        ``("reward", "torque", "weight")``. A write through a setter names the fields it changes:
+        ``set_thresholds`` changes ``pos_threshold`` and ``rot_threshold``.
         An empty set means the term writes nothing outside itself. ``None``, the default,
         means the term has not said, which a caller must treat as "may write anything".
         Read after :meth:`build`, once the term has resolved what it targets.

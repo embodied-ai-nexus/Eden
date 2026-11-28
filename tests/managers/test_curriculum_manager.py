@@ -7,9 +7,13 @@ Built envs carry a real curriculum (an episode-length tracker, a ``PenaltyCurric
 
 from __future__ import annotations
 
+import importlib
+from pathlib import Path
+
 import pytest
 import torch
 
+import eden
 from eden.managers.curriculum_manager import CURRICULUM_TERM_REGISTRY, CurriculumManager, CurriculumTerm
 from eden.managers.reward_manager import REWARD_TERM_REGISTRY
 from eden.managers.terms.curricula.locomotion import AverageEpisodeLengthTracker
@@ -290,8 +294,33 @@ def test_each_built_in_term_declares_the_fields_it_writes(env):
 
 def test_a_penalty_curriculum_by_name_declares_the_named_terms(env):
     manager = _levels(env, penalty=PenaltyCurriculum.configure(reward_term_names=["torque", "reaching"]))
-    manager.get_term("penalty").build()
     assert manager.written_fields()["penalty"] == {("reward", "torque", "weight"), ("reward", "reaching", "weight")}
+
+
+def test_a_penalty_curriculum_read_before_build_refuses_rather_than_answer_nothing(env):
+    # A manager builds its terms as it constructs them, so only a term constructed on its own reaches this.
+    # Before build() the targets are unresolved, and an empty set would claim "writes nothing".
+    term = PenaltyCurriculum(env=env, options=PenaltyCurriculum.configure(reward_term_tags=["penalty"]))
+    with pytest.raises(
+        RuntimeError, match=r"before build\(\).*reward_term_tags=\['penalty'\].*curriculum_manager\.written_fields\(\)"
+    ):
+        term.written_fields()
+
+
+def test_every_built_in_curriculum_term_declares_what_it_writes():
+    # Task-local terms register only when their module is imported, so import every module that registers one.
+    root = Path(eden.__file__).parent
+    for path in sorted(root.rglob("*.py")):
+        if "@CURRICULUM_TERM_REGISTRY.register(" in path.read_text():
+            importlib.import_module(".".join(("eden", *path.relative_to(root).with_suffix("").parts)))
+    undeclared = sorted(
+        f"{cls.__module__}.{cls.__name__}"
+        for _, cls in CURRICULUM_TERM_REGISTRY
+        if isinstance(cls, type)
+        and cls.__module__.startswith("eden.")
+        and cls.written_fields is CurriculumTerm.written_fields
+    )
+    assert not undeclared, f"built-in curriculum terms that leave written_fields() undeclared: {undeclared}"
 
 
 def test_a_term_that_does_not_declare_may_write_anything(env):

@@ -235,4 +235,7 @@ def test_an_env_reset_grades_the_episode_that_ended_even_when_rsi_reseeds_it(tmp
 
 
 def test_it_declares_the_gate_thresholds_it_writes(env):
-    assert _curriculum(env).written_fields() == {("termination", "object_pose_break", "thresholds")}
+    assert _curriculum(env).written_fields() == {
+        ("termination", "object_pose_break", "pos_threshold"),
+        ("termination", "object_pose_break", "rot_threshold"),
+    }
